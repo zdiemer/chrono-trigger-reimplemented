@@ -153,18 +153,6 @@ static void clear_the_menus_cells(GameState *g)
         set_menu_members(g, i, BLANK);
 }
 
-/* What the opening does that is a routine of the menus' own: a quietening
- * command sent, the screen set up, the save slots read, the upload queue
- * sent, the records' sprites loaded, the item tables built, and the low-HP
- * marks worked out where the port takes them. Each false where it went no
- * further. */
-typedef enum { OPENING_SCREEN, OPENING_SAVE_SLOTS, OPENING_UPLOADS, OPENING_RECORDS, OPENING_ITEMS } OpeningCall;
-typedef struct {
-    bool (*quieten)(void *ctx, unsigned command);
-    bool (*call)(void *ctx, OpeningCall call);
-    bool (*low_hp_marks)(void *ctx);
-} OpeningCalls;
-
 enum { LOW_HP_MARKS = 0xC2813C };
 
 // $C2:8096
@@ -173,69 +161,32 @@ enum { LOW_HP_MARKS = 0xC2813C };
  * slots read, the sprites cleared and the queued uploads sent, the party
  * listed, the settings unpacked, the records' sprites loaded, the item
  * tables built, and the characters' low-HP marks worked out (the routine it
- * runs into, $C2:813C). */
-static bool open_the_menus(GameState *g, Platform *pf, const OpeningCalls *c, void *ctx)
+ * runs into, $C2:813C). The save slots, the uploads, the records' sprites
+ * and the item tables are each refused where the state is one they don't
+ * handle, and the program goes no further. */
+bool menu_opens(GameState *g, Platform *pf)
 {
     take_the_interrupts(g);
     for (unsigned i = 0; i < QUIETING_COMMANDS; i++)
-        if (!c->quieten(ctx, i))
-            return false;
-    if (!c->call(ctx, OPENING_SCREEN))
-        return false;
+        quieten_the_channel(pf, i);
+    TIMED_AS(g, 0xC2940D, menu_video_set_up(g, pf));
     clear_the_menus_cells(g);
     TIMED_AS(g, 0xC2968D, menu_build_graphics(g, pf));
-    if (!c->call(ctx, OPENING_SAVE_SLOTS))
+    bool back = false;
+    TIMED_AS(g, 0xC2D156, back = menu_save_slots_read(g, pf));
+    if (!back)
         return false;
     TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
-    if (!c->call(ctx, OPENING_UPLOADS))
+    if (!menu_upload_queue_sent(g, pf))
         return false;
     TIMED_AS(g, 0xC2816A, menu_list_party(g));
     TIMED_AS(g, 0xC292F4, menu_unpack_settings(g));
-    if (!c->call(ctx, OPENING_RECORDS) || !c->call(ctx, OPENING_ITEMS) || !c->low_hp_marks(ctx))
+    TIMED_AS(g, 0xC2F3CA, back = menu_record_sprites_loaded(g));
+    if (!back)
+        return false;
+    TIMED_AS(g, 0xC29875, back = menu_items_built(g));
+    if (!back)
         return false;
     TIMED_AS(g, LOW_HP_MARKS, menu_work_out_low_hp_marks(g));
     return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MenuOpeningContext;
-
-static bool quieten(void *ctx, unsigned command)
-{
-    MenuOpeningContext *c = ctx;
-    quieten_the_channel(c->pf, command);
-    return true;
-}
-
-/* Each where the state is one it handles; false where it isn't, the program
- * going no further there. */
-static bool call(void *ctx, OpeningCall call)
-{
-    MenuOpeningContext *c = ctx;
-    GameState *g = c->game;
-    bool back = true;
-    switch (call) {
-    case OPENING_SCREEN: TIMED_AS(g, 0xC2940D, menu_video_set_up(g, c->pf)); break;
-    case OPENING_SAVE_SLOTS: TIMED_AS(g, 0xC2D156, back = menu_save_slots_read(g, c->pf)); break;
-    case OPENING_UPLOADS: back = menu_upload_queue_sent(g, c->pf); break;
-    case OPENING_RECORDS: TIMED_AS(g, 0xC2F3CA, back = menu_record_sprites_loaded(g)); break;
-    case OPENING_ITEMS: TIMED_AS(g, 0xC29875, back = menu_items_built(g)); break;
-    }
-    return back;
-}
-
-/* The opening clears the zero word the marks' walk starts from. */
-static bool low_hp_marks(void *ctx)
-{
-    (void)ctx;
-    return true;
-}
-
-bool menu_opens(GameState *g, Platform *pf)
-{
-    static const OpeningCalls the_steps = { quieten, call, low_hp_marks };
-    MenuOpeningContext c = { g, pf };
-    return open_the_menus(g, pf, &the_steps, &c);
 }

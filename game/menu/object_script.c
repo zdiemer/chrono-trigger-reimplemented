@@ -124,18 +124,18 @@ bool menu_byte_change_reads(ByteChange change) { return change != BYTE_CLEAR && 
 // $C2:120C-$C2:12E7, $C2:1ACA-$C2:1B15
 /* Change a byte of the object's state or of the game's, or set one of the
  * console's (a register of the picture's). */
-static ScriptFlow change_byte(GameState *g, MenuObject self, const ScriptServices *console, ByteChange change,
+static ScriptFlow change_byte(GameState *g, MenuObject self, Platform *pf, uint8_t opcode, ByteChange change,
                               ByteRef byte, uint8_t value)
 {
     if (script_byte_is_the_consoles(byte)) {
-        console->set_console_byte(console->ctx, byte.at, changed(change, 0, value));
+        menu_script_set_console_byte(g, pf, opcode, byte.at, changed(change, 0, value));
         return next_command();
     }
     uint8_t was = menu_byte_change_reads(change) ? script_byte_at(g, self, byte) : 0;
     script_set_byte_at(g, self, byte, changed(change, was, value));
     return next_command();
 }
-SCRIPT_SERVED_OPERATION(change_byte, change, byte, value)
+SCRIPT_SERVED_OPERATION(change_byte, opcode, change, byte, value)
 
 // $C2:1302, $C2:131C, $C2:1336, $C2:1350
 /* Copy a byte of the object's state or the game's to another. */
@@ -351,11 +351,11 @@ static void move_top_layer(GameState *g, MenuAxis axis, int8_t step)
 
 /* Follow a move along one axis: the first two planes and the layer over them,
  * or the one plane. */
-static bool follow(GameState *g, const ScriptServices *map, MenuAxis axis, uint8_t plane, int8_t step)
+static bool follow(GameState *g, MenuAxis axis, uint8_t plane, int8_t step)
 {
     if (plane != BOTH_PLANES)
-        return map->scroll_map(map->ctx, axis, plane, step);
-    if (!map->scroll_map(map->ctx, axis, 1, step) || !map->scroll_map(map->ctx, axis, 2, step))
+        return menu_script_scroll_map(g, axis, plane, step);
+    if (!menu_script_scroll_map(g, axis, 1, step) || !menu_script_scroll_map(g, axis, 2, step))
         return false;
     if (!top_layer_stays(g))
         move_top_layer(g, axis, step);
@@ -368,7 +368,7 @@ static bool follow(GameState *g, const ScriptServices *map, MenuAxis axis, uint8
  * map scrolls by the whole pixels it has moved -- the first two planes and
  * the layer over them (unless the story holds that still), or the one plane
  * the command names. */
-static ScriptFlow scroll_map(GameState *g, MenuObject self, const ScriptServices *map, uint8_t frames, uint8_t plane)
+static ScriptFlow scroll_map(GameState *g, MenuObject self, uint8_t frames, uint8_t plane)
 {
     if (menu_object_slots_command_frames(g, self) == 0) {
         set_menu_object_slots_command_frames(g, self, frames);
@@ -382,12 +382,12 @@ static ScriptFlow scroll_map(GameState *g, MenuObject self, const ScriptServices
     for (MenuAxis axis = MENU_ACROSS; axis <= MENU_DOWN; axis++) {
         MenuPlace moved = menu_object_place(g, self);
         int8_t step;
-        if (whole_pixels(axis == MENU_ACROSS ? moved.x : moved.y, &step) && !follow(g, map, axis, plane, step))
+        if (whole_pixels(axis == MENU_ACROSS ? moved.x : moved.y, &step) && !follow(g, axis, plane, step))
             return handed_back();
     }
     return wait_a_frame();
 }
-SCRIPT_SERVED_OPERATION(scroll_map, frames, plane)
+SCRIPT_OPERATION(scroll_map, frames, plane)
 
 /* ---- Other objects -------------------------------------------------------------------------- */
 
@@ -510,11 +510,10 @@ SCRIPT_OPERATION(show_tile_group, plane, column, row, group)
 
 // $C2:1947
 /* Redraw one of the map's planes whole. */
-static ScriptFlow redraw_map(GameState *g, MenuObject self, const ScriptServices *map, uint8_t plane)
+static ScriptFlow redraw_map(GameState *g, MenuObject self, Platform *pf, uint8_t plane)
 {
-    (void)g;
     (void)self;
-    return map->redraw_map(map->ctx, plane) ? next_command() : handed_back();
+    return menu_script_redraw_map(g, pf, plane) ? next_command() : handed_back();
 }
 SCRIPT_SERVED_OPERATION(redraw_map, plane)
 
@@ -599,29 +598,29 @@ SCRIPT_OPERATION(mark_entry, table, entry, mark)
  * fills the rest of its request with $FF. */
 enum { NO_PARAMETER = 0xFF };
 
-static ScriptFlow pass_on(const ScriptServices *sound)
+static ScriptFlow pass_on(GameState *g)
 {
-    return sound->pass_on_sound(sound->ctx) ? next_command() : handed_back();
+    menu_script_pass_on_sound(g);
+    return next_command();
 }
 
 // $C2:18C7, $C2:18D0
 /* Play a sound effect, panned, on one of the pairs of voices. */
-static ScriptFlow play_effect(GameState *g, MenuObject self, const ScriptServices *sound, SoundEffectVoices voices,
-                              uint8_t effect, uint8_t pan)
+static ScriptFlow play_effect(GameState *g, MenuObject self, SoundEffectVoices voices, uint8_t effect, uint8_t pan)
 {
     (void)self;
     set_menu_sound_request_command(g, (uint8_t)voices);
     set_menu_sound_request_first(g, effect);
     set_menu_sound_request_second(g, pan);
     set_menu_sound_request_age(g, 0);
-    return pass_on(sound);
+    return pass_on(g);
 }
-SCRIPT_SERVED_OPERATION(play_effect, voices, effect, pan)
+SCRIPT_OPERATION(play_effect, voices, effect, pan)
 
 // $C2:191F
 /* Send the sound driver any command, with its three parameters. */
-static ScriptFlow send_sound_command(GameState *g, MenuObject self, const ScriptServices *sound, uint8_t command,
-                                    uint8_t first, uint8_t second, uint8_t third)
+static ScriptFlow send_sound_command(GameState *g, MenuObject self, uint8_t command, uint8_t first, uint8_t second,
+                                    uint8_t third)
 {
     (void)self;
     set_menu_sound_request_command(g, command);
@@ -629,14 +628,14 @@ static ScriptFlow send_sound_command(GameState *g, MenuObject self, const Script
     set_menu_sound_request_second(g, second);
     set_menu_sound_request_third(g, third);
     set_menu_sound_request_age(g, 0);
-    return pass_on(sound);
+    return pass_on(g);
 }
-SCRIPT_SERVED_OPERATION(send_sound_command, command, first, second, third)
+SCRIPT_OPERATION(send_sound_command, command, first, second, third)
 
 // $C2:18F9, $C2:18F1
 /* Start a song, and note it as the one playing; or start the screen's song
  * unless the screen keeps the one already playing. */
-static ScriptFlow play_song(GameState *g, MenuObject self, const ScriptServices *sound, uint8_t song, bool unless_kept)
+static ScriptFlow play_song(GameState *g, MenuObject self, uint8_t song, bool unless_kept)
 {
     (void)self;
     if (unless_kept && menu_song_kept(g) != 0)
@@ -647,17 +646,16 @@ static ScriptFlow play_song(GameState *g, MenuObject self, const ScriptServices 
     set_menu_sound_request_second(g, NO_PARAMETER);
     set_menu_sound_request_third(g, NO_PARAMETER);
     set_menu_sound_request_age(g, 0);
-    return pass_on(sound);
+    return pass_on(g);
 }
-SCRIPT_SERVED_OPERATION(play_song, song, unless_kept)
+SCRIPT_OPERATION(play_song, song, unless_kept)
 
 // $C2:1807, $C2:181C
 /* Run a routine the script names: in bank C2, or anywhere. */
-static ScriptFlow call_routine(GameState *g, MenuObject self, const ScriptServices *code, uint32_t routine, bool far)
+static ScriptFlow call_routine(GameState *g, MenuObject self, Platform *pf, uint32_t routine, bool far)
 {
-    (void)g;
     (void)self;
-    return code->call_routine(code->ctx, routine, far) ? next_command() : handed_back();
+    return menu_script_call_routine(g, pf, routine, far) ? next_command() : handed_back();
 }
 SCRIPT_SERVED_OPERATION(call_routine, routine, far)
 

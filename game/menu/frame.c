@@ -16,79 +16,40 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-// $C2:0346, $C2:046E (the wait's start, and the jump to it)
+/// $C2:0346, $C2:046E (the wait's start, and the jump to it)
 /* The sprite-object mode's wait for the next frame: until the vblank handler
- * has counted a frame past the one it sees now. */
+ * has counted a frame past the one it sees now, a frame at a time. */
 enum { FRAME_WAIT = 0xC20346, FRAME_WAIT_LOOP = 0xC20348 };
 
-/* The wait, a frame at a time, past the count it `seen`: `a_frame` lets one
- * go by, false where the program doesn't come back to the wait. */
-static bool wait_for_the_next_frame(const GameState *g, uint8_t seen, bool (*a_frame)(void *ctx), void *ctx)
+static void wait_for_the_next_frame(GameState *g, Platform *pf)
 {
+    uint8_t seen = menu_object_frame_counter(g);
     while (menu_object_frame_counter(g) == seen)
-        if (!a_frame(ctx))
-            return false;
-    return true;
+        tm_wait_frame(pf, PF_AT(FRAME_WAIT_LOOP));
 }
 
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} MenuFrameContext;
-
-static bool a_frame(void *ctx)
-{
-    tm_wait_frame(((MenuFrameContext *)ctx)->pf, PF_AT(FRAME_WAIT_LOOP));
-    return true;
-}
-
-void menu_wait_for_the_next_frame(GameState *g, Platform *pf)
-{
-    MenuFrameContext c = { g, pf };
-    TIMED_AS(g, FRAME_WAIT, (void)wait_for_the_next_frame(g, menu_object_frame_counter(g), a_frame, &c));
-}
+void menu_wait_for_the_next_frame(GameState *g, Platform *pf) { TIMED_AS(g, FRAME_WAIT, wait_for_the_next_frame(g, pf)); }
 
 // $C2:0454
-
-/* The frames waited, each by `a_frame` (false where the program doesn't come
- * back to the wait); whether the last frame sent a sound. A count of 0 is
- * 65,536 frames, as the original counts it down. */
-typedef struct {
-    bool (*a_frame)(void *ctx, uint16_t left);
-} FramesLeft;
-
-static bool wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames, const FramesLeft *f, void *ctx,
-                                          bool *sent)
+/* The frames waited, a sound a request left waiting sent after each. A count
+ * of 0 is 65,536 frames, as the original counts it down. */
+static void wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames)
 {
     uint16_t left = frames;
     do {
-        if (!f->a_frame(ctx, left))
-            return false;
+        menu_wait_for_the_next_frame(g, pf);
         AudioCommand waiting;
-        *sent = overworld_take_the_waiting_sound(g, &waiting);
-        if (*sent) {
+        if (overworld_take_the_waiting_sound(g, &waiting)) {
             au_command(pf, PF_CALL(0xC20462, 0xC70004), waiting);
             overworld_waiting_sound_sent(g);
         }
         left--;
     } while (left != 0);
-    return true;
-}
-
-static bool a_frame_left(void *ctx, uint16_t left)
-{
-    (void)left;
-    MenuFrameContext *c = ctx;
-    menu_wait_for_the_next_frame(c->game, c->pf);
-    return true;
 }
 
 void menu_wait_frames_sending_the_sound(GameState *g, Platform *pf, uint16_t frames)
 {
-    static const FramesLeft the_steps = { a_frame_left };
-    MenuFrameContext c = { g, pf };
-    bool sent = false;
-    TIMED_AS(g, 0xC20454, (void)wait_frames_sending_the_sound(g, pf, frames, &the_steps, &c, &sent));
+    TIMED_AS(g, 0xC20454, wait_frames_sending_the_sound(g, pf, frames));
 }
 
 void menu_stop_tasks(GameState *g, uint8_t tasks)

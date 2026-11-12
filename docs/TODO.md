@@ -2042,10 +2042,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
 
 ## The native program
 
-- **Simplify each subsystem's native interfaces.** Replace single-implementation
-  callback adapters and register-shaped inputs/results with named operations.
-  Follow PORTING.md; core mode hand-offs and callback ownership are established.
-  Keep actual state checks and counted work. State storage can migrate in parallel.
 - **Comments the machine's deletion left stale.** The deleted wrappers'
   declarations left their comments behind in subsystem headers, and many
   comments still describe shadow mode, machine forms, held waits or "as C"
@@ -2432,8 +2428,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
     walk, not `object_in_the_way`.
   - `menu_draw_empty_label_entry` saves P and returns without restoring it
     when refused (unreachable behind the registry's guard).
-  - The credits' `CreditsLettersContext` callback always returns true and
-    `event_choose_credits` ignores the sequence's result: ceremony.
   - The scene engine's three `step_the_ground_toward_*` script rows are one-line
     rows over `step_the_ground_toward(g, set)`; folding them into one row wants
     a field on `SceneScriptRoutine`.
@@ -2519,16 +2513,12 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   and `save_screen.c` the weakest): their register notes
   and call-site addresses ride through the shared logic, where the machine-side
   callbacks could derive them, and the `site` parameter hides them from
-  portsmell's flag-note check; `cursor.c`'s `bool *fast` out-parameter
-  exists only for the wrapper's registers; `screens.c`'s dispatch by routine address repeats
+  portsmell's flag-note check; `screens.c`'s dispatch by routine address repeats
   `naming.c`'s `steps[].routine`; `techs.c`'s guard
   `menu_party_techs_can_be_noted` tests a high byte only the original's code
   leaves, which with no machine is always the power-on clear's 0, so in
-  ct_native it guards nothing: say so, or drop the test from the C path. The
-  review rubric wants an item for scaffolding notes routed through a steps
-  callback.
+  ct_native it guards nothing: say so, or drop the test from the C path.
 - **What the world map's review left** (none rated translation):
-  `menu/frame.c`'s `bool *sent` exists only for A's leftover;
   `menu/line_effects.c`'s `FAR_CALL_X`/`NEAR_CALL_X` feed the dispatch's X
   into `step_the_curtain`'s `salt`, which wants naming for what it is and the
   comment there agreeing.
@@ -2608,8 +2598,6 @@ and preserve their diagnostics as the remaining machine wrappers leave.
     `_DOWN`, `ITEMS_OPENS_THE_MEMBER_WINDOW_FOR_A_TONIC`/`_TAB`,
     `ITEMS_USES_ONE_MORE_TONIC`/`_TAB`); the logic's enum wants the routine,
     the machine side working the site out from its own context.
-  - `menu_raise_amount_kind_with` works the kind out from cells and ignores
-    the kind `run` passes.
   - `event/party.c`'s `fill_with` takes a `bool more` only the machine's
     leftover reads; `equipment_bridge.c`'s scaffolding loads unnamed literals
     (`0x42`, `0x62`, `0x2E`).
@@ -2617,15 +2605,12 @@ and preserve their diagnostics as the remaining machine wrappers leave.
     with no limit, where the original waits the driver's own time (the audio
     service that gives up with a message is the item under Platform).
 - **What the shops' review left** (`menu/shop_steps.c` mostly, the rest hand):
-  - The C callbacks share their `ShopSteps` members' names (`read_cursor`,
-    `tick`, `wait`, `run`, `ends`), as the equipment's and the main menu's do.
   - `DEAL_SOUND` is defined in both `shop_steps.c` and `shop_bridge.c`.
   - Trying on (`$C2:E162`) runs after a move along the list without
     re-checking its own guard; safe while the move leaves that guard's state
     alone.
-  - `ShopPlace` and `ShopRoutine` have a member per call site (the panel four
-    times), and `for_the_list` adds to the enum to reach the selling member:
-    the same split as the last save stops' first item.
+  - `ShopRoutine` has a member per call site (the panel four times): the
+    same split as the last save stops' first item.
 ## Targets beyond the desktop SNES build
 
 These need target-specific designs after the asset, state and machine

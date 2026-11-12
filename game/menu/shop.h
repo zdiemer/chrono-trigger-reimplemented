@@ -216,43 +216,10 @@ bool menu_shop_member_can_be_equipped(const GameState *g);
 /* ---- The shop's steps --------------------------------------------------------------------------- */
 
 /* Each of the shop's steps ($C2:D52B to $C2:D778) and the routines they go
- * on to is one sequence (game/menu/shop_steps.c), asking for what it needs
- * through ShopSteps.
+ * on to is one sequence (game/menu/shop_steps.c), false where it went no
+ * further.
  *
- * The places the sequences tick or wait from;
- * where buying and selling run the same code from two places, the selling's
- * follows the buying's. */
-typedef enum {
-    SHOP_AT_THE_TAB_CHOSEN,            /* a tab chosen */
-    SHOP_AT_THE_TABS_POINTED,          /* the cursor moved on the tabs */
-    SHOP_AT_THE_ROW_TAKEN,             /* the row on the cursor taken, buying */
-    SHOP_AT_THE_ROW_TAKEN_FOR_SALE,    /* ... selling */
-    SHOP_AT_THE_ROW_BROUGHT_IN,        /* a row slid in, buying */
-    SHOP_AT_THE_ROW_BROUGHT_IN_FOR_SALE,
-    SHOP_AT_THE_LIST_SLIDING,          /* the list's rows sliding, a frame at a time, buying */
-    SHOP_AT_THE_LIST_SLIDING_FOR_SALE,
-    SHOP_AT_THE_PAGE_TURNED,           /* the list paged, buying */
-    SHOP_AT_THE_PAGE_TURNED_FOR_SALE,
-    SHOP_AT_THE_TABS_AGAIN,            /* back from a list to the tabs */
-    SHOP_AT_THE_OFFER,                 /* the quantity window opening, buying */
-    SHOP_AT_THE_OFFER_FOR_SALE,
-    SHOP_AT_THE_QUANTITY_CLOSED,       /* back on the list from the quantity, buying */
-    SHOP_AT_THE_QUANTITY_CLOSED_FOR_SALE,
-    SHOP_AT_THE_QUANTITY_CHANGING,     /* the quantity's change by a push */
-    SHOP_AT_THE_MEMBER_CHOSEN,         /* a member chosen */
-    SHOP_AT_THE_MEMBERS_LEFT,          /* back up from the members */
-    SHOP_AT_THE_MEMBER_POINTED,        /* the cursor among the members */
-    SHOP_AT_THE_MEMBERS_WINDOW_DRAWN,  /* the member's equipment window drawn, a frame on */
-    SHOP_AT_THE_MEMBER_SWITCHING,      /* the shoulders' member taken */
-    SHOP_AT_THE_MEMBER_SWITCHED,       /* ... and shown, a frame on */
-    SHOP_AT_THE_SLOT_CHOSEN,           /* a slot chosen */
-    SHOP_AT_THE_SLOTS_LEFT,            /* back from the slots to the members */
-    SHOP_AT_THE_SLOT_POINTED,          /* the cursor among the slots */
-    SHOP_AT_THE_ITEM_POINTED,          /* the cursor along the list of what fits */
-    SHOP_AT_THE_ITEM_LEFT,             /* out of the list of what fits */
-} ShopPlace;
-
-/* The routines the steps go on to and come back from. */
+ * The routines the steps go on to and come back from. */
 typedef enum {
     SHOP_SETS_UP,                      /* the shop set up ($C2:DACA) */
     SHOP_SHOWS_THE_PANEL_AS_IT_OPENS,  /* the panel ($C2:DD7C), as the shop opens */
@@ -278,17 +245,7 @@ typedef enum {
     SHOP_REFUSES_A_SLOT,
 } ShopEnd;
 
-/* What the sequences ask: the cursor read, a tick, a frame's wait, a routine
- * run, the end. Each false where it went no further. */
-typedef struct {
-    void (*read_cursor)(void *ctx);
-    bool (*tick)(void *ctx, ShopPlace at);
-    bool (*wait)(void *ctx, ShopPlace at);
-    bool (*run)(void *ctx, ShopRoutine routine);
-    bool (*ends)(void *ctx, ShopEnd end);
-} ShopSteps;
-
-typedef bool ShopSequence(GameState *g, Platform *pf, const ShopSteps *n, void *ctx);
+typedef bool ShopSequence(GameState *g, Platform *pf);
 ShopSequence menu_open_shop_with, menu_set_up_shop_with, menu_show_shop_item_panel_with, menu_choose_shop_tab_with,
     menu_choose_goods_with, menu_choose_for_sale_with, menu_choose_how_many_to_buy_with,
     menu_choose_how_many_to_sell_with, menu_choose_shop_member_with, menu_open_shop_member_with,

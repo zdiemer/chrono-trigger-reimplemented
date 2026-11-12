@@ -93,12 +93,13 @@ static ByteRef byte_ref(const GameState *g, ScriptArg a, uint32_t at)
 #define SCRIPT_DECODE_bool(type, name) c.name = argument(g, row->name, at) != 0;
 
 ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at,
-                                 const ScriptServices *services)
+                                 Platform *pf)
 {
     ScriptCommand c = { 0 };
     c.self = self;
     c.at = at;
-    c.services = services;
+    c.opcode = row->opcode;
+    c.pf = pf;
     SCRIPT_PARAMETERS(SCRIPT_DECODE_ONE)
     return c;
 }
@@ -189,12 +190,12 @@ uint32_t menu_script_follow(const ScriptOpcode *row, uint32_t at, ScriptFlow flo
 // $C2:0F63
 /* After each command the object keeps where its script has got to, and the
  * command's own state starts clear for the next one. */
-ScriptEnd menu_run_script(GameState *g, MenuObject self, const ScriptRunner *r, uint32_t *stopped)
+ScriptEnd menu_run_script(GameState *g, Platform *pf, MenuObject self, uint32_t *stopped)
 {
     uint32_t at = menu_object_slots_script(g, self);
     for (;;) {
         const ScriptOpcode *row = menu_script_opcode(menu_script_byte(g, at));
-        ScriptFlow flow = r->run(r->ctx, self, at);
+        ScriptFlow flow = menu_script_run_command(g, pf, self, at);
         if (flow.kind == SCRIPT_HANDED_BACK)
             return SCRIPT_GAVE_BACK;
         if (script_flow_stops(flow)) {

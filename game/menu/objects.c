@@ -206,42 +206,13 @@ static void after_its_turn(GameState *g, uint16_t address, bool done)
 enum { HANDLERS_BANK = 0xC20000 };
 
 /* An object's turn: its handler run, saying whether it is done; false where
- * it went no further. The handler leaves the running object where the loop
- * goes on from. */
-typedef bool (*TakeATurn)(void *ctx, uint16_t address, uint16_t handler, bool *done);
-
-// $C2:051D
-/* Every object's turn this frame, in slot order: each slot with a handler
- * runs it, the slot made the running object. */
-static bool run_the_objects(GameState *g, TakeATurn turn, void *ctx)
+ * it went no further. A handler with a row of its own (menu/handlers.h) runs
+ * where the object is one it handles; any other, or one that leaves the
+ * running object elsewhere than a slot, goes no further, and nor does the
+ * program. The handler leaves the running object where the loop goes on
+ * from. */
+static bool take_a_turn(GameState *g, Platform *pf, uint16_t address, uint16_t handler, bool *done)
 {
-    for (uint16_t address = FIRST_SLOT_ADDRESS; address != SLOTS_END; address += SLOT_BYTES) {
-        uint16_t handler = menu_object_slots_handler(g, menu_object_at_address(address));
-        if (handler == 0)
-            continue;
-        set_menu_object_handler(g, handler);
-        set_menu_object_current(g, address);
-        bool done;
-        if (!turn(ctx, address, handler, &done))
-            return false;
-        address = menu_object_current(g);
-        after_its_turn(g, address, done);
-    }
-    return true;
-}
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} ObjectTurnsContext;
-
-/* A handler with a row of its own (menu/handlers.h) runs where the object is
- * one it handles; any other, or one that leaves the running object elsewhere
- * than a slot, goes no further, and nor does the program. */
-static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
-{
-    ObjectTurnsContext *c = ctx;
-    GameState *g = c->game;
     MenuObject self = menu_object_at_address(address);
     const MenuHandler *h = menu_handler(handler);
     if (!h || !h->run) {
@@ -253,7 +224,7 @@ static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
         return false;
     }
     MenuTurn t = MENU_TURN_WENT_NO_FURTHER;
-    TIMED_AS(g, HANDLERS_BANK | handler, t = h->run(g, c->pf, self));
+    TIMED_AS(g, HANDLERS_BANK | handler, t = h->run(g, pf, self));
     if (t == MENU_TURN_WENT_NO_FURTHER)
         return false;
     if (!menu_object_address_names_one(menu_object_current(g))) {
@@ -264,10 +235,24 @@ static bool turn(void *ctx, uint16_t address, uint16_t handler, bool *done)
     return true;
 }
 
+// $C2:051D
+/* Every object's turn this frame, in slot order: each slot with a handler
+ * runs it, the slot made the running object. */
 bool menu_objects_run(GameState *g, Platform *pf)
 {
-    ObjectTurnsContext c = { g, pf };
-    return run_the_objects(g, turn, &c);
+    for (uint16_t address = FIRST_SLOT_ADDRESS; address != SLOTS_END; address += SLOT_BYTES) {
+        uint16_t handler = menu_object_slots_handler(g, menu_object_at_address(address));
+        if (handler == 0)
+            continue;
+        set_menu_object_handler(g, handler);
+        set_menu_object_current(g, address);
+        bool done;
+        if (!take_a_turn(g, pf, address, handler, &done))
+            return false;
+        address = menu_object_current(g);
+        after_its_turn(g, address, done);
+    }
+    return true;
 }
 
 /* ---- Freeing the slots -------------------------------------------------------------------- */
