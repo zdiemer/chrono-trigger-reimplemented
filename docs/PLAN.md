@@ -222,12 +222,6 @@ beside the saves (PLATFORM.md, "The assets, as built"). The same importer can
 build the image for a target that can't afford the ROM or the decoding (GBA,
 Wii, GameCube). What is left:
 
-**Audit the remaining address sources.** The conservative source counter has
-122 unproved candidates (TODO.md, "Unproved cartridge-address sources").
-Establish which expressions can only select RAM and which descriptors already
-reach named accessors; cartridge-capable reads need the resource seam. The
-earlier zero covered only the 23 targeted sites, not every possible bypass.
-
 **Decoded next, a resource at a time.** Decode the raw pack into structured
 resources: streams decompressed, tiles in a neutral format, palettes as
 colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the

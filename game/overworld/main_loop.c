@@ -799,6 +799,11 @@ bool overworld_exit_fade_can_resume(Snes *s)
 {
     if (!overworld_loop_accepts_machine(s))
         return false;
+    /* The saved fade count must lie wholly in the low work-RAM mirror.
+     * A corrupted stack must not turn this admission check into an I/O or
+     * cartridge read. The held fade pushes its count on the menu stack. */
+    if (s->cpu.s >= 0x1FFE)
+        return false;
     vars_peek(true);
     const GameState *g = state_of(s);
     bool valid = overworld_mode(g) == OVERWORLD_ENTERING_A_PLACE && overworld_exit_here_is_in_range(g);

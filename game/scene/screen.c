@@ -422,7 +422,9 @@ bool scene_transfer_present(Snes *s)
  * through the SNES-only escape; the movies' loaders all feed the VRAM data port. */
 void scene_send_unpacked_as(const GameState *g, Platform *pf, uint8_t mode, uint8_t port_register)
 {
-    const VidSnesTransfer t = { .dest = port_register, .source = decompress_dest(g), .size = decompress_length(g),
+    uint16_t bytes = decompress_length(g);
+    const VidSnesTransfer t = { .dest = port_register,
+                                .data = scene_upload_data(decompress_dest(g), bytes ? bytes : 0x10000u, mode), .size = bytes,
                                 .mode_from_data = true, .mode = mode };
     vid_snes_copy(pf, PF_AT(0x7E38EA), &t);
 }

@@ -12,6 +12,8 @@
 #include "assets.h"
 #include "rom.h"
 #include "event/memory_data.h"
+#include "scene/scene_data.h"
+#include "platform/native/host.h"
 
 static int failures;
 
@@ -30,6 +32,31 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
 }
 
 static unsigned memory_reads;
+static uint8_t marker;
+static uint8_t driver_status(void *ctx, uint8_t port)
+{
+    (void)ctx;
+    return port == 2 ? marker : (uint8_t)(0x10 + port);
+}
+
+/* The Epoch event's generic peek must see each music marker without an
+ * emulator. Word reads decode each byte, and I/O mirrors retain the ports. */
+static void event_status(void)
+{
+    Platform pf = {0};
+    pf.audio.ctx = &marker;
+    pf.audio.read = driver_status;
+    unsigned before = memory_reads;
+    for (marker = 1; marker <= 3; marker++) {
+        CHECK(event_selected_data_byte(NULL, &pf, 0x002142) == marker);
+        CHECK(event_selected_data_byte(NULL, &pf, 0xBF217E) == marker);
+        CHECK(event_selected_data_word(NULL, &pf, 0x002141) == (0x11 | marker << 8));
+    }
+    CHECK(memory_reads == before);
+    CHECK(event_selected_data_byte(NULL, &pf, 0x7E2142) == 0xA4);
+    CHECK(memory_reads == before + 1);
+}
+
 uint8_t wram_read8(const GameState *g, uint32_t at)
 {
     (void)g; (void)at;
@@ -106,10 +133,17 @@ int main(void)
 
     /* The game's reads, through the store. */
     assets_use(&store);
-    CHECK(event_selected_data_byte(NULL, asset_catalogue[0].at) == made_up(0, 0));
+    CHECK(event_selected_data_byte(NULL, NULL, asset_catalogue[0].at) == made_up(0, 0));
     CHECK(memory_reads == 0);
-    CHECK(event_selected_data_word(NULL, 0x7E1234) == 0xA4A4);
+    CHECK(event_selected_data_word(NULL, NULL, 0x7E1234) == 0xA4A4);
     CHECK(memory_reads == 2); /* RAM keeps its own timing and read instrumentation. */
+    event_status();
+    /* The race's original-map column used to bypass the store entirely. */
+    PfData column = scene_race_column_data(0xD20000, 19);
+    AssetId plane = asset_containing(0xD20000);
+    CHECK(plane != ASSET_NONE && column.ptr != NULL);
+    if (plane != ASSET_NONE && column.ptr)
+        CHECK(column.ptr[18] == made_up(plane, 18));
     for (uint16_t i = 0; i < asset_catalogue_count; i += 97) {
         const AssetEntry *e = &asset_catalogue[i];
         uint32_t last = e->at + e->length - 1;
