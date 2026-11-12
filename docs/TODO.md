@@ -4,21 +4,12 @@ PLAN.md gives the work order; the lean native gate protects each change.
 
 ## Correctness and accuracy
 
-- **Son of Sun's native landing approach.** The native route reaches the
-  future, but fails to land east of the palace at frame 5794; travel mode
-  remains 2. The first differing observation with identical input is at
-  frame 3756: native still reports world map `$1F0`, shipping `$1F2`.
-  Later, `fly_to` releases RIGHT at X=534 and waits twelve frames: native
-  settles at X=536, shipping at X=544. The helper assumes this fixed coast
-  will reach its intended landing tile. Make the landing approach depend
-  on the settled position and investigate whether the coast difference
-  is expected under native timing. Shipping wins the fight and regains
-  field control at frame 18206. No replay or machine-only stop precedes
-  the native failure; it does not establish a difference in the boss fight.
-
-- **Native bases during play.** `ct_native --drive` rebuilds
-  the main and menu coroutines from power-on input; it has no later complete
-  base. Use the held waits, now data or saveable C loops,
+- **Native bases during play.** Player quick load and `ct_native --drive`
+  slot load share reconstruction of the main and menu coroutines from
+  power-on input; neither has a later complete base, so load time grows with
+  the session. Quick saves require the same execution-source fingerprint;
+  `.srm` remains portable progress across builds. Use the held waits, now
+  data or saveable C loops,
   to take resumable saves at frame ends during a route. Capture the complete
   game and task state, host services, sound and timing debt, then replay only
   the buttons since that base on a slot load. Verify restored RAM, pictures
@@ -1188,30 +1179,12 @@ PLAN.md gives the work order; the lean native gate protects each change.
   (characters.c, `event_cmd_cast_enemy`): accepted, and kept to the bank's
   upper half in the variants that must be clean.
 
-## Generator
+## Remaining game and state contracts
 
-- **Code the program writes over itself.** A `[[ramcode]]` section with `over`
-  or `patch` has an image per alternative, and liveness reads the patched
-  one. A call-out into such a section is checked against that image only; one
-  whose callee differs between the images needs both summaries joined, or the
-  call counted as dynamic.
 - **Duplicate event command rows.** The event language table silently lets
   the last row for an opcode win. Reject duplicates when building the table
   (`game/event/engine.c`).
 
-- **A debt waits a frame at most for a handler taken at its boundary**
-  (`runtime/port/native.c`, `DEBT_HANDLER_CLOCKS`): a handler that moves the
-  stack and doesn't come back within a frame, but does later, gets the rest of
-  the port's time paid inside it again. None does in the library; a debt that
-  followed the handler's own return (its RTI to the boundary's PC) rather than
-  a time bound would be exact.
-- **Nested comparisons end at the enclosing routine's point.** An entry the
-  original reaches inside another port's stretch (the menus' labels inside
-  `menu_open`) is compared up to its first point, and set aside (`abandoned`)
-  when the enclosing routine's point comes first. Following both past it
-  needs shadow mode to check every active comparison at each step rather than
-  the innermost: the enclosing one resumed by its callee's return while the
-  nested one waits for a later instruction.
 - **"No game state produces it", checked by a tool.** A proposed guard
   needs a count of real calls it would refuse, with entry and state details,
   over the library. A reusable guard-probe tool would replace temporary
@@ -1491,69 +1464,15 @@ PLAN.md gives the work order; the lean native gate protects each change.
     those cells; `tools/disasm/keeps.py` steps over calls as reading nothing,
     so a callee on the scheduler's path that reads a register would be missed
     (the path has none today); `read_cursor`'s `(void)r;`.
-- **Liveness across a saved stack pointer.** The overflow flag is still live
-  after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
-  no longer are): the menus' entry `$C2:800E` saves P and then copies S to
-  `$0920` (`TSX`) to run on a stack of its own, which the pairing of pushes
-  can't follow, so its `PHP` reads every flag for every caller. The same holds
-  for the scene program's task lists (`$7E:3994`, `$7E:39C8`), whose tasks
-  leave through `JMP $39A7` into the loop's own code and carry on with the
-  next task rather than return.
-  Following S through the cell it is saved in, and a callee that finishes its
-  caller's iteration, would free them (REIMPLEMENTATION.md, "The tooling pass after
-  wave 1: the analysis"). The menus' task switch (`$C2:821E`, `$C2:822B`) is
-  a `[[keeps]]` hint instead (the source review, "Phase 3, menus"); the scene's task
-  lists could take the same.
 - **Scene cells the menu objects use.** The C6 circle setup and motion routines
   (`menu/line_effects.c`, `menu/object_commands.c`) run on the menu's direct page
   and use the circle drawer's and the scaler's cells, which the map files under the scene; their
   drafts now give those cells scratch names (REIMPLEMENTATION.md, "The tooling pass
   after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
   entries on the menu's page) would name them again.
-- **Gaps in the vblank check** (REIMPLEMENTATION.md, "Where video writes land"), which
-  the suite runs with seven findings accepted (REIMPLEMENTATION.md, "The timing gate"): a
-  hand port's region ends at its last service call, so the reference's work in
-  code the original jumps to past it is `unmatched` (the menu loads);
-  following the call stack in the reference would close that. And it names the
-  routine whose writes land late, not the port whose time made them late.
-- **Player without the interpreter**: the strict build's CI check is new and
-  hasn't run on a real miss; the misses-feedback loop is documented but only
-  exercised by hand so far (PLAYING.md, "Without the interpreter").
+## RAM map coverage
 
-## Matching disassembly
-
-- **The `matching` target fails its closure check C2.** The scene task
-  dispatch at `$7E:3998` includes `$7E:F820` from `seqscript.tasks_0920`
-  (`re/hints.toml`), outside every RAM-code section. Identify the script
-  operand as code needing a section or as data; the missing return currently
-  forces assumed widths at `$7E:399B`. Epoch-dive coverage also names
-  `$7E:3662`, outside the static reach of the patched `$7E:3634` loop; model
-  that alternative image. These findings are retained pending a matching
-  build, not inferred fixed from the scene gate's retirement.
-
-- **MD2 leftovers** (MATCHING.md, "MD2 as built"): `$F6:24B1-7FFF` and other
-  gaps (42590 census-unknown bytes), plus 228.3 KiB still typed `mixed`.
-  The D0 graphics pool, CF 2bpp graphics, E4 sprite records and E5 exit lists
-  now have codecs; tile-descriptor ownership and the E4 battle-record count
-  still need stronger bounds. The strings' leftovers (MATCHING.md, "The string
-  encodings"): the dialog tables at `$FF:D3FE` and `$CC:3A09`, whose extents
-  aren't settled, and the menu strings passed to `$C2:EF65` by address in code.
-  The event scripts' leftovers (MATCHING.md, "The event scripts"): commands
-  and operands named mechanically (`party_routine_6`), and the 39
-  command layouts read from handlers no port has checked yet.
-  The sound driver's tables (found by the $C7 pilot, `core/sound_data.h`):
-  `$C7:1871`, the songs' percussion (`sound_song_percussion_table`), is typed
-  as one song's twelve three-byte entries, but the driver indexes 83 songs'
-  worth (36 bytes each, to `$C7:241C`), and the two bytes per song at
-  `$C7:241D-24C2` are still `mixed`.
-  The battle scripts' leftovers (MATCHING.md, "The battle script formats"):
-  names for the commands, conditions and actions that keep their numbers, and
-  deriving the action and target tables (`$C1:B85F`, `B88D`, `B8BB`) from the
-  parse. Not started: re-encoding for `lz` (today's check is that the
-  decompressor consumes the bytes exactly; the event scripts, all `lz` streams,
-  round-trip on their decompressed output and would be assembled from their
-  decoded form with it: MATCHING.md, "The event scripts").
-- **The RAM map's leftovers** (DISASSEMBLY.md, "The RAM map"): 43 addresses
+- **The RAM map's leftovers** (STATE.md): 43 addresses
   the code touches without anything establishing what they mean (menu 20,
   battle 11, core 9, scene 3;
   `python3 tools/ram_map.py coverage --open`), named as Phase 3 reaches each
@@ -1564,13 +1483,6 @@ PLAN.md gives the work order; the lean native gate protects each change.
   the map screens copy them in (`menu_story_flags`, fields `top_layer_*`):
   each holds the layer over the map still while the map scrolls, and nothing
   says what else they mean.
-- **MD3**: every pointer symbolic, plus the static and dynamic shift tests.
-- **MD4 residue**: 84 jump tables are bounded by layout alone, the claim that
-  menu modes 8-10 and 15 are never selected is assumed, and C4 (RAM code) rests
-  on the enumerated sections plus the miss report.
-- **asar cross-check** of the generated source has never run (asar isn't
-  installed here); the syntax points it would settle are listed in MATCHING.md.
-
 ## Platform
 
 - **The older video forms can leave the service** (PLATFORM.md, "The services'
@@ -1650,7 +1562,11 @@ PLAN.md gives the work order; the lean native gate protects each change.
   rather than faster (the milestone's 81%
   figure predated `render.c`'s line cache), so the speed case for it is still
   unmade. Measure the service-fed path separately from the register decoder;
-  pixel identity establishes correctness, not a speed improvement.
+  pixel identity establishes correctness, not a speed improvement. The native
+  player recheck drew every frame and ran sound on eight bounded gameplay
+  movies at 3367-6889 frames/s in a Windows GCC Release build on the shared
+  machine. That establishes headless headroom there, not an isolated renderer
+  comparison or performance on every supported host.
 - **Host backends beyond SDL**, not yet scoped as milestones:
   - **GPU rendering:** implement integer SNES compositing over `VidFrame`
     and its per-line spans, checked with `--px-check`. Service-fed frames
@@ -2408,13 +2324,22 @@ list, by kind, is what `game/` still asks of one.
     SRAM still matches and all five places remain on time. Follow the first
     shifted battle input; the re-recorded
     outcome is not a claim that the fight is equivalent.
-    Follow the native fixed-input losses isolated at `253d674c`: Cyrus's
-    two arrivals just outside the 30-frame tolerance, Fiona's missing
-    location 424, and Sun Stone's 13-location path instead of 21. Dalton
-    and late Omen Zeal also save different progress after that model change.
-    The batched attribution establishes the changed accounting, not that
-    these outcomes are equivalent; use state-driven routes to distinguish
-    missed recorded inputs from remaining frame-budget errors.
+    The native fixed-input losses isolated at `253d674c` are not timing
+    calibration targets by themselves. Despite Cyrus's two 31-frame-late
+    arrivals, its state-driven tools and first-repairs prefix passes
+    (native/shipping 16404/16375); Fiona's route reaches location 424 with
+    control (5402/5343). Sun Stone turns away at frame
+    10282 with native Y=495.9375 versus shipping 498.9375, missing the
+    Keep's door and leaving at 10635 instead of 10296, before its recorded
+    flight misses the rest of the 21-place path. A state-driven continuation
+    receives both rewards with world control (22278/21951). Dalton's full
+    route completes (35288/39541), while a state-driven continuation of
+    late Omen Zeal beats the first Queen and reaches Mammon
+    Machine (18486/16470); both recordings lose battles before their saved
+    progress differs. These are missed recorded inputs, not evidence for
+    changing the frame budget. The per-frame comparisons and the scope of
+    the continuations are in REIMPLEMENTATION.md, "Native route findings". Later recorded inputs remain unsuitable as proof of
+    the whole Cyrus or Black Omen quest; no movie or exception was refreshed.
     Trace late Lavos's strict battle/save inputs too: its `54099ed8` timing
     leaves 49 compared SRAM bytes different at the end.
   - *The handlers' share of an upload.* The sound driver's upload time is
@@ -2457,11 +2382,6 @@ list, by kind, is what `game/` still asks of one.
     original-timed end-state proofs match game and save RAM while reporting
     sound-queue overruns. State agreement is evidence about that state,
     not a passing run; keep the fault visible in the diagnostic verdict.
-  - *Dialog presses.* In `events-ocean-palace-lavos`, recorded presses still
-    land on different dialog states. After the whole-library rate fit, the
-    native replay misses the reference's Mammon Machine room visit (`$19F`
-    at frame 16965). Follow the first shifted dialog before adjusting the
-    later scene's timing.
 
   Meanwhile drive the long movies' native runs by their routes (`the route driver`'s
   scripts react to the game's state, MOVIES.md) rather than recorded presses,
@@ -2500,14 +2420,6 @@ list, by kind, is what `game/` still asks of one.
   `native/audio.c` can advance startup sound before its charged frames pass;
   reconcile those clocks.
 
-- **Cyrus's fixed movie ends blanked in `ct_native`.** `events-cyrus`
-  (ctsave14 slot 1, 39872 frames) consumes all its inputs without a reported
-  missing C handler, but the display is blanked after 12 screen setups.
-  It reports two SNES-only video escapes, first `$7E:5AEB`. Establish how
-  far the input gets and whether the native timing misses an interaction;
-  consuming the frames does not establish the repaired ruins or restored
-  Masamune. The reference route reaches both and returns field control;
-
 - **Ozzie's Fort movie on the native program.** `battle-ozzies-fort` from ctsave12
   slot 2 plays to its 39237-frame end in `ct_native`, showing, but parts from the
   reference in the field before Flea (`$0B7` entered at 12370 against 7110): the
@@ -2519,34 +2431,15 @@ list, by kind, is what `game/` still asks of one.
   field's events' work `ct_native` still times short there ("Where the game's
   work is still timed short or long", above), not a port's difference. The
   native run also reports two SNES-only video escapes, first at `$7E:5AEB`.
-- **Ocean Palace movie playback.** `battle-golem-twins` and
-  `events-ocean-palace-lavos` run for their full 20216 and 30364 frames in
-  `ct_native` (exit 0), without a missing-C stop, but both report unsupported video
-  calls: four and two respectively, first at `$7E:5AEB`. The finale ends with
-  the screen blanked (the Twins run ends showing), so frame completion is not
-  evidence that the native program plays these scenes correctly. Diagnose its
-  playback and video escapes.
+- **Native movie route outcomes after the player recheck.** Golem Twins,
+  Ocean Palace Lavos, Yakra, Zombor, Nizbel, Giga Gaia, Dalton and Proto Dome
+  all reached their bounded ends. Only Ocean Palace Lavos ended dark (its last
+  546 frames); the older blank-ending reports for Yakra, Zombor, Nizbel, Giga
+  Gaia and Proto Dome no longer reproduce. Establish victory and quest outcomes
+  with state-driven routes; an illuminated final frame is insufficient. The
+  title and unused-plane video fills have since moved to semantic services;
+  investigate the remaining video escapes separately from player persistence.
 
-- **Yakra's native replay ends with the screen blanked.** The hand movie
-  `battle-yakra` (ctsave01 slot 2, 71287 frames) originally stopped at frame
-  4032, `$F9:B006`, because the Cathedral's dialogue table was missing from
-  the asset catalogue. Adding that table's existing extracted resources
-  removes the stop. `ct_native` now reaches the frame limit, reports six
-  screen setups and a blanked screen; locate that screen with a state-driven
-  run. Strict mode reaches the same limit without a machine-code
-  stop, but differs from the reference by 128 saved-game bytes. Input replay
-  alone does not establish native completion of the Cathedral route.
-
-- **Zombor's native replay ends with the screen blanked.** `battle-zombor`
-  reaches 26320 frames without a hard stop, with six screen setups and two
-  SNES-only video calls (first `$7E:5AEB`). Locate the divergent screen with
-  a state-driven run; reaching the movie's limit does not prove victory.
-
-- **Nizbel's native replay ends with the screen blanked.** The hand movie
-  `battle-nizbel` reaches 57673 frames without a hard stop, with six screen
-  setups and two SNES-only video calls (first `$7E:5AEB`). Strict mode also
-  reaches the limit, with a 128-byte saved-game difference. Locate the
-  divergent screen with a state-driven run before claiming native victory.
 - **Rainbow Shell trial recording in the native program.** The hand-run
   `rainbow_shell_trial` recording (47547 frames, ctsave13 slot 2; MOVIES.md)
   completes the trial in the reference play. `ct_native` consumes all 47547
@@ -2581,11 +2474,11 @@ list, by kind, is what `game/` still asks of one.
   (a host's draws take its own noise). The C reads the program's data where
   the boot unpacks it, and doesn't check, as the entries' guards do on the
   machine, that the unpacked code is the one the ports were written for. The
-  plane's map halves (`scene_upload_plane_half`, `$7E:876E`), its rest
-  blanked (`$7E:5476`, `$7E:5AEB`) and the credits' map blanked (`$7E:90BD`)
-  are `vid_snes_copy` escapes the host counts: a send of one byte of each
-  VRAM word, from a cursor or a fixed byte, which the video service has no
-  call for yet. The scene teardown's census finds no ordinary scene entry
+  plane's map halves (`scene_upload_plane_half`, `$7E:876E`) and the
+  credits' map blanked (`$7E:90BD`) still use `vid_snes_copy` escapes.
+  Convert these remaining callers to semantic half-word uploads and fills;
+  the title and unused-plane fills now use `vid_fill_vram_half` (PLATFORM.md).
+  The scene teardown's census finds no ordinary scene entry
   entered by the machine; these host gaps are separate from its retired
   byte-exact comparisons.
 - **A meaningful native run of mode 5.** Its setup, map and figure animation
@@ -2783,6 +2676,12 @@ build before retiring the emulator-build checks.
 
 ## Review follow-ups for native interfaces
 
+- **What the second state-storage slice's review left.** The save test
+  should compare the complete serialized payload, allowing for the counter
+  and checksum changes a save makes on purpose.
+- **What the native divergences' review left.** Keep the Sun Stone and Queen
+  Zeal state-driven continuation scripts as reproducible route checks rather
+  than one-off evidence.
 - **What the native route driver's review left.** `route_driver_test` has no
   deliberately divergent replay, asserting `err replay` and a nonzero exit;
   Extend protocol failure coverage when snapshot work changes replay.
@@ -3016,7 +2915,14 @@ persistence seams; game-side representation changes still need explicit work.
   with A, B, Start, Up, X and Y leave it there. Replaying from the Core with
   seed 2 wins at 149750 and finishes at 160570; that is the route's default.
   This is a reference-runtime stall, not a guard refusal. Its cause is not
-  established; no game code was changed to work around it.
+  established; no game code was changed to work around it. Rechecked against
+  the native host: it has no SPC700 echo loop; its C driver's echo wait is
+  bounded to one second of driver time and reports failure. No failing-seed
+  input movie or checkpoint is committed, so the specific frame-181083 stall
+  could not be replayed in `ct_native` without rebuilding that long route.
+  Preserve a failing recording before claiming the native ending is verified.
+  Menu and battle checkpoint tests did verify byte-identical continued native
+  PCM, and the SDL dummy-device smoke run opened audio successfully.
 - **Content no movie plays at all.** Use movies-wanted.md for the remaining
   route targets; many of the old sidequest and boss gaps now have movies.
   Reuse the pathfinder, dialogue and fight helpers in `tools/movies` and add
@@ -3050,7 +2956,7 @@ persistence seams; game-side representation changes still need explicit work.
   map; make caller-selected scaler rows, sprite lists, copies and script
   stores explicit resources. The title's tile list at `$7F:0200` aliases
   scaler output and event variables, so its ownership must be decided before
-  splitting storage (`game/scene/`, `wram_*`; DISASSEMBLY.md, "The RAM map").
+  splitting storage (`game/scene/`, `wram_*`; STATE.md).
 
 - **The unpacker and the original part on streams that aren't streams.**
   Resource numbers beyond the scene table's 73 entries differed in 30 of
@@ -3124,11 +3030,7 @@ persistence seams; game-side representation changes still need explicit work.
   (`credit_pages.c`: `next_page`'s `scene_credits_page(g) & 0x00FF`,
   `write_the_jobs`'s `scene_sprite_offset_x(g) & 0xFF00`): narrow the
   declarations in `re/ram.toml` so the masks leave the port.
-- **The RAM map can't say two variables alias.** `ram_map.py check` rejects
-  overlap inside a subsystem, but the ROM overlaps: the map planes' last column
-  word is the first plane's row word (`$7E:00E7`), which had to be modelled as
-  two arrays of different lengths with the alias explained in prose. An
-  `aliases` field would let an entry say what is true.
+
 - CI: the macOS job costs 10x minutes on a private repo.
 ## State storage ownership
 
@@ -3137,39 +3039,41 @@ the per-site and per-pair inventory is in [STATE.md](STATE.md). Before moving
 another module, resolve its listed aliases and raw clients, including shared
 initial contents on mode transitions. Do not give two struct fields one cell.
 
-- **The generator, before larger slices** (the state-as-C review): host
-  accessors for indexed variables drop `CT_ACCESSOR_CHECKS`' `CHECK_INDEX`
-  (`tools/ram_map.py`, the host fallback); keep it before an indexed variable
-  moves. The address projection finds a field by a linear scan per byte; give
-  it indexed dispatch before bulk clears, saves and video reads cross many
-  moved fields.
-- **Overlapping variables need shared ownership.** 2,011 of the 2,263 overlap
-  another; independent structs can't keep those relationships, so the next
-  slices need an explicit owner and alias views per overlap, decided module by
-  module before anything overlapping moves (the generator rejects it until then).
-
-- **Core:** controller/clock and palette scratch overlap other uses; character
-  records contain both whole-record and named-field views. Inventory tail
-  accesses and save projection must keep a single owner. Sound's retired cells
-  include unchecked tables and should be separated from live sound state.
-- **Data:** decompressor destinations and its streaming WRAM port are dynamic;
-  establish which output buffers are game state versus decoded resources before
-  moving the eight otherwise non-overlapping variables.
+- **Owners spanning several existing records:** most of the remaining 1,921
+  overlapping variables cannot name a single containing owner. Define semantic storage
+  covering their shared bytes, or views composed from several owners; retain
+  mode-transition contents and page-instance aliases. The five largest connected
+  groups contain 1,839 variables (STATE.md). Do not turn their address spans into
+  anonymous replacement RAM arrays just to lower the measure.
+- **Core:** controller/clock, story and palette scratch still overlap other uses.
+  The 25 isolated retired sound-driver variables remain image-backed; determine
+  which compatibility clients still require them before deleting their storage.
+  Assess the vector-stub and old sound-pointer/list alias groups with the
+  machine/driver removal rather than allocating new compatibility owners.
 - **Event:** story memory, event variables and field script storage overlap;
   replace arbitrary-address script operations with owned views where possible.
 - **Field:** map/graphics/scratch reuse and interleaved row tables need owners;
   video queues, unpack destinations and unchecked object/table tails need views
   of those owners rather than independent storage.
 - **Menu:** direct-page records and shared screen scratch need ownership across
-  screens; inventory overruns and tilemap/DMA sources need explicit views.
+  screens; remaining unchecked text/list tails and tilemap/DMA sources need
+  explicit views.
 - **Menu objects:** all 39 variables overlap another module; resolve object
   records, menu pages and overworld sharing before moving them.
 - **Overworld:** object-mode sharing, map scratch, unchecked tails and video
   staging must be separated or assigned one owner.
-- **Battle:** 909 variables overlap others; resolve combatant/scratch aliases,
-  whole-record field views, 53 unchecked tables and graphics sources in slices.
+- **Battle:** resolve the remaining combatant/scratch aliases, whole-record field
+  views, unchecked tables and graphics sources in slices.
 - **Scene:** own/channel page instances, shared mode scratch, line-effect and
   upload buffers need ownership; retain initial values across mode changes.
-- **Warp:** plane/light graphics and line-effect sources share scene memory;
-  resolve those aliases and the unchecked table before moving the module.
+- **Warp:** the remaining 12 variables include plane/light graphics and
+  line-effect sources sharing scene memory; resolve those aliases and their
+  unchecked table.
 
+
+## Player integration checks
+
+- **Automate native quick-load integration checks.** Record a quick load to an
+  earlier frame followed by different input, then verify the rewritten movie
+  and final state. Automate restore while paused and repeated live quick loads;
+  compare continued RAM, pictures and sound with uninterrupted play.

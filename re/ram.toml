@@ -28,7 +28,7 @@
 #       (docs/DISASSEMBLY.md, "The accessors").
 #
 #   [[var]]    name, addr | dp, [size], [count, stride, index], [rows, row_stride],
-#              [page], [unchecked], [reuses], [host_module], subsystem, meaning, source, [[var.field]]
+#              [page], [unchecked], [reuses], [host_module | host_alias], subsystem, meaning, source, [[var.field]]
 #       A variable. addr is "7E:AAAA" or "7F:AAAA" (low RAM $0000-$1FFF is
 #       $7E:0000-$1FFF, which banks $00-$3F mirror). size is the element's width
 #       in bytes (default 1); an array has count elements `stride` bytes apart
@@ -48,13 +48,19 @@
 #       variable (or a list of them) of the same subsystem whose bytes this
 #       one takes over at another time (the map's data, decompressed where the tiles' looks go
 #       once it is unpacked), which the overlap check otherwise refuses.
-#       `host_module` selects a single C storage owner for CT_VARS_HOST only.
-#       It requires non-overlapping declared bytes, no unchecked access or
-#       reuse, and no page instances (docs/STATE.md). Other builds keep RAM.
+#       `host_module` selects a C storage owner for CT_VARS_HOST only.
+#       `host_alias` instead names a selected owning variable: this variable's
+#       declared bytes must all lie in that owner's fields, and get no storage
+#       of their own. Every variable overlapping an owner must name it. Alias
+#       chains, partial coverage and duplicate owners are errors. Page instances
+#       still need ownership work. Unchecked tails use the address view, never
+#       an out-of-bounds C index (docs/STATE.md). Other builds keep RAM.
 #
-#   [[var.field]]  name, offset, [size], meaning
+#   [[var.field]]  name, offset, [size], [host_alias], meaning
 #       A record: the element is `stride` bytes and the fields are at these
-#       offsets in it. A record has no size of its own.
+#       offsets in it. A record has no size of its own. A field's `host_alias`
+#       names another field of that record containing all its bytes; only the
+#       owning field gets storage. This permits whole-record and typed views.
 #
 #   [[image]]  name, start, end, subsystem (a list), meaning, source
 #       Work RAM that holds a program image the game copies or decompresses
@@ -252,6 +258,7 @@ source = "cartridge RAM program mvn_stub"
 
 [[var]]
 name = "decompress_source"
+host_module = "data"
 addr = "7E:0300"
 size = 3
 page = "decompress"
@@ -261,6 +268,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_SRC)"
 
 [[var]]
 name = "decompress_dest"
+host_module = "data"
 addr = "7E:0303"
 size = 3
 page = "decompress"
@@ -270,6 +278,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_DST); game/scene/screen
 
 [[var]]
 name = "decompress_length"
+host_module = "data"
 addr = "7E:0306"
 size = 2
 page = "decompress"
@@ -279,6 +288,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_OUT_LEN); game/scene/sc
 
 [[var]]
 name = "decompress_segment_end"
+host_module = "data"
 addr = "7E:0309"
 size = 2
 page = "decompress"
@@ -288,6 +298,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_SEG_END)"
 
 [[var]]
 name = "decompress_bits_left"
+host_module = "data"
 addr = "7E:030B"
 page = "decompress"
 subsystem = "data"
@@ -296,6 +307,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_BITS)"
 
 [[var]]
 name = "decompress_control"
+host_module = "data"
 addr = "7E:030D"
 page = "decompress"
 subsystem = "data"
@@ -304,6 +316,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_CTRL)"
 
 [[var]]
 name = "decompress_copy_length"
+host_module = "data"
 addr = "7E:030F"
 size = 2
 page = "decompress"
@@ -313,6 +326,7 @@ source = "game/data/decompress.c, decompress $C3:0557 (V_COPY_LEN)"
 
 [[var]]
 name = "decompress_scratch"
+host_module = "data"
 addr = "7E:0315"
 size = 2
 page = "decompress"
@@ -436,6 +450,7 @@ source = "game/scene/sprites.c $7E:A03D"
 
 [[var]]
 name = "scene_sprite_table"
+host_alias = "field_sprite_table"
 addr = "7E:0700"
 size = 0x200
 subsystem = "scene"
@@ -444,6 +459,7 @@ source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprit
 
 [[var]]
 name = "scene_sprite_high_table"
+host_alias = "field_sprite_table"
 addr = "7E:0900"
 size = 0x20
 subsystem = "scene"
@@ -1345,6 +1361,7 @@ meaning = "On the scene's own page: twice the frame counter, which the shared en
 
 [[var]]
 name = "scene_flags"
+host_module = "scene"
 addr = "7E:0384"
 subsystem = "scene"
 meaning = "Scene mode bits: bit 7 = interrupts stay enabled through the NMI work (IRQs in use) and the shorter work RAM clear (the title coming back); bit 5 = don't send song changes"
@@ -1352,6 +1369,7 @@ source = "game/scene/frame.c, scene_frame_work $C3:08D0, song_to_send $C3:09A4; 
 
 [[var]]
 name = "scene_song_sending"
+host_module = "scene"
 addr = "7E:0388"
 subsystem = "scene"
 meaning = "Nonzero while a song is being sent to the sound driver; the race skips its sound parameter meanwhile"
@@ -1359,6 +1377,7 @@ source = "game/scene/frame.c, song_to_send $C3:09A4; game/scene/race_rules.c, sc
 
 [[var]]
 name = "scene_song_playing"
+host_module = "scene"
 addr = "7E:0389"
 subsystem = "scene"
 meaning = "The song last sent to the sound driver"
@@ -1366,6 +1385,7 @@ source = "game/scene/frame.c, song_to_send $C3:09A4"
 
 [[var]]
 name = "scene_song"
+host_module = "scene"
 addr = "7E:038A"
 subsystem = "scene"
 meaning = "The song the scene wants; the NMI sends it (driver command $10) when it differs from the one playing"
@@ -1373,6 +1393,7 @@ source = "game/scene/frame.c, song_to_send $C3:09A4"
 
 [[var]]
 name = "scene_line_effects"
+host_module = "scene"
 addr = "7E:038C"
 subsystem = "scene"
 meaning = "Per-line effect (HDMA) channels to enable, restored after the NMI work"
@@ -1380,6 +1401,7 @@ source = "game/scene/frame.c, scene_frame_work $C3:08D0"
 
 [[var]]
 name = "scene_brightness"
+host_module = "scene"
 addr = "7E:038D"
 subsystem = "scene"
 meaning = "Display brightness the NMI work restores (0 = forced blank), halved while paused"
@@ -1387,6 +1409,7 @@ source = "game/scene/frame.c, scene_frame_work $C3:08D0; docs/PLATFORM.md, surve
 
 [[var]]
 name = "scene_pause_enabled"
+host_module = "scene"
 addr = "7E:0390"
 size = 2
 subsystem = "scene"
@@ -1395,6 +1418,7 @@ source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
 
 [[var]]
 name = "scene_paused"
+host_module = "scene"
 addr = "7E:0392"
 size = 2
 subsystem = "scene"
@@ -1403,6 +1427,7 @@ source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E, scene_frame_wo
 
 [[var]]
 name = "scene_start_held"
+host_module = "scene"
 addr = "7E:0394"
 size = 2
 subsystem = "scene"
@@ -1411,6 +1436,7 @@ source = "game/scene/frame.c, read_controller_and_pause $C3:0A8E"
 
 [[var]]
 name = "scene_reset_disabled"
+host_module = "scene"
 addr = "7E:0396"
 subsystem = "scene"
 meaning = "Nonzero keeps L+R+Select+Start from resetting the console during a scene"
@@ -1565,6 +1591,7 @@ source = "game/scene/race.c, scene_race_move_camera $7E:43F2"
 
 [[var]]
 name = "scene_palette"
+host_alias = "palette_working"
 addr = "7E:2200"
 size = 0x200
 subsystem = "scene"
@@ -1784,6 +1811,7 @@ source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 (the program'
 
 [[var]]
 name = "scene_random_seed"
+host_module = "scene"
 addr = "7E:0386"
 size = 2
 subsystem = "scene"
@@ -1947,6 +1975,7 @@ source = "game/scene/endings.c, the last scene's colors $7E:8DF3; the window's t
 
 [[var]]
 name = "scene_ending_caption_text"
+host_alias = "scene_credits_page"
 addr = "7E:0382"
 size = 2
 subsystem = "scene"
@@ -1956,6 +1985,7 @@ source = "game/scene/endings.c, the setup $7E:8538; the captions' task $7E:9B4F"
 
 [[var]]
 name = "scene_credits_page"
+host_module = "scene"
 addr = "7E:0382"
 size = 2
 subsystem = "scene"
@@ -3121,6 +3151,7 @@ source = "game/scene/race.c, scene_race_upload_plane $7E:8752"
 
 [[var]]
 name = "oam_buffer"
+host_alias = "field_sprite_table"
 addr = "7E:0700"
 stride = 4
 count = 128
@@ -3147,6 +3178,7 @@ meaning = "Attributes: palette, priority, flips, tile high bit"
 
 [[var]]
 name = "oam_high_table"
+host_alias = "field_sprite_table"
 addr = "7E:0900"
 size = 0x20
 subsystem = "core"
@@ -3163,6 +3195,7 @@ source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D"
 
 [[var]]
 name = "scene_race_winner"
+host_module = "scene"
 addr = "7E:0380"
 subsystem = "scene"
 meaning = "Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny"
@@ -3170,6 +3203,7 @@ source = "game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_finish $
 
 [[var]]
 name = "scene_race_prize"
+host_module = "scene"
 addr = "7E:0381"
 subsystem = "scene"
 meaning = "What Crono's winning score earns, for the story to read: a prize for a lucky number in the low bits (1 a repdigit, 2 777, 3 123 or 1234, 4 a round thousand), and $20, $40 and $80 for reaching 1300, 1500 and 2000"
@@ -3177,6 +3211,7 @@ source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 
 [[var]]
 name = "scene_race_demo_showings"
+host_module = "scene"
 addr = "7E:0397"
 size = 2
 subsystem = "scene"
@@ -3185,6 +3220,7 @@ source = "game/scene/race.c, scene_race_set_up $7E:3B48"
 
 [[var]]
 name = "scene_race_final_score"
+host_alias = "scene_credits_page"
 addr = "7E:0382"
 size = 2
 subsystem = "scene"
@@ -3193,6 +3229,7 @@ source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 
 [[var]]
 name = "scene_fade_period"
+host_module = "scene"
 addr = "7E:038E"
 subsystem = "scene"
 meaning = "Frames between the steps of the scene's fade in or out (the program's fade tasks at $7E:347A and on)"
@@ -3200,6 +3237,7 @@ source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 
 [[var]]
 name = "scene_fade_countdown"
+host_module = "scene"
 addr = "7E:038F"
 subsystem = "scene"
 meaning = "Frames left before the fade's next step; a store of the period as a word sets it too"
@@ -3207,6 +3245,7 @@ source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 
 [[var]]
 name = "scene_end_wait"
+host_module = "scene"
 addr = "7E:0399"
 size = 2
 subsystem = "scene"
@@ -3215,6 +3254,7 @@ source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D, scene_race
 
 [[var]]
 name = "scene_random_step"
+host_module = "scene"
 addr = "7E:039B"
 subsystem = "scene"
 meaning = "Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it on"
@@ -3944,6 +3984,7 @@ meaning = "The id word's high byte, its bits 1-4 shifted down to bits 0-3 and it
 
 [[var]]
 name = "field_irq_disabled"
+host_module = "field"
 addr = "7E:010F"
 page = "field"
 subsystem = "field"
@@ -3952,6 +3993,7 @@ source = "game/field/display.c, field_irq $C0:ECCC"
 
 [[var]]
 name = "field_requests"
+host_module = "field"
 addr = "7E:0117"
 page = "field"
 subsystem = "field"
@@ -3960,6 +4002,7 @@ source = "game/event/locations.c request_change, fight $C0:3A83; game/event/scre
 
 [[var]]
 name = "field_effect_status"
+host_module = "field"
 addr = "7E:0118"
 page = "field"
 subsystem = "field"
@@ -3968,6 +4011,7 @@ source = "game/event/screen.c fade $C0:3CD0, tint $C0:3D07, wait_for_screen; gam
 
 [[var]]
 name = "field_brightness"
+host_module = "field"
 addr = "7E:0119"
 page = "field"
 subsystem = "field"
@@ -3976,6 +4020,7 @@ source = "game/field/nmi.c field_nmi $C0:EA63; game/event/screen.c fade $C0:3CD0
 
 [[var]]
 name = "field_brightness_target"
+host_module = "field"
 addr = "7E:011B"
 page = "field"
 subsystem = "field"
@@ -3984,6 +4029,7 @@ source = "game/event/screen.c, fade $C0:3CD0"
 
 [[var]]
 name = "field_brightness_rate"
+host_module = "field"
 addr = "7E:011C"
 page = "field"
 size = 2
@@ -3993,6 +4039,7 @@ source = "game/event/screen.c, fade $C0:3CD0"
 
 [[var]]
 name = "field_fixed_color"
+host_module = "field"
 addr = "7E:0121"
 page = "field"
 subsystem = "field"
@@ -4001,6 +4048,7 @@ source = "game/field/nmi.c field_nmi $C0:EA63; game/event/screen.c tint $C0:3D07
 
 [[var]]
 name = "field_fixed_color_target"
+host_module = "field"
 addr = "7E:0122"
 page = "field"
 subsystem = "field"
@@ -4009,6 +4057,7 @@ source = "game/event/screen.c, tint $C0:3D07"
 
 [[var]]
 name = "field_fixed_color_rate"
+host_module = "field"
 addr = "7E:0123"
 page = "field"
 size = 2
@@ -4018,6 +4067,7 @@ source = "game/event/screen.c, tint $C0:3D07"
 
 [[var]]
 name = "location_record_offset"
+host_module = "field"
 addr = "7E:01FE"
 size = 2
 subsystem = "field"
@@ -4026,6 +4076,7 @@ source = "LDX $01FE at $C0:7477; game/core/palette.c, palette_load_animations $F
 
 [[var]]
 name = "field_script_menu"
+host_module = "field"
 addr = "7E:0125"
 page = "field"
 subsystem = "field"
@@ -4034,6 +4085,7 @@ source = "game/field/menus.c, field_open_script_menu $C0:0CC7"
 
 [[var]]
 name = "dialog_window_position"
+host_module = "field"
 addr = "7E:0126"
 page = "field"
 subsystem = "field"
@@ -4042,6 +4094,7 @@ source = "game/field/line_effects.c, field_build_line_effect_tables $FD:C2C1"
 
 [[var]]
 name = "dialog_window_state"
+host_module = "field"
 addr = "7E:0127"
 page = "field"
 subsystem = "field"
@@ -4050,6 +4103,7 @@ source = "tools/movies/addresses.py DIALOG_OPEN (found by diffing work RAM with 
 
 [[var]]
 name = "field_line_effect_enable"
+host_module = "field"
 addr = "7E:0128"
 page = "field"
 subsystem = "field"
@@ -4058,6 +4112,7 @@ source = "game/field/nmi.c field_nmi $C0:EA63; game/field/line_effects.c field_s
 
 [[var]]
 name = "dialog_state"
+host_module = "field"
 addr = "7E:0129"
 page = "field"
 subsystem = "field"
@@ -4066,6 +4121,7 @@ source = "game/event/dialog.c $C0:3570; game/field/object_view.c field_update_ob
 
 [[var]]
 name = "dialog_string"
+host_module = "field"
 addr = "7E:012A"
 page = "field"
 subsystem = "field"
@@ -4074,6 +4130,7 @@ source = "game/event/dialog.c, say $C0:3570"
 
 [[var]]
 name = "dialog_string_table"
+host_module = "field"
 addr = "7E:012B"
 page = "field"
 size = 3
@@ -4083,6 +4140,7 @@ source = "game/event/dialog.c, use_text $C0:3557"
 
 [[var]]
 name = "dialog_speaker"
+host_module = "field"
 addr = "7E:012E"
 page = "field"
 subsystem = "field"
@@ -4091,6 +4149,7 @@ source = "game/event/dialog.c, open_dialog ($C0:3570)"
 
 [[var]]
 name = "dialog_box_position"
+host_module = "field"
 addr = "7E:0130"
 page = "field"
 subsystem = "field"
@@ -4099,6 +4158,7 @@ source = "game/event/dialog.c $C0:3570, $C0:35B5, $C0:35FC (positions confirmed 
 
 [[var]]
 name = "dialog_text_sending"
+host_module = "field"
 addr = "7E:0136"
 page = "field"
 subsystem = "field"
@@ -4107,6 +4167,7 @@ source = "game/field/dialog_window.c, field_dialog_window_step $C0:1F87; game/fi
 
 [[var]]
 name = "field_window2_edge"
+host_module = "field"
 addr = "7E:013C"
 page = "field"
 subsystem = "field"
@@ -4115,6 +4176,7 @@ source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE; game/fie
 
 [[var]]
 name = "field_map_transition"
+host_module = "field"
 addr = "7E:0146"
 page = "field"
 subsystem = "field"
@@ -4123,6 +4185,7 @@ source = "game/field/nmi.c, run_map_transition ($C0:EA63)"
 
 [[var]]
 name = "field_screen_transition"
+host_module = "field"
 addr = "7E:0147"
 page = "field"
 subsystem = "field"
@@ -4131,6 +4194,7 @@ source = "game/field/nmi.c, run_screen_transition ($C0:EA63)"
 
 [[var]]
 name = "field_transfer"
+host_module = "field"
 addr = "7E:0148"
 page = "field"
 stride = 8
@@ -4159,6 +4223,7 @@ meaning = "Byte count (0: 64 KiB)"
 
 [[var]]
 name = "field_input_latched"
+host_module = "field"
 addr = "7E:0150"
 page = "field"
 size = 2
@@ -4168,6 +4233,7 @@ source = "game/event/input.c, if_pressed ($C0:6732 ...)"
 
 [[var]]
 name = "field_frame_pending"
+host_module = "field"
 addr = "7E:0152"
 page = "field"
 subsystem = "field"
@@ -4176,6 +4242,7 @@ source = "game/field/nmi.c field_nmi $C0:EA63; game/field/frame.c field_wait_for
 
 [[var]]
 name = "field_display_flags"
+host_module = "field"
 addr = "7E:0153"
 page = "field"
 subsystem = "field"
@@ -4184,6 +4251,7 @@ source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE, field_bu
 
 [[var]]
 name = "dialog_choice_active"
+host_module = "field"
 addr = "7E:0162"
 page = "field"
 subsystem = "field"
@@ -4192,6 +4260,7 @@ source = "game/event/dialog.c, ask $C0:3643"
 
 [[var]]
 name = "dialog_choice_pointer"
+host_module = "field"
 addr = "7E:0163"
 page = "field"
 subsystem = "field"
@@ -4200,6 +4269,7 @@ source = "game/field/dialog_window.c, field_take_choice_buttons $C0:1ADF, field_
 
 [[var]]
 name = "dialog_choice"
+host_module = "field"
 addr = "7E:0166"
 page = "field"
 subsystem = "field"
@@ -4208,6 +4278,7 @@ source = "game/event/dialog.c, ask $C0:3643"
 
 [[var]]
 name = "event_commands_left"
+host_module = "event"
 addr = "7E:0167"
 page = "field"
 subsystem = "event"
@@ -4216,6 +4287,7 @@ source = "game/event/bridge.c, event_run_object_script $C0:5A93"
 
 [[var]]
 name = "event_commands_per_turn"
+host_module = "event"
 addr = "7E:0168"
 page = "field"
 subsystem = "event"
@@ -4224,6 +4296,7 @@ source = "game/event/bridge.c, event_run_object_script $C0:5A93"
 
 [[var]]
 name = "field_current_object"
+host_module = "field"
 addr = "7E:016D"
 page = "field"
 size = 2
@@ -4233,6 +4306,7 @@ source = "game/event/script.h running_object; game/event/engine.c event_run_turn
 
 [[var]]
 name = "field_animation_queue"
+host_module = "field"
 addr = "7E:0176"
 page = "field"
 stride = 2
@@ -4250,6 +4324,7 @@ meaning = "The last object queued (negative: the queue is empty)"
 
 [[var]]
 name = "field_script_queue"
+host_module = "field"
 addr = "7E:0174"
 page = "field"
 stride = 2
@@ -4267,6 +4342,7 @@ meaning = "The last object queued (negative: the queue is empty)"
 
 [[var]]
 name = "field_script_line_limit"
+host_module = "field"
 addr = "7E:0169"
 page = "field"
 size = 2
@@ -4276,6 +4352,7 @@ source = "game/field/script_turns.c, run_queued_scripts $C0:5A46"
 
 [[var]]
 name = "field_animation_queue_front"
+host_module = "field"
 addr = "7E:0178"
 page = "field"
 subsystem = "field"
@@ -4285,6 +4362,7 @@ source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
 name = "field_unpacked_graphics_end"
+host_module = "field"
 addr = "7E:0171"
 page = "field"
 size = 2
@@ -4294,6 +4372,7 @@ source = "game/field/cast.c, ask_to_unpack and graphics_unpacked ($C0:4590, $C0:
 
 [[var]]
 name = "field_npc_graphics_count"
+host_module = "field"
 addr = "7E:0173"
 page = "field"
 subsystem = "field"
@@ -4302,6 +4381,7 @@ source = "game/field/cast.c, note_npc_graphics ($C0:4590)"
 
 [[var]]
 name = "field_sprite_range_spare"
+host_module = "field"
 addr = "7E:0183"
 page = "field"
 size = 2
@@ -4314,6 +4394,7 @@ source = "game/field/sprites.c, field_build_sprite_table $C0:B271"
 
 [[var]]
 name = "field_sprite_table"
+host_module = "sprites"
 addr = "7E:0700"
 size = 0x220
 subsystem = "field"
@@ -4322,6 +4403,7 @@ source = "game/field/sprites.c, field_build_sprite_table $C0:B271, field_draw_ob
 
 [[var]]
 name = "field_sprite_range_end"
+host_module = "field"
 addr = "7E:017B"
 page = "field"
 size = 2
@@ -4334,6 +4416,7 @@ source = "game/field/sprites.c, field_build_sprite_table $C0:B271"
 
 [[var]]
 name = "field_sprite_range_high"
+host_module = "field"
 addr = "7E:0181"
 page = "field"
 size = 2
@@ -4346,6 +4429,7 @@ source = "game/field/sprites.c, field_build_sprite_table $C0:B271, field_draw_ob
 
 [[var]]
 name = "field_party_objects"
+host_module = "field"
 addr = "7E:0197"
 page = "field"
 count = 3
@@ -4357,6 +4441,7 @@ source = "game/event/party.h; game/event/party.c take_out_of_party $C0:3A07; gam
 
 [[var]]
 name = "event_object_end"
+host_module = "event"
 addr = "7E:01BD"
 page = "field"
 size = 2
@@ -4366,6 +4451,7 @@ source = "game/event/bridge.c event_run_init_scripts $C0:58DE; game/field/object
 
 [[var]]
 name = "field_setting_1e"
+host_module = "field"
 addr = "7E:011E"
 page = "field"
 subsystem = "field"
@@ -4374,6 +4460,7 @@ source = "game/event/locations.c, set_location $C0:3B45, go_to_location_now_rais
 
 [[var]]
 name = "field_menus_locked"
+host_module = "field"
 addr = "7E:0110"
 page = "field"
 subsystem = "field"
@@ -4382,6 +4469,7 @@ source = "game/field/menus.c, field_pause_and_menus $C0:18D9, field_press_start 
 
 [[var]]
 name = "field_pause_locked"
+host_module = "field"
 addr = "7E:0111"
 page = "field"
 subsystem = "field"
@@ -4390,6 +4478,7 @@ source = "game/field/menus.c, field_pause_and_menus $C0:18D9"
 
 [[var]]
 name = "field_brightness_before_pause"
+host_module = "field"
 addr = "7E:011A"
 page = "field"
 subsystem = "field"
@@ -4398,6 +4487,7 @@ source = "game/field/menus.c, pause $C0:18E8"
 
 [[var]]
 name = "field_character_objects"
+host_module = "field"
 addr = "7E:018D"
 page = "field"
 count = 7
@@ -4408,6 +4498,7 @@ source = "game/field/menus.c, bring_the_party_back $C0:1A03"
 
 [[var]]
 name = "field_party_as_loaded"
+host_module = "field"
 addr = "7E:0194"
 page = "field"
 count = 3
@@ -4485,6 +4576,7 @@ source = "game/field/location.c, field_put_aside $C0:011B, field_set_up_after_a_
 
 [[var]]
 name = "field_player_control"
+host_module = "field"
 addr = "7E:011F"
 page = "field"
 subsystem = "field"
@@ -4493,6 +4585,7 @@ source = "game/event/screen.c, set_player_control $C0:3C05, scroll_camera $C0:3E
 
 [[var]]
 name = "dialog_window_object"
+host_module = "field"
 addr = "7E:0132"
 page = "field"
 subsystem = "field"
@@ -4501,6 +4594,7 @@ source = "game/event/dialog.c open_dialog; $C0:9193"
 
 [[var]]
 name = "field_leader_collides"
+host_module = "field"
 addr = "7E:0120"
 page = "field"
 subsystem = "field"
@@ -4509,6 +4603,7 @@ source = "game/field/walk.c field_walk_the_leader $C0:881E; $C0:0BC8"
 
 [[var]]
 name = "dialog_text_row"
+host_module = "field"
 addr = "7E:0131"
 page = "field"
 subsystem = "field"
@@ -4517,6 +4612,7 @@ source = "game/field/dialog_window.c, field_dialog_window_step $C0:1F87, field_s
 
 [[var]]
 name = "dialog_window_opening_clears"
+host_module = "field"
 addr = "7E:0133"
 page = "field"
 subsystem = "field"
@@ -4525,6 +4621,7 @@ source = "game/field/dialog_window.c, field_dialog_window_step $C0:1F87"
 
 [[var]]
 name = "field_dialog_hold"
+host_module = "field"
 addr = "7E:0134"
 page = "field"
 size = 2
@@ -4534,6 +4631,7 @@ source = "game/event/contact.c press_confirm $C0:1AAC; $C0:20A5, $C0:21BE"
 
 [[var]]
 name = "field_leader_level"
+host_module = "field"
 addr = "7E:0155"
 page = "field"
 subsystem = "field"
@@ -4542,6 +4640,7 @@ source = "game/field/walk.c reachable, step_onto ($C0:9C37, $C0:9C5C), party_sta
 
 [[var]]
 name = "field_step_tile"
+host_module = "field"
 addr = "7E:015B"
 page = "field"
 size = 2
@@ -4551,6 +4650,7 @@ source = "game/field/walk.c step_onto $C0:9D35"
 
 [[var]]
 name = "field_opened_chest_tile"
+host_module = "field"
 addr = "7E:015D"
 page = "field"
 size = 2
@@ -4560,6 +4660,7 @@ source = "game/event/chests.c open_the_chest $C0:1DF4"
 
 [[var]]
 name = "field_chest_gold"
+host_alias = "menu_text_arguments"
 addr = "7E:0200"
 size = 2
 subsystem = "field"
@@ -4568,6 +4669,7 @@ source = "game/event/chests.c open_the_chest $C0:1E7C"
 
 [[var]]
 name = "field_message_mark"
+host_alias = "menu_text_hex"
 addr = "7E:02A1"
 subsystem = "field"
 meaning = "Cleared when the field opens its own message (a chest's) and when the battle opens one ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md)"
@@ -4575,6 +4677,7 @@ source = "game/event/dialog.c field_message_opens, the chests' $C0:1F20"
 
 [[var]]
 name = "field_screen_recentring"
+host_module = "field"
 addr = "7E:0138"
 page = "field"
 subsystem = "field"
@@ -4583,6 +4686,7 @@ source = "game/event/movement.c step_with_the_party $C0:3002; $C0:177F, $C0:885A
 
 [[var]]
 name = "field_idle_frames"
+host_module = "field"
 addr = "7E:0158"
 page = "field"
 size = 2
@@ -4592,6 +4696,7 @@ source = "game/field/party_trail.c stand_or_fidget $C0:A1E9, count_as_on_the_mov
 
 [[var]]
 name = "field_trail_position"
+host_module = "field"
 addr = "7E:01AB"
 page = "field"
 count = 3
@@ -4602,6 +4707,7 @@ source = "game/field/party_trail.c party_leader_steps $C0:9E29, party_member_fol
 
 [[var]]
 name = "field_leader_contact_high"
+host_module = "field"
 addr = "7E:01EC"
 page = "field"
 subsystem = "field"
@@ -4610,6 +4716,7 @@ source = "game/event/contact.c contact_is_one ($C0:5AC5, $C0:3154, $C0:31B1); $C
 
 [[var]]
 name = "field_party_objects_high"
+host_module = "field"
 addr = "7E:0198"
 page = "field"
 count = 3
@@ -4621,6 +4728,7 @@ source = "game/event/party.c party_can_regroup ($C0:326C, $C0:345A); $C0:42B3, $
 
 [[var]]
 name = "field_leader_contact"
+host_module = "field"
 addr = "7E:01EB"
 page = "field"
 subsystem = "field"
@@ -4629,6 +4737,7 @@ source = "game/event/contact.c touch_what_the_leader_met $C0:3154, talk_to_the_l
 
 [[var]]
 name = "field_tile_copy"
+host_module = "field"
 addr = "7E:013E"
 page = "field"
 stride = 8
@@ -4661,6 +4770,7 @@ meaning = "The low 3 bits of maps, for a copy queued by event $E5"
 
 [[var]]
 name = "field_mode_flags"
+host_module = "field"
 addr = "7E:0154"
 page = "field"
 subsystem = "field"
@@ -4669,6 +4779,7 @@ source = "game/event/dialog.c open_dialog; $C0:1F1E; game/field/palettes.c objec
 
 [[var]]
 name = "dialog_choice_first"
+host_module = "field"
 addr = "7E:0164"
 page = "field"
 subsystem = "field"
@@ -4677,6 +4788,7 @@ source = "game/event/dialog.c ask $C0:3643; game/field/dialog_window.c, field_ta
 
 [[var]]
 name = "dialog_choice_last"
+host_module = "field"
 addr = "7E:0165"
 page = "field"
 subsystem = "field"
@@ -4685,6 +4797,7 @@ source = "game/event/dialog.c ask $C0:3643; game/field/dialog_window.c, field_ta
 
 [[var]]
 name = "field_animation_line_limit"
+host_module = "field"
 addr = "7E:016B"
 page = "field"
 size = 2
@@ -4694,6 +4807,7 @@ source = "game/event/screen.c set_animation_line_limit $C0:6788; $C0:CA99"
 
 [[var]]
 name = "field_screen_shake"
+host_module = "field"
 addr = "7E:01BC"
 page = "field"
 subsystem = "field"
@@ -4702,6 +4816,7 @@ source = "game/event/screen.c shake_screen $C0:3D84; game/field/layers.c update_
 
 [[var]]
 name = "event_count"
+host_alias = "field_work"
 addr = "7E:01C1"
 page = "field"
 size = 2
@@ -4711,6 +4826,7 @@ source = "game/event/memory.c keep_count $C0:6846; game/event/movement.c leave_j
 
 [[var]]
 name = "event_condition_resume"
+host_alias = "field_work"
 addr = "7E:01C3"
 page = "field"
 size = 2
@@ -4720,6 +4836,7 @@ source = "game/event/flow.c (the comparisons $12-$16); docs/REIMPLEMENTATION.md,
 
 [[var]]
 name = "event_saved_position"
+host_alias = "field_work"
 addr = "7E:01C7"
 page = "field"
 size = 2
@@ -4729,6 +4846,7 @@ source = "game/event/movement.c, game/event/party.c, game/event/sound.c, game/ev
 
 [[var]]
 name = "event_source_pointer"
+host_alias = "field_sprite_graphics"
 addr = "7E:01CD"
 page = "field"
 size = 3
@@ -4738,6 +4856,7 @@ source = "game/event/memory.c peek $C0:6792"
 
 [[var]]
 name = "event_target_pointer"
+host_module = "event"
 addr = "7E:01D0"
 page = "field"
 size = 3
@@ -4747,6 +4866,7 @@ source = "game/event/memory.c poke $C0:67D7"
 
 [[var]]
 name = "event_scratch"
+host_module = "event"
 addr = "7E:01D9"
 page = "field"
 size = 14
@@ -4756,6 +4876,7 @@ source = "game/menu/top_layer.c; docs/REIMPLEMENTATION.md, the menus' teardown"
 
 [[var]]
 name = "field_scene_to_start"
+host_alias = "event_scratch"
 addr = "7E:01DF"
 page = "field"
 reuses = ["event_scratch", "field_sprite_range_next"]
@@ -4792,6 +4913,7 @@ meaning = "Byte offset of the next coordinate"
 
 [[var]]
 name = "field_sprites_left"
+host_alias = "field_frame_tiles_left"
 addr = "7E:01C9"
 page = "field"
 subsystem = "field"
@@ -4800,6 +4922,7 @@ source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
 
 [[var]]
 name = "field_scratch_more"
+host_module = "field"
 addr = "7E:01E7"
 page = "field"
 count = 2
@@ -4810,6 +4933,7 @@ source = "game/field/sprites.c, leave_larger_place ($C0:BA65, $C0:BFF2, $C0:C6E7
 
 [[var]]
 name = "field_work"
+host_module = "field"
 addr = "7E:01C1"
 page = "field"
 size = 8
@@ -4819,6 +4943,7 @@ source = "game/field/scratch.h; the leave_ helpers of game/field/graphics.c, obj
 
 [[var]]
 name = "field_sprite_graphics"
+host_module = "field"
 addr = "7E:01CD"
 page = "field"
 stride = 3
@@ -4837,6 +4962,7 @@ meaning = "The bank ($7F, or $D2-$D5)"
 
 [[var]]
 name = "field_sprite_tile_offset"
+host_alias = "event_target_pointer"
 addr = "7E:01D0"
 page = "field"
 size = 2
@@ -4846,6 +4972,7 @@ source = "game/field/graphics.c, field_copy_sprite_tile $C0:E687"
 
 [[var]]
 name = "field_frame_entry"
+host_module = "field"
 addr = "7E:01D6"
 page = "field"
 stride = 3
@@ -4864,6 +4991,7 @@ meaning = "The frame tables' bank"
 
 [[var]]
 name = "field_tile_set_list_place"
+host_alias = "field_frame_entry"
 addr = "7E:01D6"
 size = 3
 page = "field"
@@ -4874,6 +5002,7 @@ source = "game/field/location.c, field_load_tile_graphics $C0:0960"
 
 [[var]]
 name = "field_sprite_range_next"
+host_alias = "event_scratch"
 addr = "7E:01DB"
 page = "field"
 size = 2
@@ -4886,6 +5015,7 @@ source = "game/field/sprites.c, field_build_sprite_table $C0:B271, field_draw_ob
 
 [[var]]
 name = "field_target_object"
+host_module = "field"
 addr = "7E:01E9"
 page = "field"
 size = 2
@@ -4926,6 +5056,7 @@ meaning = "Where in work RAM the tile copy's last whole table starts (its rows 2
 
 [[var]]
 name = "field_target_tile"
+host_module = "field"
 addr = "7E:01F2"
 page = "field"
 stride = 2
@@ -4952,6 +5083,7 @@ source = "game/field/motion.c, field_direction_to_target $C0:ABA2"
 
 [[var]]
 name = "field_random_index"
+host_module = "field"
 addr = "7E:01F8"
 page = "field"
 subsystem = "field"
@@ -5661,6 +5793,7 @@ source = "game/field/object.c object_set_arrival $C0:62A4, object_lines_up"
 
 [[var]]
 name = "field_screen_scroll_state"
+host_alias = "battle_object_x"
 addr = "7E:1D00"
 page = "field_layers"
 subsystem = "field"
@@ -5669,6 +5802,7 @@ source = "game/event/screen.c scroll_camera $C0:3E30; game/field/layers.c field_
 
 [[var]]
 name = "field_screen_scroll_arrived"
+host_alias = "battle_object_x"
 addr = "7E:1D01"
 page = "field_layers"
 subsystem = "field"
@@ -5677,6 +5811,7 @@ source = "game/field/layers.c, field_update_layer_scroll $C0:91AC"
 
 [[var]]
 name = "field_screen_scroll_target"
+host_alias = "battle_object_x"
 addr = "7E:1D02"
 page = "field_layers"
 stride = 2
@@ -5694,6 +5829,7 @@ meaning = "Row"
 
 [[var]]
 name = "field_screen_left"
+host_alias = "battle_object_x"
 addr = "7E:1D0A"
 page = "field_layers"
 subsystem = "field"
@@ -5702,6 +5838,7 @@ source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game
 
 [[var]]
 name = "field_screen_edges_high"
+host_alias = "battle_object_x"
 addr = "7E:1D0B"
 page = "field_layers"
 count = 2
@@ -5713,6 +5850,7 @@ source = "game/field/switches.c"
 
 [[var]]
 name = "field_screen_right"
+host_alias = "battle_object_x"
 addr = "7E:1D0C"
 page = "field_layers"
 subsystem = "field"
@@ -5721,6 +5859,7 @@ source = "game/field/object_view.c, field_update_object_visibility $C0:A88D"
 
 [[var]]
 name = "field_screen_top"
+host_alias = "battle_object_x"
 addr = "7E:1D0E"
 page = "field_layers"
 subsystem = "field"
@@ -5729,6 +5868,7 @@ source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game
 
 [[var]]
 name = "field_screen_bottom"
+host_alias = "battle_object_x"
 addr = "7E:1D10"
 page = "field_layers"
 subsystem = "field"
@@ -5737,6 +5877,7 @@ source = "game/field/object_view.c, field_update_object_visibility $C0:A88D"
 
 [[var]]
 name = "field_map_index_mask"
+host_alias = "battle_object_y"
 addr = "7E:1D1E"
 page = "field_layers"
 size = 2
@@ -5746,6 +5887,7 @@ source = "game/field/motion.c, tile_ahead ($C0:ACFD)"
 
 [[var]]
 name = "field_layer_extra_speed"
+host_alias = "battle_object_y"
 addr = "7E:1D24"
 page = "field_layers"
 count = 3
@@ -5765,6 +5907,7 @@ meaning = "Vertical"
 
 [[var]]
 name = "field_leader_walk"
+host_alias = "battle_object_y"
 addr = "7E:1D2C"
 page = "field_layers"
 stride = 2
@@ -5807,6 +5950,7 @@ source = "game/field/party_trail.c ($C0:9E29, $C0:9E84); $C0:9D6A, $C0:9E20"
 
 [[var]]
 name = "field_location_exits"
+host_alias = "battle_object_x"
 addr = "7E:1D04"
 page = "field_layers"
 size = 2
@@ -5816,6 +5960,7 @@ source = "game/field/walk.c take_an_exit $C0:9CBD"
 
 [[var]]
 name = "field_games_chests"
+host_alias = "battle_object_x"
 addr = "7E:1D06"
 page = "field_layers"
 size = 2
@@ -5825,6 +5970,7 @@ source = "game/event/chests.c, chests_mark_the_map $C0:A712, open_the_chest $C0:
 
 [[var]]
 name = "field_location_chests"
+host_alias = "battle_object_x"
 addr = "7E:1D08"
 page = "field_layers"
 size = 2
@@ -5834,6 +5980,7 @@ source = "game/event/chests.c, chests_mark_the_map $C0:A712, open_the_chest $C0:
 
 [[var]]
 name = "field_bg2_screen_left"
+host_alias = "battle_object_x"
 addr = "7E:1D12"
 page = "field_layers"
 subsystem = "field"
@@ -5842,6 +5989,7 @@ source = "game/field/streaming.c, move_a_pixel ($C0:95E3-$C0:96B6)"
 
 [[var]]
 name = "field_bg2_screen_right"
+host_alias = "battle_object_x"
 addr = "7E:1D14"
 page = "field_layers"
 subsystem = "field"
@@ -5850,6 +5998,7 @@ source = "game/field/streaming.c, move_a_pixel ($C0:95E3-$C0:96B6)"
 
 [[var]]
 name = "field_bg2_screen_top"
+host_alias = "battle_object_x"
 addr = "7E:1D16"
 page = "field_layers"
 subsystem = "field"
@@ -5858,6 +6007,7 @@ source = "game/field/streaming.c, move_a_pixel ($C0:95E3-$C0:96B6)"
 
 [[var]]
 name = "field_bg2_screen_bottom"
+host_alias = "battle_object_y"
 addr = "7E:1D18"
 page = "field_layers"
 subsystem = "field"
@@ -5866,6 +6016,7 @@ source = "game/field/streaming.c, move_a_pixel ($C0:95E3-$C0:96B6)"
 
 [[var]]
 name = "field_map_edges"
+host_alias = "battle_object_y"
 addr = "7E:1D1A"
 page = "field_layers"
 stride = 4
@@ -5891,6 +6042,7 @@ meaning = "The row above the last the leader stands on"
 
 [[var]]
 name = "field_floor_pull"
+host_alias = "battle_object_y"
 addr = "7E:1D2A"
 page = "field_layers"
 stride = 2
@@ -5908,6 +6060,7 @@ meaning = "Down"
 
 [[var]]
 name = "field_layer_index_masks"
+host_alias = "battle_object_y"
 addr = "7E:1D20"
 page = "field_layers"
 size = 2
@@ -6370,6 +6523,7 @@ unchecked = "an object that follows the map put on a tile off it (column 64, or 
 
 [[var]]
 name = "field_layer_scroll_values"
+host_alias = "battle_bg_scroll"
 addr = "7E:2C74"
 count = 2
 stride = 4
@@ -6567,6 +6721,7 @@ source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
 name = "scene_curtain_fill"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F0"
 page = "decompress"
 subsystem = "scene"
@@ -6576,6 +6731,7 @@ source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
 name = "scene_curtain_move"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F2"
 page = "decompress"
 subsystem = "scene"
@@ -6585,6 +6741,7 @@ source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
 name = "scene_curtain_end"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F4"
 size = 2
 page = "decompress"
@@ -6595,6 +6752,7 @@ source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
 name = "scene_planet_fade_toward"
+host_alias = "field_window_shape_corners"
 addr = "7E:0360"
 size = 2
 page = "decompress"
@@ -6604,6 +6762,7 @@ source = "game/scene/planet.c, the colours' step $7E:6439; set by the script's c
 
 [[var]]
 name = "scene_planet_fade_palette"
+host_alias = "field_window_shape_corners"
 addr = "7E:0362"
 size = 2
 page = "decompress"
@@ -6613,6 +6772,7 @@ source = "game/scene/planet.c, the colours' step $7E:6439"
 
 [[var]]
 name = "scene_planet_fade_colours"
+host_alias = "field_window_shape_corners"
 addr = "7E:0364"
 size = 2
 page = "decompress"
@@ -6622,6 +6782,7 @@ source = "game/scene/planet.c, the colours' step $7E:6439"
 
 [[var]]
 name = "scene_planet_fade_steps"
+host_alias = "field_window_shape_corners"
 addr = "7E:0366"
 page = "decompress"
 subsystem = "scene"
@@ -6630,6 +6791,7 @@ source = "game/scene/planet.c, the colours' step $7E:6439"
 
 [[var]]
 name = "scene_planet_fade_steps_high"
+host_alias = "field_window_shape_corners"
 addr = "7E:0367"
 page = "decompress"
 subsystem = "scene"
@@ -6638,6 +6800,7 @@ source = "game/scene/planet.c, the fades $7E:63FE, $7E:6403, $7E:6422"
 
 [[var]]
 name = "scene_planet_fade_target_part"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F0"
 size = 2
 page = "decompress"
@@ -6648,6 +6811,7 @@ source = "game/scene/planet.c, the colours' step $7E:6439"
 
 [[var]]
 name = "scene_planet_fade_stepped_parts"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F2"
 size = 2
 page = "decompress"
@@ -6658,6 +6822,7 @@ source = "game/scene/planet.c, the colours' step $7E:6439"
 
 [[var]]
 name = "scene_planet_fade_colours_left"
+host_module = "scene"
 addr = "7E:03FE"
 size = 2
 page = "decompress"
@@ -6740,6 +6905,7 @@ meaning = "Y from the star's place"
 
 [[var]]
 name = "scene_circle_count"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F0"
 size = 2
 page = "decompress"
@@ -6749,6 +6915,7 @@ source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_decision"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F2"
 size = 2
 page = "decompress"
@@ -6758,6 +6925,7 @@ source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_row"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F4"
 size = 2
 page = "decompress"
@@ -6767,6 +6935,7 @@ source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "scene_circle_center_row_half"
+host_alias = "field_window_shape_steps"
 addr = "7E:03F6"
 size = 2
 page = "decompress"
@@ -6776,6 +6945,7 @@ source = "game/scene/circle.c, scene_draw_circle $C3:0077"
 
 [[var]]
 name = "field_window_shape_corners"
+host_module = "field"
 addr = "7E:0360"
 page = "field_window_shape"
 count = 4
@@ -6798,6 +6968,7 @@ meaning = "Line"
 
 [[var]]
 name = "field_window_shape_top"
+host_module = "field"
 addr = "7E:0368"
 page = "field_window_shape"
 size = 2
@@ -6807,6 +6978,7 @@ source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
 
 [[var]]
 name = "field_window_shape_right_start"
+host_module = "field"
 addr = "7E:036A"
 page = "field_window_shape"
 size = 2
@@ -6816,6 +6988,7 @@ source = "game/field/window_shape.c, field_rasterize_quad $C3:0011"
 
 [[var]]
 name = "field_window_shape_steps"
+host_module = "field"
 addr = "7E:03F0"
 page = "field_window_shape"
 size = 14
@@ -7398,6 +7571,7 @@ source = "game/menu/opening.c, the party's list $C2:816A"
 
 [[var]]
 name = "game_settings"
+host_module = "core"
 addr = "7E:2990"
 count = 3
 index = "byte"
@@ -7407,6 +7581,7 @@ source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4
 
 [[var]]
 name = "current_song"
+host_module = "sound"
 addr = "7E:29AE"
 subsystem = "core"
 meaning = "The song the last play-song event command started"
@@ -7485,6 +7660,7 @@ source = "game/core/input.c, input_read_joypad $C2:84EC"
 
 [[var]]
 name = "button_assignments"
+host_module = "core"
 addr = "7E:2993"
 count = 8
 index = "assignment: which of the game's buttons it stands for, in the order A, B, X, Select, Y, Start, R, L"
@@ -7526,6 +7702,7 @@ source = "game/core/input.c, play_time_tick $C2:85AE"
 
 [[var]]
 name = "play_time_overflowed"
+host_module = "core"
 addr = "7E:0406"
 subsystem = "core"
 meaning = "Set to 1 when the play time clock runs past its last digit"
@@ -7533,6 +7710,7 @@ source = "game/core/input.c, play_time_tick $C2:85AE"
 
 [[var]]
 name = "play_time_stopped"
+host_module = "core"
 addr = "7E:0407"
 subsystem = "core"
 meaning = "Nonzero stops the play time clock"
@@ -7544,6 +7722,7 @@ source = "game/core/input.c, play_time_tick $C2:85AE"
 
 [[var]]
 name = "palette_base"
+host_module = "core"
 addr = "7E:2000"
 size = 2
 count = 256
@@ -7554,6 +7733,7 @@ source = "game/core/palette.c, fade $FD:E82C, fade_colors $FD:E8D7"
 
 [[var]]
 name = "palette_working"
+host_module = "palettes"
 addr = "7E:2200"
 size = 2
 count = 256
@@ -7565,6 +7745,7 @@ unchecked = "the battle's background color rotation from color 0 of palette 0 st
 
 [[var]]
 name = "palette_animations"
+host_module = "palettes"
 addr = "7E:0520"
 page = "palette_fade"
 stride = 0x0C
@@ -7599,10 +7780,12 @@ source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 1
   meaning = "Frames between steps; for a fade, a negative value is taken as the level itself"
   [[var.field]]
   name = "fade_mode"
+  host_alias = "frames"
   offset = 6
   meaning = "Fades and pulses (types 4-7): which channels change (0 all; the others by core/palette.c's table, 6 and up the last)"
   [[var.field]]
   name = "fade_level"
+  host_alias = "frames"
   offset = 7
   meaning = "Fade level, loaded into the multiplier as the fraction / 256 applied to each color; a pulse's running phase"
   [[var.field]]
@@ -7616,6 +7799,7 @@ source = "game/core/palette.c, palette_animate $FD:E39C (loop ends at Y = $90: 1
   meaning = "Types 1 and 8: offset of the animation's frames in the ROM's palette frames ($F6:0000)"
   [[var.field]]
   name = "frames_bank"
+  host_alias = "fade_target"
   offset = 8
   meaning = "Types 1 and 8: the bank of the frames, loaded with them ($F6 in the ROM's sets); the animation reads bank $F6 whatever it holds"
   [[var.field]]
@@ -7646,6 +7830,7 @@ source = "game/core/palette.c, copy_frame $FD:E437"
 
 [[var]]
 name = "tile_animation_frame"
+host_module = "core"
 addr = "7E:051D"
 page = "palette_fade"
 subsystem = "core"
@@ -7654,6 +7839,7 @@ source = "game/core/tile_animation.c, tile_animation_upload $FD:E022"
 
 [[var]]
 name = "tile_animations"
+host_module = "core"
 addr = "7E:05B0"
 page = "palette_fade"
 stride = 5
@@ -7703,6 +7889,7 @@ source = "game/core/tile_animation.c, tile_animation_upload $FD:E022"
 
 [[var]]
 name = "sound_command"
+host_module = "sound"
 addr = "7E:1E00"
 page = "sound"
 subsystem = "core"
@@ -7711,6 +7898,7 @@ source = "the CPU half's retired port: carry_out $C7:0155, leave_driver $C7:0192
 
 [[var]]
 name = "sound_command_parameters"
+host_module = "sound"
 addr = "7E:1E01"
 page = "sound"
 count = 3
@@ -7755,6 +7943,7 @@ source = "the CPU half's retired port: leave_list_ends $C7:01D2"
 
 [[var]]
 name = "sound_driver_effects_asked"
+host_module = "sound"
 addr = "7E:1E10"
 page = "sound"
 subsystem = "core"
@@ -8060,6 +8249,7 @@ source = "game/menu/display.c, menu_nmi_work $C2:842A"
 
 [[var]]
 name = "menu_item_category"
+host_module = "menu"
 addr = "7E:04CC"
 size = 2
 subsystem = "menu"
@@ -8068,6 +8258,7 @@ source = "game/menu/items.c, $C2:8881"
 
 [[var]]
 name = "menu_item_in_category"
+host_module = "menu"
 addr = "7E:04CE"
 size = 2
 subsystem = "menu"
@@ -8186,6 +8377,7 @@ source = "game/menu/items.c, $C2:9875"
 
 [[var]]
 name = "menu_inventory_past_the_items"
+host_module = "menu"
 addr = "7E:24F2"
 count = 14
 index = "place past the inventory"
@@ -8195,6 +8387,7 @@ source = "game/menu/items.c, $C2:9988"
 
 [[var]]
 name = "menu_inventory_counts_past_the_items"
+host_module = "menu"
 addr = "7E:25F2"
 count = 14
 index = "place past the inventory"
@@ -8212,6 +8405,7 @@ source = "game/menu/items.c, $C2:997A"
 
 [[var]]
 name = "menu_past_the_names"
+host_alias = "party_gold"
 addr = "7E:2C53"
 size = 3
 subsystem = "menu"
@@ -9391,6 +9585,7 @@ source = "game/menu/load_screen.c, the slots' rows $C2:D10D; the text loader $C2
 
 [[var]]
 name = "second_controller"
+host_module = "core"
 addr = "7E:041F"
 size = 2
 subsystem = "core"
@@ -9399,6 +9594,7 @@ source = "game/menu/load_screen.c, $C2:E61B; the menus' input $C2:848D"
 
 [[var]]
 name = "save_slot_chosen"
+host_module = "core"
 addr = "7E:0414"
 subsystem = "core"
 meaning = "The save slot the game goes on in: the one the player chose to load, or the first empty one a new game will be saved to"
@@ -9406,6 +9602,7 @@ source = "game/menu/load_screen.c, $C2:E654, $C2:E691; the save's load $FF:F9FB"
 
 [[var]]
 name = "times_finished"
+host_module = "core"
 addr = "7E:299E"
 subsystem = "core"
 meaning = "How many times the game on the cartridge has been finished, as a new game starts with it (the cartridge's count at $30:7FE1)"
@@ -9413,6 +9610,7 @@ source = "game/menu/load_screen.c, $C2:E66A; the save $FF:FA6F"
 
 [[var]]
 name = "names_given"
+host_module = "core"
 addr = "7E:299F"
 size = 2
 subsystem = "core"
@@ -9421,6 +9619,7 @@ source = "game/menu/naming.c, $C2:E1ED, $C2:E52A"
 
 [[var]]
 name = "frames_at_leaving"
+host_module = "core"
 addr = "7E:29AD"
 subsystem = "core"
 meaning = "The menus' frame count when they left for the game, which the battle takes its random numbers' start from"
@@ -9549,6 +9748,7 @@ source = "game/menu/opening.c, the settings unpacked $C2:92F4"
 
 [[var]]
 name = "menu_settings_cursor"
+host_module = "menu"
 addr = "7E:0417"
 subsystem = "menu"
 meaning = "The settings screen's option the cursor is on (0-11), kept from one opening of the screen to the next: the speeds' two meters are options 10 and 11"
@@ -9586,6 +9786,7 @@ source = "game/menu/settings_screen.c, the boxes $C2:C43A, $C2:C3E4"
 
 [[var]]
 name = "own_button_assignments"
+host_module = "core"
 addr = "7E:0408"
 count = 9
 index = "assignment, in button_assignments' order (and a ninth, which nothing reads)"
@@ -9595,6 +9796,7 @@ source = "game/menu/settings_screen.c, the button rows $C2:C183, the assignments
 
 [[var]]
 name = "button_assignment_spare"
+host_module = "core"
 addr = "7E:299B"
 subsystem = "core"
 meaning = "The byte after button_assignments, which the settings screen copies with them (the ninth of own_button_assignments, or of the defaults); nothing reads it"
@@ -10812,6 +11014,7 @@ source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_reco
 
 [[var]]
 name = "menu_glyph_byte"
+host_module = "menu"
 addr = "7E:0260"
 page = "menu_glyph"
 size = 2
@@ -10821,6 +11024,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36, menu_draw_glyph_line $C2
 
 [[var]]
 name = "menu_glyph_number"
+host_module = "menu"
 addr = "7E:0262"
 page = "menu_glyph"
 subsystem = "menu"
@@ -10829,6 +11033,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5E0E"
 
 [[var]]
 name = "menu_glyph_spill"
+host_module = "menu"
 addr = "7E:0263"
 page = "menu_glyph"
 size = 2
@@ -10838,6 +11043,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89"
 
 [[var]]
 name = "menu_glyph_lines_left"
+host_module = "menu"
 addr = "7E:0268"
 page = "menu_glyph"
 subsystem = "menu"
@@ -10846,6 +11052,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36"
 
 [[var]]
 name = "menu_glyph_pen_offset"
+host_module = "menu"
 addr = "7E:026A"
 page = "menu_glyph"
 size = 2
@@ -10855,6 +11062,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5DEC"
 
 [[var]]
 name = "menu_glyph_pen_column"
+host_module = "menu"
 addr = "7E:026E"
 page = "menu_glyph"
 size = 2
@@ -10864,6 +11072,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5E08"
 
 [[var]]
 name = "menu_glyph_dest"
+host_module = "menu"
 addr = "7E:0273"
 page = "menu_glyph"
 size = 3
@@ -10873,6 +11082,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36, menu_draw_glyph_line $C2
 
 [[var]]
 name = "menu_glyph_left_pixels"
+host_module = "menu"
 addr = "7E:0276"
 page = "menu_glyph"
 size = 3
@@ -10882,6 +11092,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5DD4"
 
 [[var]]
 name = "menu_glyph_right_pixels"
+host_module = "menu"
 addr = "7E:0279"
 page = "menu_glyph"
 size = 3
@@ -11169,6 +11380,7 @@ source = "the save code's list $FF:F813; game/menu/members.c"
 
 [[var]]
 name = "menu_main_menu_option"
+host_module = "menu"
 addr = "7E:0411"
 subsystem = "menu"
 meaning = "The main menu's option the cursor is on: 0 the equipment, 1 the items, 2 the techs, 3 the settings, 4 the party exchange, 5 saving; kept from one opening to the next where the player keeps the menus' cursors"
@@ -11205,6 +11417,7 @@ source = "game/menu/main_menu.c, the backdrop $C2:9AAD"
 
 [[var]]
 name = "menu_member_row"
+host_module = "menu"
 addr = "7E:0412"
 subsystem = "menu"
 meaning = "Which of the three rows of a member list the cursor is on (the member is it plus menu_member_scroll)"
@@ -11212,6 +11425,7 @@ source = "game/menu/members.c, game/menu/equipment.c"
 
 [[var]]
 name = "menu_member_scroll"
+host_module = "menu"
 addr = "7E:0413"
 subsystem = "menu"
 meaning = "The first member a member list shows: the list shows three at a time and scrolls through the reachable members"
@@ -11358,6 +11572,7 @@ source = "game/menu/equipment.c; the member list's bar $C2:A170"
 
 [[var]]
 name = "menu_service_character"
+host_module = "menu"
 addr = "7E:04C0"
 subsystem = "menu"
 meaning = "The character the menus' services ($C2:8004) were last asked to work on, as their caller gives it in Y; the dispatcher keeps it, and the services take it as their argument"
@@ -11365,6 +11580,7 @@ source = "game/menu/party_bridge.c, the services $C2:8C36"
 
 [[var]]
 name = "menu_service_answer"
+host_module = "menu"
 addr = "7E:04C1"
 subsystem = "menu"
 meaning = "What the last of the menus' services answered, which the dispatcher hands back in A: its low byte (menu_service_places_searched holds the high byte of a service that works 16 bits wide)"
@@ -11372,6 +11588,7 @@ source = "game/menu/party_bridge.c, the services $C2:8C36"
 
 [[var]]
 name = "menu_service_places_searched"
+host_module = "menu"
 addr = "7E:04C2"
 subsystem = "menu"
 meaning = "How many of the party's places the last of the services' searches for a character looked through (3 the active party's, 9 all); a service that works 16 bits wide leaves its answer's high byte here instead"
@@ -11379,6 +11596,7 @@ source = "game/menu/party_bridge.c, the services $C2:8C75, $C2:8CCF"
 
 [[var]]
 name = "menu_service_record_at"
+host_module = "menu"
 addr = "7E:04C3"
 size = 2
 subsystem = "menu"
@@ -11387,6 +11605,7 @@ source = "game/menu/party.c, party_equip $C2:8D8F"
 
 [[var]]
 name = "menu_service_item"
+host_module = "menu"
 addr = "7E:04C5"
 subsystem = "menu"
 meaning = "The item the equipping service ($C2:8D8F) was asked to put on, kept while what comes off goes back to the party's items"
@@ -11394,6 +11613,7 @@ source = "game/menu/party.c, party_equip $C2:8D8F"
 
 [[var]]
 name = "menu_item_place_found"
+host_module = "menu"
 addr = "7E:04C7"
 size = 2
 subsystem = "menu"
@@ -11402,6 +11622,7 @@ source = "game/menu/items.c, place_holding $C2:87FA"
 
 [[var]]
 name = "menu_weapon_looked_up"
+host_module = "menu"
 addr = "7E:041B"
 size = 2
 subsystem = "menu"
@@ -11410,6 +11631,7 @@ source = "game/menu/party.c, show_weapon_colours $C2:F5ED"
 
 [[var]]
 name = "menu_item_operand"
+host_module = "menu"
 addr = "7E:04C9"
 subsystem = "menu"
 meaning = "The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of ($C2:A59A); a list's row on the screen while it slides"
@@ -11417,6 +11639,7 @@ source = "game/menu/equipment.c"
 
 [[var]]
 name = "menu_item_operand_count"
+host_module = "menu"
 addr = "7E:04CA"
 subsystem = "menu"
 meaning = "How many of menu_item_operand the party has, as a list's row shows it"
@@ -11424,6 +11647,7 @@ source = "game/menu/equipment.c"
 
 [[var]]
 name = "menu_item_operand_quantity"
+host_module = "menu"
 addr = "7E:04CB"
 subsystem = "menu"
 meaning = "How many of menu_item_operand the inventory's routines add or take"
@@ -11682,6 +11906,7 @@ source = "game/menu/equipment_windows.c"
 
 [[var]]
 name = "menu_item_list_row"
+host_module = "menu"
 addr = "7E:0415"
 subsystem = "menu"
 meaning = "The items screen's cursor on its list, the row (0-9) of the ten it shows, kept from one opening of the screen to the next"
@@ -11689,6 +11914,7 @@ source = "game/menu/item_screen.c"
 
 [[var]]
 name = "menu_item_list_top"
+host_module = "menu"
 addr = "7E:0416"
 subsystem = "menu"
 meaning = "The first place of the party's items the items screen's list shows (0 to $E8), kept from one opening to the next"
@@ -11954,6 +12180,7 @@ source = "game/menu/item_screen.c"
 
 [[var]]
 name = "menu_tech_category"
+host_module = "menu"
 addr = "7E:0418"
 subsystem = "menu"
 meaning = "The kind of techs the techs screen lists: 0 a member's own, 1 the double techs, 2 the triple techs; kept from one opening to the next"
@@ -11961,6 +12188,7 @@ source = "game/menu/tech_screen.c, $C2:B520"
 
 [[var]]
 name = "menu_tech_member_row"
+host_module = "menu"
 addr = "7E:0419"
 subsystem = "menu"
 meaning = "The row of the techs screen's member list (0-2) its cursor was on, kept from one opening to the next"
@@ -11968,6 +12196,7 @@ source = "game/menu/tech_screen.c, $C2:B520"
 
 [[var]]
 name = "menu_tech_member_scroll"
+host_module = "menu"
 addr = "7E:041A"
 subsystem = "menu"
 meaning = "The first member the techs screen's member list shows: how far it has slid along the reachable members"
@@ -12486,6 +12715,7 @@ source = "game/menu/saves.c, menu_check_save_slot $FF:F9C4"
 
 [[var]]
 name = "times_saved"
+host_module = "core"
 addr = "7E:299C"
 size = 2
 subsystem = "core"
@@ -12503,6 +12733,7 @@ source = "game/menu/saves.c, $FF:F9FB, $FF:FAA3, $FF:FAED"
 
 [[var]]
 name = "menu_rock_techs_ready"
+host_module = "menu"
 addr = "7E:04A4"
 count = 5
 index = "rock: the five triple techs a rock gives, in the order of their groups"
@@ -12512,6 +12743,7 @@ source = "game/menu/techs.c, menu_note_rock_techs $FF:F958"
 
 [[var]]
 name = "menu_rock_tech_search"
+host_module = "menu"
 addr = "7E:04A0"
 stride = 4
 subsystem = "menu"
@@ -13332,6 +13564,7 @@ source = "game/menu/epoch.c, menu_epoch_map_party_marker $C2:67FA"
 
 [[var]]
 name = "menu_mode"
+host_module = "menu"
 addr = "7E:027C"
 size = 1
 subsystem = "menu"
@@ -13340,6 +13573,7 @@ source = "game/menu/epoch.c, menu_epoch_map_screen $C2:631F (6: the map view), m
 
 [[var]]
 name = "menu_mode_beside"
+host_module = "menu"
 addr = "7E:027D"
 size = 1
 subsystem = "menu"
@@ -13348,6 +13582,7 @@ source = "game/overworld/setup.c, start_the_overworld_afresh ($C2:2C20)"
 
 [[var]]
 name = "menu_travel_location"
+host_module = "menu"
 addr = "7E:02AF"
 size = 2
 subsystem = "menu"
@@ -13356,6 +13591,7 @@ source = "game/menu/epoch.c, menu_epoch_time_dial_object $C2:6AC8"
 
 [[var]]
 name = "menu_epoch_location"
+host_module = "menu"
 addr = "7E:029F"
 size = 2
 subsystem = "menu"
@@ -13364,6 +13600,7 @@ source = "game/menu/epoch.c, menu_epoch_map_epoch_marker $C2:683B"
 
 [[var]]
 name = "menu_epoch_position"
+host_alias = "overworld_epoch"
 addr = "7E:0290"
 size = 2
 count = 2
@@ -13388,6 +13625,7 @@ source = "game/overworld/dactyl.c ($C2:4CDA, $C2:4D9B, $C2:4E78, $C2:5068)"
 
 [[var]]
 name = "overworld_black_omen"
+host_module = "overworld"
 addr = "7E:02A2"
 stride = 4
 subsystem = "overworld"
@@ -14005,6 +14243,7 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   meaning = "The drawing: where the tile groups of the plane over the land are"
 [[var]]
 name = "menu_text"
+host_module = "menu"
 addr = "7E:020C"
 stride = 12
 subsystem = "menu"
@@ -14055,6 +14294,7 @@ source = "game/menu/typeset.c; game/menu/epoch.c, game/menu/save_screen.c and ga
 
 [[var]]
 name = "menu_text_arguments"
+host_module = "menu"
 addr = "7E:0200"
 count = 12
 index = "byte"
@@ -14064,6 +14304,7 @@ source = "game/menu/typeset.c, $C2:57DF points the text's argument pointer here"
 
 [[var]]
 name = "menu_text_reading"
+host_module = "menu"
 addr = "7E:0230"
 stride = 0x10
 subsystem = "menu"
@@ -14116,6 +14357,7 @@ source = "game/menu/typeset.c, $C2:57DF and $C2:5823"
 
 [[var]]
 name = "menu_text_digits"
+host_module = "menu"
 addr = "7E:0240"
 count = 8
 index = "digit"
@@ -14125,6 +14367,7 @@ source = "game/menu/typeset.c"
 
 [[var]]
 name = "menu_text_hex"
+host_module = "menu"
 addr = "7E:02A1"
 subsystem = "menu"
 meaning = "Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing)"
@@ -14132,6 +14375,7 @@ source = "game/menu/typeset.c, $C2:595D and $C2:5994"
 
 [[var]]
 name = "menu_number_conversion"
+host_module = "menu"
 addr = "7E:0265"
 stride = 3
 subsystem = "menu"
@@ -14151,6 +14395,7 @@ source = "game/menu/typeset.c, $C2:614B and $C2:6231"
 
 [[var]]
 name = "menu_number_second_byte"
+host_module = "menu"
 addr = "7E:0269"
 subsystem = "menu"
 meaning = "The number being shown's second byte, as it is read (its other bytes share cells with the glyph drawer). Scaffolding: nothing reads it after"
@@ -14158,6 +14403,7 @@ source = "game/menu/typeset.c, $C2:5985 and $C2:59C8"
 
 [[var]]
 name = "menu_glyph_font_step"
+host_module = "menu"
 addr = "7E:026C"
 size = 2
 subsystem = "menu"
@@ -14888,6 +15134,7 @@ source = "game/menu/object_script.c, menu_object_cmd_set_scene_script $C2:11B2"
 
 [[var]]
 name = "menu_song_playing"
+host_module = "menu"
 addr = "7E:02AE"
 size = 1
 subsystem = "menu"
@@ -14897,12 +15144,14 @@ source = "game/menu/object_script.c, menu_object_cmd_play_song $C2:18F9"
 
 [[var]]
 name = "menu_field_song_volume"
+host_module = "menu"
 addr = "7E:04FB"
 subsystem = "menu"
 meaning = "The volume the field's song fades back in to as the gate's screen closes, 0 for full ($C2:CC42); no routine the disassembly reaches writes it by this address"
 source = "game/menu/sound.c, $C2:CC0E"
 [[var]]
 name = "menu_saved_location"
+host_module = "menu"
 addr = "7E:04FC"
 stride = 4
 subsystem = "menu"
@@ -14931,6 +15180,7 @@ source = "game/menu/object_script.c, menu_object_cmd_change_location $C2:1100"
 
 [[var]]
 name = "epoch_name"
+host_module = "core"
 addr = "7E:2C4D"
 size = 6
 subsystem = "core"
@@ -14939,6 +15189,7 @@ source = "game/menu/naming.c, the names' check $C2:E3E0 and the naming $C2:E40E"
 
 [[var]]
 name = "character_names"
+host_module = "core"
 addr = "7E:2C23"
 count = 7
 stride = 6
@@ -15178,6 +15429,7 @@ source = "game/battle/math.c battle_update_button_repeat $CD:0340; game/battle/m
 
 [[var]]
 name = "battle_object_x"
+host_module = "battle"
 addr = "7E:1D00"
 page = "battle_sprites"
 count = 23
@@ -15189,6 +15441,7 @@ source = "game/battle/draw_objects.c header, draw_combatant $CF:EAC5, draw_shado
 
 [[var]]
 name = "battle_object_y"
+host_module = "battle"
 addr = "7E:1D17"
 page = "battle_sprites"
 count = 23
@@ -15422,6 +15675,7 @@ source = "game/battle/setup_party.c setup_party_objects and setup_enemies.c set_
 
 [[var]]
 name = "battle_setup_flags"
+host_module = "battle"
 addr = "7E:2989"
 subsystem = "battle"
 meaning = "Flags of the battle being started: bit 7 no running away (L+R), bit 5 a demo battle (any button ends it), bit 2 the party left off the battlefield grid"
@@ -15429,6 +15683,7 @@ source = "game/battle/frame.c battle_frame_update $CF:E58A; game/battle/battlefi
 
 [[var]]
 name = "battle_event_flags"
+host_module = "battle"
 addr = "7E:2A1F"
 subsystem = "battle"
 meaning = "The battle's terms, which the event hands it with battle_setup_flags (event $D8's second operand): bit 7 leaves the party where it stands afterwards, bit 6 keeps the field's song through the fight ($CD:03CC), bit 5 lets the field go on after a defeat (BATTLE_TERMS_*, battle/battle.h)"
@@ -15514,6 +15769,7 @@ source = "game/battle/setup_enemies.c keep_start_positions, setup_enemies.c set_
 
 [[var]]
 name = "battle_bg_scroll"
+host_module = "battle"
 addr = "7E:2C70"
 count = 3
 stride = 4
@@ -15534,6 +15790,7 @@ source = "game/battle/scroll.c battle_update_scroll_tables $CD:06C4; game/battle
 
 [[var]]
 name = "battle_remembered_item_top"
+host_module = "battle"
 addr = "7E:2C98"
 subsystem = "battle"
 meaning = "Item list top entry the battle menu starts at ($95E6) when $A0D5 is set"
@@ -15541,6 +15798,7 @@ source = "game/battle/setup_party.c setup_remembered_cursors in battle_setup_sta
 
 [[var]]
 name = "battle_remembered_item_row"
+host_module = "battle"
 addr = "7E:2C99"
 subsystem = "battle"
 meaning = "Item list cursor row the battle menu starts at ($95E5) when $A0D5 is set"
@@ -16348,6 +16606,7 @@ source = "$C1:2042 and $C1:1F79 (set and clear it); game/battle/menu_window.c pl
 
 [[var]]
 name = "battle_target_display"
+host_alias = "menu_text_arguments"
 addr = "7E:0200"
 count = 5
 index = "byte: the enemy ($0200), its HP ($0201, a word) and maximum HP ($0203, a word)"
@@ -16664,6 +16923,7 @@ source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
 name = "battle_random_kept"
+host_alias = "frames_at_leaving"
 addr = "7E:29AD"
 subsystem = "battle"
 meaning = "battle_random_position kept between battles: taken at the start and put back at the end"
@@ -16778,6 +17038,7 @@ source = "game/battle/main_loop.c $C1:83BB, $C1:8423; $C1:FD2C"
 
 [[var]]
 name = "battle_rewards_held"
+host_module = "battle"
 addr = "7E:2880"
 subsystem = "battle"
 meaning = "Nonzero when the battle shares out no experience or gold"
@@ -18352,6 +18613,7 @@ source = "game/battle/setup_reset.c clear_drawing in battle_setup_state $CC:E2E4
 
 [[var]]
 name = "battle_location_upper_attributes"
+host_module = "battle"
 addr = "7E:2A23"
 count = 256
 index = "battlefield cell (row * 16 + column)"
@@ -18361,6 +18623,7 @@ source = "game/battle/setup_screen.c setup_base_grid $CC:E466; $C0:039B"
 
 [[var]]
 name = "battle_location_lower_attributes"
+host_module = "battle"
 addr = "7E:2B23"
 count = 256
 index = "battlefield cell (row * 16 + column)"
@@ -18370,6 +18633,7 @@ source = "game/battle/setup_screen.c setup_base_grid $CC:E466; $C0:039B"
 
 [[var]]
 name = "battle_remembered_cursors"
+host_module = "battle"
 addr = "7E:2C7C"
 count = 7
 stride = 4
@@ -20351,6 +20615,7 @@ source = "game/battle/wait.c battle_wait_for_the_small_handler $CD:044A; game/ba
 
 [[var]]
 name = "battle_background_flags"
+host_module = "battle"
 addr = "7E:2A21"
 subsystem = "battle"
 meaning = "How the battle's background behaves: bit 0 the HP gradient runs each frame, bit 1 palette animation slot 7 follows the sprite palette row swap"
@@ -22365,6 +22630,7 @@ source = "game/battle/object_motion.c raise_numbers $CF:E781"
 
 [[var]]
 name = "warp_zero"
+host_module = "warp"
 addr = "7E:0508"
 size = 2
 subsystem = "warp"
@@ -22382,6 +22648,7 @@ source = "game/warp/picture.c, game/warp/circle.c, game/warp/warp.c ($FD:DB97, $
 
 [[var]]
 name = "warp_frame"
+host_module = "warp"
 addr = "7E:051B"
 size = 2
 subsystem = "warp"
@@ -22390,6 +22657,7 @@ source = "game/warp/warp.c warp_vblank $FD:DE6E, warp_set_up $FD:DCB8"
 
 [[var]]
 name = "warp_frame_ended"
+host_module = "warp"
 addr = "7E:051E"
 subsystem = "warp"
 meaning = "Nonzero once the vblank handler has taken the frame the main loop finished; the wait for the next frame clears it and waits for it"
@@ -22397,6 +22665,7 @@ source = "game/warp/warp.c warp_vblank $FD:DE73, warp_wait_for_frame $FD:EAEB"
 
 [[var]]
 name = "warp_circle_center_x"
+host_module = "warp"
 addr = "7E:051F"
 subsystem = "warp"
 meaning = "Where the circle's centre is across the screen: the middle, set each time the circle is built"
@@ -22404,6 +22673,7 @@ source = "game/warp/circle.c $FD:EB8B"
 
 [[var]]
 name = "warp_circle_center_y"
+host_alias = "palette_animations"
 addr = "7E:0521"
 subsystem = "warp"
 meaning = "Where the circle's centre is down its window table: the middle, set each time the circle is built"
@@ -22411,6 +22681,7 @@ source = "game/warp/circle.c $FD:EB8B"
 
 [[var]]
 name = "warp_circle_radius"
+host_alias = "palette_animations"
 addr = "7E:0523"
 subsystem = "warp"
 meaning = "The circle's radius this frame, 0 for none: it grows as the tunnel opens and again as it closes"
@@ -22418,6 +22689,7 @@ source = "game/warp/warp.c $FD:DA09-$FD:DA42; game/warp/circle.c $FD:EB8B"
 
 [[var]]
 name = "warp_circle_tables_built"
+host_alias = "palette_animations"
 addr = "7E:0524"
 subsystem = "warp"
 meaning = "How many times the circle's window table has been built: it alternates between two tables, and the vblank handler shows the one built last (the second while this is odd)"
@@ -22425,6 +22697,7 @@ source = "game/warp/circle.c $FD:EB91; game/warp/warp.c warp_vblank $FD:DE3C"
 
 [[var]]
 name = "warp_pixel_set_masks"
+host_alias = "palette_animations"
 addr = "7E:0525"
 count = 8
 index = "pixel across a tile's row"
@@ -22434,6 +22707,7 @@ source = "game/warp/picture.c $FD:DBC3, $FD:ECD5"
 
 [[var]]
 name = "warp_pixel_clear_masks"
+host_alias = "palette_animations"
 addr = "7E:052D"
 count = 8
 index = "pixel across a tile's row"
@@ -22443,6 +22717,7 @@ source = "game/warp/picture.c $FD:DBCA, $FD:ECD5"
 
 [[var]]
 name = "warp_flicker"
+host_alias = "palette_animations"
 addr = "7E:0535"
 size = 2
 subsystem = "warp"
@@ -22643,6 +22918,7 @@ source = "game/warp/warp.c $FD:EAA6, $FD:EAB7"
 
 [[var]]
 name = "inventory_items"
+host_module = "core"
 addr = "7E:2400"
 count = 0xF2
 index = "inventory position"
@@ -22653,6 +22929,7 @@ source = "tools/movies/addresses.py INVENTORY_ITEMS, INVENTORY_SIZE (read in a b
 
 [[var]]
 name = "inventory_counts"
+host_module = "core"
 addr = "7E:2500"
 count = 0xF2
 index = "inventory position"
@@ -22663,6 +22940,7 @@ source = "tools/movies/addresses.py INVENTORY_COUNTS"
 
 [[var]]
 name = "party_triple_techs_learned"
+host_module = "core"
 addr = "7E:284D"
 count = 15
 index = "triple tech, from the first ($66)"
@@ -22673,6 +22951,7 @@ source = "game/battle/tech_records.c ($C1:CD08)"
 
 [[var]]
 name = "party_gold"
+host_module = "core"
 addr = "7E:2C53"
 stride = 3
 subsystem = "core"
@@ -22690,6 +22969,7 @@ source = "game/battle/inventory.c ($C1:D086, $C1:D0A2, $C1:D0ED)"
 
 [[var]]
 name = "world_position"
+host_alias = "overworld_party_places"
 addr = "7E:0283"
 stride = 4
 subsystem = "field"
@@ -22920,6 +23200,7 @@ source = "game/overworld/music.c, $C2:2F94"
 
 [[var]]
 name = "overworld_travel"
+host_module = "overworld"
 addr = "7E:027E"
 subsystem = "overworld"
 meaning = "How the party is going about the world map: 0 on foot, 1 standing as it is, 2 in the Epoch, 3 on a dactyl, 4 walking to a vehicle to board it, 5 getting off one"
@@ -22927,6 +23208,7 @@ source = "game/overworld/walk.c ($C2:3404), followers.c ($C2:3AE2); the vehicles
 
 [[var]]
 name = "overworld_travel_before"
+host_module = "overworld"
 addr = "7E:027F"
 subsystem = "overworld"
 meaning = "overworld_travel as the vehicles' controller saw it the frame before: the walkers start their steps over when the two differ"
@@ -22934,6 +23216,7 @@ source = "$C2:309E; game/overworld/walk.c, followers.c"
 
 [[var]]
 name = "overworld_event"
+host_module = "overworld"
 addr = "7E:0280"
 subsystem = "overworld"
 meaning = "1 while an event the party stepped onto runs: its script, and the party's own scripts for it (menu_member_scripts); 0 otherwise"
@@ -22941,6 +23224,7 @@ source = "game/overworld/places.c ($C2:3264)"
 
 [[var]]
 name = "overworld_event_before"
+host_module = "overworld"
 addr = "7E:0281"
 subsystem = "overworld"
 meaning = "overworld_event as the places' watcher saw it at the start of the frame: the walkers start their steps over when the two differ"
@@ -22948,6 +23232,7 @@ source = "game/overworld/places.c ($C2:3264)"
 
 [[var]]
 name = "overworld_ground_news"
+host_module = "overworld"
 addr = "7E:0282"
 subsystem = "overworld"
 meaning = "What the leader's last step found under it: bit 0 a place's ground to look up (the watcher clears it once it has), bit 1 standing on a place's ground"
@@ -22955,6 +23240,7 @@ source = "game/overworld/walk.c ($C2:34F8, $C2:36ED), places.c ($C2:3279)"
 
 [[var]]
 name = "overworld_party_places"
+host_module = "overworld"
 addr = "7E:0283"
 count = 3
 stride = 4
@@ -22975,6 +23261,7 @@ source = "game/overworld/walk.c, followers.c"
 
 [[var]]
 name = "overworld_boarding"
+host_module = "overworld"
 addr = "7E:028F"
 subsystem = "overworld"
 meaning = "The vehicle the party boards or gets off, as the travel it gives (2 the Epoch, 3 a dactyl; 0 none)"
@@ -22982,6 +23269,7 @@ source = "$C2:309E; game/overworld/walk.c, followers.c"
 
 [[var]]
 name = "overworld_second_vehicle_state"
+host_module = "overworld"
 addr = "7E:0299"
 subsystem = "overworld"
 meaning = "The state of a vehicle record laid out as the Epoch's and the dactyl's, between the two: no port writes it; the main menu's save screen reads its bit 6 (the party has it out) with theirs, and refuses to save where it is set"
@@ -22989,6 +23277,7 @@ source = "game/menu/saving.c, the main menu's save screen's opening $C2:CEDC"
 
 [[var]]
 name = "overworld_epoch"
+host_module = "overworld"
 addr = "7E:0290"
 stride = 5
 subsystem = "overworld"
@@ -23011,6 +23300,7 @@ source = "game/overworld/walk.c ($C2:34AD, $C2:37D8), followers.c ($C2:3B8E); th
 
 [[var]]
 name = "overworld_dactyl"
+host_module = "overworld"
 addr = "7E:029A"
 stride = 5
 subsystem = "overworld"
@@ -23033,6 +23323,7 @@ source = "game/overworld/walk.c ($C2:34CD, $C2:37E8), followers.c ($C2:3BA8)"
 
 [[var]]
 name = "overworld_following_dactyls"
+host_module = "overworld"
 addr = "7E:02A6"
 count = 2
 stride = 4
@@ -23053,6 +23344,7 @@ source = "game/overworld/dactyl.c ($C2:5605, $C2:556D)"
 
 [[var]]
 name = "overworld_idle_frames"
+host_module = "overworld"
 addr = "7E:02B1"
 count = 3
 index = "the party's place: 0 the leader, 1 the second member, 2 the third"
@@ -23547,6 +23839,7 @@ source = "game/menu/line_effects.c, the capsule iris $C6:E498"
 
 [[var]]
 name = "menu_wave_phase"
+host_alias = "event_scratch"
 addr = "7E:01E2"
 size = 2
 subsystem = "menu"
@@ -23657,6 +23950,7 @@ meaning = "The bottom right quarter's entry"
 
 [[var]]
 name = "field_frame_tiles_left"
+host_module = "field"
 addr = "7E:01C9"
 page = "field"
 size = 2
@@ -23667,6 +23961,7 @@ source = "game/field/frames.c, draw_run ($C0:CAD9)"
 
 [[var]]
 name = "field_sprite_tile_bank"
+host_alias = "event_target_pointer"
 addr = "7E:01D2"
 page = "field"
 subsystem = "field"
@@ -23675,6 +23970,7 @@ source = "game/field/frames.c, draw_next_frame ($C0:CAD9)"
 
 [[var]]
 name = "field_frame_description"
+host_module = "field"
 addr = "7E:01D3"
 page = "field"
 stride = 3
@@ -23712,6 +24008,7 @@ source = "game/field/battle_return.c, how_the_game_goes_on $C0:0283"
 
 [[var]]
 name = "battle_start_tile_maps"
+host_module = "battle"
 addr = "7E:2C56"
 count = 4
 index = "layer (BG1-BG4)"
@@ -23721,6 +24018,7 @@ source = "game/field/battle_start.c, hand_over_the_screen $C0:066D"
 
 [[var]]
 name = "battle_start_scroll"
+host_module = "battle"
 addr = "7E:2C5A"
 count = 3
 stride = 4
@@ -23741,6 +24039,7 @@ source = "game/field/battle_start.c, hand_over_the_screen $C0:066D"
 
 [[var]]
 name = "battle_start_screens"
+host_module = "battle"
 addr = "7E:2C66"
 stride = 10
 subsystem = "battle"
@@ -23799,6 +24098,7 @@ source = "game/field/battle_return.c, field_return_from_battle ($C0:0715)"
 
 [[var]]
 name = "field_tiles_to_redraw"
+host_module = "field"
 addr = "7E:015F"
 page = "field"
 subsystem = "field"
@@ -23807,6 +24107,7 @@ source = "game/field/switches.c"
 
 [[var]]
 name = "field_switch_shape"
+host_module = "field"
 addr = "7E:0160"
 page = "field"
 subsystem = "field"
@@ -23815,6 +24116,7 @@ source = "game/field/switches.c"
 
 [[var]]
 name = "field_chest_kind"
+host_module = "field"
 addr = "7E:0161"
 page = "field"
 subsystem = "field"
@@ -23823,6 +24125,7 @@ source = "game/field/switches.c"
 
 [[var]]
 name = "field_chest_sound"
+host_module = "field"
 addr = "7E:01FB"
 page = "field"
 subsystem = "field"
@@ -23831,6 +24134,7 @@ source = "game/field/switches.c"
 
 [[var]]
 name = "dialog_speaker_high"
+host_module = "field"
 addr = "7E:012F"
 page = "field"
 subsystem = "field"
@@ -23839,6 +24143,7 @@ source = "game/field/start.c, field_start $C0:0B86"
 
 [[var]]
 name = "field_screen_effect"
+host_module = "field"
 addr = "7E:0139"
 page = "field"
 subsystem = "field"
@@ -23847,6 +24152,7 @@ source = "game/field/screen_effects.c, field_move_screen_effect_on $C0:21E1; gam
 
 [[var]]
 name = "field_circle_x"
+host_module = "field"
 addr = "7E:013A"
 page = "field"
 subsystem = "field"
@@ -23855,6 +24161,7 @@ source = "game/field/screen_effects.c, $C0:4036"
 
 [[var]]
 name = "field_circle_y"
+host_module = "field"
 addr = "7E:013B"
 page = "field"
 subsystem = "field"
@@ -23863,6 +24170,7 @@ source = "game/field/screen_effects.c, $C0:4036"
 
 [[var]]
 name = "field_circle_radius"
+host_alias = "field_window2_edge"
 addr = "7E:013C"
 page = "field"
 reuses = "field_window2_edge"
@@ -23872,6 +24180,7 @@ source = "game/field/screen_effects.c, $C0:220E-$C0:23E2, $C0:264F"
 
 [[var]]
 name = "field_circle_target_radius"
+host_module = "field"
 addr = "7E:013D"
 page = "field"
 subsystem = "field"
@@ -23880,6 +24189,7 @@ source = "game/field/screen_effects.c, $C0:4036"
 
 [[var]]
 name = "field_built_sprite_object"
+host_module = "field"
 addr = "7E:01AE"
 page = "field"
 subsystem = "field"
@@ -23888,6 +24198,7 @@ source = "game/field/start.c, field_start $C0:0B86"
 
 [[var]]
 name = "field_sprite_data_tables"
+host_module = "field"
 addr = "7E:01AF"
 page = "field"
 size = 3
@@ -23901,6 +24212,7 @@ source = "game/field/start.c, field_start $C0:0B86"
 
 [[var]]
 name = "field_sprite_record_place"
+host_module = "field"
 addr = "7E:01BF"
 page = "field"
 size = 2
@@ -23928,6 +24240,7 @@ source = "game/field/cast.c, share_graphics ($C0:5C90)"
 
 [[var]]
 name = "field_map_has_no_bg3_set"
+host_module = "field"
 addr = "7E:01BB"
 page = "field"
 subsystem = "field"
@@ -23936,6 +24249,7 @@ source = "game/field/start.c, field_start $C0:0B86"
 
 [[var]]
 name = "field_battle_song"
+host_module = "field"
 addr = "7E:01FA"
 page = "field"
 subsystem = "field"
@@ -23989,6 +24303,7 @@ source = "game/field/script_layers.c, $C0:27EB"
 
 [[var]]
 name = "field_switch_sound"
+host_module = "field"
 addr = "7E:01FC"
 page = "field"
 subsystem = "field"
@@ -24019,6 +24334,7 @@ source = "game/field/switches.c"
 
 [[var]]
 name = "field_vram_queue_end"
+host_module = "field"
 addr = "7E:0179"
 subsystem = "field"
 meaning = "Where the next entry of field_vram_queue_source's queue goes, as an offset (entry * 2): the frame queue starts it at 0 each frame and the frame builder adds an entry for each frame it finishes"
@@ -24597,6 +24913,7 @@ source = "game/battle/effect_modifiers.c ($C1:F124)"
 
 [[var]]
 name = "character_records"
+host_module = "core"
 addr = "7E:2600"
 count = 7
 stride = 0x50
@@ -24612,37 +24929,44 @@ source = "game/battle/fight_party.c ($FD:AE52, $FD:B2DE, $FD:B33F)"
   meaning = "The record a byte at a time, by the stat block's offsets (battle/combatant.h)"
   [[var.field]]
   name = "hp"
+  host_alias = "record"
   offset = 0x03
   size = 2
   meaning = "Current HP"
   [[var.field]]
   name = "max_hp"
+  host_alias = "record"
   offset = 0x05
   size = 2
   meaning = "Maximum HP"
   [[var.field]]
   name = "mp"
+  host_alias = "record"
   offset = 0x07
   size = 2
   meaning = "Current MP"
   [[var.field]]
   name = "max_mp"
+  host_alias = "record"
   offset = 0x09
   size = 2
   meaning = "Maximum MP"
   [[var.field]]
   name = "hp_cap"
+  host_alias = "record"
   offset = 0x3F
   size = 2
   meaning = "The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over the movie library); the battle's stat block has its element affinities here"
   [[var.field]]
   name = "figures"
+  host_alias = "record"
   offset = 0x36
   size = 9
   meaning = "The stats with what the character wears added, then its attack and defence, as the menus work them out ($C2:9137)"
 
 [[var]]
 name = "party_single_techs_learned"
+host_module = "core"
 addr = "7E:2837"
 count = 7
 index = "character"
@@ -24652,6 +24976,7 @@ source = "game/battle/tech_records.c ($C1:C96A)"
 
 [[var]]
 name = "party_double_techs_learned"
+host_module = "core"
 addr = "7E:283E"
 count = 15
 index = "the double techs from the first ($39), three a byte"
@@ -24662,6 +24987,7 @@ source = "game/battle/tech_records.c ($C1:CA1A)"
 
 [[var]]
 name = "battle_demo"
+host_module = "battle"
 addr = "7E:29AC"
 subsystem = "battle"
 meaning = "Which demo battle this is, picking its party's HP and MP and the actions it takes"
@@ -24833,6 +25159,7 @@ source = "game/battle/fight_start.c ($C1:FBA1)"
 
 [[var]]
 name = "party_single_techs_known"
+host_module = "core"
 addr = "7E:2830"
 count = 7
 index = "character"
@@ -24842,6 +25169,7 @@ source = "game/battle/rewards_techs.c ($C1:F45F, $C1:F4DF, $C1:F533)"
 
 [[var]]
 name = "party_characters_joined"
+host_module = "core"
 addr = "7E:29AF"
 subsystem = "core"
 meaning = "The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting take a share of the experience"

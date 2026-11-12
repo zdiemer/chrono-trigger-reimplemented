@@ -47,3 +47,6 @@ dist/
 
 # Linked worktrees kept inside the checkout
 .worktrees/
+
+# Native checkpoints contain cartridge-derived game state
+*.native-state

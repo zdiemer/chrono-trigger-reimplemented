@@ -54,3 +54,13 @@ Widescreen must review coordinate clipping and field activation bounds. GPU
 backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.
+
+## Scene map fills
+
+`vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving
+the other byte and wrapping addresses. Native tests cover byte selection,
+wraparound and untouched bytes. The title's BG1 clear and unused-plane fill
+use it instead of a SNES transfer escape. The title clear removes stale field
+tiles after game over and attract playback; three native picture fingerprints
+protect this change (REIMPLEMENTATION.md). Plane uploads and the credits' map
+fill remain follow-ups.

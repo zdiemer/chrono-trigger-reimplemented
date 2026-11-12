@@ -43,3 +43,8 @@ a work-RAM copy alone cannot restore suspended C calls.
 A route can write its kept input as a movie. Unrestored probes and state files
 without their `.pads` sidecar cannot silently become recorded input. Add short
 regression movies for new failures and retain a concrete reason in the sample.
+
+Player quick loads and route restores use the same `ResumeReplay` engine in
+`frontend/resume.c`. Both reconstruct native continuations one frame at a time
+from input; route slots additionally retain audio-host replies. `--record`
+produces the same `.ctm` format, including the starting cartridge-save checksum.

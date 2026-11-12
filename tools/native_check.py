@@ -13,6 +13,28 @@ if __package__ in (None, ''):
 from tools import outcomes, places
 from tools.native_state import ROOT, SavedGame, seconds_for
 
+
+def read_picture_baseline():
+    """Native fingerprints accepted with the title fill, independent of the oracle."""
+    pins = {}
+    path = ROOT / 'tools/native_picture_baseline.txt'
+    for line in path.read_text().splitlines():
+        body, _, reason = line.partition('#')
+        if not body.strip():
+            continue
+        fields = body.split()
+        if (len(fields) != 2 or not re.fullmatch(r'[0-9a-f]{64}', fields[1]) or
+                not reason.strip() or fields[0] in pins):
+            raise ValueError('malformed or duplicate native picture fingerprint')
+        pins[fields[0]] = fields[1]
+    return pins
+
+
+def picture_matches(text, expected):
+    tokens = [frame + ':' + digest for frame, digest in
+              re.findall(r'^outcome-picture: (\d+) ([0-9a-f]{16})\r?$', text, re.M)]
+    return bool(tokens) and outcomes.observed_digest(tokens) == expected
+
 DARK_EXCEPTIONS = ROOT / 'tools/native_dark_exceptions.txt'
 PLACES_BASELINE = ROOT / "tools/places_baseline.txt"
 DARK_FRAMES = 600
@@ -104,6 +126,8 @@ def main(argv=None):
         args.outcomes.mkdir(parents=True, exist_ok=True)
         saved, saves, exceptions = SavedGame(args.rom), saves_by_sum(), read_dark_exceptions()
         ledger, baseline = outcomes.read(outcomes.LEDGER), read_places_baseline()
+        picture_pins = read_picture_baseline()
+        outcomes.require_movies(set(picture_pins))
         with tempfile.TemporaryDirectory(prefix='native-') as scratch:
             work = pathlib.Path(scratch)
             pack = args.assets or work / 'ct.assets'
@@ -119,12 +143,16 @@ def main(argv=None):
                     return name, False, 'missing cartridge save'
                 end = work / (name + '.bin')
                 text, rc = run_native(args.ct_native.resolve(), args.rom, movie, frames, sram,
-                                     extra + ['--locations', '--end-state', str(end)])
+                                      extra + ['--locations', '--end-state', str(end)] +
+                                      (['--outcomes'] if name in picture_pins else []))
                 outcomes.capture(args.outcomes, name, movie, frames, text, rc, end, saved, 'native')
                 how, detail = ended(text, rc, frames)
                 ok = how == 'end' or how == 'dark' and dark_is_excepted(exceptions.get(name), detail)
                 kept = places.Kept(outcomes.pairs(ledger[name, 'places']), places.parse(text))
                 ok = ok and name in baseline and kept.kept >= baseline[name]
+                if name in picture_pins and not picture_matches(text, picture_pins[name]):
+                    ok = False
+                    detail += '; native picture fingerprint changed'
                 return name, ok, how + (': ' + detail if detail else '') + '; ' + kept.summary()
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(args.jobs, 2))) as pool:
                 results = list(pool.map(one, rows))

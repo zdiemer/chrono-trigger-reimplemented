@@ -24,18 +24,29 @@ def world_map(m):
 
 
 def fly_to(run, x, y):
-    """Fly east and south to a landing approach, allowing the last tile to finish."""
+    """Reach a landing tile, correcting from where each flight leg settles."""
     m = run.machine
-    for axis, target in enumerate((x - 8, y - 8)):
+    for axis, target in enumerate((x, y)):
         for _ in range(1200):
             pos = run.world_pos()[axis]
-            if abs(pos - target) <= 3:
+            if abs(pos - target) <= 16:
                 break
             direction = ("RIGHT" if pos < target else "LEFT") if axis == 0 else ("DOWN" if pos < target else "UP")
             m.run(1, direction)
         else:
             raise AssertionError("the Epoch reaches its approach")
-        m.run(12)
+        # Releasing a direction finishes the current tile. Depending on when
+        # the pad is sampled, another tile may already have begun. Near the
+        # destination, tap and let the movement settle before choosing again.
+        for _ in range(32):
+            m.run(12)
+            pos = run.world_pos()[axis]
+            if pos == target:
+                break
+            direction = ("RIGHT" if pos < target else "LEFT") if axis == 0 else ("DOWN" if pos < target else "UP")
+            m.run(1, direction)
+        else:
+            raise AssertionError("the Epoch settles on its landing tile")
 
 
 def flame_policy(bot, state, rng, inventory):

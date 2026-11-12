@@ -20,7 +20,7 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
 - Play: `build/main/ct_native --rom roms/ct-usa.sfc`. See docs/PLAYING.md.
 - Validation: `python3 tools/suite.py --ct-native build/main/ct_native -j 2` runs
   sampled native movies to completion, dark-screen checks, recorded save/place
-  ratchets, fast native routes, portstyle, portsmell, and Python/native unit tests.
+  ratchets, three native picture fingerprints, fast native routes, portstyle, portsmell, and Python/native unit tests.
   Only the last line `suite OK` passes. The final `times:` and `wall time:` lines
   include unit tests; the gate fails at 600 seconds. Use `.exe` on Windows.
   `--movies <name>...` narrows iteration without pruning unseen outcome rows.
@@ -44,7 +44,10 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   `python3 tools/state_inventory.py`, and `python3 tools/ram_map.py storage`.
   `ram_map.py accessors --check` checks generated state accessors;
   `tools/assets.py check` checks the authored resource catalogue.
-- `tools/dist.py` packages ct_native and host libraries, never cartridge data.
+- `tools/dist.py` builds and packages ct_native; `tools/package_native.py` packages
+  an existing build for the four-platform native-player CI artifacts. Neither
+  includes cartridge data. Player persistence/recording checks run manually with
+  `python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc`.
 
 ## Rules
 

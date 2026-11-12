@@ -56,21 +56,17 @@ enum {
 enum { BG1_MAP_REST_VRAM = 0x6480, BG1_MAP_REST_BYTES = 0x0F00 };
 
 // $7E:59D5
-/* The rest of BG1's tilemap filled with the two bytes the transfer before this
- * one ended on. The loader programs the channel's mode, the VRAM address and the
- * size and nothing else, so the fill reads on from wherever that transfer left
- * the channel's source -- an address this routine never computes and no call
- * could name. The SNES-only escape carries it (`continue_channel`: the channel
- * supplies what the original doesn't program). The VRAM port is the setting the block before
- * left (`port`), and the decompressor's destination is moved to bank 0 first. */
+/* Blank the rest of BG1's map after loading the plane's name table. Both
+ * callers have just filled that table from SCENE_BLANK_TILE, so this fill
+ * repeats the same blank byte into both halves. The SNES encoding reuses
+ * the source programmed by that preceding transfer. */
 static void fill_bg1_map(GameState *g, Platform *pf, uint8_t port)
 {
     set_decompress_dest(g, decompress_dest(g) & 0x00FFFF);
     VidVramPort vram_port = vid_vram_port_decode(port);
     vid_start_vram_uploads(pf, PF_AT(0x7E59D8), &vram_port);
-    const VidSnesTransfer t = { .size = BG1_MAP_REST_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
-                                .target = BG1_MAP_REST_VRAM, .continue_channel = true };
-    vid_snes_copy(pf, PF_AT(0x7E59DD), &t);
+    vid_send_vram_fill(pf, PF_AT(0x7E59DD), BG1_MAP_REST_VRAM,
+                       PF_GAME(SCENE_BLANK_TILE), BG1_MAP_REST_BYTES, NULL);
 }
 
 /* ---- The plane's pixels ------------------------------------------------------------------------ */
@@ -193,10 +189,8 @@ enum { REST_OF_PLANE_BYTES = 0x1000 };
 
 // $7E:5AB6
 /* The plane's name table: the picture's rows, a tile at a time through the
- * VRAM port, then the rest by a transfer. The transfer carries on from where
- * the rows left the VRAM address, and repeats its two bytes into the data
- * port's low half alone, which the upload calls model as words, so it goes
- * through the SNES-only escape. */
+ * VRAM port, then the rest filled with the blank tile. Only tile numbers
+ * change; the pixels in the other half of the plane stay intact. */
 void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES);
@@ -210,9 +204,7 @@ void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
         for (int column = PICTURE_COLUMNS; column < PLANE_ROW; column++)
             vid_write_vram_byte(pf, PF_AT(0x7E5ADC), false, 0);
     }
-    const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
-                                .size = REST_OF_PLANE_BYTES };
-    vid_snes_copy(pf, PF_AT(0x7E5AEB), &t);
+    vid_fill_vram_half(pf, PF_AT(0x7E5AEB), PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
     /* the port, where the original's reads of the picture leave it */
     charge_legacy_io_accesses(g, 2);
 }

@@ -9,8 +9,9 @@
  * chooses, the wrapper also turns the caller's D into the instance of that page
  * kind the accessors take (port/vars_pages.h, generated with them).
  *
- * When the second backing arrives this header goes with it (docs/PLAN.md,
- * "Phase 3a"): game/ never includes it outside an entry wrapper. */
+ * The native backing uses state_host.h instead of this machine conversion.
+ * The accessor diagnostics below are shared by both backings; game/ uses
+ * this conversion only at its machine boundary. */
 #ifndef CT_PORT_VARS_RAM_H
 #define CT_PORT_VARS_RAM_H
 
@@ -51,7 +52,7 @@ typedef struct {
     const char *bound;      /* which limit: "count", "bytes", "rows", "columns", "instances" */
     unsigned index;
     unsigned limit;
-    uint32_t pc;            /* the running entry's address, or the machine's PC */
+    uint32_t pc;            /* the running entry's address, or the machine's PC; 0 on the host */
 } VarsRangeHit;
 enum { VARS_RANGE_HITS_KEPT = 4 };
 typedef struct {

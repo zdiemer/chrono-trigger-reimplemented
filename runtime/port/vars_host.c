@@ -5,238 +5,4619 @@
 void vars_host_init(VarsHost *h)
 {
     memset(h, 0x55, sizeof *h);
+    for (unsigned i = 0; i < 12; i++)
+        h->palettes.palette_animations[i].frame_table = 0x555555u;
+    h->data.decompress_source = 0x555555u;
+    h->data.decompress_dest = 0x555555u;
+    h->event.event_target_pointer = 0x555555u;
+    h->field.dialog_string_table = 0x555555u;
+    h->field.field_transfer.source = 0x555555u;
+    for (unsigned i = 0; i < 4; i++)
+        h->field.field_sprite_data_tables[i] = 0x555555u;
+    h->menu.menu_text.strings = 0x555555u;
+    h->menu.menu_text.tiles = 0x555555u;
+    h->menu.menu_text_reading.at = 0x555555u;
+    h->menu.menu_text_reading.insert = 0x555555u;
+    h->menu.menu_text_reading.arguments_at = 0x555555u;
+    h->menu.menu_glyph_dest = 0x555555u;
+    h->menu.menu_glyph_left_pixels = 0x555555u;
+    h->menu.menu_glyph_right_pixels = 0x555555u;
+}
+
+uint8_t vars_host_battle_bg_scroll_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 4u;
+    offset %= 4u;
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->battle.battle_bg_scroll[element].x >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 4u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->battle.battle_bg_scroll[element].y >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_battle_bg_scroll_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 4u;
+    offset %= 4u;
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->battle.battle_bg_scroll[element].x = (uint16_t)((h->battle.battle_bg_scroll[element].x & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 4u) {
+        unsigned byte = offset - 2u;
+        h->battle.battle_bg_scroll[element].y = (uint16_t)((h->battle.battle_bg_scroll[element].y & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_battle_object_x_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 1u;
+    offset %= 1u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->battle.battle_object_x[element] >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_battle_object_x_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 1u;
+    offset %= 1u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->battle.battle_object_x[element] = (uint8_t)((h->battle.battle_object_x[element] & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_battle_object_y_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 1u;
+    offset %= 1u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->battle.battle_object_y[element] >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_battle_object_y_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 1u;
+    offset %= 1u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->battle.battle_object_y[element] = (uint8_t)((h->battle.battle_object_y[element] & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_character_records_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 80u;
+    offset %= 80u;
+    if (offset < 80u) {
+        unsigned byte = offset - 0u;
+        return h->core.character_records[element].record[byte];
+    }
+    return 0;
+}
+
+void vars_host_character_records_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 80u;
+    offset %= 80u;
+    if (offset < 80u) {
+        unsigned byte = offset - 0u;
+        h->core.character_records[element].record[byte] = value;
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_event_scratch_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 14u) {
+        unsigned byte = offset - 0u;
+        return h->event.event_scratch[byte];
+    }
+    return 0;
+}
+
+void vars_host_event_scratch_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 14u) {
+        unsigned byte = offset - 0u;
+        h->event.event_scratch[byte] = value;
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_event_target_pointer_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 3u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->event.event_target_pointer >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_event_target_pointer_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 3u) {
+        unsigned byte = offset - 0u;
+        h->event.event_target_pointer = (uint32_t)((h->event.event_target_pointer & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_frame_entry_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->field.field_frame_entry.address >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->field.field_frame_entry.bank >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_field_frame_entry_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->field.field_frame_entry.address = (uint16_t)((h->field.field_frame_entry.address & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        h->field.field_frame_entry.bank = (uint8_t)((h->field.field_frame_entry.bank & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_frame_tiles_left_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->field.field_frame_tiles_left >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_field_frame_tiles_left_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->field.field_frame_tiles_left = (uint16_t)((h->field.field_frame_tiles_left & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_sprite_graphics_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->field.field_sprite_graphics.address >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->field.field_sprite_graphics.bank >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_field_sprite_graphics_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->field.field_sprite_graphics.address = (uint16_t)((h->field.field_sprite_graphics.address & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        h->field.field_sprite_graphics.bank = (uint8_t)((h->field.field_sprite_graphics.bank & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_sprite_table_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 544u) {
+        unsigned byte = offset - 0u;
+        return h->sprites.field_sprite_table[byte];
+    }
+    return 0;
+}
+
+void vars_host_field_sprite_table_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 544u) {
+        unsigned byte = offset - 0u;
+        h->sprites.field_sprite_table[byte] = value;
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_window2_edge_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->field.field_window2_edge >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_field_window2_edge_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->field.field_window2_edge = (uint8_t)((h->field.field_window2_edge & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_window_shape_corners_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 2u;
+    offset %= 2u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->field.field_window_shape_corners[element].x >> (byte * 8));
+    }
+    if (offset >= 1u && offset < 2u) {
+        unsigned byte = offset - 1u;
+        return (uint8_t)(h->field.field_window_shape_corners[element].y >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_field_window_shape_corners_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 2u;
+    offset %= 2u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->field.field_window_shape_corners[element].x = (uint8_t)((h->field.field_window_shape_corners[element].x & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 1u && offset < 2u) {
+        unsigned byte = offset - 1u;
+        h->field.field_window_shape_corners[element].y = (uint8_t)((h->field.field_window_shape_corners[element].y & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_window_shape_steps_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 14u) {
+        unsigned byte = offset - 0u;
+        return h->field.field_window_shape_steps[byte];
+    }
+    return 0;
+}
+
+void vars_host_field_window_shape_steps_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 14u) {
+        unsigned byte = offset - 0u;
+        h->field.field_window_shape_steps[byte] = value;
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_field_work_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 8u) {
+        unsigned byte = offset - 0u;
+        return h->field.field_work[byte];
+    }
+    return 0;
+}
+
+void vars_host_field_work_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 8u) {
+        unsigned byte = offset - 0u;
+        h->field.field_work[byte] = value;
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_frames_at_leaving_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->core.frames_at_leaving >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_frames_at_leaving_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->core.frames_at_leaving = (uint8_t)((h->core.frames_at_leaving & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_menu_text_arguments_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 1u;
+    offset %= 1u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->menu.menu_text_arguments[element] >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_menu_text_arguments_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 1u;
+    offset %= 1u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->menu.menu_text_arguments[element] = (uint8_t)((h->menu.menu_text_arguments[element] & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_menu_text_hex_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->menu.menu_text_hex >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_menu_text_hex_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->menu.menu_text_hex = (uint8_t)((h->menu.menu_text_hex & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_overworld_epoch_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->overworld.overworld_epoch.x >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 4u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->overworld.overworld_epoch.y >> (byte * 8));
+    }
+    if (offset >= 4u && offset < 5u) {
+        unsigned byte = offset - 4u;
+        return (uint8_t)(h->overworld.overworld_epoch.state >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_overworld_epoch_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->overworld.overworld_epoch.x = (uint16_t)((h->overworld.overworld_epoch.x & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 4u) {
+        unsigned byte = offset - 2u;
+        h->overworld.overworld_epoch.y = (uint16_t)((h->overworld.overworld_epoch.y & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 4u && offset < 5u) {
+        unsigned byte = offset - 4u;
+        h->overworld.overworld_epoch.state = (uint8_t)((h->overworld.overworld_epoch.state & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_overworld_party_places_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 4u;
+    offset %= 4u;
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->overworld.overworld_party_places[element].x >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 4u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->overworld.overworld_party_places[element].y >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_overworld_party_places_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 4u;
+    offset %= 4u;
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->overworld.overworld_party_places[element].x = (uint16_t)((h->overworld.overworld_party_places[element].x & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 4u) {
+        unsigned byte = offset - 2u;
+        h->overworld.overworld_party_places[element].y = (uint16_t)((h->overworld.overworld_party_places[element].y & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_palette_animations_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 12u;
+    offset %= 12u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->palettes.palette_animations[element].kind >> (byte * 8));
+    }
+    if (offset >= 1u && offset < 2u) {
+        unsigned byte = offset - 1u;
+        return (uint8_t)(h->palettes.palette_animations[element].first_color >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->palettes.palette_animations[element].color_count >> (byte * 8));
+    }
+    if (offset >= 3u && offset < 4u) {
+        unsigned byte = offset - 3u;
+        return (uint8_t)(h->palettes.palette_animations[element].step >> (byte * 8));
+    }
+    if (offset >= 4u && offset < 5u) {
+        unsigned byte = offset - 4u;
+        return (uint8_t)(h->palettes.palette_animations[element].delay >> (byte * 8));
+    }
+    if (offset >= 5u && offset < 6u) {
+        unsigned byte = offset - 5u;
+        return (uint8_t)(h->palettes.palette_animations[element].period >> (byte * 8));
+    }
+    if (offset >= 8u && offset < 9u) {
+        unsigned byte = offset - 8u;
+        return (uint8_t)(h->palettes.palette_animations[element].fade_target >> (byte * 8));
+    }
+    if (offset >= 6u && offset < 8u) {
+        unsigned byte = offset - 6u;
+        return (uint8_t)(h->palettes.palette_animations[element].frames >> (byte * 8));
+    }
+    if (offset >= 9u && offset < 12u) {
+        unsigned byte = offset - 9u;
+        return (uint8_t)(h->palettes.palette_animations[element].frame_table >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_palette_animations_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 12u;
+    offset %= 12u;
+    if (offset < 1u) {
+        unsigned byte = offset - 0u;
+        h->palettes.palette_animations[element].kind = (uint8_t)((h->palettes.palette_animations[element].kind & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 1u && offset < 2u) {
+        unsigned byte = offset - 1u;
+        h->palettes.palette_animations[element].first_color = (uint8_t)((h->palettes.palette_animations[element].first_color & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        h->palettes.palette_animations[element].color_count = (uint8_t)((h->palettes.palette_animations[element].color_count & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 3u && offset < 4u) {
+        unsigned byte = offset - 3u;
+        h->palettes.palette_animations[element].step = (uint8_t)((h->palettes.palette_animations[element].step & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 4u && offset < 5u) {
+        unsigned byte = offset - 4u;
+        h->palettes.palette_animations[element].delay = (uint8_t)((h->palettes.palette_animations[element].delay & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 5u && offset < 6u) {
+        unsigned byte = offset - 5u;
+        h->palettes.palette_animations[element].period = (uint8_t)((h->palettes.palette_animations[element].period & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 8u && offset < 9u) {
+        unsigned byte = offset - 8u;
+        h->palettes.palette_animations[element].fade_target = (uint8_t)((h->palettes.palette_animations[element].fade_target & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 6u && offset < 8u) {
+        unsigned byte = offset - 6u;
+        h->palettes.palette_animations[element].frames = (uint16_t)((h->palettes.palette_animations[element].frames & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 9u && offset < 12u) {
+        unsigned byte = offset - 9u;
+        h->palettes.palette_animations[element].frame_table = (uint32_t)((h->palettes.palette_animations[element].frame_table & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_palette_working_read8(const VarsHost *h, uint32_t offset)
+{
+    unsigned element = offset / 2u;
+    offset %= 2u;
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->palettes.palette_working[element] >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_palette_working_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    unsigned element = offset / 2u;
+    offset %= 2u;
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->palettes.palette_working[element] = (uint16_t)((h->palettes.palette_working[element] & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_party_gold_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->core.party_gold.low >> (byte * 8));
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        return (uint8_t)(h->core.party_gold.high >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_party_gold_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->core.party_gold.low = (uint16_t)((h->core.party_gold.low & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    if (offset >= 2u && offset < 3u) {
+        unsigned byte = offset - 2u;
+        h->core.party_gold.high = (uint8_t)((h->core.party_gold.high & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+uint8_t vars_host_scene_credits_page_read8(const VarsHost *h, uint32_t offset)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        return (uint8_t)(h->scene.scene_credits_page >> (byte * 8));
+    }
+    return 0;
+}
+
+void vars_host_scene_credits_page_write8(VarsHost *h, uint32_t offset, uint8_t value)
+{
+    if (offset < 2u) {
+        unsigned byte = offset - 0u;
+        h->scene.scene_credits_page = (uint16_t)((h->scene.scene_credits_page & ~((uint32_t)0xFFu << (byte * 8))) | (uint32_t)value << (byte * 8));
+        return;
+    }
+    return;
+}
+
+static const uint16_t projection_pages[512] = {
+    [1] = 1,
+    [2] = 2,
+    [3] = 3,
+    [4] = 4,
+    [5] = 5,
+    [7] = 6,
+    [8] = 7,
+    [9] = 8,
+    [29] = 9,
+    [30] = 10,
+    [32] = 11,
+    [33] = 12,
+    [34] = 13,
+    [35] = 14,
+    [36] = 15,
+    [37] = 16,
+    [38] = 17,
+    [39] = 18,
+    [40] = 19,
+    [41] = 20,
+    [42] = 21,
+    [43] = 22,
+    [44] = 23,
+};
+
+static const uint16_t projection_fields[][256] = {
+    { 0 },
+    { /* $7E0100 */
+        1, 1, 2, 3, 4, 5, 5, 6, 7, 8, 9, 9, 10, 11, 12, 73,
+        74, 75, 13, 13, 14, 15, 16, 76, 77, 78, 79, 80, 81, 81, 82, 83,
+        84, 85, 86, 87, 87, 88, 89, 90, 91, 92, 93, 94, 94, 94, 95, 96,
+        97, 98, 99, 100, 101, 101, 102, 0, 103, 104, 105, 106, 107, 108, 109, 109,
+        110, 110, 111, 111, 112, 113, 114, 115, 116, 116, 117, 118, 118, 118, 119, 119,
+        120, 120, 121, 122, 123, 124, 0, 0, 125, 125, 0, 126, 126, 127, 127, 128,
+        129, 130, 131, 132, 133, 134, 135, 68, 69, 136, 136, 137, 137, 138, 138, 0,
+        0, 139, 139, 140, 141, 142, 143, 144, 145, 146, 0, 147, 147, 147, 147, 147,
+        147, 148, 148, 149, 149, 148, 148, 149, 149, 148, 148, 149, 149, 150, 150, 150,
+        150, 150, 150, 150, 151, 151, 151, 152, 153, 152, 153, 152, 153, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 154, 154, 154, 155, 156,
+        156, 156, 156, 156, 156, 156, 156, 156, 156, 156, 156, 157, 158, 70, 70, 159,
+        159, 160, 160, 160, 160, 160, 160, 160, 160, 161, 161, 0, 0, 162, 162, 163,
+        71, 71, 71, 164, 164, 165, 166, 166, 167, 72, 72, 72, 72, 72, 72, 72,
+        72, 72, 72, 72, 72, 72, 72, 168, 168, 169, 169, 170, 171, 0, 0, 0,
+        0, 0, 172, 173, 0, 0, 0, 0, 174, 0, 175, 176, 177, 0, 178, 178,
+    },
+    { /* $7E0200 */
+        185, 185, 185, 185, 185, 185, 185, 185, 185, 185, 185, 185, 186, 187, 187, 187,
+        188, 188, 188, 189, 190, 191, 192, 193, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        194, 195, 195, 195, 196, 197, 197, 198, 198, 198, 199, 200, 0, 201, 201, 201,
+        202, 202, 202, 202, 202, 202, 202, 202, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        203, 203, 204, 205, 205, 206, 206, 207, 208, 209, 210, 210, 211, 211, 212, 212,
+        0, 0, 0, 213, 213, 213, 214, 214, 214, 215, 215, 215, 216, 217, 254, 255,
+        256, 257, 258, 259, 259, 260, 260, 259, 259, 260, 260, 259, 259, 260, 260, 261,
+        262, 262, 263, 263, 264, 0, 0, 0, 0, 265, 266, 266, 267, 267, 268, 218,
+        218, 219, 269, 269, 270, 270, 271, 271, 272, 272, 271, 271, 272, 272, 220, 221,
+        221, 273, 273, 273, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E0300 */
+        60, 60, 60, 61, 61, 61, 62, 62, 0, 63, 63, 64, 0, 65, 0, 66,
+        66, 0, 0, 0, 0, 67, 67, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        179, 180, 179, 180, 179, 180, 179, 180, 181, 181, 182, 182, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        304, 305, 306, 306, 307, 0, 308, 308, 309, 310, 311, 0, 312, 313, 314, 315,
+        316, 316, 317, 317, 318, 318, 319, 320, 320, 321, 321, 322, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        183, 183, 183, 183, 183, 183, 183, 183, 183, 183, 183, 183, 183, 183, 323, 323,
+    },
+    { /* $7E0400 */
+        0, 0, 0, 0, 0, 0, 17, 18, 19, 19, 19, 19, 19, 19, 19, 19,
+        19, 222, 223, 224, 20, 225, 226, 227, 228, 229, 230, 231, 231, 0, 0, 21,
+        21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        232, 233, 234, 235, 236, 236, 236, 236, 236, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        237, 238, 239, 240, 240, 241, 0, 242, 242, 243, 244, 245, 246, 246, 247, 247,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 248, 249, 249, 250, 251,
+    },
+    { /* $7E0500 */
+        0, 0, 0, 0, 0, 0, 0, 0, 324, 324, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 325, 325, 22, 326, 327,
+        23, 24, 25, 26, 27, 28, 30, 30, 29, 31, 31, 31, 23, 24, 25, 26,
+        27, 28, 30, 30, 29, 31, 31, 31, 23, 24, 25, 26, 27, 28, 30, 30,
+        29, 31, 31, 31, 23, 24, 25, 26, 27, 28, 30, 30, 29, 31, 31, 31,
+        23, 24, 25, 26, 27, 28, 30, 30, 29, 31, 31, 31, 23, 24, 25, 26,
+        27, 28, 30, 30, 29, 31, 31, 31, 23, 24, 25, 26, 27, 28, 30, 30,
+        29, 31, 31, 31, 23, 24, 25, 26, 27, 28, 30, 30, 29, 31, 31, 31,
+        23, 24, 25, 26, 27, 28, 30, 30, 29, 31, 31, 31, 23, 24, 25, 26,
+        27, 28, 30, 30, 29, 31, 31, 31, 23, 24, 25, 26, 27, 28, 30, 30,
+        29, 31, 31, 31, 23, 24, 25, 26, 27, 28, 30, 30, 29, 31, 31, 31,
+        32, 32, 33, 33, 34, 32, 32, 33, 33, 34, 32, 32, 33, 33, 34, 32,
+        32, 33, 33, 34, 32, 32, 33, 33, 34, 32, 32, 33, 33, 34, 32, 32,
+        33, 33, 34, 32, 32, 33, 33, 34, 32, 32, 33, 33, 34, 32, 32, 33,
+        33, 34, 32, 32, 33, 33, 34, 32, 32, 33, 33, 34, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E0700 */
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+    },
+    { /* $7E0800 */
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+    },
+    { /* $7E0900 */
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184, 184,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E1D00 */
+        274, 274, 274, 274, 274, 274, 274, 274, 274, 274, 274, 274, 274, 274, 274, 274,
+        274, 274, 274, 274, 274, 274, 274, 275, 275, 275, 275, 275, 275, 275, 275, 275,
+        275, 275, 275, 275, 275, 275, 275, 275, 275, 275, 275, 275, 275, 275, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E1E00 */
+        35, 36, 36, 36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        37, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E2000 */
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+    },
+    { /* $7E2100 */
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+        38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38, 38,
+    },
+    { /* $7E2200 */
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+    },
+    { /* $7E2300 */
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+        39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39, 39,
+    },
+    { /* $7E2400 */
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40,
+        40, 40, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252, 252,
+    },
+    { /* $7E2500 */
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41, 41,
+        41, 41, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253, 253,
+    },
+    { /* $7E2600 */
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+    },
+    { /* $7E2700 */
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+    },
+    { /* $7E2800 */
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
+        43, 43, 43, 43, 43, 43, 43, 44, 44, 44, 44, 44, 44, 44, 45, 45,
+        45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 46, 46, 46,
+        46, 46, 46, 46, 46, 46, 46, 46, 46, 46, 46, 46, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        276, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E2900 */
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 277, 0, 0, 0, 0, 0, 0,
+        47, 47, 47, 48, 48, 48, 48, 48, 48, 48, 48, 49, 50, 50, 51, 52,
+        52, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 278, 53, 54, 55,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+    { /* $7E2A00 */
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 279,
+        0, 280, 0, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+    },
+    { /* $7E2B00 */
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+        281, 281, 281, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+    },
+    { /* $7E2C00 */
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+        282, 282, 282, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
+        56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
+        56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 57, 57, 57,
+        57, 57, 57, 58, 58, 59, 283, 283, 283, 283, 284, 284, 285, 285, 284, 284,
+        285, 285, 284, 284, 285, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295,
+        296, 296, 297, 297, 296, 296, 297, 297, 296, 296, 297, 297, 298, 299, 300, 301,
+        298, 299, 300, 301, 298, 299, 300, 301, 298, 299, 300, 301, 298, 299, 300, 301,
+        298, 299, 300, 301, 298, 299, 300, 301, 302, 303, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    },
+};
+
+static unsigned projection_at(uint32_t addr)
+{
+    if (addr < 0x7E0000u || addr >= 0x800000u)
+        return 0;
+    return projection_fields[projection_pages[(addr - 0x7E0000u) >> 8]][addr & 255u];
 }
 
 bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value)
 {
-    if (addr >= 0x7E0100u && addr < 0x7E0102u) {
+    switch (projection_at(addr)) {
+    case 1: {
         uint32_t offset = addr - 0x7E0100u;
-        if (offset < 2u) {
-            *value = (uint8_t)(h->locations.location.id >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location.id >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0102u && addr < 0x7E0103u) {
+    case 2: {
         uint32_t offset = addr - 0x7E0102u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location.x >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location.x >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0103u && addr < 0x7E0104u) {
+    case 3: {
         uint32_t offset = addr - 0x7E0103u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location.y >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location.y >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0104u && addr < 0x7E0105u) {
+    case 4: {
         uint32_t offset = addr - 0x7E0104u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location.flags >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location.flags >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0105u && addr < 0x7E0107u) {
+    case 5: {
         uint32_t offset = addr - 0x7E0105u;
-        if (offset < 2u) {
-            *value = (uint8_t)(h->locations.location_previous.id >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_previous.id >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0107u && addr < 0x7E0108u) {
+    case 6: {
         uint32_t offset = addr - 0x7E0107u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_previous.x >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_previous.x >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0108u && addr < 0x7E0109u) {
+    case 7: {
         uint32_t offset = addr - 0x7E0108u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_previous.y >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_previous.y >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0109u && addr < 0x7E010Au) {
+    case 8: {
         uint32_t offset = addr - 0x7E0109u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_previous.flags >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_previous.flags >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Au && addr < 0x7E010Cu) {
+    case 9: {
         uint32_t offset = addr - 0x7E010Au;
-        if (offset < 2u) {
-            *value = (uint8_t)(h->locations.location_stored.id >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_stored.id >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Cu && addr < 0x7E010Du) {
+    case 10: {
         uint32_t offset = addr - 0x7E010Cu;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_stored.x >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_stored.x >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Du && addr < 0x7E010Eu) {
+    case 11: {
         uint32_t offset = addr - 0x7E010Du;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_stored.y >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_stored.y >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Eu && addr < 0x7E010Fu) {
+    case 12: {
         uint32_t offset = addr - 0x7E010Eu;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_stored.flags >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_stored.flags >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0112u && addr < 0x7E0114u) {
+    case 13: {
         uint32_t offset = addr - 0x7E0112u;
-        if (offset < 2u) {
-            *value = (uint8_t)(h->locations.location_next.id >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_next.id >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0114u && addr < 0x7E0115u) {
+    case 14: {
         uint32_t offset = addr - 0x7E0114u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_next.x >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_next.x >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0115u && addr < 0x7E0116u) {
+    case 15: {
         uint32_t offset = addr - 0x7E0115u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_next.y >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_next.y >> (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0116u && addr < 0x7E0117u) {
+    case 16: {
         uint32_t offset = addr - 0x7E0116u;
-        if (offset < 1u) {
-            *value = (uint8_t)(h->locations.location_next.flags >> (offset * 8));
-            return true;
-        }
+        *value = (uint8_t)(h->locations.location_next.flags >> (offset * 8));
+        return true;
+    }
+    case 17: {
+        uint32_t offset = addr - 0x7E0406u;
+        *value = (uint8_t)(h->core.play_time_overflowed >> (offset * 8));
+        return true;
+    }
+    case 18: {
+        uint32_t offset = addr - 0x7E0407u;
+        *value = (uint8_t)(h->core.play_time_stopped >> (offset * 8));
+        return true;
+    }
+    case 19: {
+        uint32_t offset = addr - 0x7E0408u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.own_button_assignments[element] >> (offset * 8));
+        return true;
+    }
+    case 20: {
+        uint32_t offset = addr - 0x7E0414u;
+        *value = (uint8_t)(h->core.save_slot_chosen >> (offset * 8));
+        return true;
+    }
+    case 21: {
+        uint32_t offset = addr - 0x7E041Fu;
+        *value = (uint8_t)(h->core.second_controller >> (offset * 8));
+        return true;
+    }
+    case 22: {
+        uint32_t offset = addr - 0x7E051Du;
+        *value = (uint8_t)(h->core.tile_animation_frame >> (offset * 8));
+        return true;
+    }
+    case 23: {
+        uint32_t offset = addr - 0x7E0520u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].kind >> (offset * 8));
+        return true;
+    }
+    case 24: {
+        uint32_t offset = addr - 0x7E0521u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].first_color >> (offset * 8));
+        return true;
+    }
+    case 25: {
+        uint32_t offset = addr - 0x7E0522u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].color_count >> (offset * 8));
+        return true;
+    }
+    case 26: {
+        uint32_t offset = addr - 0x7E0523u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].step >> (offset * 8));
+        return true;
+    }
+    case 27: {
+        uint32_t offset = addr - 0x7E0524u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].delay >> (offset * 8));
+        return true;
+    }
+    case 28: {
+        uint32_t offset = addr - 0x7E0525u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].period >> (offset * 8));
+        return true;
+    }
+    case 29: {
+        uint32_t offset = addr - 0x7E0528u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].fade_target >> (offset * 8));
+        return true;
+    }
+    case 30: {
+        uint32_t offset = addr - 0x7E0526u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].frames >> (offset * 8));
+        return true;
+    }
+    case 31: {
+        uint32_t offset = addr - 0x7E0529u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        *value = (uint8_t)(h->palettes.palette_animations[element].frame_table >> (offset * 8));
+        return true;
+    }
+    case 32: {
+        uint32_t offset = addr - 0x7E05B0u;
+        unsigned element = offset / 5u;
+        offset %= 5u;
+        *value = (uint8_t)(h->core.tile_animations[element].accumulator >> (offset * 8));
+        return true;
+    }
+    case 33: {
+        uint32_t offset = addr - 0x7E05B2u;
+        unsigned element = offset / 5u;
+        offset %= 5u;
+        *value = (uint8_t)(h->core.tile_animations[element].vram >> (offset * 8));
+        return true;
+    }
+    case 34: {
+        uint32_t offset = addr - 0x7E05B4u;
+        unsigned element = offset / 5u;
+        offset %= 5u;
+        *value = (uint8_t)(h->core.tile_animations[element].bank >> (offset * 8));
+        return true;
+    }
+    case 35: {
+        uint32_t offset = addr - 0x7E1E00u;
+        *value = (uint8_t)(h->sound.sound_command >> (offset * 8));
+        return true;
+    }
+    case 36: {
+        uint32_t offset = addr - 0x7E1E01u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->sound.sound_command_parameters[element] >> (offset * 8));
+        return true;
+    }
+    case 37: {
+        uint32_t offset = addr - 0x7E1E10u;
+        *value = (uint8_t)(h->sound.sound_driver_effects_asked >> (offset * 8));
+        return true;
+    }
+    case 38: {
+        uint32_t offset = addr - 0x7E2000u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->core.palette_base[element] >> (offset * 8));
+        return true;
+    }
+    case 39: {
+        uint32_t offset = addr - 0x7E2200u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->palettes.palette_working[element] >> (offset * 8));
+        return true;
+    }
+    case 40: {
+        uint32_t offset = addr - 0x7E2400u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.inventory_items[element] >> (offset * 8));
+        return true;
+    }
+    case 41: {
+        uint32_t offset = addr - 0x7E2500u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.inventory_counts[element] >> (offset * 8));
+        return true;
+    }
+    case 42: {
+        uint32_t offset = addr - 0x7E2600u;
+        unsigned element = offset / 80u;
+        offset %= 80u;
+        *value = h->core.character_records[element].record[offset];
+        return true;
+    }
+    case 43: {
+        uint32_t offset = addr - 0x7E2830u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.party_single_techs_known[element] >> (offset * 8));
+        return true;
+    }
+    case 44: {
+        uint32_t offset = addr - 0x7E2837u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.party_single_techs_learned[element] >> (offset * 8));
+        return true;
+    }
+    case 45: {
+        uint32_t offset = addr - 0x7E283Eu;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.party_double_techs_learned[element] >> (offset * 8));
+        return true;
+    }
+    case 46: {
+        uint32_t offset = addr - 0x7E284Du;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.party_triple_techs_learned[element] >> (offset * 8));
+        return true;
+    }
+    case 47: {
+        uint32_t offset = addr - 0x7E2990u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.game_settings[element] >> (offset * 8));
+        return true;
+    }
+    case 48: {
+        uint32_t offset = addr - 0x7E2993u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->core.button_assignments[element] >> (offset * 8));
+        return true;
+    }
+    case 49: {
+        uint32_t offset = addr - 0x7E299Bu;
+        *value = (uint8_t)(h->core.button_assignment_spare >> (offset * 8));
+        return true;
+    }
+    case 50: {
+        uint32_t offset = addr - 0x7E299Cu;
+        *value = (uint8_t)(h->core.times_saved >> (offset * 8));
+        return true;
+    }
+    case 51: {
+        uint32_t offset = addr - 0x7E299Eu;
+        *value = (uint8_t)(h->core.times_finished >> (offset * 8));
+        return true;
+    }
+    case 52: {
+        uint32_t offset = addr - 0x7E299Fu;
+        *value = (uint8_t)(h->core.names_given >> (offset * 8));
+        return true;
+    }
+    case 53: {
+        uint32_t offset = addr - 0x7E29ADu;
+        *value = (uint8_t)(h->core.frames_at_leaving >> (offset * 8));
+        return true;
+    }
+    case 54: {
+        uint32_t offset = addr - 0x7E29AEu;
+        *value = (uint8_t)(h->sound.current_song >> (offset * 8));
+        return true;
+    }
+    case 55: {
+        uint32_t offset = addr - 0x7E29AFu;
+        *value = (uint8_t)(h->core.party_characters_joined >> (offset * 8));
+        return true;
+    }
+    case 56: {
+        uint32_t offset = addr - 0x7E2C23u;
+        unsigned element = offset / 6u;
+        offset %= 6u;
+        *value = h->core.character_names[element][offset];
+        return true;
+    }
+    case 57: {
+        uint32_t offset = addr - 0x7E2C4Du;
+        *value = h->core.epoch_name[offset];
+        return true;
+    }
+    case 58: {
+        uint32_t offset = addr - 0x7E2C53u;
+        *value = (uint8_t)(h->core.party_gold.low >> (offset * 8));
+        return true;
+    }
+    case 59: {
+        uint32_t offset = addr - 0x7E2C55u;
+        *value = (uint8_t)(h->core.party_gold.high >> (offset * 8));
+        return true;
+    }
+    case 60: {
+        uint32_t offset = addr - 0x7E0300u;
+        *value = (uint8_t)(h->data.decompress_source >> (offset * 8));
+        return true;
+    }
+    case 61: {
+        uint32_t offset = addr - 0x7E0303u;
+        *value = (uint8_t)(h->data.decompress_dest >> (offset * 8));
+        return true;
+    }
+    case 62: {
+        uint32_t offset = addr - 0x7E0306u;
+        *value = (uint8_t)(h->data.decompress_length >> (offset * 8));
+        return true;
+    }
+    case 63: {
+        uint32_t offset = addr - 0x7E0309u;
+        *value = (uint8_t)(h->data.decompress_segment_end >> (offset * 8));
+        return true;
+    }
+    case 64: {
+        uint32_t offset = addr - 0x7E030Bu;
+        *value = (uint8_t)(h->data.decompress_bits_left >> (offset * 8));
+        return true;
+    }
+    case 65: {
+        uint32_t offset = addr - 0x7E030Du;
+        *value = (uint8_t)(h->data.decompress_control >> (offset * 8));
+        return true;
+    }
+    case 66: {
+        uint32_t offset = addr - 0x7E030Fu;
+        *value = (uint8_t)(h->data.decompress_copy_length >> (offset * 8));
+        return true;
+    }
+    case 67: {
+        uint32_t offset = addr - 0x7E0315u;
+        *value = (uint8_t)(h->data.decompress_scratch >> (offset * 8));
+        return true;
+    }
+    case 68: {
+        uint32_t offset = addr - 0x7E0167u;
+        *value = (uint8_t)(h->event.event_commands_left >> (offset * 8));
+        return true;
+    }
+    case 69: {
+        uint32_t offset = addr - 0x7E0168u;
+        *value = (uint8_t)(h->event.event_commands_per_turn >> (offset * 8));
+        return true;
+    }
+    case 70: {
+        uint32_t offset = addr - 0x7E01BDu;
+        *value = (uint8_t)(h->event.event_object_end >> (offset * 8));
+        return true;
+    }
+    case 71: {
+        uint32_t offset = addr - 0x7E01D0u;
+        *value = (uint8_t)(h->event.event_target_pointer >> (offset * 8));
+        return true;
+    }
+    case 72: {
+        uint32_t offset = addr - 0x7E01D9u;
+        *value = h->event.event_scratch[offset];
+        return true;
+    }
+    case 73: {
+        uint32_t offset = addr - 0x7E010Fu;
+        *value = (uint8_t)(h->field.field_irq_disabled >> (offset * 8));
+        return true;
+    }
+    case 74: {
+        uint32_t offset = addr - 0x7E0110u;
+        *value = (uint8_t)(h->field.field_menus_locked >> (offset * 8));
+        return true;
+    }
+    case 75: {
+        uint32_t offset = addr - 0x7E0111u;
+        *value = (uint8_t)(h->field.field_pause_locked >> (offset * 8));
+        return true;
+    }
+    case 76: {
+        uint32_t offset = addr - 0x7E0117u;
+        *value = (uint8_t)(h->field.field_requests >> (offset * 8));
+        return true;
+    }
+    case 77: {
+        uint32_t offset = addr - 0x7E0118u;
+        *value = (uint8_t)(h->field.field_effect_status >> (offset * 8));
+        return true;
+    }
+    case 78: {
+        uint32_t offset = addr - 0x7E0119u;
+        *value = (uint8_t)(h->field.field_brightness >> (offset * 8));
+        return true;
+    }
+    case 79: {
+        uint32_t offset = addr - 0x7E011Au;
+        *value = (uint8_t)(h->field.field_brightness_before_pause >> (offset * 8));
+        return true;
+    }
+    case 80: {
+        uint32_t offset = addr - 0x7E011Bu;
+        *value = (uint8_t)(h->field.field_brightness_target >> (offset * 8));
+        return true;
+    }
+    case 81: {
+        uint32_t offset = addr - 0x7E011Cu;
+        *value = (uint8_t)(h->field.field_brightness_rate >> (offset * 8));
+        return true;
+    }
+    case 82: {
+        uint32_t offset = addr - 0x7E011Eu;
+        *value = (uint8_t)(h->field.field_setting_1e >> (offset * 8));
+        return true;
+    }
+    case 83: {
+        uint32_t offset = addr - 0x7E011Fu;
+        *value = (uint8_t)(h->field.field_player_control >> (offset * 8));
+        return true;
+    }
+    case 84: {
+        uint32_t offset = addr - 0x7E0120u;
+        *value = (uint8_t)(h->field.field_leader_collides >> (offset * 8));
+        return true;
+    }
+    case 85: {
+        uint32_t offset = addr - 0x7E0121u;
+        *value = (uint8_t)(h->field.field_fixed_color >> (offset * 8));
+        return true;
+    }
+    case 86: {
+        uint32_t offset = addr - 0x7E0122u;
+        *value = (uint8_t)(h->field.field_fixed_color_target >> (offset * 8));
+        return true;
+    }
+    case 87: {
+        uint32_t offset = addr - 0x7E0123u;
+        *value = (uint8_t)(h->field.field_fixed_color_rate >> (offset * 8));
+        return true;
+    }
+    case 88: {
+        uint32_t offset = addr - 0x7E0125u;
+        *value = (uint8_t)(h->field.field_script_menu >> (offset * 8));
+        return true;
+    }
+    case 89: {
+        uint32_t offset = addr - 0x7E0126u;
+        *value = (uint8_t)(h->field.dialog_window_position >> (offset * 8));
+        return true;
+    }
+    case 90: {
+        uint32_t offset = addr - 0x7E0127u;
+        *value = (uint8_t)(h->field.dialog_window_state >> (offset * 8));
+        return true;
+    }
+    case 91: {
+        uint32_t offset = addr - 0x7E0128u;
+        *value = (uint8_t)(h->field.field_line_effect_enable >> (offset * 8));
+        return true;
+    }
+    case 92: {
+        uint32_t offset = addr - 0x7E0129u;
+        *value = (uint8_t)(h->field.dialog_state >> (offset * 8));
+        return true;
+    }
+    case 93: {
+        uint32_t offset = addr - 0x7E012Au;
+        *value = (uint8_t)(h->field.dialog_string >> (offset * 8));
+        return true;
+    }
+    case 94: {
+        uint32_t offset = addr - 0x7E012Bu;
+        *value = (uint8_t)(h->field.dialog_string_table >> (offset * 8));
+        return true;
+    }
+    case 95: {
+        uint32_t offset = addr - 0x7E012Eu;
+        *value = (uint8_t)(h->field.dialog_speaker >> (offset * 8));
+        return true;
+    }
+    case 96: {
+        uint32_t offset = addr - 0x7E012Fu;
+        *value = (uint8_t)(h->field.dialog_speaker_high >> (offset * 8));
+        return true;
+    }
+    case 97: {
+        uint32_t offset = addr - 0x7E0130u;
+        *value = (uint8_t)(h->field.dialog_box_position >> (offset * 8));
+        return true;
+    }
+    case 98: {
+        uint32_t offset = addr - 0x7E0131u;
+        *value = (uint8_t)(h->field.dialog_text_row >> (offset * 8));
+        return true;
+    }
+    case 99: {
+        uint32_t offset = addr - 0x7E0132u;
+        *value = (uint8_t)(h->field.dialog_window_object >> (offset * 8));
+        return true;
+    }
+    case 100: {
+        uint32_t offset = addr - 0x7E0133u;
+        *value = (uint8_t)(h->field.dialog_window_opening_clears >> (offset * 8));
+        return true;
+    }
+    case 101: {
+        uint32_t offset = addr - 0x7E0134u;
+        *value = (uint8_t)(h->field.field_dialog_hold >> (offset * 8));
+        return true;
+    }
+    case 102: {
+        uint32_t offset = addr - 0x7E0136u;
+        *value = (uint8_t)(h->field.dialog_text_sending >> (offset * 8));
+        return true;
+    }
+    case 103: {
+        uint32_t offset = addr - 0x7E0138u;
+        *value = (uint8_t)(h->field.field_screen_recentring >> (offset * 8));
+        return true;
+    }
+    case 104: {
+        uint32_t offset = addr - 0x7E0139u;
+        *value = (uint8_t)(h->field.field_screen_effect >> (offset * 8));
+        return true;
+    }
+    case 105: {
+        uint32_t offset = addr - 0x7E013Au;
+        *value = (uint8_t)(h->field.field_circle_x >> (offset * 8));
+        return true;
+    }
+    case 106: {
+        uint32_t offset = addr - 0x7E013Bu;
+        *value = (uint8_t)(h->field.field_circle_y >> (offset * 8));
+        return true;
+    }
+    case 107: {
+        uint32_t offset = addr - 0x7E013Cu;
+        *value = (uint8_t)(h->field.field_window2_edge >> (offset * 8));
+        return true;
+    }
+    case 108: {
+        uint32_t offset = addr - 0x7E013Du;
+        *value = (uint8_t)(h->field.field_circle_target_radius >> (offset * 8));
+        return true;
+    }
+    case 109: {
+        uint32_t offset = addr - 0x7E013Eu;
+        *value = (uint8_t)(h->field.field_tile_copy.from >> (offset * 8));
+        return true;
+    }
+    case 110: {
+        uint32_t offset = addr - 0x7E0140u;
+        *value = (uint8_t)(h->field.field_tile_copy.to >> (offset * 8));
+        return true;
+    }
+    case 111: {
+        uint32_t offset = addr - 0x7E0142u;
+        *value = (uint8_t)(h->field.field_tile_copy.destination >> (offset * 8));
+        return true;
+    }
+    case 112: {
+        uint32_t offset = addr - 0x7E0144u;
+        *value = (uint8_t)(h->field.field_tile_copy.maps >> (offset * 8));
+        return true;
+    }
+    case 113: {
+        uint32_t offset = addr - 0x7E0145u;
+        *value = (uint8_t)(h->field.field_tile_copy.queued_maps >> (offset * 8));
+        return true;
+    }
+    case 114: {
+        uint32_t offset = addr - 0x7E0146u;
+        *value = (uint8_t)(h->field.field_map_transition >> (offset * 8));
+        return true;
+    }
+    case 115: {
+        uint32_t offset = addr - 0x7E0147u;
+        *value = (uint8_t)(h->field.field_screen_transition >> (offset * 8));
+        return true;
+    }
+    case 116: {
+        uint32_t offset = addr - 0x7E0148u;
+        *value = (uint8_t)(h->field.field_transfer.vram >> (offset * 8));
+        return true;
+    }
+    case 117: {
+        uint32_t offset = addr - 0x7E014Au;
+        *value = (uint8_t)(h->field.field_transfer.mode >> (offset * 8));
+        return true;
+    }
+    case 118: {
+        uint32_t offset = addr - 0x7E014Bu;
+        *value = (uint8_t)(h->field.field_transfer.source >> (offset * 8));
+        return true;
+    }
+    case 119: {
+        uint32_t offset = addr - 0x7E014Eu;
+        *value = (uint8_t)(h->field.field_transfer.size >> (offset * 8));
+        return true;
+    }
+    case 120: {
+        uint32_t offset = addr - 0x7E0150u;
+        *value = (uint8_t)(h->field.field_input_latched >> (offset * 8));
+        return true;
+    }
+    case 121: {
+        uint32_t offset = addr - 0x7E0152u;
+        *value = (uint8_t)(h->field.field_frame_pending >> (offset * 8));
+        return true;
+    }
+    case 122: {
+        uint32_t offset = addr - 0x7E0153u;
+        *value = (uint8_t)(h->field.field_display_flags >> (offset * 8));
+        return true;
+    }
+    case 123: {
+        uint32_t offset = addr - 0x7E0154u;
+        *value = (uint8_t)(h->field.field_mode_flags >> (offset * 8));
+        return true;
+    }
+    case 124: {
+        uint32_t offset = addr - 0x7E0155u;
+        *value = (uint8_t)(h->field.field_leader_level >> (offset * 8));
+        return true;
+    }
+    case 125: {
+        uint32_t offset = addr - 0x7E0158u;
+        *value = (uint8_t)(h->field.field_idle_frames >> (offset * 8));
+        return true;
+    }
+    case 126: {
+        uint32_t offset = addr - 0x7E015Bu;
+        *value = (uint8_t)(h->field.field_step_tile >> (offset * 8));
+        return true;
+    }
+    case 127: {
+        uint32_t offset = addr - 0x7E015Du;
+        *value = (uint8_t)(h->field.field_opened_chest_tile >> (offset * 8));
+        return true;
+    }
+    case 128: {
+        uint32_t offset = addr - 0x7E015Fu;
+        *value = (uint8_t)(h->field.field_tiles_to_redraw >> (offset * 8));
+        return true;
+    }
+    case 129: {
+        uint32_t offset = addr - 0x7E0160u;
+        *value = (uint8_t)(h->field.field_switch_shape >> (offset * 8));
+        return true;
+    }
+    case 130: {
+        uint32_t offset = addr - 0x7E0161u;
+        *value = (uint8_t)(h->field.field_chest_kind >> (offset * 8));
+        return true;
+    }
+    case 131: {
+        uint32_t offset = addr - 0x7E0162u;
+        *value = (uint8_t)(h->field.dialog_choice_active >> (offset * 8));
+        return true;
+    }
+    case 132: {
+        uint32_t offset = addr - 0x7E0163u;
+        *value = (uint8_t)(h->field.dialog_choice_pointer >> (offset * 8));
+        return true;
+    }
+    case 133: {
+        uint32_t offset = addr - 0x7E0164u;
+        *value = (uint8_t)(h->field.dialog_choice_first >> (offset * 8));
+        return true;
+    }
+    case 134: {
+        uint32_t offset = addr - 0x7E0165u;
+        *value = (uint8_t)(h->field.dialog_choice_last >> (offset * 8));
+        return true;
+    }
+    case 135: {
+        uint32_t offset = addr - 0x7E0166u;
+        *value = (uint8_t)(h->field.dialog_choice >> (offset * 8));
+        return true;
+    }
+    case 136: {
+        uint32_t offset = addr - 0x7E0169u;
+        *value = (uint8_t)(h->field.field_script_line_limit >> (offset * 8));
+        return true;
+    }
+    case 137: {
+        uint32_t offset = addr - 0x7E016Bu;
+        *value = (uint8_t)(h->field.field_animation_line_limit >> (offset * 8));
+        return true;
+    }
+    case 138: {
+        uint32_t offset = addr - 0x7E016Du;
+        *value = (uint8_t)(h->field.field_current_object >> (offset * 8));
+        return true;
+    }
+    case 139: {
+        uint32_t offset = addr - 0x7E0171u;
+        *value = (uint8_t)(h->field.field_unpacked_graphics_end >> (offset * 8));
+        return true;
+    }
+    case 140: {
+        uint32_t offset = addr - 0x7E0173u;
+        *value = (uint8_t)(h->field.field_npc_graphics_count >> (offset * 8));
+        return true;
+    }
+    case 141: {
+        uint32_t offset = addr - 0x7E0174u;
+        *value = (uint8_t)(h->field.field_script_queue.head >> (offset * 8));
+        return true;
+    }
+    case 142: {
+        uint32_t offset = addr - 0x7E0175u;
+        *value = (uint8_t)(h->field.field_script_queue.tail >> (offset * 8));
+        return true;
+    }
+    case 143: {
+        uint32_t offset = addr - 0x7E0176u;
+        *value = (uint8_t)(h->field.field_animation_queue.head >> (offset * 8));
+        return true;
+    }
+    case 144: {
+        uint32_t offset = addr - 0x7E0177u;
+        *value = (uint8_t)(h->field.field_animation_queue.tail >> (offset * 8));
+        return true;
+    }
+    case 145: {
+        uint32_t offset = addr - 0x7E0178u;
+        *value = (uint8_t)(h->field.field_animation_queue_front >> (offset * 8));
+        return true;
+    }
+    case 146: {
+        uint32_t offset = addr - 0x7E0179u;
+        *value = (uint8_t)(h->field.field_vram_queue_end >> (offset * 8));
+        return true;
+    }
+    case 147: {
+        uint32_t offset = addr - 0x7E017Bu;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->field.field_sprite_range_end[element] >> (offset * 8));
+        return true;
+    }
+    case 148: {
+        uint32_t offset = addr - 0x7E0181u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->field.field_sprite_range_high[element] >> (offset * 8));
+        return true;
+    }
+    case 149: {
+        uint32_t offset = addr - 0x7E0183u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->field.field_sprite_range_spare[element] >> (offset * 8));
+        return true;
+    }
+    case 150: {
+        uint32_t offset = addr - 0x7E018Du;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->field.field_character_objects[element] >> (offset * 8));
+        return true;
+    }
+    case 151: {
+        uint32_t offset = addr - 0x7E0194u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->field.field_party_as_loaded[element] >> (offset * 8));
+        return true;
+    }
+    case 152: {
+        uint32_t offset = addr - 0x7E0197u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->field.field_party_objects[element] >> (offset * 8));
+        return true;
+    }
+    case 153: {
+        uint32_t offset = addr - 0x7E0198u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->field.field_party_objects_high[element] >> (offset * 8));
+        return true;
+    }
+    case 154: {
+        uint32_t offset = addr - 0x7E01ABu;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->field.field_trail_position[element] >> (offset * 8));
+        return true;
+    }
+    case 155: {
+        uint32_t offset = addr - 0x7E01AEu;
+        *value = (uint8_t)(h->field.field_built_sprite_object >> (offset * 8));
+        return true;
+    }
+    case 156: {
+        uint32_t offset = addr - 0x7E01AFu;
+        unsigned element = offset / 3u;
+        offset %= 3u;
+        *value = (uint8_t)(h->field.field_sprite_data_tables[element] >> (offset * 8));
+        return true;
+    }
+    case 157: {
+        uint32_t offset = addr - 0x7E01BBu;
+        *value = (uint8_t)(h->field.field_map_has_no_bg3_set >> (offset * 8));
+        return true;
+    }
+    case 158: {
+        uint32_t offset = addr - 0x7E01BCu;
+        *value = (uint8_t)(h->field.field_screen_shake >> (offset * 8));
+        return true;
+    }
+    case 159: {
+        uint32_t offset = addr - 0x7E01BFu;
+        *value = (uint8_t)(h->field.field_sprite_record_place >> (offset * 8));
+        return true;
+    }
+    case 160: {
+        uint32_t offset = addr - 0x7E01C1u;
+        *value = h->field.field_work[offset];
+        return true;
+    }
+    case 161: {
+        uint32_t offset = addr - 0x7E01C9u;
+        *value = (uint8_t)(h->field.field_frame_tiles_left >> (offset * 8));
+        return true;
+    }
+    case 162: {
+        uint32_t offset = addr - 0x7E01CDu;
+        *value = (uint8_t)(h->field.field_sprite_graphics.address >> (offset * 8));
+        return true;
+    }
+    case 163: {
+        uint32_t offset = addr - 0x7E01CFu;
+        *value = (uint8_t)(h->field.field_sprite_graphics.bank >> (offset * 8));
+        return true;
+    }
+    case 164: {
+        uint32_t offset = addr - 0x7E01D3u;
+        *value = (uint8_t)(h->field.field_frame_description.address >> (offset * 8));
+        return true;
+    }
+    case 165: {
+        uint32_t offset = addr - 0x7E01D5u;
+        *value = (uint8_t)(h->field.field_frame_description.bank >> (offset * 8));
+        return true;
+    }
+    case 166: {
+        uint32_t offset = addr - 0x7E01D6u;
+        *value = (uint8_t)(h->field.field_frame_entry.address >> (offset * 8));
+        return true;
+    }
+    case 167: {
+        uint32_t offset = addr - 0x7E01D8u;
+        *value = (uint8_t)(h->field.field_frame_entry.bank >> (offset * 8));
+        return true;
+    }
+    case 168: {
+        uint32_t offset = addr - 0x7E01E7u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->field.field_scratch_more[element] >> (offset * 8));
+        return true;
+    }
+    case 169: {
+        uint32_t offset = addr - 0x7E01E9u;
+        *value = (uint8_t)(h->field.field_target_object >> (offset * 8));
+        return true;
+    }
+    case 170: {
+        uint32_t offset = addr - 0x7E01EBu;
+        *value = (uint8_t)(h->field.field_leader_contact >> (offset * 8));
+        return true;
+    }
+    case 171: {
+        uint32_t offset = addr - 0x7E01ECu;
+        *value = (uint8_t)(h->field.field_leader_contact_high >> (offset * 8));
+        return true;
+    }
+    case 172: {
+        uint32_t offset = addr - 0x7E01F2u;
+        *value = (uint8_t)(h->field.field_target_tile.x >> (offset * 8));
+        return true;
+    }
+    case 173: {
+        uint32_t offset = addr - 0x7E01F3u;
+        *value = (uint8_t)(h->field.field_target_tile.y >> (offset * 8));
+        return true;
+    }
+    case 174: {
+        uint32_t offset = addr - 0x7E01F8u;
+        *value = (uint8_t)(h->field.field_random_index >> (offset * 8));
+        return true;
+    }
+    case 175: {
+        uint32_t offset = addr - 0x7E01FAu;
+        *value = (uint8_t)(h->field.field_battle_song >> (offset * 8));
+        return true;
+    }
+    case 176: {
+        uint32_t offset = addr - 0x7E01FBu;
+        *value = (uint8_t)(h->field.field_chest_sound >> (offset * 8));
+        return true;
+    }
+    case 177: {
+        uint32_t offset = addr - 0x7E01FCu;
+        *value = (uint8_t)(h->field.field_switch_sound >> (offset * 8));
+        return true;
+    }
+    case 178: {
+        uint32_t offset = addr - 0x7E01FEu;
+        *value = (uint8_t)(h->field.location_record_offset >> (offset * 8));
+        return true;
+    }
+    case 179: {
+        uint32_t offset = addr - 0x7E0360u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->field.field_window_shape_corners[element].x >> (offset * 8));
+        return true;
+    }
+    case 180: {
+        uint32_t offset = addr - 0x7E0361u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        *value = (uint8_t)(h->field.field_window_shape_corners[element].y >> (offset * 8));
+        return true;
+    }
+    case 181: {
+        uint32_t offset = addr - 0x7E0368u;
+        *value = (uint8_t)(h->field.field_window_shape_top >> (offset * 8));
+        return true;
+    }
+    case 182: {
+        uint32_t offset = addr - 0x7E036Au;
+        *value = (uint8_t)(h->field.field_window_shape_right_start >> (offset * 8));
+        return true;
+    }
+    case 183: {
+        uint32_t offset = addr - 0x7E03F0u;
+        *value = h->field.field_window_shape_steps[offset];
+        return true;
+    }
+    case 184: {
+        uint32_t offset = addr - 0x7E0700u;
+        *value = h->sprites.field_sprite_table[offset];
+        return true;
+    }
+    case 185: {
+        uint32_t offset = addr - 0x7E0200u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->menu.menu_text_arguments[element] >> (offset * 8));
+        return true;
+    }
+    case 186: {
+        uint32_t offset = addr - 0x7E020Cu;
+        *value = (uint8_t)(h->menu.menu_text.string >> (offset * 8));
+        return true;
+    }
+    case 187: {
+        uint32_t offset = addr - 0x7E020Du;
+        *value = (uint8_t)(h->menu.menu_text.strings >> (offset * 8));
+        return true;
+    }
+    case 188: {
+        uint32_t offset = addr - 0x7E0210u;
+        *value = (uint8_t)(h->menu.menu_text.tiles >> (offset * 8));
+        return true;
+    }
+    case 189: {
+        uint32_t offset = addr - 0x7E0213u;
+        *value = (uint8_t)(h->menu.menu_text.budget >> (offset * 8));
+        return true;
+    }
+    case 190: {
+        uint32_t offset = addr - 0x7E0214u;
+        *value = (uint8_t)(h->menu.menu_text.layout >> (offset * 8));
+        return true;
+    }
+    case 191: {
+        uint32_t offset = addr - 0x7E0215u;
+        *value = (uint8_t)(h->menu.menu_text.stop >> (offset * 8));
+        return true;
+    }
+    case 192: {
+        uint32_t offset = addr - 0x7E0216u;
+        *value = (uint8_t)(h->menu.menu_text.wait >> (offset * 8));
+        return true;
+    }
+    case 193: {
+        uint32_t offset = addr - 0x7E0217u;
+        *value = (uint8_t)(h->menu.menu_text.line_glyphs >> (offset * 8));
+        return true;
+    }
+    case 194: {
+        uint32_t offset = addr - 0x7E0230u;
+        *value = (uint8_t)(h->menu.menu_text_reading.source >> (offset * 8));
+        return true;
+    }
+    case 195: {
+        uint32_t offset = addr - 0x7E0231u;
+        *value = (uint8_t)(h->menu.menu_text_reading.at >> (offset * 8));
+        return true;
+    }
+    case 196: {
+        uint32_t offset = addr - 0x7E0234u;
+        *value = (uint8_t)(h->menu.menu_text_reading.pen >> (offset * 8));
+        return true;
+    }
+    case 197: {
+        uint32_t offset = addr - 0x7E0235u;
+        *value = (uint8_t)(h->menu.menu_text_reading.glyph >> (offset * 8));
+        return true;
+    }
+    case 198: {
+        uint32_t offset = addr - 0x7E0237u;
+        *value = (uint8_t)(h->menu.menu_text_reading.insert >> (offset * 8));
+        return true;
+    }
+    case 199: {
+        uint32_t offset = addr - 0x7E023Au;
+        *value = (uint8_t)(h->menu.menu_text_reading.insert_left >> (offset * 8));
+        return true;
+    }
+    case 200: {
+        uint32_t offset = addr - 0x7E023Bu;
+        *value = (uint8_t)(h->menu.menu_text_reading.code >> (offset * 8));
+        return true;
+    }
+    case 201: {
+        uint32_t offset = addr - 0x7E023Du;
+        *value = (uint8_t)(h->menu.menu_text_reading.arguments_at >> (offset * 8));
+        return true;
+    }
+    case 202: {
+        uint32_t offset = addr - 0x7E0240u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->menu.menu_text_digits[element] >> (offset * 8));
+        return true;
+    }
+    case 203: {
+        uint32_t offset = addr - 0x7E0260u;
+        *value = (uint8_t)(h->menu.menu_glyph_byte >> (offset * 8));
+        return true;
+    }
+    case 204: {
+        uint32_t offset = addr - 0x7E0262u;
+        *value = (uint8_t)(h->menu.menu_glyph_number >> (offset * 8));
+        return true;
+    }
+    case 205: {
+        uint32_t offset = addr - 0x7E0263u;
+        *value = (uint8_t)(h->menu.menu_glyph_spill >> (offset * 8));
+        return true;
+    }
+    case 206: {
+        uint32_t offset = addr - 0x7E0265u;
+        *value = (uint8_t)(h->menu.menu_number_conversion.quotient >> (offset * 8));
+        return true;
+    }
+    case 207: {
+        uint32_t offset = addr - 0x7E0267u;
+        *value = (uint8_t)(h->menu.menu_number_conversion.last >> (offset * 8));
+        return true;
+    }
+    case 208: {
+        uint32_t offset = addr - 0x7E0268u;
+        *value = (uint8_t)(h->menu.menu_glyph_lines_left >> (offset * 8));
+        return true;
+    }
+    case 209: {
+        uint32_t offset = addr - 0x7E0269u;
+        *value = (uint8_t)(h->menu.menu_number_second_byte >> (offset * 8));
+        return true;
+    }
+    case 210: {
+        uint32_t offset = addr - 0x7E026Au;
+        *value = (uint8_t)(h->menu.menu_glyph_pen_offset >> (offset * 8));
+        return true;
+    }
+    case 211: {
+        uint32_t offset = addr - 0x7E026Cu;
+        *value = (uint8_t)(h->menu.menu_glyph_font_step >> (offset * 8));
+        return true;
+    }
+    case 212: {
+        uint32_t offset = addr - 0x7E026Eu;
+        *value = (uint8_t)(h->menu.menu_glyph_pen_column >> (offset * 8));
+        return true;
+    }
+    case 213: {
+        uint32_t offset = addr - 0x7E0273u;
+        *value = (uint8_t)(h->menu.menu_glyph_dest >> (offset * 8));
+        return true;
+    }
+    case 214: {
+        uint32_t offset = addr - 0x7E0276u;
+        *value = (uint8_t)(h->menu.menu_glyph_left_pixels >> (offset * 8));
+        return true;
+    }
+    case 215: {
+        uint32_t offset = addr - 0x7E0279u;
+        *value = (uint8_t)(h->menu.menu_glyph_right_pixels >> (offset * 8));
+        return true;
+    }
+    case 216: {
+        uint32_t offset = addr - 0x7E027Cu;
+        *value = (uint8_t)(h->menu.menu_mode >> (offset * 8));
+        return true;
+    }
+    case 217: {
+        uint32_t offset = addr - 0x7E027Du;
+        *value = (uint8_t)(h->menu.menu_mode_beside >> (offset * 8));
+        return true;
+    }
+    case 218: {
+        uint32_t offset = addr - 0x7E029Fu;
+        *value = (uint8_t)(h->menu.menu_epoch_location >> (offset * 8));
+        return true;
+    }
+    case 219: {
+        uint32_t offset = addr - 0x7E02A1u;
+        *value = (uint8_t)(h->menu.menu_text_hex >> (offset * 8));
+        return true;
+    }
+    case 220: {
+        uint32_t offset = addr - 0x7E02AEu;
+        *value = (uint8_t)(h->menu.menu_song_playing >> (offset * 8));
+        return true;
+    }
+    case 221: {
+        uint32_t offset = addr - 0x7E02AFu;
+        *value = (uint8_t)(h->menu.menu_travel_location >> (offset * 8));
+        return true;
+    }
+    case 222: {
+        uint32_t offset = addr - 0x7E0411u;
+        *value = (uint8_t)(h->menu.menu_main_menu_option >> (offset * 8));
+        return true;
+    }
+    case 223: {
+        uint32_t offset = addr - 0x7E0412u;
+        *value = (uint8_t)(h->menu.menu_member_row >> (offset * 8));
+        return true;
+    }
+    case 224: {
+        uint32_t offset = addr - 0x7E0413u;
+        *value = (uint8_t)(h->menu.menu_member_scroll >> (offset * 8));
+        return true;
+    }
+    case 225: {
+        uint32_t offset = addr - 0x7E0415u;
+        *value = (uint8_t)(h->menu.menu_item_list_row >> (offset * 8));
+        return true;
+    }
+    case 226: {
+        uint32_t offset = addr - 0x7E0416u;
+        *value = (uint8_t)(h->menu.menu_item_list_top >> (offset * 8));
+        return true;
+    }
+    case 227: {
+        uint32_t offset = addr - 0x7E0417u;
+        *value = (uint8_t)(h->menu.menu_settings_cursor >> (offset * 8));
+        return true;
+    }
+    case 228: {
+        uint32_t offset = addr - 0x7E0418u;
+        *value = (uint8_t)(h->menu.menu_tech_category >> (offset * 8));
+        return true;
+    }
+    case 229: {
+        uint32_t offset = addr - 0x7E0419u;
+        *value = (uint8_t)(h->menu.menu_tech_member_row >> (offset * 8));
+        return true;
+    }
+    case 230: {
+        uint32_t offset = addr - 0x7E041Au;
+        *value = (uint8_t)(h->menu.menu_tech_member_scroll >> (offset * 8));
+        return true;
+    }
+    case 231: {
+        uint32_t offset = addr - 0x7E041Bu;
+        *value = (uint8_t)(h->menu.menu_weapon_looked_up >> (offset * 8));
+        return true;
+    }
+    case 232: {
+        uint32_t offset = addr - 0x7E04A0u;
+        *value = (uint8_t)(h->menu.menu_rock_tech_search.rock >> (offset * 8));
+        return true;
+    }
+    case 233: {
+        uint32_t offset = addr - 0x7E04A1u;
+        *value = (uint8_t)(h->menu.menu_rock_tech_search.techs_left >> (offset * 8));
+        return true;
+    }
+    case 234: {
+        uint32_t offset = addr - 0x7E04A2u;
+        *value = (uint8_t)(h->menu.menu_rock_tech_search.tech >> (offset * 8));
+        return true;
+    }
+    case 235: {
+        uint32_t offset = addr - 0x7E04A3u;
+        *value = (uint8_t)(h->menu.menu_rock_tech_search.missing >> (offset * 8));
+        return true;
+    }
+    case 236: {
+        uint32_t offset = addr - 0x7E04A4u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->menu.menu_rock_techs_ready[element] >> (offset * 8));
+        return true;
+    }
+    case 237: {
+        uint32_t offset = addr - 0x7E04C0u;
+        *value = (uint8_t)(h->menu.menu_service_character >> (offset * 8));
+        return true;
+    }
+    case 238: {
+        uint32_t offset = addr - 0x7E04C1u;
+        *value = (uint8_t)(h->menu.menu_service_answer >> (offset * 8));
+        return true;
+    }
+    case 239: {
+        uint32_t offset = addr - 0x7E04C2u;
+        *value = (uint8_t)(h->menu.menu_service_places_searched >> (offset * 8));
+        return true;
+    }
+    case 240: {
+        uint32_t offset = addr - 0x7E04C3u;
+        *value = (uint8_t)(h->menu.menu_service_record_at >> (offset * 8));
+        return true;
+    }
+    case 241: {
+        uint32_t offset = addr - 0x7E04C5u;
+        *value = (uint8_t)(h->menu.menu_service_item >> (offset * 8));
+        return true;
+    }
+    case 242: {
+        uint32_t offset = addr - 0x7E04C7u;
+        *value = (uint8_t)(h->menu.menu_item_place_found >> (offset * 8));
+        return true;
+    }
+    case 243: {
+        uint32_t offset = addr - 0x7E04C9u;
+        *value = (uint8_t)(h->menu.menu_item_operand >> (offset * 8));
+        return true;
+    }
+    case 244: {
+        uint32_t offset = addr - 0x7E04CAu;
+        *value = (uint8_t)(h->menu.menu_item_operand_count >> (offset * 8));
+        return true;
+    }
+    case 245: {
+        uint32_t offset = addr - 0x7E04CBu;
+        *value = (uint8_t)(h->menu.menu_item_operand_quantity >> (offset * 8));
+        return true;
+    }
+    case 246: {
+        uint32_t offset = addr - 0x7E04CCu;
+        *value = (uint8_t)(h->menu.menu_item_category >> (offset * 8));
+        return true;
+    }
+    case 247: {
+        uint32_t offset = addr - 0x7E04CEu;
+        *value = (uint8_t)(h->menu.menu_item_in_category >> (offset * 8));
+        return true;
+    }
+    case 248: {
+        uint32_t offset = addr - 0x7E04FBu;
+        *value = (uint8_t)(h->menu.menu_field_song_volume >> (offset * 8));
+        return true;
+    }
+    case 249: {
+        uint32_t offset = addr - 0x7E04FCu;
+        *value = (uint8_t)(h->menu.menu_saved_location.id >> (offset * 8));
+        return true;
+    }
+    case 250: {
+        uint32_t offset = addr - 0x7E04FEu;
+        *value = (uint8_t)(h->menu.menu_saved_location.x >> (offset * 8));
+        return true;
+    }
+    case 251: {
+        uint32_t offset = addr - 0x7E04FFu;
+        *value = (uint8_t)(h->menu.menu_saved_location.y >> (offset * 8));
+        return true;
+    }
+    case 252: {
+        uint32_t offset = addr - 0x7E24F2u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->menu.menu_inventory_past_the_items[element] >> (offset * 8));
+        return true;
+    }
+    case 253: {
+        uint32_t offset = addr - 0x7E25F2u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->menu.menu_inventory_counts_past_the_items[element] >> (offset * 8));
+        return true;
+    }
+    case 254: {
+        uint32_t offset = addr - 0x7E027Eu;
+        *value = (uint8_t)(h->overworld.overworld_travel >> (offset * 8));
+        return true;
+    }
+    case 255: {
+        uint32_t offset = addr - 0x7E027Fu;
+        *value = (uint8_t)(h->overworld.overworld_travel_before >> (offset * 8));
+        return true;
+    }
+    case 256: {
+        uint32_t offset = addr - 0x7E0280u;
+        *value = (uint8_t)(h->overworld.overworld_event >> (offset * 8));
+        return true;
+    }
+    case 257: {
+        uint32_t offset = addr - 0x7E0281u;
+        *value = (uint8_t)(h->overworld.overworld_event_before >> (offset * 8));
+        return true;
+    }
+    case 258: {
+        uint32_t offset = addr - 0x7E0282u;
+        *value = (uint8_t)(h->overworld.overworld_ground_news >> (offset * 8));
+        return true;
+    }
+    case 259: {
+        uint32_t offset = addr - 0x7E0283u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->overworld.overworld_party_places[element].x >> (offset * 8));
+        return true;
+    }
+    case 260: {
+        uint32_t offset = addr - 0x7E0285u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->overworld.overworld_party_places[element].y >> (offset * 8));
+        return true;
+    }
+    case 261: {
+        uint32_t offset = addr - 0x7E028Fu;
+        *value = (uint8_t)(h->overworld.overworld_boarding >> (offset * 8));
+        return true;
+    }
+    case 262: {
+        uint32_t offset = addr - 0x7E0290u;
+        *value = (uint8_t)(h->overworld.overworld_epoch.x >> (offset * 8));
+        return true;
+    }
+    case 263: {
+        uint32_t offset = addr - 0x7E0292u;
+        *value = (uint8_t)(h->overworld.overworld_epoch.y >> (offset * 8));
+        return true;
+    }
+    case 264: {
+        uint32_t offset = addr - 0x7E0294u;
+        *value = (uint8_t)(h->overworld.overworld_epoch.state >> (offset * 8));
+        return true;
+    }
+    case 265: {
+        uint32_t offset = addr - 0x7E0299u;
+        *value = (uint8_t)(h->overworld.overworld_second_vehicle_state >> (offset * 8));
+        return true;
+    }
+    case 266: {
+        uint32_t offset = addr - 0x7E029Au;
+        *value = (uint8_t)(h->overworld.overworld_dactyl.x >> (offset * 8));
+        return true;
+    }
+    case 267: {
+        uint32_t offset = addr - 0x7E029Cu;
+        *value = (uint8_t)(h->overworld.overworld_dactyl.y >> (offset * 8));
+        return true;
+    }
+    case 268: {
+        uint32_t offset = addr - 0x7E029Eu;
+        *value = (uint8_t)(h->overworld.overworld_dactyl.state >> (offset * 8));
+        return true;
+    }
+    case 269: {
+        uint32_t offset = addr - 0x7E02A2u;
+        *value = (uint8_t)(h->overworld.overworld_black_omen.x >> (offset * 8));
+        return true;
+    }
+    case 270: {
+        uint32_t offset = addr - 0x7E02A4u;
+        *value = (uint8_t)(h->overworld.overworld_black_omen.y >> (offset * 8));
+        return true;
+    }
+    case 271: {
+        uint32_t offset = addr - 0x7E02A6u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->overworld.overworld_following_dactyls[element].x >> (offset * 8));
+        return true;
+    }
+    case 272: {
+        uint32_t offset = addr - 0x7E02A8u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->overworld.overworld_following_dactyls[element].y >> (offset * 8));
+        return true;
+    }
+    case 273: {
+        uint32_t offset = addr - 0x7E02B1u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->overworld.overworld_idle_frames[element] >> (offset * 8));
+        return true;
+    }
+    case 274: {
+        uint32_t offset = addr - 0x7E1D00u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->battle.battle_object_x[element] >> (offset * 8));
+        return true;
+    }
+    case 275: {
+        uint32_t offset = addr - 0x7E1D17u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->battle.battle_object_y[element] >> (offset * 8));
+        return true;
+    }
+    case 276: {
+        uint32_t offset = addr - 0x7E2880u;
+        *value = (uint8_t)(h->battle.battle_rewards_held >> (offset * 8));
+        return true;
+    }
+    case 277: {
+        uint32_t offset = addr - 0x7E2989u;
+        *value = (uint8_t)(h->battle.battle_setup_flags >> (offset * 8));
+        return true;
+    }
+    case 278: {
+        uint32_t offset = addr - 0x7E29ACu;
+        *value = (uint8_t)(h->battle.battle_demo >> (offset * 8));
+        return true;
+    }
+    case 279: {
+        uint32_t offset = addr - 0x7E2A1Fu;
+        *value = (uint8_t)(h->battle.battle_event_flags >> (offset * 8));
+        return true;
+    }
+    case 280: {
+        uint32_t offset = addr - 0x7E2A21u;
+        *value = (uint8_t)(h->battle.battle_background_flags >> (offset * 8));
+        return true;
+    }
+    case 281: {
+        uint32_t offset = addr - 0x7E2A23u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->battle.battle_location_upper_attributes[element] >> (offset * 8));
+        return true;
+    }
+    case 282: {
+        uint32_t offset = addr - 0x7E2B23u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->battle.battle_location_lower_attributes[element] >> (offset * 8));
+        return true;
+    }
+    case 283: {
+        uint32_t offset = addr - 0x7E2C56u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        *value = (uint8_t)(h->battle.battle_start_tile_maps[element] >> (offset * 8));
+        return true;
+    }
+    case 284: {
+        uint32_t offset = addr - 0x7E2C5Au;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_start_scroll[element].x >> (offset * 8));
+        return true;
+    }
+    case 285: {
+        uint32_t offset = addr - 0x7E2C5Cu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_start_scroll[element].y >> (offset * 8));
+        return true;
+    }
+    case 286: {
+        uint32_t offset = addr - 0x7E2C66u;
+        *value = (uint8_t)(h->battle.battle_start_screens.main >> (offset * 8));
+        return true;
+    }
+    case 287: {
+        uint32_t offset = addr - 0x7E2C67u;
+        *value = (uint8_t)(h->battle.battle_start_screens.sub >> (offset * 8));
+        return true;
+    }
+    case 288: {
+        uint32_t offset = addr - 0x7E2C68u;
+        *value = (uint8_t)(h->battle.battle_start_screens.main_window_mask >> (offset * 8));
+        return true;
+    }
+    case 289: {
+        uint32_t offset = addr - 0x7E2C69u;
+        *value = (uint8_t)(h->battle.battle_start_screens.sub_window_mask >> (offset * 8));
+        return true;
+    }
+    case 290: {
+        uint32_t offset = addr - 0x7E2C6Au;
+        *value = (uint8_t)(h->battle.battle_start_screens.math_control >> (offset * 8));
+        return true;
+    }
+    case 291: {
+        uint32_t offset = addr - 0x7E2C6Bu;
+        *value = (uint8_t)(h->battle.battle_start_screens.math_layers >> (offset * 8));
+        return true;
+    }
+    case 292: {
+        uint32_t offset = addr - 0x7E2C6Cu;
+        *value = (uint8_t)(h->battle.battle_start_screens.fixed_color >> (offset * 8));
+        return true;
+    }
+    case 293: {
+        uint32_t offset = addr - 0x7E2C6Du;
+        *value = (uint8_t)(h->battle.battle_start_screens.unused >> (offset * 8));
+        return true;
+    }
+    case 294: {
+        uint32_t offset = addr - 0x7E2C6Eu;
+        *value = (uint8_t)(h->battle.battle_start_screens.mode >> (offset * 8));
+        return true;
+    }
+    case 295: {
+        uint32_t offset = addr - 0x7E2C6Fu;
+        *value = (uint8_t)(h->battle.battle_start_screens.mosaic >> (offset * 8));
+        return true;
+    }
+    case 296: {
+        uint32_t offset = addr - 0x7E2C70u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_bg_scroll[element].x >> (offset * 8));
+        return true;
+    }
+    case 297: {
+        uint32_t offset = addr - 0x7E2C72u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_bg_scroll[element].y >> (offset * 8));
+        return true;
+    }
+    case 298: {
+        uint32_t offset = addr - 0x7E2C7Cu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_remembered_cursors[element].command >> (offset * 8));
+        return true;
+    }
+    case 299: {
+        uint32_t offset = addr - 0x7E2C7Du;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_remembered_cursors[element].tech_scroll >> (offset * 8));
+        return true;
+    }
+    case 300: {
+        uint32_t offset = addr - 0x7E2C7Eu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_remembered_cursors[element].tech_row >> (offset * 8));
+        return true;
+    }
+    case 301: {
+        uint32_t offset = addr - 0x7E2C7Fu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        *value = (uint8_t)(h->battle.battle_remembered_cursors[element].tech >> (offset * 8));
+        return true;
+    }
+    case 302: {
+        uint32_t offset = addr - 0x7E2C98u;
+        *value = (uint8_t)(h->battle.battle_remembered_item_top >> (offset * 8));
+        return true;
+    }
+    case 303: {
+        uint32_t offset = addr - 0x7E2C99u;
+        *value = (uint8_t)(h->battle.battle_remembered_item_row >> (offset * 8));
+        return true;
+    }
+    case 304: {
+        uint32_t offset = addr - 0x7E0380u;
+        *value = (uint8_t)(h->scene.scene_race_winner >> (offset * 8));
+        return true;
+    }
+    case 305: {
+        uint32_t offset = addr - 0x7E0381u;
+        *value = (uint8_t)(h->scene.scene_race_prize >> (offset * 8));
+        return true;
+    }
+    case 306: {
+        uint32_t offset = addr - 0x7E0382u;
+        *value = (uint8_t)(h->scene.scene_credits_page >> (offset * 8));
+        return true;
+    }
+    case 307: {
+        uint32_t offset = addr - 0x7E0384u;
+        *value = (uint8_t)(h->scene.scene_flags >> (offset * 8));
+        return true;
+    }
+    case 308: {
+        uint32_t offset = addr - 0x7E0386u;
+        *value = (uint8_t)(h->scene.scene_random_seed >> (offset * 8));
+        return true;
+    }
+    case 309: {
+        uint32_t offset = addr - 0x7E0388u;
+        *value = (uint8_t)(h->scene.scene_song_sending >> (offset * 8));
+        return true;
+    }
+    case 310: {
+        uint32_t offset = addr - 0x7E0389u;
+        *value = (uint8_t)(h->scene.scene_song_playing >> (offset * 8));
+        return true;
+    }
+    case 311: {
+        uint32_t offset = addr - 0x7E038Au;
+        *value = (uint8_t)(h->scene.scene_song >> (offset * 8));
+        return true;
+    }
+    case 312: {
+        uint32_t offset = addr - 0x7E038Cu;
+        *value = (uint8_t)(h->scene.scene_line_effects >> (offset * 8));
+        return true;
+    }
+    case 313: {
+        uint32_t offset = addr - 0x7E038Du;
+        *value = (uint8_t)(h->scene.scene_brightness >> (offset * 8));
+        return true;
+    }
+    case 314: {
+        uint32_t offset = addr - 0x7E038Eu;
+        *value = (uint8_t)(h->scene.scene_fade_period >> (offset * 8));
+        return true;
+    }
+    case 315: {
+        uint32_t offset = addr - 0x7E038Fu;
+        *value = (uint8_t)(h->scene.scene_fade_countdown >> (offset * 8));
+        return true;
+    }
+    case 316: {
+        uint32_t offset = addr - 0x7E0390u;
+        *value = (uint8_t)(h->scene.scene_pause_enabled >> (offset * 8));
+        return true;
+    }
+    case 317: {
+        uint32_t offset = addr - 0x7E0392u;
+        *value = (uint8_t)(h->scene.scene_paused >> (offset * 8));
+        return true;
+    }
+    case 318: {
+        uint32_t offset = addr - 0x7E0394u;
+        *value = (uint8_t)(h->scene.scene_start_held >> (offset * 8));
+        return true;
+    }
+    case 319: {
+        uint32_t offset = addr - 0x7E0396u;
+        *value = (uint8_t)(h->scene.scene_reset_disabled >> (offset * 8));
+        return true;
+    }
+    case 320: {
+        uint32_t offset = addr - 0x7E0397u;
+        *value = (uint8_t)(h->scene.scene_race_demo_showings >> (offset * 8));
+        return true;
+    }
+    case 321: {
+        uint32_t offset = addr - 0x7E0399u;
+        *value = (uint8_t)(h->scene.scene_end_wait >> (offset * 8));
+        return true;
+    }
+    case 322: {
+        uint32_t offset = addr - 0x7E039Bu;
+        *value = (uint8_t)(h->scene.scene_random_step >> (offset * 8));
+        return true;
+    }
+    case 323: {
+        uint32_t offset = addr - 0x7E03FEu;
+        *value = (uint8_t)(h->scene.scene_planet_fade_colours_left >> (offset * 8));
+        return true;
+    }
+    case 324: {
+        uint32_t offset = addr - 0x7E0508u;
+        *value = (uint8_t)(h->warp.warp_zero >> (offset * 8));
+        return true;
+    }
+    case 325: {
+        uint32_t offset = addr - 0x7E051Bu;
+        *value = (uint8_t)(h->warp.warp_frame >> (offset * 8));
+        return true;
+    }
+    case 326: {
+        uint32_t offset = addr - 0x7E051Eu;
+        *value = (uint8_t)(h->warp.warp_frame_ended >> (offset * 8));
+        return true;
+    }
+    case 327: {
+        uint32_t offset = addr - 0x7E051Fu;
+        *value = (uint8_t)(h->warp.warp_circle_center_x >> (offset * 8));
+        return true;
+    }
+    default: break;
     }
     return false;
 }
 
 bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value)
 {
-    if (addr >= 0x7E0100u && addr < 0x7E0102u) {
+    switch (projection_at(addr)) {
+    case 1: {
         uint32_t offset = addr - 0x7E0100u;
-        if (offset < 2u) {
-            h->locations.location.id = (uint16_t)((h->locations.location.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location.id = (uint16_t)((h->locations.location.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0102u && addr < 0x7E0103u) {
+    case 2: {
         uint32_t offset = addr - 0x7E0102u;
-        if (offset < 1u) {
-            h->locations.location.x = (uint8_t)((h->locations.location.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location.x = (uint8_t)((h->locations.location.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0103u && addr < 0x7E0104u) {
+    case 3: {
         uint32_t offset = addr - 0x7E0103u;
-        if (offset < 1u) {
-            h->locations.location.y = (uint8_t)((h->locations.location.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location.y = (uint8_t)((h->locations.location.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0104u && addr < 0x7E0105u) {
+    case 4: {
         uint32_t offset = addr - 0x7E0104u;
-        if (offset < 1u) {
-            h->locations.location.flags = (uint8_t)((h->locations.location.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location.flags = (uint8_t)((h->locations.location.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0105u && addr < 0x7E0107u) {
+    case 5: {
         uint32_t offset = addr - 0x7E0105u;
-        if (offset < 2u) {
-            h->locations.location_previous.id = (uint16_t)((h->locations.location_previous.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_previous.id = (uint16_t)((h->locations.location_previous.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0107u && addr < 0x7E0108u) {
+    case 6: {
         uint32_t offset = addr - 0x7E0107u;
-        if (offset < 1u) {
-            h->locations.location_previous.x = (uint8_t)((h->locations.location_previous.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_previous.x = (uint8_t)((h->locations.location_previous.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0108u && addr < 0x7E0109u) {
+    case 7: {
         uint32_t offset = addr - 0x7E0108u;
-        if (offset < 1u) {
-            h->locations.location_previous.y = (uint8_t)((h->locations.location_previous.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_previous.y = (uint8_t)((h->locations.location_previous.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0109u && addr < 0x7E010Au) {
+    case 8: {
         uint32_t offset = addr - 0x7E0109u;
-        if (offset < 1u) {
-            h->locations.location_previous.flags = (uint8_t)((h->locations.location_previous.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_previous.flags = (uint8_t)((h->locations.location_previous.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Au && addr < 0x7E010Cu) {
+    case 9: {
         uint32_t offset = addr - 0x7E010Au;
-        if (offset < 2u) {
-            h->locations.location_stored.id = (uint16_t)((h->locations.location_stored.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_stored.id = (uint16_t)((h->locations.location_stored.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Cu && addr < 0x7E010Du) {
+    case 10: {
         uint32_t offset = addr - 0x7E010Cu;
-        if (offset < 1u) {
-            h->locations.location_stored.x = (uint8_t)((h->locations.location_stored.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_stored.x = (uint8_t)((h->locations.location_stored.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Du && addr < 0x7E010Eu) {
+    case 11: {
         uint32_t offset = addr - 0x7E010Du;
-        if (offset < 1u) {
-            h->locations.location_stored.y = (uint8_t)((h->locations.location_stored.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_stored.y = (uint8_t)((h->locations.location_stored.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E010Eu && addr < 0x7E010Fu) {
+    case 12: {
         uint32_t offset = addr - 0x7E010Eu;
-        if (offset < 1u) {
-            h->locations.location_stored.flags = (uint8_t)((h->locations.location_stored.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_stored.flags = (uint8_t)((h->locations.location_stored.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0112u && addr < 0x7E0114u) {
+    case 13: {
         uint32_t offset = addr - 0x7E0112u;
-        if (offset < 2u) {
-            h->locations.location_next.id = (uint16_t)((h->locations.location_next.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_next.id = (uint16_t)((h->locations.location_next.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0114u && addr < 0x7E0115u) {
+    case 14: {
         uint32_t offset = addr - 0x7E0114u;
-        if (offset < 1u) {
-            h->locations.location_next.x = (uint8_t)((h->locations.location_next.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_next.x = (uint8_t)((h->locations.location_next.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0115u && addr < 0x7E0116u) {
+    case 15: {
         uint32_t offset = addr - 0x7E0115u;
-        if (offset < 1u) {
-            h->locations.location_next.y = (uint8_t)((h->locations.location_next.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_next.y = (uint8_t)((h->locations.location_next.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
     }
-    if (addr >= 0x7E0116u && addr < 0x7E0117u) {
+    case 16: {
         uint32_t offset = addr - 0x7E0116u;
-        if (offset < 1u) {
-            h->locations.location_next.flags = (uint8_t)((h->locations.location_next.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
-            return true;
-        }
+        h->locations.location_next.flags = (uint8_t)((h->locations.location_next.flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 17: {
+        uint32_t offset = addr - 0x7E0406u;
+        h->core.play_time_overflowed = (uint8_t)((h->core.play_time_overflowed & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 18: {
+        uint32_t offset = addr - 0x7E0407u;
+        h->core.play_time_stopped = (uint8_t)((h->core.play_time_stopped & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 19: {
+        uint32_t offset = addr - 0x7E0408u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.own_button_assignments[element] = (uint8_t)((h->core.own_button_assignments[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 20: {
+        uint32_t offset = addr - 0x7E0414u;
+        h->core.save_slot_chosen = (uint8_t)((h->core.save_slot_chosen & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 21: {
+        uint32_t offset = addr - 0x7E041Fu;
+        h->core.second_controller = (uint16_t)((h->core.second_controller & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 22: {
+        uint32_t offset = addr - 0x7E051Du;
+        h->core.tile_animation_frame = (uint8_t)((h->core.tile_animation_frame & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 23: {
+        uint32_t offset = addr - 0x7E0520u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].kind = (uint8_t)((h->palettes.palette_animations[element].kind & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 24: {
+        uint32_t offset = addr - 0x7E0521u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].first_color = (uint8_t)((h->palettes.palette_animations[element].first_color & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 25: {
+        uint32_t offset = addr - 0x7E0522u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].color_count = (uint8_t)((h->palettes.palette_animations[element].color_count & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 26: {
+        uint32_t offset = addr - 0x7E0523u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].step = (uint8_t)((h->palettes.palette_animations[element].step & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 27: {
+        uint32_t offset = addr - 0x7E0524u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].delay = (uint8_t)((h->palettes.palette_animations[element].delay & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 28: {
+        uint32_t offset = addr - 0x7E0525u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].period = (uint8_t)((h->palettes.palette_animations[element].period & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 29: {
+        uint32_t offset = addr - 0x7E0528u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].fade_target = (uint8_t)((h->palettes.palette_animations[element].fade_target & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 30: {
+        uint32_t offset = addr - 0x7E0526u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].frames = (uint16_t)((h->palettes.palette_animations[element].frames & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 31: {
+        uint32_t offset = addr - 0x7E0529u;
+        unsigned element = offset / 12u;
+        offset %= 12u;
+        h->palettes.palette_animations[element].frame_table = (uint32_t)((h->palettes.palette_animations[element].frame_table & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 32: {
+        uint32_t offset = addr - 0x7E05B0u;
+        unsigned element = offset / 5u;
+        offset %= 5u;
+        h->core.tile_animations[element].accumulator = (uint16_t)((h->core.tile_animations[element].accumulator & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 33: {
+        uint32_t offset = addr - 0x7E05B2u;
+        unsigned element = offset / 5u;
+        offset %= 5u;
+        h->core.tile_animations[element].vram = (uint16_t)((h->core.tile_animations[element].vram & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 34: {
+        uint32_t offset = addr - 0x7E05B4u;
+        unsigned element = offset / 5u;
+        offset %= 5u;
+        h->core.tile_animations[element].bank = (uint8_t)((h->core.tile_animations[element].bank & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 35: {
+        uint32_t offset = addr - 0x7E1E00u;
+        h->sound.sound_command = (uint8_t)((h->sound.sound_command & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 36: {
+        uint32_t offset = addr - 0x7E1E01u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->sound.sound_command_parameters[element] = (uint8_t)((h->sound.sound_command_parameters[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 37: {
+        uint32_t offset = addr - 0x7E1E10u;
+        h->sound.sound_driver_effects_asked = (uint8_t)((h->sound.sound_driver_effects_asked & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 38: {
+        uint32_t offset = addr - 0x7E2000u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->core.palette_base[element] = (uint16_t)((h->core.palette_base[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 39: {
+        uint32_t offset = addr - 0x7E2200u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->palettes.palette_working[element] = (uint16_t)((h->palettes.palette_working[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 40: {
+        uint32_t offset = addr - 0x7E2400u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.inventory_items[element] = (uint8_t)((h->core.inventory_items[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 41: {
+        uint32_t offset = addr - 0x7E2500u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.inventory_counts[element] = (uint8_t)((h->core.inventory_counts[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 42: {
+        uint32_t offset = addr - 0x7E2600u;
+        unsigned element = offset / 80u;
+        offset %= 80u;
+        h->core.character_records[element].record[offset] = value;
+        return true;
+    }
+    case 43: {
+        uint32_t offset = addr - 0x7E2830u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.party_single_techs_known[element] = (uint8_t)((h->core.party_single_techs_known[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 44: {
+        uint32_t offset = addr - 0x7E2837u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.party_single_techs_learned[element] = (uint8_t)((h->core.party_single_techs_learned[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 45: {
+        uint32_t offset = addr - 0x7E283Eu;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.party_double_techs_learned[element] = (uint8_t)((h->core.party_double_techs_learned[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 46: {
+        uint32_t offset = addr - 0x7E284Du;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.party_triple_techs_learned[element] = (uint8_t)((h->core.party_triple_techs_learned[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 47: {
+        uint32_t offset = addr - 0x7E2990u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.game_settings[element] = (uint8_t)((h->core.game_settings[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 48: {
+        uint32_t offset = addr - 0x7E2993u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->core.button_assignments[element] = (uint8_t)((h->core.button_assignments[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 49: {
+        uint32_t offset = addr - 0x7E299Bu;
+        h->core.button_assignment_spare = (uint8_t)((h->core.button_assignment_spare & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 50: {
+        uint32_t offset = addr - 0x7E299Cu;
+        h->core.times_saved = (uint16_t)((h->core.times_saved & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 51: {
+        uint32_t offset = addr - 0x7E299Eu;
+        h->core.times_finished = (uint8_t)((h->core.times_finished & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 52: {
+        uint32_t offset = addr - 0x7E299Fu;
+        h->core.names_given = (uint16_t)((h->core.names_given & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 53: {
+        uint32_t offset = addr - 0x7E29ADu;
+        h->core.frames_at_leaving = (uint8_t)((h->core.frames_at_leaving & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 54: {
+        uint32_t offset = addr - 0x7E29AEu;
+        h->sound.current_song = (uint8_t)((h->sound.current_song & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 55: {
+        uint32_t offset = addr - 0x7E29AFu;
+        h->core.party_characters_joined = (uint8_t)((h->core.party_characters_joined & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 56: {
+        uint32_t offset = addr - 0x7E2C23u;
+        unsigned element = offset / 6u;
+        offset %= 6u;
+        h->core.character_names[element][offset] = value;
+        return true;
+    }
+    case 57: {
+        uint32_t offset = addr - 0x7E2C4Du;
+        h->core.epoch_name[offset] = value;
+        return true;
+    }
+    case 58: {
+        uint32_t offset = addr - 0x7E2C53u;
+        h->core.party_gold.low = (uint16_t)((h->core.party_gold.low & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 59: {
+        uint32_t offset = addr - 0x7E2C55u;
+        h->core.party_gold.high = (uint8_t)((h->core.party_gold.high & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 60: {
+        uint32_t offset = addr - 0x7E0300u;
+        h->data.decompress_source = (uint32_t)((h->data.decompress_source & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 61: {
+        uint32_t offset = addr - 0x7E0303u;
+        h->data.decompress_dest = (uint32_t)((h->data.decompress_dest & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 62: {
+        uint32_t offset = addr - 0x7E0306u;
+        h->data.decompress_length = (uint16_t)((h->data.decompress_length & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 63: {
+        uint32_t offset = addr - 0x7E0309u;
+        h->data.decompress_segment_end = (uint16_t)((h->data.decompress_segment_end & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 64: {
+        uint32_t offset = addr - 0x7E030Bu;
+        h->data.decompress_bits_left = (uint8_t)((h->data.decompress_bits_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 65: {
+        uint32_t offset = addr - 0x7E030Du;
+        h->data.decompress_control = (uint8_t)((h->data.decompress_control & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 66: {
+        uint32_t offset = addr - 0x7E030Fu;
+        h->data.decompress_copy_length = (uint16_t)((h->data.decompress_copy_length & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 67: {
+        uint32_t offset = addr - 0x7E0315u;
+        h->data.decompress_scratch = (uint16_t)((h->data.decompress_scratch & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 68: {
+        uint32_t offset = addr - 0x7E0167u;
+        h->event.event_commands_left = (uint8_t)((h->event.event_commands_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 69: {
+        uint32_t offset = addr - 0x7E0168u;
+        h->event.event_commands_per_turn = (uint8_t)((h->event.event_commands_per_turn & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 70: {
+        uint32_t offset = addr - 0x7E01BDu;
+        h->event.event_object_end = (uint16_t)((h->event.event_object_end & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 71: {
+        uint32_t offset = addr - 0x7E01D0u;
+        h->event.event_target_pointer = (uint32_t)((h->event.event_target_pointer & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 72: {
+        uint32_t offset = addr - 0x7E01D9u;
+        h->event.event_scratch[offset] = value;
+        return true;
+    }
+    case 73: {
+        uint32_t offset = addr - 0x7E010Fu;
+        h->field.field_irq_disabled = (uint8_t)((h->field.field_irq_disabled & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 74: {
+        uint32_t offset = addr - 0x7E0110u;
+        h->field.field_menus_locked = (uint8_t)((h->field.field_menus_locked & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 75: {
+        uint32_t offset = addr - 0x7E0111u;
+        h->field.field_pause_locked = (uint8_t)((h->field.field_pause_locked & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 76: {
+        uint32_t offset = addr - 0x7E0117u;
+        h->field.field_requests = (uint8_t)((h->field.field_requests & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 77: {
+        uint32_t offset = addr - 0x7E0118u;
+        h->field.field_effect_status = (uint8_t)((h->field.field_effect_status & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 78: {
+        uint32_t offset = addr - 0x7E0119u;
+        h->field.field_brightness = (uint8_t)((h->field.field_brightness & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 79: {
+        uint32_t offset = addr - 0x7E011Au;
+        h->field.field_brightness_before_pause = (uint8_t)((h->field.field_brightness_before_pause & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 80: {
+        uint32_t offset = addr - 0x7E011Bu;
+        h->field.field_brightness_target = (uint8_t)((h->field.field_brightness_target & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 81: {
+        uint32_t offset = addr - 0x7E011Cu;
+        h->field.field_brightness_rate = (uint16_t)((h->field.field_brightness_rate & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 82: {
+        uint32_t offset = addr - 0x7E011Eu;
+        h->field.field_setting_1e = (uint8_t)((h->field.field_setting_1e & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 83: {
+        uint32_t offset = addr - 0x7E011Fu;
+        h->field.field_player_control = (uint8_t)((h->field.field_player_control & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 84: {
+        uint32_t offset = addr - 0x7E0120u;
+        h->field.field_leader_collides = (uint8_t)((h->field.field_leader_collides & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 85: {
+        uint32_t offset = addr - 0x7E0121u;
+        h->field.field_fixed_color = (uint8_t)((h->field.field_fixed_color & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 86: {
+        uint32_t offset = addr - 0x7E0122u;
+        h->field.field_fixed_color_target = (uint8_t)((h->field.field_fixed_color_target & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 87: {
+        uint32_t offset = addr - 0x7E0123u;
+        h->field.field_fixed_color_rate = (uint16_t)((h->field.field_fixed_color_rate & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 88: {
+        uint32_t offset = addr - 0x7E0125u;
+        h->field.field_script_menu = (uint8_t)((h->field.field_script_menu & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 89: {
+        uint32_t offset = addr - 0x7E0126u;
+        h->field.dialog_window_position = (uint8_t)((h->field.dialog_window_position & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 90: {
+        uint32_t offset = addr - 0x7E0127u;
+        h->field.dialog_window_state = (uint8_t)((h->field.dialog_window_state & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 91: {
+        uint32_t offset = addr - 0x7E0128u;
+        h->field.field_line_effect_enable = (uint8_t)((h->field.field_line_effect_enable & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 92: {
+        uint32_t offset = addr - 0x7E0129u;
+        h->field.dialog_state = (uint8_t)((h->field.dialog_state & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 93: {
+        uint32_t offset = addr - 0x7E012Au;
+        h->field.dialog_string = (uint8_t)((h->field.dialog_string & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 94: {
+        uint32_t offset = addr - 0x7E012Bu;
+        h->field.dialog_string_table = (uint32_t)((h->field.dialog_string_table & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 95: {
+        uint32_t offset = addr - 0x7E012Eu;
+        h->field.dialog_speaker = (uint8_t)((h->field.dialog_speaker & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 96: {
+        uint32_t offset = addr - 0x7E012Fu;
+        h->field.dialog_speaker_high = (uint8_t)((h->field.dialog_speaker_high & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 97: {
+        uint32_t offset = addr - 0x7E0130u;
+        h->field.dialog_box_position = (uint8_t)((h->field.dialog_box_position & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 98: {
+        uint32_t offset = addr - 0x7E0131u;
+        h->field.dialog_text_row = (uint8_t)((h->field.dialog_text_row & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 99: {
+        uint32_t offset = addr - 0x7E0132u;
+        h->field.dialog_window_object = (uint8_t)((h->field.dialog_window_object & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 100: {
+        uint32_t offset = addr - 0x7E0133u;
+        h->field.dialog_window_opening_clears = (uint8_t)((h->field.dialog_window_opening_clears & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 101: {
+        uint32_t offset = addr - 0x7E0134u;
+        h->field.field_dialog_hold = (uint16_t)((h->field.field_dialog_hold & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 102: {
+        uint32_t offset = addr - 0x7E0136u;
+        h->field.dialog_text_sending = (uint8_t)((h->field.dialog_text_sending & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 103: {
+        uint32_t offset = addr - 0x7E0138u;
+        h->field.field_screen_recentring = (uint8_t)((h->field.field_screen_recentring & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 104: {
+        uint32_t offset = addr - 0x7E0139u;
+        h->field.field_screen_effect = (uint8_t)((h->field.field_screen_effect & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 105: {
+        uint32_t offset = addr - 0x7E013Au;
+        h->field.field_circle_x = (uint8_t)((h->field.field_circle_x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 106: {
+        uint32_t offset = addr - 0x7E013Bu;
+        h->field.field_circle_y = (uint8_t)((h->field.field_circle_y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 107: {
+        uint32_t offset = addr - 0x7E013Cu;
+        h->field.field_window2_edge = (uint8_t)((h->field.field_window2_edge & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 108: {
+        uint32_t offset = addr - 0x7E013Du;
+        h->field.field_circle_target_radius = (uint8_t)((h->field.field_circle_target_radius & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 109: {
+        uint32_t offset = addr - 0x7E013Eu;
+        h->field.field_tile_copy.from = (uint16_t)((h->field.field_tile_copy.from & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 110: {
+        uint32_t offset = addr - 0x7E0140u;
+        h->field.field_tile_copy.to = (uint16_t)((h->field.field_tile_copy.to & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 111: {
+        uint32_t offset = addr - 0x7E0142u;
+        h->field.field_tile_copy.destination = (uint16_t)((h->field.field_tile_copy.destination & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 112: {
+        uint32_t offset = addr - 0x7E0144u;
+        h->field.field_tile_copy.maps = (uint8_t)((h->field.field_tile_copy.maps & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 113: {
+        uint32_t offset = addr - 0x7E0145u;
+        h->field.field_tile_copy.queued_maps = (uint8_t)((h->field.field_tile_copy.queued_maps & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 114: {
+        uint32_t offset = addr - 0x7E0146u;
+        h->field.field_map_transition = (uint8_t)((h->field.field_map_transition & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 115: {
+        uint32_t offset = addr - 0x7E0147u;
+        h->field.field_screen_transition = (uint8_t)((h->field.field_screen_transition & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 116: {
+        uint32_t offset = addr - 0x7E0148u;
+        h->field.field_transfer.vram = (uint16_t)((h->field.field_transfer.vram & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 117: {
+        uint32_t offset = addr - 0x7E014Au;
+        h->field.field_transfer.mode = (uint8_t)((h->field.field_transfer.mode & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 118: {
+        uint32_t offset = addr - 0x7E014Bu;
+        h->field.field_transfer.source = (uint32_t)((h->field.field_transfer.source & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 119: {
+        uint32_t offset = addr - 0x7E014Eu;
+        h->field.field_transfer.size = (uint16_t)((h->field.field_transfer.size & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 120: {
+        uint32_t offset = addr - 0x7E0150u;
+        h->field.field_input_latched = (uint16_t)((h->field.field_input_latched & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 121: {
+        uint32_t offset = addr - 0x7E0152u;
+        h->field.field_frame_pending = (uint8_t)((h->field.field_frame_pending & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 122: {
+        uint32_t offset = addr - 0x7E0153u;
+        h->field.field_display_flags = (uint8_t)((h->field.field_display_flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 123: {
+        uint32_t offset = addr - 0x7E0154u;
+        h->field.field_mode_flags = (uint8_t)((h->field.field_mode_flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 124: {
+        uint32_t offset = addr - 0x7E0155u;
+        h->field.field_leader_level = (uint8_t)((h->field.field_leader_level & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 125: {
+        uint32_t offset = addr - 0x7E0158u;
+        h->field.field_idle_frames = (uint16_t)((h->field.field_idle_frames & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 126: {
+        uint32_t offset = addr - 0x7E015Bu;
+        h->field.field_step_tile = (uint16_t)((h->field.field_step_tile & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 127: {
+        uint32_t offset = addr - 0x7E015Du;
+        h->field.field_opened_chest_tile = (uint16_t)((h->field.field_opened_chest_tile & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 128: {
+        uint32_t offset = addr - 0x7E015Fu;
+        h->field.field_tiles_to_redraw = (uint8_t)((h->field.field_tiles_to_redraw & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 129: {
+        uint32_t offset = addr - 0x7E0160u;
+        h->field.field_switch_shape = (uint8_t)((h->field.field_switch_shape & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 130: {
+        uint32_t offset = addr - 0x7E0161u;
+        h->field.field_chest_kind = (uint8_t)((h->field.field_chest_kind & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 131: {
+        uint32_t offset = addr - 0x7E0162u;
+        h->field.dialog_choice_active = (uint8_t)((h->field.dialog_choice_active & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 132: {
+        uint32_t offset = addr - 0x7E0163u;
+        h->field.dialog_choice_pointer = (uint8_t)((h->field.dialog_choice_pointer & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 133: {
+        uint32_t offset = addr - 0x7E0164u;
+        h->field.dialog_choice_first = (uint8_t)((h->field.dialog_choice_first & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 134: {
+        uint32_t offset = addr - 0x7E0165u;
+        h->field.dialog_choice_last = (uint8_t)((h->field.dialog_choice_last & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 135: {
+        uint32_t offset = addr - 0x7E0166u;
+        h->field.dialog_choice = (uint8_t)((h->field.dialog_choice & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 136: {
+        uint32_t offset = addr - 0x7E0169u;
+        h->field.field_script_line_limit = (uint16_t)((h->field.field_script_line_limit & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 137: {
+        uint32_t offset = addr - 0x7E016Bu;
+        h->field.field_animation_line_limit = (uint16_t)((h->field.field_animation_line_limit & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 138: {
+        uint32_t offset = addr - 0x7E016Du;
+        h->field.field_current_object = (uint16_t)((h->field.field_current_object & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 139: {
+        uint32_t offset = addr - 0x7E0171u;
+        h->field.field_unpacked_graphics_end = (uint16_t)((h->field.field_unpacked_graphics_end & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 140: {
+        uint32_t offset = addr - 0x7E0173u;
+        h->field.field_npc_graphics_count = (uint8_t)((h->field.field_npc_graphics_count & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 141: {
+        uint32_t offset = addr - 0x7E0174u;
+        h->field.field_script_queue.head = (uint8_t)((h->field.field_script_queue.head & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 142: {
+        uint32_t offset = addr - 0x7E0175u;
+        h->field.field_script_queue.tail = (uint8_t)((h->field.field_script_queue.tail & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 143: {
+        uint32_t offset = addr - 0x7E0176u;
+        h->field.field_animation_queue.head = (uint8_t)((h->field.field_animation_queue.head & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 144: {
+        uint32_t offset = addr - 0x7E0177u;
+        h->field.field_animation_queue.tail = (uint8_t)((h->field.field_animation_queue.tail & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 145: {
+        uint32_t offset = addr - 0x7E0178u;
+        h->field.field_animation_queue_front = (uint8_t)((h->field.field_animation_queue_front & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 146: {
+        uint32_t offset = addr - 0x7E0179u;
+        h->field.field_vram_queue_end = (uint8_t)((h->field.field_vram_queue_end & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 147: {
+        uint32_t offset = addr - 0x7E017Bu;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->field.field_sprite_range_end[element] = (uint16_t)((h->field.field_sprite_range_end[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 148: {
+        uint32_t offset = addr - 0x7E0181u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->field.field_sprite_range_high[element] = (uint16_t)((h->field.field_sprite_range_high[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 149: {
+        uint32_t offset = addr - 0x7E0183u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->field.field_sprite_range_spare[element] = (uint16_t)((h->field.field_sprite_range_spare[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 150: {
+        uint32_t offset = addr - 0x7E018Du;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->field.field_character_objects[element] = (uint8_t)((h->field.field_character_objects[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 151: {
+        uint32_t offset = addr - 0x7E0194u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->field.field_party_as_loaded[element] = (uint8_t)((h->field.field_party_as_loaded[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 152: {
+        uint32_t offset = addr - 0x7E0197u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->field.field_party_objects[element] = (uint8_t)((h->field.field_party_objects[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 153: {
+        uint32_t offset = addr - 0x7E0198u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->field.field_party_objects_high[element] = (uint8_t)((h->field.field_party_objects_high[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 154: {
+        uint32_t offset = addr - 0x7E01ABu;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->field.field_trail_position[element] = (uint8_t)((h->field.field_trail_position[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 155: {
+        uint32_t offset = addr - 0x7E01AEu;
+        h->field.field_built_sprite_object = (uint8_t)((h->field.field_built_sprite_object & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 156: {
+        uint32_t offset = addr - 0x7E01AFu;
+        unsigned element = offset / 3u;
+        offset %= 3u;
+        h->field.field_sprite_data_tables[element] = (uint32_t)((h->field.field_sprite_data_tables[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 157: {
+        uint32_t offset = addr - 0x7E01BBu;
+        h->field.field_map_has_no_bg3_set = (uint8_t)((h->field.field_map_has_no_bg3_set & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 158: {
+        uint32_t offset = addr - 0x7E01BCu;
+        h->field.field_screen_shake = (uint8_t)((h->field.field_screen_shake & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 159: {
+        uint32_t offset = addr - 0x7E01BFu;
+        h->field.field_sprite_record_place = (uint16_t)((h->field.field_sprite_record_place & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 160: {
+        uint32_t offset = addr - 0x7E01C1u;
+        h->field.field_work[offset] = value;
+        return true;
+    }
+    case 161: {
+        uint32_t offset = addr - 0x7E01C9u;
+        h->field.field_frame_tiles_left = (uint16_t)((h->field.field_frame_tiles_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 162: {
+        uint32_t offset = addr - 0x7E01CDu;
+        h->field.field_sprite_graphics.address = (uint16_t)((h->field.field_sprite_graphics.address & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 163: {
+        uint32_t offset = addr - 0x7E01CFu;
+        h->field.field_sprite_graphics.bank = (uint8_t)((h->field.field_sprite_graphics.bank & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 164: {
+        uint32_t offset = addr - 0x7E01D3u;
+        h->field.field_frame_description.address = (uint16_t)((h->field.field_frame_description.address & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 165: {
+        uint32_t offset = addr - 0x7E01D5u;
+        h->field.field_frame_description.bank = (uint8_t)((h->field.field_frame_description.bank & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 166: {
+        uint32_t offset = addr - 0x7E01D6u;
+        h->field.field_frame_entry.address = (uint16_t)((h->field.field_frame_entry.address & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 167: {
+        uint32_t offset = addr - 0x7E01D8u;
+        h->field.field_frame_entry.bank = (uint8_t)((h->field.field_frame_entry.bank & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 168: {
+        uint32_t offset = addr - 0x7E01E7u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->field.field_scratch_more[element] = (uint8_t)((h->field.field_scratch_more[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 169: {
+        uint32_t offset = addr - 0x7E01E9u;
+        h->field.field_target_object = (uint16_t)((h->field.field_target_object & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 170: {
+        uint32_t offset = addr - 0x7E01EBu;
+        h->field.field_leader_contact = (uint8_t)((h->field.field_leader_contact & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 171: {
+        uint32_t offset = addr - 0x7E01ECu;
+        h->field.field_leader_contact_high = (uint8_t)((h->field.field_leader_contact_high & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 172: {
+        uint32_t offset = addr - 0x7E01F2u;
+        h->field.field_target_tile.x = (uint8_t)((h->field.field_target_tile.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 173: {
+        uint32_t offset = addr - 0x7E01F3u;
+        h->field.field_target_tile.y = (uint8_t)((h->field.field_target_tile.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 174: {
+        uint32_t offset = addr - 0x7E01F8u;
+        h->field.field_random_index = (uint8_t)((h->field.field_random_index & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 175: {
+        uint32_t offset = addr - 0x7E01FAu;
+        h->field.field_battle_song = (uint8_t)((h->field.field_battle_song & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 176: {
+        uint32_t offset = addr - 0x7E01FBu;
+        h->field.field_chest_sound = (uint8_t)((h->field.field_chest_sound & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 177: {
+        uint32_t offset = addr - 0x7E01FCu;
+        h->field.field_switch_sound = (uint8_t)((h->field.field_switch_sound & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 178: {
+        uint32_t offset = addr - 0x7E01FEu;
+        h->field.location_record_offset = (uint16_t)((h->field.location_record_offset & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 179: {
+        uint32_t offset = addr - 0x7E0360u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->field.field_window_shape_corners[element].x = (uint8_t)((h->field.field_window_shape_corners[element].x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 180: {
+        uint32_t offset = addr - 0x7E0361u;
+        unsigned element = offset / 2u;
+        offset %= 2u;
+        h->field.field_window_shape_corners[element].y = (uint8_t)((h->field.field_window_shape_corners[element].y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 181: {
+        uint32_t offset = addr - 0x7E0368u;
+        h->field.field_window_shape_top = (uint16_t)((h->field.field_window_shape_top & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 182: {
+        uint32_t offset = addr - 0x7E036Au;
+        h->field.field_window_shape_right_start = (uint16_t)((h->field.field_window_shape_right_start & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 183: {
+        uint32_t offset = addr - 0x7E03F0u;
+        h->field.field_window_shape_steps[offset] = value;
+        return true;
+    }
+    case 184: {
+        uint32_t offset = addr - 0x7E0700u;
+        h->sprites.field_sprite_table[offset] = value;
+        return true;
+    }
+    case 185: {
+        uint32_t offset = addr - 0x7E0200u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->menu.menu_text_arguments[element] = (uint8_t)((h->menu.menu_text_arguments[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 186: {
+        uint32_t offset = addr - 0x7E020Cu;
+        h->menu.menu_text.string = (uint8_t)((h->menu.menu_text.string & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 187: {
+        uint32_t offset = addr - 0x7E020Du;
+        h->menu.menu_text.strings = (uint32_t)((h->menu.menu_text.strings & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 188: {
+        uint32_t offset = addr - 0x7E0210u;
+        h->menu.menu_text.tiles = (uint32_t)((h->menu.menu_text.tiles & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 189: {
+        uint32_t offset = addr - 0x7E0213u;
+        h->menu.menu_text.budget = (uint8_t)((h->menu.menu_text.budget & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 190: {
+        uint32_t offset = addr - 0x7E0214u;
+        h->menu.menu_text.layout = (uint8_t)((h->menu.menu_text.layout & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 191: {
+        uint32_t offset = addr - 0x7E0215u;
+        h->menu.menu_text.stop = (uint8_t)((h->menu.menu_text.stop & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 192: {
+        uint32_t offset = addr - 0x7E0216u;
+        h->menu.menu_text.wait = (uint8_t)((h->menu.menu_text.wait & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 193: {
+        uint32_t offset = addr - 0x7E0217u;
+        h->menu.menu_text.line_glyphs = (uint8_t)((h->menu.menu_text.line_glyphs & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 194: {
+        uint32_t offset = addr - 0x7E0230u;
+        h->menu.menu_text_reading.source = (uint8_t)((h->menu.menu_text_reading.source & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 195: {
+        uint32_t offset = addr - 0x7E0231u;
+        h->menu.menu_text_reading.at = (uint32_t)((h->menu.menu_text_reading.at & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 196: {
+        uint32_t offset = addr - 0x7E0234u;
+        h->menu.menu_text_reading.pen = (uint8_t)((h->menu.menu_text_reading.pen & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 197: {
+        uint32_t offset = addr - 0x7E0235u;
+        h->menu.menu_text_reading.glyph = (uint16_t)((h->menu.menu_text_reading.glyph & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 198: {
+        uint32_t offset = addr - 0x7E0237u;
+        h->menu.menu_text_reading.insert = (uint32_t)((h->menu.menu_text_reading.insert & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 199: {
+        uint32_t offset = addr - 0x7E023Au;
+        h->menu.menu_text_reading.insert_left = (uint8_t)((h->menu.menu_text_reading.insert_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 200: {
+        uint32_t offset = addr - 0x7E023Bu;
+        h->menu.menu_text_reading.code = (uint8_t)((h->menu.menu_text_reading.code & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 201: {
+        uint32_t offset = addr - 0x7E023Du;
+        h->menu.menu_text_reading.arguments_at = (uint32_t)((h->menu.menu_text_reading.arguments_at & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 202: {
+        uint32_t offset = addr - 0x7E0240u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->menu.menu_text_digits[element] = (uint8_t)((h->menu.menu_text_digits[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 203: {
+        uint32_t offset = addr - 0x7E0260u;
+        h->menu.menu_glyph_byte = (uint16_t)((h->menu.menu_glyph_byte & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 204: {
+        uint32_t offset = addr - 0x7E0262u;
+        h->menu.menu_glyph_number = (uint8_t)((h->menu.menu_glyph_number & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 205: {
+        uint32_t offset = addr - 0x7E0263u;
+        h->menu.menu_glyph_spill = (uint16_t)((h->menu.menu_glyph_spill & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 206: {
+        uint32_t offset = addr - 0x7E0265u;
+        h->menu.menu_number_conversion.quotient = (uint16_t)((h->menu.menu_number_conversion.quotient & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 207: {
+        uint32_t offset = addr - 0x7E0267u;
+        h->menu.menu_number_conversion.last = (uint8_t)((h->menu.menu_number_conversion.last & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 208: {
+        uint32_t offset = addr - 0x7E0268u;
+        h->menu.menu_glyph_lines_left = (uint8_t)((h->menu.menu_glyph_lines_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 209: {
+        uint32_t offset = addr - 0x7E0269u;
+        h->menu.menu_number_second_byte = (uint8_t)((h->menu.menu_number_second_byte & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 210: {
+        uint32_t offset = addr - 0x7E026Au;
+        h->menu.menu_glyph_pen_offset = (uint16_t)((h->menu.menu_glyph_pen_offset & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 211: {
+        uint32_t offset = addr - 0x7E026Cu;
+        h->menu.menu_glyph_font_step = (uint16_t)((h->menu.menu_glyph_font_step & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 212: {
+        uint32_t offset = addr - 0x7E026Eu;
+        h->menu.menu_glyph_pen_column = (uint16_t)((h->menu.menu_glyph_pen_column & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 213: {
+        uint32_t offset = addr - 0x7E0273u;
+        h->menu.menu_glyph_dest = (uint32_t)((h->menu.menu_glyph_dest & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 214: {
+        uint32_t offset = addr - 0x7E0276u;
+        h->menu.menu_glyph_left_pixels = (uint32_t)((h->menu.menu_glyph_left_pixels & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 215: {
+        uint32_t offset = addr - 0x7E0279u;
+        h->menu.menu_glyph_right_pixels = (uint32_t)((h->menu.menu_glyph_right_pixels & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 216: {
+        uint32_t offset = addr - 0x7E027Cu;
+        h->menu.menu_mode = (uint8_t)((h->menu.menu_mode & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 217: {
+        uint32_t offset = addr - 0x7E027Du;
+        h->menu.menu_mode_beside = (uint8_t)((h->menu.menu_mode_beside & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 218: {
+        uint32_t offset = addr - 0x7E029Fu;
+        h->menu.menu_epoch_location = (uint16_t)((h->menu.menu_epoch_location & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 219: {
+        uint32_t offset = addr - 0x7E02A1u;
+        h->menu.menu_text_hex = (uint8_t)((h->menu.menu_text_hex & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 220: {
+        uint32_t offset = addr - 0x7E02AEu;
+        h->menu.menu_song_playing = (uint8_t)((h->menu.menu_song_playing & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 221: {
+        uint32_t offset = addr - 0x7E02AFu;
+        h->menu.menu_travel_location = (uint16_t)((h->menu.menu_travel_location & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 222: {
+        uint32_t offset = addr - 0x7E0411u;
+        h->menu.menu_main_menu_option = (uint8_t)((h->menu.menu_main_menu_option & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 223: {
+        uint32_t offset = addr - 0x7E0412u;
+        h->menu.menu_member_row = (uint8_t)((h->menu.menu_member_row & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 224: {
+        uint32_t offset = addr - 0x7E0413u;
+        h->menu.menu_member_scroll = (uint8_t)((h->menu.menu_member_scroll & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 225: {
+        uint32_t offset = addr - 0x7E0415u;
+        h->menu.menu_item_list_row = (uint8_t)((h->menu.menu_item_list_row & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 226: {
+        uint32_t offset = addr - 0x7E0416u;
+        h->menu.menu_item_list_top = (uint8_t)((h->menu.menu_item_list_top & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 227: {
+        uint32_t offset = addr - 0x7E0417u;
+        h->menu.menu_settings_cursor = (uint8_t)((h->menu.menu_settings_cursor & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 228: {
+        uint32_t offset = addr - 0x7E0418u;
+        h->menu.menu_tech_category = (uint8_t)((h->menu.menu_tech_category & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 229: {
+        uint32_t offset = addr - 0x7E0419u;
+        h->menu.menu_tech_member_row = (uint8_t)((h->menu.menu_tech_member_row & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 230: {
+        uint32_t offset = addr - 0x7E041Au;
+        h->menu.menu_tech_member_scroll = (uint8_t)((h->menu.menu_tech_member_scroll & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 231: {
+        uint32_t offset = addr - 0x7E041Bu;
+        h->menu.menu_weapon_looked_up = (uint16_t)((h->menu.menu_weapon_looked_up & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 232: {
+        uint32_t offset = addr - 0x7E04A0u;
+        h->menu.menu_rock_tech_search.rock = (uint8_t)((h->menu.menu_rock_tech_search.rock & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 233: {
+        uint32_t offset = addr - 0x7E04A1u;
+        h->menu.menu_rock_tech_search.techs_left = (uint8_t)((h->menu.menu_rock_tech_search.techs_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 234: {
+        uint32_t offset = addr - 0x7E04A2u;
+        h->menu.menu_rock_tech_search.tech = (uint8_t)((h->menu.menu_rock_tech_search.tech & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 235: {
+        uint32_t offset = addr - 0x7E04A3u;
+        h->menu.menu_rock_tech_search.missing = (uint8_t)((h->menu.menu_rock_tech_search.missing & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 236: {
+        uint32_t offset = addr - 0x7E04A4u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->menu.menu_rock_techs_ready[element] = (uint8_t)((h->menu.menu_rock_techs_ready[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 237: {
+        uint32_t offset = addr - 0x7E04C0u;
+        h->menu.menu_service_character = (uint8_t)((h->menu.menu_service_character & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 238: {
+        uint32_t offset = addr - 0x7E04C1u;
+        h->menu.menu_service_answer = (uint8_t)((h->menu.menu_service_answer & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 239: {
+        uint32_t offset = addr - 0x7E04C2u;
+        h->menu.menu_service_places_searched = (uint8_t)((h->menu.menu_service_places_searched & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 240: {
+        uint32_t offset = addr - 0x7E04C3u;
+        h->menu.menu_service_record_at = (uint16_t)((h->menu.menu_service_record_at & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 241: {
+        uint32_t offset = addr - 0x7E04C5u;
+        h->menu.menu_service_item = (uint8_t)((h->menu.menu_service_item & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 242: {
+        uint32_t offset = addr - 0x7E04C7u;
+        h->menu.menu_item_place_found = (uint16_t)((h->menu.menu_item_place_found & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 243: {
+        uint32_t offset = addr - 0x7E04C9u;
+        h->menu.menu_item_operand = (uint8_t)((h->menu.menu_item_operand & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 244: {
+        uint32_t offset = addr - 0x7E04CAu;
+        h->menu.menu_item_operand_count = (uint8_t)((h->menu.menu_item_operand_count & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 245: {
+        uint32_t offset = addr - 0x7E04CBu;
+        h->menu.menu_item_operand_quantity = (uint8_t)((h->menu.menu_item_operand_quantity & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 246: {
+        uint32_t offset = addr - 0x7E04CCu;
+        h->menu.menu_item_category = (uint16_t)((h->menu.menu_item_category & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 247: {
+        uint32_t offset = addr - 0x7E04CEu;
+        h->menu.menu_item_in_category = (uint16_t)((h->menu.menu_item_in_category & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 248: {
+        uint32_t offset = addr - 0x7E04FBu;
+        h->menu.menu_field_song_volume = (uint8_t)((h->menu.menu_field_song_volume & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 249: {
+        uint32_t offset = addr - 0x7E04FCu;
+        h->menu.menu_saved_location.id = (uint16_t)((h->menu.menu_saved_location.id & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 250: {
+        uint32_t offset = addr - 0x7E04FEu;
+        h->menu.menu_saved_location.x = (uint8_t)((h->menu.menu_saved_location.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 251: {
+        uint32_t offset = addr - 0x7E04FFu;
+        h->menu.menu_saved_location.y = (uint8_t)((h->menu.menu_saved_location.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 252: {
+        uint32_t offset = addr - 0x7E24F2u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->menu.menu_inventory_past_the_items[element] = (uint8_t)((h->menu.menu_inventory_past_the_items[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 253: {
+        uint32_t offset = addr - 0x7E25F2u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->menu.menu_inventory_counts_past_the_items[element] = (uint8_t)((h->menu.menu_inventory_counts_past_the_items[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 254: {
+        uint32_t offset = addr - 0x7E027Eu;
+        h->overworld.overworld_travel = (uint8_t)((h->overworld.overworld_travel & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 255: {
+        uint32_t offset = addr - 0x7E027Fu;
+        h->overworld.overworld_travel_before = (uint8_t)((h->overworld.overworld_travel_before & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 256: {
+        uint32_t offset = addr - 0x7E0280u;
+        h->overworld.overworld_event = (uint8_t)((h->overworld.overworld_event & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 257: {
+        uint32_t offset = addr - 0x7E0281u;
+        h->overworld.overworld_event_before = (uint8_t)((h->overworld.overworld_event_before & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 258: {
+        uint32_t offset = addr - 0x7E0282u;
+        h->overworld.overworld_ground_news = (uint8_t)((h->overworld.overworld_ground_news & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 259: {
+        uint32_t offset = addr - 0x7E0283u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->overworld.overworld_party_places[element].x = (uint16_t)((h->overworld.overworld_party_places[element].x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 260: {
+        uint32_t offset = addr - 0x7E0285u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->overworld.overworld_party_places[element].y = (uint16_t)((h->overworld.overworld_party_places[element].y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 261: {
+        uint32_t offset = addr - 0x7E028Fu;
+        h->overworld.overworld_boarding = (uint8_t)((h->overworld.overworld_boarding & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 262: {
+        uint32_t offset = addr - 0x7E0290u;
+        h->overworld.overworld_epoch.x = (uint16_t)((h->overworld.overworld_epoch.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 263: {
+        uint32_t offset = addr - 0x7E0292u;
+        h->overworld.overworld_epoch.y = (uint16_t)((h->overworld.overworld_epoch.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 264: {
+        uint32_t offset = addr - 0x7E0294u;
+        h->overworld.overworld_epoch.state = (uint8_t)((h->overworld.overworld_epoch.state & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 265: {
+        uint32_t offset = addr - 0x7E0299u;
+        h->overworld.overworld_second_vehicle_state = (uint8_t)((h->overworld.overworld_second_vehicle_state & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 266: {
+        uint32_t offset = addr - 0x7E029Au;
+        h->overworld.overworld_dactyl.x = (uint16_t)((h->overworld.overworld_dactyl.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 267: {
+        uint32_t offset = addr - 0x7E029Cu;
+        h->overworld.overworld_dactyl.y = (uint16_t)((h->overworld.overworld_dactyl.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 268: {
+        uint32_t offset = addr - 0x7E029Eu;
+        h->overworld.overworld_dactyl.state = (uint8_t)((h->overworld.overworld_dactyl.state & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 269: {
+        uint32_t offset = addr - 0x7E02A2u;
+        h->overworld.overworld_black_omen.x = (uint16_t)((h->overworld.overworld_black_omen.x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 270: {
+        uint32_t offset = addr - 0x7E02A4u;
+        h->overworld.overworld_black_omen.y = (uint16_t)((h->overworld.overworld_black_omen.y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 271: {
+        uint32_t offset = addr - 0x7E02A6u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->overworld.overworld_following_dactyls[element].x = (uint16_t)((h->overworld.overworld_following_dactyls[element].x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 272: {
+        uint32_t offset = addr - 0x7E02A8u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->overworld.overworld_following_dactyls[element].y = (uint16_t)((h->overworld.overworld_following_dactyls[element].y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 273: {
+        uint32_t offset = addr - 0x7E02B1u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->overworld.overworld_idle_frames[element] = (uint8_t)((h->overworld.overworld_idle_frames[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 274: {
+        uint32_t offset = addr - 0x7E1D00u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->battle.battle_object_x[element] = (uint8_t)((h->battle.battle_object_x[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 275: {
+        uint32_t offset = addr - 0x7E1D17u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->battle.battle_object_y[element] = (uint8_t)((h->battle.battle_object_y[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 276: {
+        uint32_t offset = addr - 0x7E2880u;
+        h->battle.battle_rewards_held = (uint8_t)((h->battle.battle_rewards_held & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 277: {
+        uint32_t offset = addr - 0x7E2989u;
+        h->battle.battle_setup_flags = (uint8_t)((h->battle.battle_setup_flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 278: {
+        uint32_t offset = addr - 0x7E29ACu;
+        h->battle.battle_demo = (uint8_t)((h->battle.battle_demo & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 279: {
+        uint32_t offset = addr - 0x7E2A1Fu;
+        h->battle.battle_event_flags = (uint8_t)((h->battle.battle_event_flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 280: {
+        uint32_t offset = addr - 0x7E2A21u;
+        h->battle.battle_background_flags = (uint8_t)((h->battle.battle_background_flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 281: {
+        uint32_t offset = addr - 0x7E2A23u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->battle.battle_location_upper_attributes[element] = (uint8_t)((h->battle.battle_location_upper_attributes[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 282: {
+        uint32_t offset = addr - 0x7E2B23u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->battle.battle_location_lower_attributes[element] = (uint8_t)((h->battle.battle_location_lower_attributes[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 283: {
+        uint32_t offset = addr - 0x7E2C56u;
+        unsigned element = offset / 1u;
+        offset %= 1u;
+        h->battle.battle_start_tile_maps[element] = (uint8_t)((h->battle.battle_start_tile_maps[element] & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 284: {
+        uint32_t offset = addr - 0x7E2C5Au;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_start_scroll[element].x = (uint16_t)((h->battle.battle_start_scroll[element].x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 285: {
+        uint32_t offset = addr - 0x7E2C5Cu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_start_scroll[element].y = (uint16_t)((h->battle.battle_start_scroll[element].y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 286: {
+        uint32_t offset = addr - 0x7E2C66u;
+        h->battle.battle_start_screens.main = (uint8_t)((h->battle.battle_start_screens.main & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 287: {
+        uint32_t offset = addr - 0x7E2C67u;
+        h->battle.battle_start_screens.sub = (uint8_t)((h->battle.battle_start_screens.sub & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 288: {
+        uint32_t offset = addr - 0x7E2C68u;
+        h->battle.battle_start_screens.main_window_mask = (uint8_t)((h->battle.battle_start_screens.main_window_mask & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 289: {
+        uint32_t offset = addr - 0x7E2C69u;
+        h->battle.battle_start_screens.sub_window_mask = (uint8_t)((h->battle.battle_start_screens.sub_window_mask & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 290: {
+        uint32_t offset = addr - 0x7E2C6Au;
+        h->battle.battle_start_screens.math_control = (uint8_t)((h->battle.battle_start_screens.math_control & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 291: {
+        uint32_t offset = addr - 0x7E2C6Bu;
+        h->battle.battle_start_screens.math_layers = (uint8_t)((h->battle.battle_start_screens.math_layers & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 292: {
+        uint32_t offset = addr - 0x7E2C6Cu;
+        h->battle.battle_start_screens.fixed_color = (uint8_t)((h->battle.battle_start_screens.fixed_color & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 293: {
+        uint32_t offset = addr - 0x7E2C6Du;
+        h->battle.battle_start_screens.unused = (uint8_t)((h->battle.battle_start_screens.unused & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 294: {
+        uint32_t offset = addr - 0x7E2C6Eu;
+        h->battle.battle_start_screens.mode = (uint8_t)((h->battle.battle_start_screens.mode & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 295: {
+        uint32_t offset = addr - 0x7E2C6Fu;
+        h->battle.battle_start_screens.mosaic = (uint8_t)((h->battle.battle_start_screens.mosaic & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 296: {
+        uint32_t offset = addr - 0x7E2C70u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_bg_scroll[element].x = (uint16_t)((h->battle.battle_bg_scroll[element].x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 297: {
+        uint32_t offset = addr - 0x7E2C72u;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_bg_scroll[element].y = (uint16_t)((h->battle.battle_bg_scroll[element].y & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 298: {
+        uint32_t offset = addr - 0x7E2C7Cu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_remembered_cursors[element].command = (uint8_t)((h->battle.battle_remembered_cursors[element].command & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 299: {
+        uint32_t offset = addr - 0x7E2C7Du;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_remembered_cursors[element].tech_scroll = (uint8_t)((h->battle.battle_remembered_cursors[element].tech_scroll & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 300: {
+        uint32_t offset = addr - 0x7E2C7Eu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_remembered_cursors[element].tech_row = (uint8_t)((h->battle.battle_remembered_cursors[element].tech_row & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 301: {
+        uint32_t offset = addr - 0x7E2C7Fu;
+        unsigned element = offset / 4u;
+        offset %= 4u;
+        h->battle.battle_remembered_cursors[element].tech = (uint8_t)((h->battle.battle_remembered_cursors[element].tech & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 302: {
+        uint32_t offset = addr - 0x7E2C98u;
+        h->battle.battle_remembered_item_top = (uint8_t)((h->battle.battle_remembered_item_top & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 303: {
+        uint32_t offset = addr - 0x7E2C99u;
+        h->battle.battle_remembered_item_row = (uint8_t)((h->battle.battle_remembered_item_row & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 304: {
+        uint32_t offset = addr - 0x7E0380u;
+        h->scene.scene_race_winner = (uint8_t)((h->scene.scene_race_winner & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 305: {
+        uint32_t offset = addr - 0x7E0381u;
+        h->scene.scene_race_prize = (uint8_t)((h->scene.scene_race_prize & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 306: {
+        uint32_t offset = addr - 0x7E0382u;
+        h->scene.scene_credits_page = (uint16_t)((h->scene.scene_credits_page & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 307: {
+        uint32_t offset = addr - 0x7E0384u;
+        h->scene.scene_flags = (uint8_t)((h->scene.scene_flags & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 308: {
+        uint32_t offset = addr - 0x7E0386u;
+        h->scene.scene_random_seed = (uint16_t)((h->scene.scene_random_seed & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 309: {
+        uint32_t offset = addr - 0x7E0388u;
+        h->scene.scene_song_sending = (uint8_t)((h->scene.scene_song_sending & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 310: {
+        uint32_t offset = addr - 0x7E0389u;
+        h->scene.scene_song_playing = (uint8_t)((h->scene.scene_song_playing & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 311: {
+        uint32_t offset = addr - 0x7E038Au;
+        h->scene.scene_song = (uint8_t)((h->scene.scene_song & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 312: {
+        uint32_t offset = addr - 0x7E038Cu;
+        h->scene.scene_line_effects = (uint8_t)((h->scene.scene_line_effects & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 313: {
+        uint32_t offset = addr - 0x7E038Du;
+        h->scene.scene_brightness = (uint8_t)((h->scene.scene_brightness & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 314: {
+        uint32_t offset = addr - 0x7E038Eu;
+        h->scene.scene_fade_period = (uint8_t)((h->scene.scene_fade_period & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 315: {
+        uint32_t offset = addr - 0x7E038Fu;
+        h->scene.scene_fade_countdown = (uint8_t)((h->scene.scene_fade_countdown & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 316: {
+        uint32_t offset = addr - 0x7E0390u;
+        h->scene.scene_pause_enabled = (uint16_t)((h->scene.scene_pause_enabled & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 317: {
+        uint32_t offset = addr - 0x7E0392u;
+        h->scene.scene_paused = (uint16_t)((h->scene.scene_paused & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 318: {
+        uint32_t offset = addr - 0x7E0394u;
+        h->scene.scene_start_held = (uint16_t)((h->scene.scene_start_held & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 319: {
+        uint32_t offset = addr - 0x7E0396u;
+        h->scene.scene_reset_disabled = (uint8_t)((h->scene.scene_reset_disabled & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 320: {
+        uint32_t offset = addr - 0x7E0397u;
+        h->scene.scene_race_demo_showings = (uint16_t)((h->scene.scene_race_demo_showings & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 321: {
+        uint32_t offset = addr - 0x7E0399u;
+        h->scene.scene_end_wait = (uint16_t)((h->scene.scene_end_wait & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 322: {
+        uint32_t offset = addr - 0x7E039Bu;
+        h->scene.scene_random_step = (uint8_t)((h->scene.scene_random_step & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 323: {
+        uint32_t offset = addr - 0x7E03FEu;
+        h->scene.scene_planet_fade_colours_left = (uint16_t)((h->scene.scene_planet_fade_colours_left & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 324: {
+        uint32_t offset = addr - 0x7E0508u;
+        h->warp.warp_zero = (uint16_t)((h->warp.warp_zero & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 325: {
+        uint32_t offset = addr - 0x7E051Bu;
+        h->warp.warp_frame = (uint16_t)((h->warp.warp_frame & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 326: {
+        uint32_t offset = addr - 0x7E051Eu;
+        h->warp.warp_frame_ended = (uint8_t)((h->warp.warp_frame_ended & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    case 327: {
+        uint32_t offset = addr - 0x7E051Fu;
+        h->warp.warp_circle_center_x = (uint8_t)((h->warp.warp_circle_center_x & ~((uint32_t)0xFFu << (offset * 8))) | (uint32_t)value << (offset * 8));
+        return true;
+    }
+    default: break;
     }
     return false;
 }

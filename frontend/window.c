@@ -252,8 +252,11 @@ int window_run(const WindowClient *client, const WindowOptions *o)
                     client->quick_save(client->ctx);
                 break;
             case ACT_QUICK_LOAD:
-                if (client->quick_load)
+                if (client->quick_load) {
+                    audio_frame(&audio, client, true);
                     client->quick_load(client->ctx);
+                    SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), VID_RENDER_WIDTH * 4);
+                }
                 break;
             default:
                 continue;
@@ -273,7 +276,8 @@ int window_run(const WindowClient *client, const WindowOptions *o)
         } else if (!halt) {
             halt_shown = false;
         }
-        if (!paused && !halt) {
+        bool loading = client->loading && client->loading(client->ctx);
+        if ((!paused || loading) && !halt) {
             /* Fast forward runs frames unpaced for up to a display frame. */
             Uint64 budget_end = SDL_GetPerformanceCounter() + period;
             do {
@@ -293,7 +297,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
             update_title(window, client, paused);
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
-        audio_frame(&audio, client, paused || fast || client->halt(client->ctx));
+        audio_frame(&audio, client, paused || loading || fast || client->halt(client->ctx));
         SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
         SDL_RenderClear(sdl_renderer);
         int out_w, out_h;

@@ -43,7 +43,7 @@ static const char *const action_names[ACT_COUNT] = {
 };
 
 static const char *const defaults[] = {
-    /* The keyboard ct_play always had. */
+    /* The keyboard ct_native always had. */
     "Up = Up", "Down = Down", "Left = Left", "Right = Right",
     "X = A", "Z = B", "S = X", "A = Y", "Q = L", "W = R", "Return = Start", "Right Shift = Select",
     "P = Pause", "Pause = Pause", "Tab = FastForward", "F5 = QuickSave", "F7 = QuickLoad", "F11 = Fullscreen",

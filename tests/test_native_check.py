@@ -44,6 +44,13 @@ class NativeExitTest(unittest.TestCase):
         self.assertEqual(self.outcome(1, text), "crashed")
 
 class CompletionTest(unittest.TestCase):
+    def test_picture_pin_rejects_missing_changed_or_reordered_checkpoints(self):
+        text = 'outcome-picture: 1 0123456789abcdef\noutcome-picture: 2 fedcba9876543210\n'
+        expected = native_check.outcomes.observed_digest(['1:0123456789abcdef', '2:fedcba9876543210'])
+        self.assertTrue(native_check.picture_matches(text, expected))
+        for bad in ('', text.replace('abcdef', 'abcdee'), '\n'.join(reversed(text.splitlines()))):
+            self.assertFalse(native_check.picture_matches(bad, expected))
+
     def test_missing_completion_is_failure(self):
         self.assertEqual(native_check.ended('', 0, 100)[0], 'incomplete')
         self.assertEqual(native_check.ended('ct_native: 99 frame(s); ok', 0, 100)[0], 'incomplete')

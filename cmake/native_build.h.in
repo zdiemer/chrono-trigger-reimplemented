@@ -1,0 +1,2 @@
+/* Execution identity for native continuation checkpoints. */
+#define CT_RESUME_BUILD "@CT_RESUME_BUILD@"
