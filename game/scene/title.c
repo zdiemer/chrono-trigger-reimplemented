@@ -58,8 +58,8 @@ enum { BG1_MAP_REST_VRAM = 0x6480, BG1_MAP_REST_BYTES = 0x0F00 };
 // $7E:59D5
 /* Blank the rest of BG1's map after loading the plane's name table. Both
  * callers have just filled that table from SCENE_BLANK_TILE, so this fill
- * repeats the same blank byte into both halves. The SNES encoding retains
- * that preceding transfer's source and destination. */
+ * repeats the same blank byte into both halves. The SNES encoding reuses
+ * the source programmed by that preceding transfer. */
 static void fill_bg1_map(GameState *g, Platform *pf, uint8_t port)
 {
     set_decompress_dest(g, decompress_dest(g) & 0x00FFFF);

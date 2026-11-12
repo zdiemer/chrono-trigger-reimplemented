@@ -289,6 +289,33 @@ with an eight-frame press interval opens the next battle at `$1A6` at
 builds; it is not a claim about the remainder of the Black Omen ending.
 No movie, timing estimate or outcome exception was refreshed.
 
+## Video-clear fingerprint check
+
+The follow-up sampled gate passes shadow comparison on all 58 movies,
+trace identity, timing, video-write placement, both shipping and native
+route prefixes, fallbacks, refusals, all 58 strict and native runs, the
+scaffolding-free build, sound, liveness, source checks and evidence. Its
+only failure is three native picture fingerprints: `attract-demo`,
+`battle-golem-twins` and `battle-golem-twins-gameover`.
+
+Isolated binaries identify `$7E:59DD`'s BG1 clear as the entire cause.
+Disabling only that clear reproduces all three prior fingerprints; undoing
+the half-plane service or the fixed-source-byte correction does not. The
+first changed sampled neighbours are 11998, 16798 and 12598 respectively,
+all on a return to the title; 20, 15 and 13 picture neighbours change.
+Game state, SRAM, the complete place observations and every protected
+picture remain unchanged. At frame 12600 of the game-over recording, the
+old title visibly contains stale field tiles; the clear removes them.
+The shipping native renderer and PPU decoder agree on all 12970 frames
+of that recording, as on all 30366 frames of the Ocean Palace finale.
+
+The 625 Python unit tests pass, as do `video_test`, `native_time_test` and
+`timing_test`; `portstyle` and `portsmell` have no new findings. The build
+uses `CT_WERROR=ON`. The three old picture pins are still unchanged;
+the gate's last line is `FAILED: outcomes` until their deliberate update
+is authorized. This is separate from the fixed-input losses above, whose
+movies, timing estimates and exceptions remain unchanged.
+
 ## Original audit validation
 
 The sampled gate (`tools/suite.py --ct-dev build/main/ct_dev.exe -j 2
