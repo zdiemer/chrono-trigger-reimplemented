@@ -498,10 +498,6 @@ enum { WORDS_TO_TWO_REGISTERS = 0x01 };
 /* The plane's pixels: the first 160 of the layers' tiles, 32 bytes each. */
 enum { PLANE_TILES = 0xA0 };
 
-/* The title's resources are unpacked by the program's unpacker (scene/boot.c),
- * from the setup's own calls. */
-enum { UNPACKER = 0x7E3691 };
-
 static void send_unpacked(GameState *g, Platform *pf) { TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf)); }
 
 // $7E:5E3C
@@ -551,10 +547,6 @@ enum { WHOLE_WORDS_PORT = 0x80 };
 
 /* ---- The setup --------------------------------------------------------------------------------- */
 
-/* Each resource unpacked by the program's unpacker, to where the setup has
- * pointed it, then sent to VRAM where the next step says. */
-static void unpack(GameState *g, uint16_t resource) { TIMED_AS(g, UNPACKER, scene_unpacks(g, resource)); }
-
 /* The title's song started, as the program's call of the driver starts it. */
 static void start_the_song(Platform *pf)
 {
@@ -569,25 +561,25 @@ bool scene_title_set_up(GameState *g, Platform *pf)
     set_decompress_dest(g, UNPACKED_GRAPHICS);
     vid_start_vram_uploads(pf, PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
-    unpack(g, SPRITE_TILES_RESOURCE);
+    scene_unpacks(g, SPRITE_TILES_RESOURCE);
     set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
-    unpack(g, LAYER_TILES_RESOURCE);
+    scene_unpacks(g, LAYER_TILES_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E59AD), PLANE_VRAM);
     build_plane_pixels(g, pf);
-    unpack(g, BG1_MAP_RESOURCE);
+    scene_unpacks(g, BG1_MAP_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59BF), BG1_MAP_VRAM);
     send_unpacked(g, pf);
-    unpack(g, BG2_MAP_RESOURCE);
+    scene_unpacks(g, BG2_MAP_RESOURCE);
     vid_set_vram_address(pf, PF_AT(0x7E59CF), BG2_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     fill_bg1_map(g, pf, WHOLE_WORDS_PORT);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | UNPACKED_PALETTE_AT);
-    unpack(g, PALETTE_RESOURCE);
+    scene_unpacks(g, PALETTE_RESOURCE);
     scene_use_loaded_palette(g);
     set_scene_channels_script(g, TITLE_CHANNEL, FIRST_SCRIPT);
     SceneTurn turn = SCENE_TURN_ENDED;

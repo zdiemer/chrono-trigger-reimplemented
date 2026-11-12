@@ -389,6 +389,9 @@ void set_scene_channel_register(GameState *g, SceneChannel ch, unsigned n, uint1
  * take, where the program goes no further (core/program.h). */
 typedef enum { SCENE_TURN_ENDED, SCENE_TURN_GOES_NO_FURTHER } SceneTurn;
 SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch);
+/* A channel's script's first step, which a setup takes at once, timed as the
+ * program's routine for it; false where it went no further. */
+bool scene_first_step(GameState *g, Platform *pf, SceneChannel ch);
 
 /* scene/sound.c: how far the music has got. The sound driver shows it on a
  * port, which two reads that agree say is steady (not being changed as it is
@@ -585,7 +588,7 @@ void scene_look_at_the_shell_from_the_cockpit(GameState *g);
 /* The boot with its flags,
  * the program unpacked into work RAM (true where the scene runs with the line
  * interrupt); the boot's two handlers; and a resource unpacked by its place
- * in the program's table. */
+ * in the program's table, timed as the program's unpacker. */
 bool scene_boots(GameState *g, Platform *pf, uint8_t flags);
 void scene_boot_vblank(GameState *g, Platform *pf);
 void scene_boot_line(GameState *g, Platform *pf);
@@ -628,11 +631,6 @@ bool scene_perspective_fits(const GameState *g, SceneChannel ch);
 /* scene/bridge.c: a scene's song started, as the program's call of the sound
  * driver starts it. */
 void scene_start_song(Platform *pf, uint8_t song);
-/* The routines the setups' steps are timed as: the program's unpacker
- * ($7E:3691), a resource unpacked by its place in the program's list, and a
- * script's first step ($7E:3749). */
-enum { SCENE_UNPACK = 0x7E3691 };
-enum { SCENE_FIRST_STEP = 0x7E3749 };
 
 /* scene/program.c: the scene program: booted with its flags, started, set
  * up, its frames run until a script ends it, and ended, the game going back

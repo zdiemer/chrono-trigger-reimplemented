@@ -34,10 +34,9 @@
  *
  * What the scripts call works on the calling channel's cells.
  *
- * The setup and the routines that load are one sequence each (`*_with`),
- * whose steps that are the program's other routines -- its unpacker
- * ($7E:3691), a script's first step ($7E:3749), the stars' scatter -- come in
- * as calls (EndingSteps). */
+ * The setup and the routines that load call the program's own routines as
+ * they go: its unpacker ($7E:3691), a script's first step ($7E:3749), the
+ * stars' scatter. */
 #include "scene/race.h"
 
 #include "charge.h"
@@ -418,7 +417,7 @@ static void set_up_ground_layers(Platform *pf)
     vid_set_bg_chars(pf, PF_AT(0x7E874E), VID_BG1, GROUND_TILES_VRAM, GROUND_TILES_VRAM);
 }
 
-/* ---- The resources, and the steps that are the program's other routines ----------------------- */
+/* ---- The resources ------------------------------------------------------------------------------ */
 
 /* The captions' letters, and the regrouping code for the zooming picture. */
 enum { LETTERS = 0x63, MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
@@ -449,114 +448,62 @@ enum { PLANE_TILES = 0xCF, PLANE_MAP = 0xB1, PLANE_COLORS = 0x54 };
 enum { CREDITS_LETTERS = 0xAE, CREDITS_PICTURE = 0x8D, CREDITS_PICTURE_AT = 0x0400, CREDITS_PATTERN = 0xC0 };
 enum { CREDITS_PATTERN_AT = 0x0F00, PATTERN_MAP = 0x1000 };
 
-/* What the endings unpack, each from its own call of the program's unpacker. */
-typedef enum {
-    UNPACK_LETTERS, UNPACK_GROUND_PIXELS, UNPACK_GROUND_MAP_FIRST, UNPACK_GROUND_MAP_SECOND, UNPACK_MORE_SPRITE_TILES,
-    UNPACK_MOSAIC_TILESET, UNPACK_MOSAIC_NUMBERS, UNPACK_ENDING_PALETTE, UNPACK_PICTURE_FRAMES, UNPACK_NEW_GROUND,
-    UNPACK_STAR_TILES, UNPACK_PLANE_TILES, UNPACK_PLANE_MAP, UNPACK_PLANE_COLORS, UNPACK_CREDITS_LETTERS,
-    UNPACK_CREDITS_PICTURE, UNPACK_CREDITS_PATTERN, ENDING_UNPACKS
-} EndingUnpack;
-
-static const struct {
-    uint32_t site;
-    uint16_t resource;
-} ending_unpacks[ENDING_UNPACKS] = {
-    [UNPACK_LETTERS] = { 0x7E8549, LETTERS },
-    [UNPACK_GROUND_PIXELS] = { 0x7E857B, GROUND_PIXELS },
-    [UNPACK_GROUND_MAP_FIRST] = { 0x7E8598, GROUND_MAP_FIRST },
-    [UNPACK_GROUND_MAP_SECOND] = { 0x7E85A5, GROUND_MAP_SECOND },
-    [UNPACK_MORE_SPRITE_TILES] = { 0x7E85C3, MORE_SPRITE_TILES },
-    [UNPACK_MOSAIC_TILESET] = { 0x7E85E4, MOSAIC_TILESET_RESOURCE },
-    [UNPACK_MOSAIC_NUMBERS] = { 0x7E85F0, MOSAIC_NUMBERS_RESOURCE },
-    [UNPACK_ENDING_PALETTE] = { 0x7E869B, ENDING_PALETTE },
-    [UNPACK_PICTURE_FRAMES] = { 0x7E87E9, PICTURE_FRAMES },
-    [UNPACK_NEW_GROUND] = { 0x7E87B0, NEW_GROUND },
-    [UNPACK_STAR_TILES] = { 0x7E8BE4, STAR_TILES },
-    [UNPACK_PLANE_TILES] = { 0x7E8C48, PLANE_TILES },
-    [UNPACK_PLANE_MAP] = { 0x7E8C76, PLANE_MAP },
-    [UNPACK_PLANE_COLORS] = { 0x7E8C8E, PLANE_COLORS },
-    [UNPACK_CREDITS_LETTERS] = { 0x7E8CF8, CREDITS_LETTERS },
-    [UNPACK_CREDITS_PICTURE] = { 0x7E8D04, CREDITS_PICTURE },
-    [UNPACK_CREDITS_PATTERN] = { 0x7E8D10, CREDITS_PATTERN },
-};
-
-/* The endings' steps that are the program's other routines: a resource
- * unpacked, the steering script's first step (with the picture script's
- * start, which it reads), and the stars scattered. */
-typedef struct {
-    bool (*unpack)(void *ctx, EndingUnpack which);
-    bool (*first_step)(void *ctx, uint16_t picture_script);
-    void (*scatter_the_stars)(void *ctx);
-    void (*tiles_expanded)(void *ctx);   /* NULL: nothing to leave */
-} EndingSteps;
-
 /* ---- The setup: the ground, the captions, the scripts ------------------------------------------- */
 
-static bool load_letters_and_ground(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
+static void load_letters_and_ground(GameState *g, Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E853A), SCENE_VRAM_WHOLE_WORDS);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     vid_set_vram_address(pf, PF_AT(0x7E8543), LETTER_TILES_VRAM);
-    if (!steps->unpack(ctx, UNPACK_LETTERS))
-        return false;
+    scene_unpacks(g, LETTERS);
     scene_send_letters_widened(g, pf);
     set_scene_caption_letter_attributes(g, CAPTION_LETTERS_IN_FRONT);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
 
     vid_start_vram_uploads(pf, PF_AT(0x7E856F), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E8575), 0x0000);
-    if (!steps->unpack(ctx, UNPACK_GROUND_PIXELS))
-        return false;
+    scene_unpacks(g, GROUND_PIXELS);
     send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
     send_unpacked(g, pf);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E858C), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E8592), 0x0000);
-    if (!steps->unpack(ctx, UNPACK_GROUND_MAP_FIRST))
-        return false;
+    scene_unpacks(g, GROUND_MAP_FIRST);
     scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-    if (!steps->unpack(ctx, UNPACK_GROUND_MAP_SECOND))
-        return false;
+    scene_unpacks(g, GROUND_MAP_SECOND);
     scene_widen_the_plane_map(g);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
     scene_blank_past_the_plane(pf, PF_AT(0x7E85B2), BLANKED_PAST_THE_PLANE);
 
     vid_start_vram_uploads(pf, PF_AT(0x7E85B7), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E85BD), MORE_SPRITE_TILES_VRAM);
-    if (!steps->unpack(ctx, UNPACK_MORE_SPRITE_TILES))
-        return false;
+    scene_unpacks(g, MORE_SPRITE_TILES);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
-    return true;
 }
 
 /* Mode 10's picture, laid out from its tiles and sent. */
-static bool load_mosaic(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
+static void load_mosaic(GameState *g, Platform *pf)
 {
-    if (!steps->unpack(ctx, UNPACK_MOSAIC_TILESET))
-        return false;
+    scene_unpacks(g, MOSAIC_TILESET_RESOURCE);
     unpack_at(g, MOSAIC_NUMBERS_AT);
-    if (!steps->unpack(ctx, UNPACK_MOSAIC_NUMBERS))
-        return false;
+    scene_unpacks(g, MOSAIC_NUMBERS_RESOURCE);
     lay_out_mosaic(g);
     vid_send_vram(pf, PF_AT(0x7E864C), MOSAIC_VRAM, PF_GAME(MOSAIC_SENT), MOSAIC_SENT_BYTES, NULL);
     scene_add_task(g, SCENE_VBLANK_TASKS, MOSAIC_TASK);
-    return true;
 }
 
-static bool load_ground_colors(GameState *g, const EndingSteps *steps, void *ctx)
+static void load_ground_colors(GameState *g)
 {
     unpack_into_first_bank(g);
     for (unsigned i = 0; i < GROUND_COPIES; i++)
         scene_copy_resource_to(g, scene_program_own(), ground_copies[i].resource, ground_copies[i].to, ground_copies[i].bytes);
     scene_set_caption_colours(g);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000) | ENDING_PALETTE_AT);
-    if (!steps->unpack(ctx, UNPACK_ENDING_PALETTE))
-        return false;
+    scene_unpacks(g, ENDING_PALETTE);
     scene_use_loaded_palette(g);
     darken_first_colors(g);
-    return true;
 }
 
 /* The captions start: in modes 10 and 11 from the first of their text. */
@@ -573,23 +520,21 @@ static void start_captions(GameState *g)
  * scripts its mode picks started and the steering one's first step taken, the
  * captions and the fireworks ready, the per-line effects and the ground's
  * layers set up. Returns where the per-line effects' descriptors ended, or 0
- * where a step went no further. */
-static uint16_t set_up_ending_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
+ * where the first step went no further. */
+static uint16_t set_up_the_ending(GameState *g, Platform *pf)
 {
     SceneMode mode = ending_mode(g);
-    if (!load_letters_and_ground(g, pf, steps, ctx))
-        return 0;
-    if (mode == SCENE_MODE_ENDING_CAPTIONED && !load_mosaic(g, pf, steps, ctx))
-        return 0;
-    if (!load_ground_colors(g, steps, ctx))
-        return 0;
+    load_letters_and_ground(g, pf);
+    if (mode == SCENE_MODE_ENDING_CAPTIONED)
+        load_mosaic(g, pf);
+    load_ground_colors(g);
 
     EndingScripts scripts = scripts_for(mode);
     if (mode == SCENE_MODE_ENDING_CAPTIONED || mode == SCENE_MODE_ENDING_CAPTIONED_TOO)
         set_scene_ending_caption_text(g, CAPTIONS_TEXT);
     set_scene_channels_script(g, STEERING_CHANNEL, scripts.steering);
     set_scene_channels_script(g, PICTURE_CHANNEL, scripts.picture);
-    if (!steps->first_step(ctx, scripts.picture))
+    if (!scene_first_step(g, pf, STEERING_CHANNEL))
         return 0;
     set_scene_perspective_start(g, PERSPECTIVE_FROM_ABOVE_THE_HORIZON);
     TIMED_AS(g, 0xFDE275, palette_stop_animations(g));
@@ -644,26 +589,23 @@ static void mirror_picture_frames(GameState *g)
 }
 
 /* What the picture's loading leaves for the scene: the scaler's output full,
- * the picture's colors, and the main loop scaling it. Returns where the last
- * copy ended. */
-static uint16_t load_picture_colors(GameState *g, SceneProgramPage page)
+ * the picture's colors, and the main loop scaling it. */
+static void load_picture_colors(GameState *g, SceneProgramPage page)
 {
     set_scene_scaler_output_end(g, SCALER_OUTPUT_AS_FULL);
     unpack_into_first_bank(g);
     copy_colors(g, page, PICTURE_COLORS, PICTURE_PALETTE, 16);
     scene_copy_resource_to(g, page, PICTURE_COLORS, (uint16_t)(WORKING_PALETTE_PAGE + PICTURE_PALETTE * COLOR_BYTES), 32);
-    return (uint16_t)(WORKING_PALETTE_PAGE + PICTURE_PALETTE * COLOR_BYTES + 32);
 }
 
 /* The picture's frames unpacked and mirrored into place. */
-static uint16_t load_picture(GameState *g, SceneProgramPage page, const EndingSteps *steps, void *ctx)
+static void load_picture(GameState *g, SceneProgramPage page)
 {
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     unpack_at(g, PICTURE_FRAMES_AT);
-    if (!steps->unpack(ctx, UNPACK_PICTURE_FRAMES))
-        return 0;
+    scene_unpacks(g, PICTURE_FRAMES);
     mirror_picture_frames(g);
-    return load_picture_colors(g, page);
+    load_picture_colors(g, page);
 }
 
 // $7E:87CC
@@ -678,14 +620,12 @@ static void start_picture(GameState *g, Platform *pf, uint32_t effects_site)
 /* The picture over a new ground: the ground's name table (each row doubled
  * across the plane) sent twice over, the plane's settings cleared, and the
  * color math past it. */
-static bool load_new_ground(GameState *g, Platform *pf, SceneProgramPage page, const EndingSteps *steps, void *ctx)
+static void load_new_ground(GameState *g, Platform *pf)
 {
-    (void)page;
     scene_use_loaded_palette(g);
     set_scene_plane_far_color_math(g, FAR_COLOR_MATH);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    if (!steps->unpack(ctx, UNPACK_NEW_GROUND))
-        return false;
+    scene_unpacks(g, NEW_GROUND);
     scene_double_plane_rows(g);
     /* the original counts the rows down in its page's first cell */
     charge_accesses(g, 2);
@@ -694,45 +634,34 @@ static bool load_new_ground(GameState *g, Platform *pf, SceneProgramPage page, c
     vid_set_mode7(pf, PF_AT(0x7E87C1), &(VidMode7){ .outside = VID_M7_WRAP }, VID_M7_SELECT);
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
     TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-    return true;
 }
 
-/* The zooming picture's two routines: with the ground it has, or over a new
- * one. Each returns where the last copy of its colors ended. */
-static uint16_t load_the_picture_with(GameState *g, Platform *pf, SceneProgramPage page, const EndingSteps *steps, void *ctx)
-{
-    start_picture(g, pf, 0x7E87DA);
-    return load_picture(g, page, steps, ctx);
-}
+/* The stars' first draw starts from $80, what the original has from blanking
+ * the screen just before, with nothing spilled. */
+enum { STARS_FIRST_DRAW = 0x0080, SCATTER_STARS = 0x7E5777 };
 
-static uint16_t load_the_ground_and_picture_with(GameState *g, Platform *pf, SceneProgramPage page,
-                                                 const EndingSteps *steps, void *ctx)
+static void scatter_the_stars(GameState *g, Platform *pf)
 {
-    start_picture(g, pf, 0x7E879E);
-    if (!load_new_ground(g, pf, page, steps, ctx))
-        return 0;
-    return load_picture(g, page, steps, ctx);
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, pf, scene_draw_from(STARS_FIRST_DRAW, false, TM_ENTROPY_BYTES)));
 }
 
 // $7E:8BAF
 /* The stars: everything stopped, the star field scattered, and its tiles and
  * colors loaded. */
-static bool start_stars_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
+static void start_stars(GameState *g, Platform *pf)
 {
     stop_frame_tasks(g);
     stop_vblank_tasks(g);
     blank_the_screen(g, pf, 0x7E8BC0, 0x7E8BC8);
-    steps->scatter_the_stars(ctx);
+    scatter_the_stars(g, pf);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_set_vram_address(pf, PF_AT(0x7E8BDE), STAR_TILES_VRAM);
-    if (!steps->unpack(ctx, UNPACK_STAR_TILES))
-        return false;
+    scene_unpacks(g, STAR_TILES);
     send_unpacked(g, pf);
     set_decompress_dest(g, decompress_dest(g) & 0xFF);
     copy_colors(g, scene_program_own(), STAR_COLORS, STAR_PALETTE, 16);
     scene_use_loaded_palette(g);
-    return true;
 }
 
 /* The Mode 7 picture: its tiles, expanded into the plane's pixels, its name
@@ -756,7 +685,7 @@ static void expand_the_picture_tiles(GameState *g, Platform *pf)
 enum { PLANE_MAP_VRAM = 0x4400, PLANE_COLORS_AT = 0x2020 };
 
 // $7E:8C14
-static bool start_mode7_picture_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
+static void start_mode7_picture(GameState *g, Platform *pf)
 {
     stop_frame_tasks(g);
     stop_vblank_tasks(g);
@@ -765,29 +694,23 @@ static bool start_mode7_picture_with(GameState *g, Platform *pf, const EndingSte
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     send_unpacked_as(g, SCENE_TRANSFER_WORDS, VID_SNES_VRAM_DATA_LOW);
     vid_start_vram_uploads(pf, PF_AT(0x7E8C42), SCENE_VRAM_WHOLE_WORDS);
-    if (!steps->unpack(ctx, UNPACK_PLANE_TILES))
-        return false;
+    scene_unpacks(g, PLANE_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E8C4E), PLANE_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E8C58), 0x0000);
     expand_the_picture_tiles(g, pf);
-    if (steps->tiles_expanded)
-        steps->tiles_expanded(ctx);
-    if (!steps->unpack(ctx, UNPACK_PLANE_MAP))
-        return false;
+    scene_unpacks(g, PLANE_MAP);
     vid_set_vram_address(pf, PF_AT(0x7E8C7C), PLANE_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     set_decompress_dest(g, PLANE_COLORS_AT);
-    if (!steps->unpack(ctx, UNPACK_PLANE_COLORS))
-        return false;
+    scene_unpacks(g, PLANE_COLORS);
     scene_set_letter_colors(g);
     scene_use_loaded_palette(g);
     TIMED_AS(g, 0x7E388B, scene_send_palette(pf));
     vid_set_screens(pf, PF_AT(0x7E8CA1), VID_BG1_BIT, VID_OBJ_BIT, VID_SCREEN_MAIN | VID_SCREEN_SUB);
     vid_set_windows(pf, PF_AT(0x7E8CA7), &(VidWindows){ 0 }, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
     vid_set_mode(pf, PF_AT(0x7E8CAC), &(VidMode){ .mode = 7 });
-    return true;
 }
 
 /* The picture behind the credits is a 32x32 map of a 4x4 block of tiles over
@@ -817,27 +740,23 @@ static void write_pattern_map(GameState *g)
 enum { NO_CREDITS_SCRIPT = 0x9315 };
 
 // $7E:8CD0
-/* The credits made ready: everything but the vblank tasks stopped. Returns
- * whether there are credits. */
-static bool prepare_credits_with(GameState *g, Platform *pf, const EndingSteps *steps, void *ctx)
+/* The credits made ready: everything but the vblank tasks stopped, and
+ * their letters and pictures loaded where there are credits. */
+static void prepare_credits(GameState *g, Platform *pf)
 {
     stop_frame_tasks(g);
     vid_enable_line_effects(pf, PF_AT(0x7E8CDD), 0);
     if (ending_mode(g) == SCENE_MODE_ENDING_WITHOUT_CREDITS) {
         set_scene_channels_script(g, STEERING_CHANNEL, NO_CREDITS_SCRIPT);
-        return false;
+        return;
     }
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    if (!steps->unpack(ctx, UNPACK_CREDITS_LETTERS))
-        return false;
+    scene_unpacks(g, CREDITS_LETTERS);
     unpack_at(g, CREDITS_PICTURE_AT);
-    if (!steps->unpack(ctx, UNPACK_CREDITS_PICTURE))
-        return false;
+    scene_unpacks(g, CREDITS_PICTURE);
     unpack_at(g, CREDITS_PATTERN_AT);
-    if (!steps->unpack(ctx, UNPACK_CREDITS_PATTERN))
-        return false;
+    scene_unpacks(g, CREDITS_PATTERN);
     write_pattern_map(g);
-    return true;
 }
 
 /* The credits' screen: the letters' blank tiles and the map blanked, the
@@ -1079,46 +998,6 @@ static void show_last_scene(GameState *g, Platform *pf)
     set_scene_line_effects(g, SWEEP_LINE_CHANNELS);
 }
 
-/* ---- The steps ------------------------------------------------------------------------------------ */
-
-/* The stars' first draw starts from $80, what the original has from blanking
- * the screen just before, with nothing spilled. */
-enum { STARS_FIRST_DRAW = 0x0080 };
-
-/* The steps: the program's unpacker, the steering script's first step and
- * the stars' scatter. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} EndingContext;
-
-static bool unpack_the_resource(void *ctx, EndingUnpack which)
-{
-    EndingContext *c = ctx;
-    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, ending_unpacks[which].resource));
-    return true;
-}
-
-static bool turn_the_steering_channel(void *ctx, uint16_t picture_script)
-{
-    EndingContext *c = ctx;
-    (void)picture_script;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, STEERING_CHANNEL));
-    return turn == SCENE_TURN_ENDED;
-}
-
-enum { SCATTER_STARS = 0x7E5777 };
-
-static void scatter_the_stars(void *ctx)
-{
-    EndingContext *c = ctx;
-    TIMED_AS(c->game, SCATTER_STARS,
-             scene_scatter_stars(c->game, c->pf, scene_draw_from(STARS_FIRST_DRAW, false, TM_ENTROPY_BYTES)));
-}
-
-static const EndingSteps in_the_program = { unpack_the_resource, turn_the_steering_channel, scatter_the_stars, NULL };
-
 /* ---- Mode 10's panorama ----------------------------------------------------------------------- */
 
 /* The panorama's pixels are pairs of four-bit colors, low color first.
@@ -1161,17 +1040,17 @@ static void load_the_panorama(GameState *g, Platform *pf, uint8_t channel)
     };
     for (unsigned i = 0; i < sizeof layers / sizeof layers[0]; i++) {
         vid_set_vram_address(pf, PF_AT(layers[i].site), layers[i].vram);
-        TIMED_AS(g, 0x7E3691, scene_unpacks(g, layers[i].resource));
+        scene_unpacks(g, layers[i].resource);
         send_unpacked(g, pf);
         if (layers[i].padding)
             vid_send_vram_fill(pf, PF_AT(0x7E90AA), (uint16_t)(layers[i].vram + decompress_length(g) / 2),
                                PF_GAME(SCENE_BLANK_TILE), layers[i].padding, NULL);
     }
     vid_set_vram_address(pf, PF_AT(0x7E8A72), 0);
-    TIMED_AS(g, 0x7E3691, scene_unpacks(g, PANORAMA_PACKED_PIXELS));
+    scene_unpacks(g, PANORAMA_PACKED_PIXELS);
     TIMED_AS(g, 0x7E353C, expand_packed_pixels(g, pf, decompress_length(g)));
     vid_set_vram_address(pf, PF_AT(0x7E8A84), 0);
-    TIMED_AS(g, 0x7E3691, scene_unpacks(g, PANORAMA_PLANE_MAP));
+    scene_unpacks(g, PANORAMA_PLANE_MAP);
     TIMED_AS(g, 0x7E37CA, scene_widen_the_plane_map(g));
     vid_send_vram_half(pf, PF_AT(0x7E8A92), 0, PF_GAME(SCENE_PLANE_MAP), 0x2000,
                       VID_VRAM_LOW_BYTES, SCENE_VRAM_LOW_BYTES);
@@ -1252,43 +1131,42 @@ bool scene_ending_set_up(GameState *g, Platform *pf)
         program_fail(g, ENDINGS_SET_UP, "an ending's picture with no room on the vblank list");
         return false;
     }
-    EndingContext c = { g, pf };
-    return set_up_ending_with(g, pf, &in_the_program, &c) != 0;
+    return set_up_the_ending(g, pf) != 0;
 }
 
 /* The routines the scripts call, as rows of the interpreter's table
  * (scene/script.c): each on the calling channel's cells. */
+/* The zooming picture's two routines: with the ground it has, or over a new
+ * one. */
 static void load_the_picture(GameState *g, Platform *pf, uint8_t channel)
 {
-    EndingContext c = { g, pf };
-    (void)load_the_picture_with(g, pf, scene_program_channel(channel), &in_the_program, &c);
+    start_picture(g, pf, 0x7E87DA);
+    load_picture(g, scene_program_channel(channel));
 }
 
 static void load_the_ground_and_picture(GameState *g, Platform *pf, uint8_t channel)
 {
-    EndingContext c = { g, pf };
-    (void)load_the_ground_and_picture_with(g, pf, scene_program_channel(channel), &in_the_program, &c);
+    start_picture(g, pf, 0x7E879E);
+    load_new_ground(g, pf);
+    load_picture(g, scene_program_channel(channel));
 }
 
 static void start_the_stars(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
-    EndingContext c = { g, pf };
-    (void)start_stars_with(g, pf, &in_the_program, &c);
+    start_stars(g, pf);
 }
 
 static void start_the_mode7_picture(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
-    EndingContext c = { g, pf };
-    (void)start_mode7_picture_with(g, pf, &in_the_program, &c);
+    start_mode7_picture(g, pf);
 }
 
 static void prepare_the_credits(GameState *g, Platform *pf, uint8_t channel)
 {
     (void)channel;
-    EndingContext c = { g, pf };
-    (void)prepare_credits_with(g, pf, &in_the_program, &c);
+    prepare_credits(g, pf);
 }
 
 static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
@@ -1298,7 +1176,7 @@ static void set_the_last_colours(GameState *g, Platform *pf, uint8_t channel)
 }
 
 /* Resource-loading script operations, which load through the program's
- * unpacker and the setup's steps. */
+ * unpacker. */
 const SceneScriptRoutine scene_ending_loading_routines[] = {
     { SCENE_ROUTINE_LOAD_THE_PANORAMA, load_the_panorama },
     { SCENE_ROUTINE_SHOW_THE_LAYERED_PANORAMA, show_the_layered_panorama },

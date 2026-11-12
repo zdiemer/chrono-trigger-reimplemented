@@ -20,9 +20,7 @@
  * tiles, 64 to a row, widened to Mode 7's 128 and sent into the low bytes,
  * the rest of the map blank; the planet's sprite tiles, laid out in the order
  * a list gives; the stars' tiles; the colours; then the two channels' scripts
- * started and the stars scattered. The setup is one sequence, whose steps
- * that are the program's other routines (its unpacker, a script's first step)
- * come in as calls. */
+ * started and the stars scattered. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -193,76 +191,43 @@ static void copy_into_the_first_bank(GameState *g, unsigned resource, uint16_t t
     scene_copy_resource_to(g, scene_program_own(), resource, to, bytes);
 }
 
-/* The setup's steps that are other routines of the program's: a resource
- * unpacked by its unpacker, and the scripts' first step. */
-typedef enum {
-    UNPACK_LAVOS_PIXELS,
-    UNPACK_PLANET_TILES,
-    UNPACK_STAR_TILES,
-    UNPACK_LAVOS_MAP,
-    LAVOS_UNPACKS,
-} LavosUnpack;
-
-static const struct {
-    uint32_t site;
-    uint16_t resource;
-} lavos_unpacks[LAVOS_UNPACKS] = {
-    [UNPACK_LAVOS_PIXELS] = { 0x7E53D2, LAVOS_PIXELS },
-    [UNPACK_PLANET_TILES] = { 0x7E541B, PLANET_TILES },
-    [UNPACK_STAR_TILES] = { 0x7E543A, STAR_TILES },
-    [UNPACK_LAVOS_MAP] = { 0x7E544A, LAVOS_MAP },
-};
-
-typedef struct {
-    bool (*unpack)(void *ctx, LavosUnpack which);
-    void (*spread)(void *ctx, uint16_t packed);
-    bool (*first_step_and_stars)(void *ctx);
-} LavosFallsSetUpSteps;
-
 /* Lavos's picture: its pixels. */
-static bool load_lavos(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+static void load_lavos(GameState *g, Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E53BD), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E53C3), LAVOS_VRAM);
     set_decompress_dest(g, LOW_RAM_BUFFER);
-    if (!steps->unpack(ctx, UNPACK_LAVOS_PIXELS))
-        return false;
+    scene_unpacks(g, LAVOS_PIXELS);
     uint16_t packed = decompress_length(g);
     set_decompress_length(g, (uint16_t)(2 * packed));
-    steps->spread(ctx, packed);
+    spread_the_pixels(g, packed);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
     scene_choose_transfer(g, scene_pixels_into_high_bytes);
     scene_send_unpacked_by(g, pf, scene_pixels_into_high_bytes);
-    return true;
 }
 
 /* The planet's tiles and the stars'. */
-static bool load_the_sprites(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+static void load_the_sprites(GameState *g, Platform *pf)
 {
     copy_into_the_first_bank(g, PLANET_TILE_ORDER, (uint16_t)LOW_RAM_BUFFER, TILES_LAID_OUT);
     set_decompress_dest(g, SCENE_UNPACK_BUFFER);
-    if (!steps->unpack(ctx, UNPACK_PLANET_TILES))
-        return false;
+    scene_unpacks(g, PLANET_TILES);
     vid_set_vram_address(pf, PF_AT(0x7E5421), PLANET_TILES_VRAM);
     lay_out_the_planet_tiles(g, pf);
     charge_accesses(g, 2);
     charge_io_accesses(g, 3);
     scene_choose_transfer(g, scene_whole_words);
     vid_set_vram_address(pf, PF_AT(0x7E5434), STAR_TILES_VRAM);
-    if (!steps->unpack(ctx, UNPACK_STAR_TILES))
-        return false;
+    scene_unpacks(g, STAR_TILES);
     scene_send_unpacked_by(g, pf, scene_whole_words);
-    return true;
 }
 
-static bool load_lavos_s_map(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+static void load_lavos_s_map(GameState *g, Platform *pf)
 {
     vid_set_vram_address(pf, PF_AT(0x7E5444), LAVOS_VRAM);
-    if (!steps->unpack(ctx, UNPACK_LAVOS_MAP))
-        return false;
+    scene_unpacks(g, LAVOS_MAP);
     scene_widen_the_plane_map(g);
     send_the_map(pf);
-    return true;
 }
 
 /* The colours: Lavos's, the sprites' (the planet's and the stars'), and the
@@ -311,66 +276,26 @@ static void set_up_the_layers(GameState *g, Platform *pf)
 // $7E:53BB
 /* The scene's setup, from the program's mode table (mode 4): Lavos, the
  * planet and the stars loaded, the two channels' scripts started, the stars
- * scattered and the layers set up. False where a step went no further. */
-static bool set_up_lavos_falls_with(GameState *g, Platform *pf, const LavosFallsSetUpSteps *steps, void *ctx)
+ * scattered and the layers set up. False where the camera's first step went
+ * no further. A host's draws take its own noise, so the stars' first draw
+ * starts from nothing in particular where the original's starts from what
+ * the interpreter left. */
+enum { SCATTER_STARS = 0x7E5777 };
+
+bool scene_lavos_falls_set_up(GameState *g, Platform *pf)
 {
-    if (!load_lavos(g, pf, steps, ctx))
-        return false;
-    if (!load_the_sprites(g, pf, steps, ctx))
-        return false;
-    if (!load_lavos_s_map(g, pf, steps, ctx))
-        return false;
+    load_lavos(g, pf);
+    load_the_sprites(g, pf);
+    load_lavos_s_map(g, pf);
     load_the_colours(g);
     set_scene_channels_script(g, SCENE_CAMERA_CHANNEL, LAVOS_SCRIPT);
     set_scene_channels_script(g, SCENE_STAR_FIELD_CHANNEL, FIELD_SCRIPT);
     show_the_sprites_alone(pf);
-    if (!steps->first_step_and_stars(ctx))
+    if (!scene_first_step(g, pf, SCENE_CAMERA_CHANNEL))
         return false;
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
     set_up_the_layers(g, pf);
     return true;
-}
-
-/* ---- The setup's steps ---- */
-
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} LavosContext;
-
-static bool unpack_the_resource(void *ctx, LavosUnpack which)
-{
-    LavosContext *c = ctx;
-    TIMED_AS(c->game, SCENE_UNPACK, scene_unpacks(c->game, lavos_unpacks[which].resource));
-    return true;
-}
-
-static void spread(void *ctx, uint16_t packed)
-{
-    LavosContext *c = ctx;
-    spread_the_pixels(c->game, packed);
-}
-
-/* The camera channel's turn, and the stars scattered. A host's draws take
- * its own noise, so the first of them starts from nothing in particular
- * where the original's starts from what the interpreter left. */
-enum { SCATTER_STARS = 0x7E5777 };
-
-static bool turn_and_scatter(void *ctx)
-{
-    LavosContext *c = ctx;
-    SceneTurn turn = SCENE_TURN_ENDED;
-    TIMED_AS(c->game, SCENE_FIRST_STEP, turn = scene_channel_turn(c->game, c->pf, SCENE_CAMERA_CHANNEL));
-    if (turn != SCENE_TURN_ENDED)
-        return false;
-    TIMED_AS(c->game, SCATTER_STARS, scene_scatter_stars(c->game, c->pf, scene_draw_from(0, false, TM_ENTROPY_BYTES)));
-    return true;
-}
-
-bool scene_lavos_falls_set_up(GameState *g, Platform *pf)
-{
-    static const LavosFallsSetUpSteps in_the_program = { unpack_the_resource, spread, turn_and_scatter };
-    LavosContext c = { g, pf };
-    return set_up_lavos_falls_with(g, pf, &in_the_program, &c);
 }
 
 /* ---- The routines and the tasks ----------------------------------------------------------------- */

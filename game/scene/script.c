@@ -561,6 +561,15 @@ static bool music_waited_for(GameState *g, Platform *pf, SceneChannel ch)
     return advance_music_wait(g, ch, steady_music(pf));
 }
 
+// $7E:3749
+bool scene_first_step(GameState *g, Platform *pf, SceneChannel ch)
+{
+    enum { THE_PROGRAMS_FIRST_STEP = 0x7E3749 };
+    SceneTurn turn = SCENE_TURN_ENDED;
+    TIMED_AS(g, THE_PROGRAMS_FIRST_STEP, turn = scene_channel_turn(g, pf, ch));
+    return turn == SCENE_TURN_ENDED;
+}
+
 // $C3:0AFF
 SceneTurn scene_channel_turn(GameState *g, Platform *pf, SceneChannel ch)
 {

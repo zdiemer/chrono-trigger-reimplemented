@@ -433,10 +433,12 @@ static void show_turn_layers(Platform *pf)
     vid_set_windows(pf, PF_AT(0x7E7154), &windows, VID_WINDOWS_MAIN | VID_WINDOWS_SUB);
 }
 
-static bool prepare_turn(GameState *g, Platform *pf, bool (*scripts)(void *), void *context)
+static bool turn_scripts(GameState *g, Platform *pf);
+
+static bool prepare_turn(GameState *g, Platform *pf)
 {
     start_turn_map(g);
-    if (!scripts(context))
+    if (!turn_scripts(g, pf))
         return false;
     set_scene_main_loop_call(g, SCENE_PASS_TURN_MAP);
     if (!scene_set_up_line_effects(g, pf, 0x7354))
@@ -457,14 +459,13 @@ static void show_turn(GameState *g, Platform *pf)
     set_scene_line_effects(g, 15);
 }
 
-typedef struct { GameState *game; Platform *pf; } TurnSetup;
-
-static bool turn_scripts(void *context)
+/* Both channels' scripts' first steps, each timed as the program's routine
+ * for its channel. */
+static bool turn_scripts(GameState *g, Platform *pf)
 {
-    TurnSetup *setup = context;
     for (SceneChannel channel = 0; channel < 2; channel++) {
         SceneTurn turn = SCENE_TURN_ENDED;
-        TIMED_AS(setup->game, channel ? 0x7E3754 : 0x7E3749, turn = scene_channel_turn(setup->game, setup->pf, channel));
+        TIMED_AS(g, channel ? 0x7E3754 : 0x7E3749, turn = scene_channel_turn(g, pf, channel));
         if (turn != SCENE_TURN_ENDED)
             return false;
     }
@@ -474,8 +475,7 @@ static bool turn_scripts(void *context)
 // $7E:7092
 bool scene_turn_set_up(GameState *g, Platform *pf)
 {
-    TurnSetup setup = { g, pf };
-    if (!prepare_turn(g, pf, turn_scripts, &setup))
+    if (!prepare_turn(g, pf))
         return false;
     show_turn(g, pf);
     return true;

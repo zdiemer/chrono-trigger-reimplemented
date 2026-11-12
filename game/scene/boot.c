@@ -105,8 +105,14 @@ void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16
 // $7E:3691
 /* One of the program's resources unpacked, by its place in the
  * resource table, to where the caller has set the unpacker's destination. */
-void scene_unpacks(GameState *g, uint16_t resource)
+static void unpack_the_resource(GameState *g, uint16_t resource)
 {
     set_decompress_source(g, scene_resource_stream(g, resource));
     (void)unpack_stream_direct(g);
+}
+
+void scene_unpacks(GameState *g, uint16_t resource)
+{
+    enum { THE_PROGRAMS_UNPACKER = 0x7E3691 };
+    TIMED_AS(g, THE_PROGRAMS_UNPACKER, unpack_the_resource(g, resource));
 }

@@ -1004,25 +1004,21 @@ static bool drain_score(GameState *g)
     return false;
 }
 
-/* ---- The tasks ------------------------------------------------------------------------------------
- *
- * Each task's frame is one sequence; the sounds it sends go through the step
- * it is passed (race.h, RaceSends). */
+/* ---- The tasks ------------------------------------------------------------------------------------ */
 
 /* The bikes' sounds, then their motion. */
-static bool move_and_sound(GameState *g, Platform *pf, BikeSounds sounds, RaceSends send, void *ctx)
+static void move_and_sound(GameState *g, Platform *pf, BikeSounds sounds)
 {
-    if (sounds.bumped && !race_song_sending(g) && !race_send_sound(g, pf, RACE_BUMP_SOUND, send, ctx))
-        return false;
+    if (sounds.bumped && !race_song_sending(g))
+        race_send_sound(g, pf, RACE_BUMP_SOUND);
     if (sounds.running && !race_song_sending(g))
         race_send_engine_pitch(g, pf);
     move_bikes(g);
-    return true;
 }
 
 /* The race while it runs: Crono's win hands the slot to his coast, Johnny's
  * takes the task off the list (his win added what follows). */
-static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
+static TaskEnd ride_task(GameState *g, Platform *pf)
 {
     BikeSounds sounds = { false, false };
     switch (ride(g, &sounds)) {
@@ -1030,17 +1026,15 @@ static TaskEnd ride_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
     case RIDE_JOHNNY_WON: return task_is_done();
     case RIDE_ON: break;
     }
-    if (!move_and_sound(g, pf, sounds, send, ctx))
-        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
+    move_and_sound(g, pf, sounds);
     return task_goes_on();
 }
 
 /* After Crono's finish. */
-static TaskEnd coast_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
+static TaskEnd coast_task(GameState *g, Platform *pf)
 {
     coast(g);
-    if (!move_and_sound(g, pf, ride_bikes(g), send, ctx))
-        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
+    move_and_sound(g, pf, ride_bikes(g));
     return task_goes_on();
 }
 
@@ -1052,12 +1046,12 @@ static TaskEnd await_victory_song_task(GameState *g, Platform *pf)
 
 /* After the race: any button begins the end, with its sound, and the
  * countdown takes the task's place. */
-static TaskEnd wait_to_leave_with(GameState *g, Platform *pf, RaceSends send, void *ctx)
+static TaskEnd wait_to_leave_task(GameState *g, Platform *pf)
 {
     if (!begin_ending(g))
         return task_goes_on();
-    if (!race_song_sending(g) && !race_send_sound(g, pf, RACE_LEAVING_SOUND, send, ctx))
-        return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
+    if (!race_song_sending(g))
+        race_send_sound(g, pf, RACE_LEAVING_SOUND);
     count_down_to_end(g);
     return task_hands_over(TASK_LEAVE);
 }
@@ -1088,7 +1082,7 @@ TaskEnd scene_race_ride(GameState *g, Platform *pf, unsigned slot)
     (void)slot;
     if (!ride_lists_fit(g))
         return scene_task_goes_no_further(g, 0x7E485D, "a race's frame whose list changes the port doesn't make");
-    return ride_with(g, pf, race_sound, NULL);
+    return ride_task(g, pf);
 }
 
 TaskEnd scene_race_coast(GameState *g, Platform *pf, unsigned slot)
@@ -1096,7 +1090,7 @@ TaskEnd scene_race_coast(GameState *g, Platform *pf, unsigned slot)
     (void)slot;
     if (!coast_lists_fit(g))
         return scene_task_goes_no_further(g, 0x7E4677, "a race's coast whose list changes the port doesn't make");
-    return coast_with(g, pf, race_sound, NULL);
+    return coast_task(g, pf);
 }
 
 TaskEnd scene_race_await_victory_song(GameState *g, Platform *pf, unsigned slot)
@@ -1108,7 +1102,7 @@ TaskEnd scene_race_await_victory_song(GameState *g, Platform *pf, unsigned slot)
 TaskEnd scene_race_wait_to_leave(GameState *g, Platform *pf, unsigned slot)
 {
     (void)slot;
-    return wait_to_leave_with(g, pf, race_sound, NULL);
+    return wait_to_leave_task(g, pf);
 }
 
 TaskEnd scene_race_leave(GameState *g, Platform *pf, unsigned slot)

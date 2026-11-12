@@ -3,9 +3,8 @@
  * The race is a Mode 7 plane -- the track, seen in perspective -- drawn on the
  * lines its per-line effects leave in mode 7, with flat layers (the sky, the
  * scenery) above it in mode 1. The program sets the race up from its mode
- * table: its graphics unpacked from the program's resources and sent to VRAM
- * through the C unpacker and resource callbacks, the racers'
- * pictures arranged for the scaler, its work buffers cleared, its per-line
+ * table: its graphics unpacked from the program's resources and sent to VRAM,
+ * the racers' pictures arranged for the scaler, its work buffers cleared, its per-line
  * effects, the bikes at the start, the scripts its two channels run, and the
  * flat layers. Then every frame it moves the camera (the plane's rotation
  * center and the flat layers' scroll), sends a column of the plane's name table
@@ -128,32 +127,6 @@ void scene_upload_plane_half(Platform *pf)
     vid_snes_copy(pf, PF_AT(0x7E876E), &t);
 }
 
-/* ---- The setup's calls ------------------------------------------------------------------------ */
-
-/* The setup's calls: the race's song started (the program's call of the
- * driver), the graphics' loading entered and left, a resource unpacked by the
- * program's unpacker (scene/boot.c) from the setup's call (`unpacking`, its
- * place in unpacked_at, below), or while the racers' pictures are worked
- * on, and the camera script's first step. False where one went no
- * further. */
-typedef enum {
-    RACE_SONG_STARTS,
-    RACE_GRAPHICS_ENTERED,
-    RACE_GRAPHICS_LEFT,
-    RACE_UNPACK,
-    RACE_UNPACK_HOLDING,
-    RACE_FIRST_STEP,
-} RaceCall;
-typedef bool (*RaceCalls)(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource);
-
-/* The program's unpacker ($7E:3691): a resource, by its place in the
- * program's resource list, unpacked into the destination the caller has set. */
-enum { UNPACK = 0x7E3691 };
-
-/* The camera script's first step: the program's routine for channel 0's
- * ($7E:3749). */
-enum { CHANNEL_0_STEP = 0x7E3749 };
-
 /* ---- Setting the race up ------------------------------------------------------------------------- */
 
 /* The race's buffers, where it puts its graphics as it unpacks them, in the
@@ -204,7 +177,6 @@ static const RaceGraphics race_graphics[] = {
     { 0x21, LAYER_MAP, BG2_MAP_VRAM, 0x7E3EA3 },
 };
 
-enum { CRONO_FIRST_UNPACKED = 10, CRONO_SECOND_UNPACKED = 11, THIRD_UNPACKED = 12 };
 enum { RACE_GRAPHICS = sizeof race_graphics / sizeof race_graphics[0] };
 
 /* A layer's map is the first $800 bytes of what its resource unpacks to. */
@@ -236,34 +208,32 @@ void scene_double_plane_rows(GameState *g)
 
 /* One of the race's graphics: VRAM pointed at it, unpacked, and sent or
  * kept. */
-static bool load_graphics(GameState *g, Platform *pf, unsigned unpacking, const RaceGraphics *r, RaceCalls call, void *ctx)
+static void load_graphics(GameState *g, Platform *pf, const RaceGraphics *r)
 {
     if (r->vram_site)
         vid_set_vram_address(pf, PF_AT(r->vram_site), r->vram);
-    if (!call(ctx, RACE_UNPACK, unpacking, r->resource))
-        return false;
+    scene_unpacks(g, r->resource);
     switch (r->kind) {
     case INTO_PALETTE:
         wram_copy(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
         charge_block_move(g, PALETTE_BYTES);
-        return true;
+        return;
     case PLANE_PIXELS:
         send_unpacked_as(g, BYTES_ONE_REGISTER, VID_SNES_VRAM_DATA_HIGH);
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-        return true;
+        return;
     case PLANE_MAP_PART:
         scene_double_plane_rows(g);
         TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
-        return true;
+        return;
     case LAYER_MAP:
         set_decompress_length(g, LAYER_MAP_BYTES);
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-        return true;
+        return;
     case TILES:
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
-        return true;
+        return;
     }
-    return true;
 }
 
 /* What changes as the graphics go from one kind to the next: past the palette,
@@ -293,7 +263,7 @@ static void before_kind(GameState *g, Platform *pf, RaceGraphicsKind kind)
 
 // $7E:3D8C
 /* The race's graphics: the racers' tilemap blanked, then each in turn. */
-static bool load_race_graphics(GameState *g, Platform *pf, RaceCalls call, void *ctx)
+static void load_race_graphics(GameState *g, Platform *pf)
 {
     fill_racers_map(pf);
     set_decompress_dest(g, UNPACKED_PALETTE);
@@ -303,10 +273,8 @@ static bool load_race_graphics(GameState *g, Platform *pf, RaceCalls call, void 
             kind = race_graphics[i].kind;
             before_kind(g, pf, kind);
         }
-        if (!load_graphics(g, pf, i, &race_graphics[i], call, ctx))
-            return false;
+        load_graphics(g, pf, &race_graphics[i]);
     }
-    return true;
 }
 
 /* ---- The racers' pictures ----------------------------------------------------------------------- */
@@ -374,26 +342,22 @@ enum { THIRD_RESOURCE = 0x0C, THIRD_LAST = 0x18, THIRD_RUNS = 12 };
  * part unpacked and mirrored. */
 enum { CRONO_FIRST_RESOURCE = 0x06, CRONO_SECOND_RESOURCE = 0x09 };
 
-static bool load_racers_pictures(GameState *g, RaceCalls call, void *ctx)
+static void load_racers_pictures(GameState *g)
 {
     set_decompress_dest(g, PICTURES);
-    if (!call(ctx, RACE_UNPACK, CRONO_FIRST_UNPACKED, CRONO_FIRST_RESOURCE))
-        return false;
+    scene_unpacks(g, CRONO_FIRST_RESOURCE);
     set_decompress_dest(g, CRONO_PICTURES_SECOND);
-    if (!call(ctx, RACE_UNPACK, CRONO_SECOND_UNPACKED, CRONO_SECOND_RESOURCE))
-        return false;
+    scene_unpacks(g, CRONO_SECOND_RESOURCE);
     wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
     charge_block_move(g, CRONO_PICTURES_COPY_BYTES);
     place_crono_blocks(g);
     mirror_crono(g);
     charge_accesses(g, 2);
     charge_io_accesses(g, 3);
-    if (!call(ctx, RACE_UNPACK_HOLDING, THIRD_UNPACKED, THIRD_RESOURCE))
-        return false;
+    scene_unpacks(g, THIRD_RESOURCE);
     scene_mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
     charge_accesses(g, 1);
     charge_io_accesses(g, 2);
-    return true;
 }
 
 /* ---- The race's scripts and the demo's screen ------------------------------------------------------ */
@@ -487,61 +451,33 @@ enum { MAIN_LOOP_SCALES_PICTURES = SCENE_PASS_RACE_SCALING, PERSPECTIVE_FROM_THE
  * buffer. */
 enum { MATRIX_DESTINATION = SCENE_TILEMAP_BUFFER, MATRIX_SOURCE = 0x0200 };
 
-static bool set_up_the_race(GameState *g, Platform *pf, RaceCalls call, void *ctx)
+/* The race set up, from the program's mode table: its song, its graphics and
+ * the racers' pictures, its buffers and per-line effects, the bikes at the
+ * start, the scripts and their first step, the scaling, and the layers' maps.
+ * False where the camera script's first step went no further. */
+bool scene_race_set_up(GameState *g, Platform *pf)
 {
     mark_the_demo(g);
     if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
         set_scene_song(g, RACE_SONG);
         set_scene_song_playing(g, RACE_SONG);
-        if (!call(ctx, RACE_SONG_STARTS, 0, RACE_SONG))
-            return false;
+        scene_start_song(pf, RACE_SONG);
     }
-    if (!call(ctx, RACE_GRAPHICS_ENTERED, 0, 0) || !load_race_graphics(g, pf, call, ctx)
-        || !call(ctx, RACE_GRAPHICS_LEFT, 0, 0) || !load_racers_pictures(g, call, ctx))
-        return false;
+    load_race_graphics(g, pf);
+    load_racers_pictures(g);
     clear_race_buffers(pf);
     set_scene_scaler_output_end(g, SCALER_OUTPUT_AS_FULL);
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
     set_scene_line_effects(g, RACE_LINE_EFFECTS);
     race_start(g);
     choose_scripts(g, pf);
-    if (!call(ctx, RACE_FIRST_STEP, 0, 0))
+    if (!scene_first_step(g, pf, 0))
         return false;
     set_scene_perspective_start(g, PERSPECTIVE_FROM_THE_HORIZON);
     set_scene_main_loop_call(g, MAIN_LOOP_SCALES_PICTURES);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
     setup_race_maps(pf);
     return true;
-}
-
-/* The setup's calls made: the song, the unpacker and the camera script's
- * turn. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-} RaceContext;
-
-static bool race_call(void *ctx, RaceCall call, unsigned unpacking, uint16_t resource)
-{
-    (void)unpacking;
-    RaceContext *c = ctx;
-    switch (call) {
-    case RACE_SONG_STARTS: scene_start_song(c->pf, (uint8_t)resource); return true;
-    case RACE_UNPACK:
-    case RACE_UNPACK_HOLDING: TIMED_AS(c->game, UNPACK, scene_unpacks(c->game, resource)); return true;
-    case RACE_FIRST_STEP: {
-        SceneTurn turn = SCENE_TURN_ENDED;
-        TIMED_AS(c->game, CHANNEL_0_STEP, turn = scene_channel_turn(c->game, c->pf, 0));
-        return turn == SCENE_TURN_ENDED;
-    }
-    default: return true;
-    }
-}
-
-bool scene_race_set_up(GameState *g, Platform *pf)
-{
-    RaceContext c = { g, pf };
-    return set_up_the_race(g, pf, race_call, &c);
 }
 
 /* ---- The curtain ----------------------------------------------------------------------------- */
@@ -564,37 +500,15 @@ static void show_curtain_step(const GameState *g, Platform *pf)
     vid_set_line_table(pf, PF_AT(odd ? 0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
 }
 
-/* A frame of the sweep: the curtain's step, by `step`, then the window's
- * edges shown from the table it filled. False where the step went no
- * further. */
-static bool sweep_curtain_with(GameState *g, Platform *pf, bool (*step)(void *ctx), void *ctx)
-{
-    if (!step(ctx))
-        return false;
-    show_curtain_step(g, pf);
-    return true;
-}
-
-/* The curtain's step (scene/curtain.c), which goes no further where its
- * table is not one it sweeps. Its stir takes the slot's place in the task
- * list. */
-typedef struct {
-    GameState *game;
-    Platform *pf;
-    uint16_t salt;
-} CurtainContext;
-
-static bool curtain_step(void *ctx)
-{
-    CurtainContext *c = ctx;
-    return scene_curtain_stepped(c->game, c->pf, c->salt);
-}
-
+/* A frame of the sweep: the curtain's step (scene/curtain.c), which goes no
+ * further where its table is not one it sweeps, its stir taking the slot's
+ * place in the task list; then the window's edges shown from the table it
+ * filled. */
 TaskEnd scene_race_sweep_curtain(GameState *g, Platform *pf, unsigned slot)
 {
-    CurtainContext c = { g, pf, (uint16_t)(slot * 2) };
-    if (!sweep_curtain_with(g, pf, curtain_step, &c))
+    if (!scene_curtain_stepped(g, pf, (uint16_t)(slot * 2)))
         return (TaskEnd){ TASK_GOES_NO_FURTHER, NO_TASK };
+    show_curtain_step(g, pf);
     return task_goes_on();
 }
 
@@ -730,26 +644,15 @@ enum { BUMP_SOUND = 0x98, LEAVING_SOUND = 0xBA };
 
 static const struct {
     uint8_t command, effect;
-    uint32_t site;   /* the race's call of the program's send */
 } race_sounds[] = {
-    [RACE_BUMP_SOUND] = { AU_START_OTHER_EFFECT, BUMP_SOUND, 0x7E4BC8 },
-    [RACE_LEAVING_SOUND] = { AU_START_EFFECT, LEAVING_SOUND, 0x7E426D },
+    [RACE_BUMP_SOUND] = { AU_START_OTHER_EFFECT, BUMP_SOUND },
+    [RACE_LEAVING_SOUND] = { AU_START_EFFECT, LEAVING_SOUND },
 };
 
-bool race_send_sound(GameState *g, Platform *pf, RaceSound sound, RaceSends send, void *ctx)
+void race_send_sound(GameState *g, Platform *pf, RaceSound sound)
 {
     set_sound_command_parameters(g, 0, race_sounds[sound].effect);
     set_sound_command_parameters(g, 1, AU_CENTRE);
     set_sound_command(g, race_sounds[sound].command);
-    return send(ctx, g, pf, sound);
-}
-
-// $7E:377E
-/* The program's send, which waits for the driver to take the command. */
-bool race_sound(void *ctx, GameState *g, Platform *pf, RaceSound sound)
-{
-    (void)ctx;
-    (void)sound;
     scene_sends_the_command(g, pf);
-    return true;
 }
