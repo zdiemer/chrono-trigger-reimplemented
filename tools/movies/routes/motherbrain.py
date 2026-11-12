@@ -37,7 +37,12 @@ def fight_once(run, party=3, seed=1, policy="party"):
 BEFORE_THE_CHARGE = 4087
 
 
-def seek(run, x, y, goal=None, battle_var=11, max_nodes=3800):
+# Dashing on the diagonals too: the escort pod's charge lasts only as long
+# as the quickest way round the floor takes, cutting its corners.
+EIGHT_WAYS = bfs.DIRECTIONS + ("UP+LEFT", "UP+RIGHT", "DOWN+LEFT", "DOWN+RIGHT")
+
+
+def seek(run, x, y, goal=None, battle_var=11, max_nodes=3800, directions=bfs.DIRECTIONS):
     """Search machine copies toward a spot, dashing and stopping for encounters.
 
     Prioritize distance to the destination on these large floors. Test event
@@ -56,7 +61,7 @@ def seek(run, x, y, goal=None, battle_var=11, max_nodes=3800):
     try:
         while queue and len(slots) < max_nodes:
             _, cost, slot, path = heapq.heappop(queue)
-            for direction in bfs.DIRECTIONS:
+            for direction in directions:
                 m.restore(slot)
                 m.probe(8, direction + "+B")
                 px, py = run.me()
@@ -359,12 +364,18 @@ def main():
                 walk_to(run, 680, 720, lambda: bool(m.b(0x7F013F) & 2))
             assert m.b(0x7F013F) & 0x1F == 0x1F, "main floor encounters cleared"
             # The charge is timed: stepping in at (400, 415) opens it
-            # ($7F:013C bit $40) and it runs out on the way to the pod, a long
-            # way round the patrols (the shipping mode's search takes 3,198 of
-            # the 3,800 nodes the machine's state slots allow). Where the
-            # patrols stand as it opens depends on the run's time, and from
-            # some moments the search finds no way in time. Then the charge is
-            # opened again from the moment before, a little later.
+            # ($7F:013C bit $40). The escort counts it down a step at a time
+            # (`$7F:020E` up to $60), a step each of its turns while it stands
+            # beside the party and each of its moves while it follows, so the
+            # charge lasts about 400 frames standing and a little longer
+            # running. The way to the pod goes all round the floor: dashing
+            # only along the axes it takes about 750 frames, which the
+            # original program's charge outlasts by a count and the native
+            # program's, from a start a frame apart, falls short of by two;
+            # cutting the corners on the diagonals it takes about 600. Where the patrols stand as it
+            # opens depends on the run's time, so where the search still finds
+            # no way the charge is opened again from the moment before, a
+            # little later.
             charged = lambda: bool(m.b(0x7F013E) & 2)
             m.mark(BEFORE_THE_CHARGE)
             try:
@@ -373,7 +384,7 @@ def main():
                         m.restore(BEFORE_THE_CHARGE)
                         m.run(wait)
                     walk_to(run, 400, 415, lambda: bool(m.b(0x7F013C) & 0x40))
-                    if seek(run, 400, 264, charged):
+                    if seek(run, 400, 264, charged, directions=EIGHT_WAYS):
                         break
             finally:
                 m.free(BEFORE_THE_CHARGE)
