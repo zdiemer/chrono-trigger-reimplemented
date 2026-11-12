@@ -34,4 +34,20 @@ typedef struct {
     uint8_t value;
 } AuGain;
 
+/* What a voice is set to now, for a change to part of it (a pitch's low
+ * byte, one half of an envelope, one side's volume) that keeps the rest. */
+typedef struct {
+    uint16_t pitch;
+    AuEnvelope envelope;
+    int8_t volume_left, volume_right;
+} AuVoiceSettings;
+
+/* What the mix is set to now, likewise: the volumes, the echo's filter, and
+ * where its buffer starts (a page of sound memory) with its delay. */
+typedef struct {
+    int8_t master_left, master_right, echo_left, echo_right;
+    int8_t taps[8];
+    uint8_t echo_page, echo_delay;
+} AuMixSettings;
+
 #endif

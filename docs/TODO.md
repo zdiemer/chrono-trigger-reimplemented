@@ -2337,14 +2337,6 @@ improving the upload's timing, rather than moving the caller's calibrated mean.
   `battle/uploads.c`), and decode it where the cells are read. Store a named
   destination (whole words, low bytes, high bytes) instead once nothing reads
   the cells as the original's bytes.
-- **The sound driver's command `$FD` writes an S-DSP register.**
-  `sound/driver.c`'s `write_register` hands the command's register and value
-  to `au_voices_snes_register`, which the native mixer decodes into its
-  voices' settings (`runtime/platform/native/mixer.c`, `escape_register`):
-  the one register escape `tools/machine_joints.py` still counts. Another
-  mixer needs the command as what it means: the register decoded into named
-  voice settings, the driver keeping what a partial write (a pitch's low
-  byte) leaves of the rest.
 - **Native audio interface.** `au_driver_call` stops on a machine-wrapper
   call; remove that interface with its remaining callers. Preserve command
   queues.
@@ -2426,6 +2418,21 @@ and preserve their diagnostics as the remaining machine wrappers leave.
   `program` tests' totals change. They leave `game/` only with a model that
   prices each operation's work as a whole, calibrated against the movies: a
   recalibration, not a cleanup.
+  Moving them into `time_rates.c` as per-operation rows with every movie's
+  timing unchanged was looked at and doesn't hold. A row a call site, named
+  for its function, is the same per-path count under another name. A row an
+  operation, charged where its tag is entered, keeps the timing only where
+  the operation's one charge is unconditional and every call enters it
+  through a tag of its own; about ten functions qualify (`multiply`,
+  `object_join_row`, `scene_load_plane_map`, ...), while 87 literal counts
+  share their function with other counts on other branches and 47 are sums
+  the path computes (a queued block, a looked-at object, a loop's count).
+  Pricing a tag's entry also needs the charge in `state_host.c`'s tag
+  bookkeeping. The `charge_block_move` sizes are different: each is the size
+  of a move the port made, priced at the block move's own row, which is
+  per-operation already; they could go into `wram_fill8`/`wram_copy` where
+  every such move is charged, but not where the port builds the bytes with
+  accessors (the colour and cursor copies).
 - **What the second state-storage slice's review left.** The save test
   should compare the complete serialized payload, allowing for the counter
   and checksum changes a save makes on purpose.
@@ -2761,12 +2768,3 @@ and submitted-sprite records are declared in `re/ram.toml`; see
   earlier frame followed by different input, then verify the rewritten movie
   and final state. Automate restore while paused and repeated live quick loads;
   compare continued RAM, pictures and sound with uninterrupted play.
-- **Snapshot review follow-ups (native-bases).** Confirm the mutable statics
-  outside GameState (game/scene/planet.c `colours_stepped`/`last_star_frame`,
-  game/field/window_shape.c `drew_sloped_edge`) never carry from one frame to
-  the next, or move them into GameState. Check that no suspended game frame
-  caches a Platform heap pointer (observer, sound driver, asset pack), which a
-  restore keeps live. `snapshot_restore` can switch the fibers and then fail in
-  `pf_host_restore` out of memory, leaving the program half restored: restore
-  the services first or make the failure fatal. `route_driver_test`'s movie case
-  no longer checks a resulting value.

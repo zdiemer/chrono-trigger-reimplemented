@@ -311,7 +311,7 @@ size_t fiber_snapshot(uint8_t *out, size_t room)
     return need;
 }
 
-bool fiber_restore(const uint8_t *in, size_t len)
+bool fiber_restorable(const uint8_t *in, size_t len)
 {
     SnapshotHeader h;
     if (current != &main_fiber || len < sizeof h)
@@ -319,7 +319,6 @@ bool fiber_restore(const uint8_t *in, size_t len)
     memcpy(&h, in, sizeof h);
     if (memcmp(h.magic, "FIB1", 4) || h.slots > FIBER_SLOTS || (h.slots && h.stacks != (uintptr_t)stacks))
         return false;
-    /* Check every record before changing a slot. */
     size_t at = sizeof h;
     bool seen[FIBER_SLOTS] = { false };
     for (uint32_t n = 0; n < h.slots; n++) {
@@ -334,11 +333,19 @@ bool fiber_restore(const uint8_t *in, size_t len)
         seen[r.slot] = true;
         at += r.live_bytes;
     }
-    if (at != len)
+    return at == len;
+}
+
+bool fiber_restore(const uint8_t *in, size_t len)
+{
+    /* Check every record before changing a slot. */
+    if (!fiber_restorable(in, len))
         return false;
+    SnapshotHeader h;
+    memcpy(&h, in, sizeof h);
     for (unsigned i = 0; i < FIBER_SLOTS; i++)
         pool[i].used = false;
-    at = sizeof h;
+    size_t at = sizeof h;
     for (uint32_t n = 0; n < h.slots; n++) {
         SlotRecord r;
         memcpy(&r, in + at, sizeof r);
