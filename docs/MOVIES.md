@@ -166,7 +166,7 @@ the Golem and the exile, a dactyl to the Mystic Mountains' Gate, the End of
 Time's 2300 A.D. pillar, Lab 32, the Sewer Access's switch, Belthasar's Epoch
 to Algetty, Mt. Woe's islands, Dalton, the Ocean Palace's buttons, platforms,
 elevator and floor switches. It ends as Lavos rises from the Mammon Machine
-(frame FRAMES_C). The save's bag has no Tonics by Zeal, so its fights heal
+(frame 568835). The save's bag has no Tonics by Zeal, so its fights heal
 with Lapis, Marle's Cure 2 and Revives, and use weapons (the Ocean Palace's
 Scouts drink the element they are hit with); Shelters at Algetty's, Mt. Woe's
 and the Ocean Palace's save points restore the party before Mud Imp, Giga
