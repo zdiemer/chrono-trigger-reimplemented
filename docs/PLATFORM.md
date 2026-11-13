@@ -407,23 +407,29 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank (`vid_send_view_vram`, below): the map's own columns, which its tables
-  hold whatever the screen's limits within it. Past the map's width a column
-  is built as the edge's, and shown only where the edge is one entry all the
-  way down (a room's void), which is judged as the margins are built and kept
-  for the frames between, when a battle's data may lie over the map's looks;
-  elsewhere the layer stops at the map. Each frame
+  own and sends them in the vblank (`vid_send_view_vram`, below): the columns
+  of the room the screen is held to, the map's edges it doesn't scroll past
+  (`field_map_edges`) -- an interior lays several rooms side by side in one
+  map (Truce's houses are one), and the original never shows a room's
+  neighbours beside it -- with the screen's own where a script has moved it
+  past them; a backdrop scrolling at half the pace goes by the whole map. Past
+  the room a column is built as its edge's, and shown only where the edge is
+  one entry all the way down (a void), which is judged as the margins are
+  built and kept for the frames between, when a battle's data may lie over
+  the map's looks; elsewhere the layer stops at the room and the backdrop
+  shows. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
-  within the map's width -- unless it is a veil, a layer drawn whole that the
+  within the room -- unless it is a veil, a layer drawn whole that the
   color math lays over the picture at half strength or that lies on the sub
   screen alone (Death Peak's drifting fog): a pattern the original repeats as
   it drifts, which goes on across the map. Objects within the original's activation window
   (two map tiles past the screen) run and are drawn as on the original's
   screen. Past it, as each finished frame is sent, `field/margin_objects.c`
-  lists the objects the field updates that can be seen but are out of view,
-  and shows them as margin sprites every vblank, nearest first: each in the
-  frame its animation stands on (`object_frame_shown`; out of view it doesn't
+  lists the objects the field updates that can be seen but are out of view
+  and stand in the room, and shows them as margin sprites every vblank,
+  nearest first: each in the frame its animation stands on
+  (`object_frame_shown`; out of view it doesn't
   tick, so it is the frame it was last placed in, or its animation's first),
   laid out as the frame builder would (`object_frame_look`), its tiles read
   from its graphics set and its colours from the ROM, or from its slot where
@@ -483,10 +489,16 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   across (a window sliding in) keeps it to the original's screen, and a
   column repeated into a margin shows its layer without Mode 2's per-column
   offsets (`VID_LAYOUT_AS_IT_LIES`).
-- **Every other mode** (the scenes, the dialog window over the field, the
-  time warp's tunnel aside, which is Mode 7) keeps its layers to the
-  original's screen, the backdrop in the margins, until it builds what lies
-  past it.
+- **A panel over the picture**: where a line switches a layer the frame
+  holds past the screen to a one-screen tilemap no layout spreads -- the
+  dialog window, which the field's line effects draw with BG1 and BG3 over a
+  band of the screen -- the panel keeps to the original's screen, and the
+  renderer draws those lines' margins as the nearest lines without a panel
+  show the picture (above it, or below a window at the top), so the map goes
+  on behind the window across the view.
+- **Every other mode** (the scenes, the time warp's tunnel aside, which is
+  Mode 7) keeps its layers to the original's screen, the backdrop in the
+  margins, until it builds what lies past it.
 - **The scenes** hold nothing past the original's screen but their Mode 7
   planes, which go on as they are (the title's pendulum, the race's track, the
   Epoch's dive, the Beyond Time flight). Every flat layer they set is a
