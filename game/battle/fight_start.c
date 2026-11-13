@@ -198,12 +198,12 @@ static void keep_last_record_handed_over(GameState *g)
 void battle_start_fight(GameState *g)
 {
     fight_load_demo_party(g);
-    fight_list_combatants(g);
+    TIMED_AS(g, 0xFDB22E, fight_list_combatants(g));
     for (uint8_t enemy = 0; enemy < battle_enemy_count(g); enemy++)
-        fight_load_enemy(g, enemy);
+        TIMED_AS(g, 0xFDB438, fight_load_enemy(g, enemy));
     fight_note_enemy_families(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        fight_take_member_record(g, member);
+        TIMED_AS(g, 0xFDAE52, fight_take_member_record(g, member));
         if (fight_member_is_ayla(g, member))
             set_combatant_stat_byte(g, member, STAT_WEAPON, fight_aylas_fists(g, combatant_stat_byte(g, member, STAT_LEVEL)));
     }
@@ -212,13 +212,13 @@ void battle_start_fight(GameState *g)
         fight_set_up_affinities(g, member);
     fight_note_accessories(g);
 
-    battle_blank_tech_records(g);
+    TIMED_AS(g, 0xFDAD09, battle_blank_tech_records(g));
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        battle_set_up_single_techs(g, member);
-        battle_set_up_double_techs(g, member);
+        TIMED_AS(g, 0xC1C96A, battle_set_up_single_techs(g, member));
+        TIMED_AS(g, 0xC1CA1A, battle_set_up_double_techs(g, member));
         battle_find_triple_tech(g, member);
     }
-    battle_list_usable_items(g);
+    TIMED_AS(g, 0xC1CDFF, battle_list_usable_items(g));
     fight_note_weapons(g);
 
     clear_member_choices(g);
@@ -235,7 +235,7 @@ void battle_start_fight(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         fight_add_up_member_stats(g, member);
 
-    fight_clear_timers(g);
+    TIMED_AS(g, 0xFDB0D5, fight_clear_timers(g));
     fight_set_timer_lengths(g);
     fight_set_first_turns(g);
     fight_clear_enemy_animations(g);
