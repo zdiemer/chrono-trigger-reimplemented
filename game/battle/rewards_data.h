@@ -65,7 +65,7 @@ typedef struct {
  * word a level). */
 static inline uint16_t experience_for_next_level(const GameState *g, uint8_t level)
 {
-    return rom_read16(g, 0xCC2632u + (uint8_t)(level * 2));
+    return asset_read16(g, ASSET_EXPERIENCE_FOR_NEXT_LEVEL, (uint8_t)(level * 2));
 }
 
 static inline uint16_t stat_growth_rates_place(uint8_t character)
@@ -86,13 +86,15 @@ static inline uint8_t growth_step_place(uint8_t character, uint8_t step)
 static inline GrowthStep hp_growth_step(const GameState *g, uint8_t character, uint8_t step)
 {
     uint8_t place = growth_step_place(character, step);
-    return (GrowthStep){ rom_read8(g, 0xCC258Au + place), rom_read8(g, 0xCC258Bu + place) };
+    return (GrowthStep){ asset_read8(g, ASSET_HP_GROWTH_STEP, place),
+                         asset_read8(g, ASSET_HP_GROWTH_STEP, 0x1u + place) };
 }
 
 static inline GrowthStep mp_growth_step(const GameState *g, uint8_t character, uint8_t step)
 {
     uint8_t place = growth_step_place(character, step);
-    return (GrowthStep){ rom_read8(g, 0xCC25C2u + place), rom_read8(g, 0xCC25C3u + place) };
+    return (GrowthStep){ asset_read8(g, ASSET_MP_GROWTH_STEP, place),
+                         asset_read8(g, ASSET_MP_GROWTH_STEP, 0x1u + place) };
 }
 
 static inline uint16_t character_techs_place(uint8_t character) { return (uint16_t)(0x276Au + (uint8_t)(character * 2)); }
@@ -105,7 +107,7 @@ static inline CharacterTechs character_techs(const GameState *g, uint8_t charact
 
 static inline uint16_t tech_points_for_next(const GameState *g, uint8_t character, uint8_t known)
 {
-    return rom_read16(g, 0xCC26FAu + (uint16_t)(character * TECH_COSTS_BYTES + (uint8_t)(known * 2)));
+    return asset_read16(g, ASSET_TECH_POINTS_FOR_NEXT, (uint16_t)(character * TECH_COSTS_BYTES + (uint8_t)(known * 2)));
 }
 
 static inline uint16_t combination_record_place(uint8_t record)

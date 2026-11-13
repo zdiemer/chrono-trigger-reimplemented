@@ -43,42 +43,48 @@ enum { WARP_PULSING_COLOURS = 32 };
 
 /* The console's sine: a quarter turn is 64, and the value is signed, 127 at
  * the top. The warp reads it as the scenes do, from bank $C0's table. */
-static inline int8_t warp_sine(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
+static inline int8_t warp_sine(const GameState *g, uint8_t angle)
+{
+    return (int8_t)asset_read8(g, ASSET_DIRECTION_FACTORS, angle);
+}
 
 static inline uint8_t warp_circle_radius_on(const GameState *g, uint8_t frame)
 {
-    return rom_read8(g, 0xFDDD96u + frame % WARP_CIRCLE_FRAMES);
+    return asset_read8(g, ASSET_WARP_CIRCLE_RADIUS_ON, frame % WARP_CIRCLE_FRAMES);
 }
 
 static inline uint8_t warp_flicker_brightness(const GameState *g, uint8_t step, uint8_t past)
 {
-    return rom_read8(g, 0xFDDDF5u + (uint16_t)(past << 8 | step % WARP_FLICKER_STEPS));
+    return asset_read8(g, ASSET_WARP_CIRCLE_RADIUS_ON, 0x5Fu + (uint16_t)(past << 8 | step % WARP_FLICKER_STEPS));
 }
 
 static inline WarpSprite warp_light_sprite(const GameState *g, unsigned i)
 {
-    uint32_t at = 0xFDDDB5u + 4u * (i % WARP_LIGHT_SPRITES);
-    return (WarpSprite){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+    uint32_t at = 0x1Fu + 4u * (i % WARP_LIGHT_SPRITES);
+    return (WarpSprite){ asset_read8(g, ASSET_WARP_CIRCLE_RADIUS_ON, at),
+                         asset_read8(g, ASSET_WARP_CIRCLE_RADIUS_ON, at + 1),
+                         asset_read8(g, ASSET_WARP_CIRCLE_RADIUS_ON, at + 2),
+                         asset_read8(g, ASSET_WARP_CIRCLE_RADIUS_ON, at + 3) };
 }
 
 static inline uint8_t warp_tunnel_red(const GameState *g, unsigned colour)
 {
-    return (uint8_t)rom_read16(g, 0xFDF001u + 2u * (colour % WARP_TUNNEL_COLOURS));
+    return (uint8_t)asset_read16(g, ASSET_WARP_TUNNEL_RED, 2u * (colour % WARP_TUNNEL_COLOURS));
 }
 
 static inline uint8_t warp_tunnel_blue(const GameState *g, unsigned colour)
 {
-    return (uint8_t)rom_read16(g, 0xFDF081u + 2u * (colour % WARP_TUNNEL_COLOURS));
+    return (uint8_t)asset_read16(g, ASSET_WARP_TUNNEL_RED, 0x80u + 2u * (colour % WARP_TUNNEL_COLOURS));
 }
 
 static inline uint8_t warp_light_blue(const GameState *g, unsigned shade)
 {
-    return (uint8_t)rom_read16(g, 0xFDF101u + 2u * (shade % WARP_LIGHT_SHADES));
+    return (uint8_t)asset_read16(g, ASSET_WARP_TUNNEL_RED, 0x100u + 2u * (shade % WARP_LIGHT_SHADES));
 }
 
 static inline uint8_t warp_pulse_reach(const GameState *g, unsigned i)
 {
-    return rom_read8(g, 0xFDF181u + 2u * (i % WARP_PULSING_COLOURS));
+    return asset_read8(g, ASSET_WARP_PULSE_REACH, 2u * (i % WARP_PULSING_COLOURS));
 }
 
 #endif

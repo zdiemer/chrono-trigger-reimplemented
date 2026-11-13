@@ -111,7 +111,7 @@ class Maps(unittest.TestCase):
         self.text.with_suffix(".palettes").write_text(PALETTES, encoding="utf-8")
         record = bytes([0, 0, 0xFF, 0, 0, 0]) + bytes(8)
         self.text.with_suffix(".assets").write_bytes(made_up_pack({
-            "location_records": record, "tile_set_blocks_place": bytes([5]) + b"\xFF" * 7,
+            "location_records": record, "tile_set_blocks": bytes([5]) + b"\xFF" * 7,
             "field_packed_map": pointer("field_packed_map.0"), "tile_looks_address": pointer("tile_looks_address.0"),
             "graphics_block_address": b"\0" * 15 + pointer("graphics_block_address.5")}))
 
@@ -127,6 +127,20 @@ class Maps(unittest.TestCase):
         self.assertEqual(picture[0][15], green)                    # flipped across
         self.assertEqual(picture[15][0], green)                    # flipped down
         self.assertEqual(picture[0][1], sheets.PAPER)              # color 0 clear, and BG2's look missing
+
+    def test_a_tiles_properties_pick_the_second_half_of_the_looks(self):
+        # BG1's first tile takes look $100 (its properties' bit 0): tile $100
+        # flipped both ways, so its top left pixel is the tile's bottom right.
+        row = " ".join(["100:1:hv-"] * 16) + "\n"
+        looks = "".join(f"# look {8 * r:03X}\n" + row + row for r in range(1, 33))
+        text = MAPS.replace("attributes\n000000\n", "attributes\n010000\n").replace(
+            "100:1:-v- 100:1:--p\n", "100:1:-v- 100:1:--p" + " 100:1:hv-" * 14 + "\n").replace(
+            "100:1:--- 100:1:h--\n", "100:1:--- 100:1:h--" + " 100:1:hv-" * 14 + "\n")
+        text = text.replace("[overworld_top_layer_tilemaps.0]", looks + "[overworld_top_layer_tilemaps.0]")
+        self.text.write_text(text, encoding="utf-8")
+        picture = sheets.location_sheet(self.text, 0)
+        self.assertEqual(picture[0][0], (255, 0, 0))               # color 2, from look $100
+        self.assertEqual(picture[0][16], (0, 255, 0))              # the next tile's, look 0: color 15
 
     def test_tilemap_drawn_with_a_resources_tiles(self):
         picture = sheets.tilemap_sheet(self.text, "overworld_top_layer_tilemaps.0", "graphics_block_address.5")

@@ -138,7 +138,7 @@ int route_driver(const RouteHost *host, const uint8_t *seed, size_t seed_size,
         size_t line_length = strlen(line);
         char *cmd = strtok(line, " \t"), *a = strtok(NULL, " \t");
         /* Paths are the rest of the line, including spaces. */
-        bool file_command = cmd && (!strcmp(cmd, "shot") || !strcmp(cmd, "wram") || !strcmp(cmd, "movie")
+        bool file_command = cmd && (!strcmp(cmd, "shot") || !strcmp(cmd, "layershot") || !strcmp(cmd, "wram") || !strcmp(cmd, "movie")
             || !strcmp(cmd, "savefile") || !strcmp(cmd, "loadfile"));
         char *b = NULL, *c = NULL, *extra = NULL;
         if (file_command && a) {
@@ -213,7 +213,24 @@ int route_driver(const RouteHost *host, const uint8_t *seed, size_t seed_size,
             fprintf(out, ok ? "ok %u\n" : "err movie %u\n", s->frames);
         } else if (file_command && a) {
             bool ok = false;
+            uint16_t scroll[8], colors[256];
             if (!strcmp(cmd, "shot")) ok = host->shot(host->ctx, a);
+            else if (!strcmp(cmd, "layershot")) {
+                /* layershot LAYERS PATH: answers the layers' scrolls, then
+                 * the colors in hex, four digits each */
+                char *path = strchr(a, ' ');
+                if (path) *path++ = 0;
+                ok = path && *path && number(a, 16, 0x0F, &n) && host->layer_shot(host->ctx, path, (uint8_t)n, scroll, colors);
+                if (ok) {
+                    fprintf(out, "ok");
+                    for (unsigned k = 0; k < 8; k++) fprintf(out, " %u", scroll[k]);
+                    fprintf(out, " ");
+                    for (unsigned k = 0; k < 256; k++) fprintf(out, "%04x", colors[k]);
+                    fprintf(out, "\n");
+                    fflush(out);
+                    continue;
+                }
+            }
             else if (!strcmp(cmd, "savefile"))
                 ok = !s->diagnostic && !s->failed && save_file(s, a, seed, seed_size, identity);
             else if (!strcmp(cmd, "loadfile")) ok = load_file(s, a, seed, seed_size, identity);

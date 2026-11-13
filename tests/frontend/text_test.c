@@ -222,6 +222,21 @@ int main(void)
         strcat(wrong, "a");
     strcat(wrong, "\n");
     refused(&made, wrong, 1);                                                      /* too long: at its [name] */
+    /* A string ending in a code that takes the next byte, at its last line;
+     * the same code given its byte is read. */
+    static const char *const wanting[] = { "{03}", "{01}", "{02}", "{12}", "Hi{12 00}{03}" };
+    for (size_t k = 0; k < sizeof wanting / sizeof *wanting; k++) {
+        snprintf(wrong, sizeof wrong, "[%s]\nHi\n\n%s\n# a comment\n", string->name, wanting[k]);
+        refused(&made, wrong, 4);
+    }
+    snprintf(wrong, sizeof wrong, "[%s]\nHi{wait 0A}{01 7F}{tech}\n", string->name);
+    {
+        unsigned line;
+        const char *why = "";
+        Decoded *fine = decoded_import(&game_text, wrong, strlen(wrong), &made, &line, &why);
+        CHECK(fine != NULL);
+        decoded_close(fine);
+    }
     snprintf(wrong, sizeof wrong, "[%s]\n\"Bronze Edge\"\n", names->name);
     refused(&made, wrong, 1);                                                      /* fewer names */
     snprintf(wrong, sizeof wrong, "[%s]\n\"Bronze Edg\"\n", names->name);

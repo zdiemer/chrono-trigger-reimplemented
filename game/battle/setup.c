@@ -26,7 +26,18 @@
 /* ---- The names --------------------------------------------------------------------------------- */
 
 /* The original reaches its converter ($C1:01A9) through $CC:F063 and the
- * dispatch at $C1:0018; the conversion is timed as the converter's. */
+ * dispatch at $C1:0018; the conversion is timed as the converter's. The C
+ * converts in locals, so the converter's own accesses are charged as such:
+ * 3,662 clocks a name in the original (the oracle's battle setup, Golem
+ * Twins), 54 accesses at its rate. */
+enum { CONVERTER = 0xC101A9, CONVERTER_ACCESSES = 54 };
+
+static NameTiles converted(GameState *g, const uint8_t text[NAME_TILES])
+{
+    NameTiles tiles = battle_name_tiles(text);
+    charge_as(g, CONVERTER, CONVERTER_ACCESSES);
+    return tiles;
+}
 typedef struct {
     uint8_t text[NAME_TILES];
     NameTiles tiles;
@@ -37,7 +48,7 @@ static void convert_names(GameState *g, NameTable table, uint8_t count, LastName
 {
     for (uint8_t n = 0; n < count; n++) {
         setup_name_text(g, table, n, last->text);
-        TIMED_AS(g, 0xC101A9, last->tiles = battle_name_tiles(last->text));
+        TIMED_AS(g, CONVERTER, last->tiles = converted(g, last->text));
         last->enemy = false;
         setup_keep_name_tiles(g, table, n, &last->tiles);
     }
@@ -49,7 +60,7 @@ static void convert_enemy_names(GameState *g, LastName *last)
         if (!setup_enemy_kind_present(g, kind))
             continue;
         setup_enemy_name_text(g, kind, last->text);
-        TIMED_AS(g, 0xC101A9, last->tiles = battle_name_tiles(last->text));
+        TIMED_AS(g, CONVERTER, last->tiles = converted(g, last->text));
         last->enemy = true;
         setup_keep_enemy_name_tiles(g, kind, &last->tiles);
     }

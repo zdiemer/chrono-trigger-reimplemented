@@ -184,9 +184,11 @@ void input_tick_play_time(GameState *g)
 
 bool input_take_frame(GameState *g, Platform *pf)
 {
-    if (input_read_controller(g, pf) != CONTROLLER_READ)
+    ControllerRead read = CONTROLLER_READ;
+    TIMED_AS(g, 0xC284EC, read = input_read_controller(g, pf));
+    if (read != CONTROLLER_READ)
         return false;
-    assign_buttons(g);
-    input_tick_play_time(g);
+    TIMED_AS(g, 0xC28545, assign_buttons(g));
+    TIMED_AS(g, 0xC285AE, input_tick_play_time(g));
     return true;
 }

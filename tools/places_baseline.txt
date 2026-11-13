@@ -29,21 +29,21 @@ battle-menu-buttons 5
 battle-motherbrain 8
 battle-mud-imp 5
 battle-nizbel-ii 5
-battle-ozzies-fort 9
+battle-ozzies-fort 10
 battle-r-series 6
 battle-rust-tyrano 5
 battle-son-of-sun 6
 battle-tech-sweep-spekkio 5
 battle-tech-sweep 5
 battle-tyrano-lair-walls 5
-battle-unequipped-armor 10
+battle-unequipped-armor 7  # places 7-9 follow Truce Canyon's fights, which route unequipped_armor carries; issue #320's battle timing moves the recorded presses
 battle-zombor 5
 endings-beyond-time 5
 endings-bucket-lavos 12
 endings-telepod-lavos 8
 events-blackbird 7
 events-cronos-trial 5
-events-cyrus 16 # 253d674c charges native DMA and field frame budgets; parent and merge replays isolate the changed arrivals (2bd0d73d library observations).
+events-cyrus 19 # issue #321: a lag frame gets the main thread time its own handlers leave, so a trip through a Gate no longer runs 30 frames late
 events-death-peak-ascent 5
 events-death-peak-wind 5
 events-death-peak 4
@@ -53,14 +53,14 @@ events-fair-clone 6
 events-fair-rescue 7
 events-fair-shuffle 6
 events-fair-strength 5
-events-fionas-forest 4 # 253d674c charges native DMA and field frame budgets; parent and merge replays isolate the changed arrivals (2bd0d73d library observations).
+events-fionas-forest 11 # issue #321: a Gate trip no longer runs 30 frames late, and Fiona's forest keeps the reference's time after it
 events-jetbike-race-won 7
 events-jetbike-race 7
 events-keepers-dome 6
 events-luccas-mother 13
 events-magic-cave 7
 events-magus-joins 7
-events-ocean-palace-lavos 8 # Native DMA transfer time restores another reference visit within 30 frames.
+events-ocean-palace-lavos 9 # issues #320 and #321: the battle and handler time bring another reference visit within 30 frames
 events-prison-escape 7
 events-proto-dome 9
 events-sun-stone 12 # 253d674c charges native DMA and field frame budgets; parent and merge replays isolate the changed arrivals (2bd0d73d library observations).
@@ -80,7 +80,7 @@ late-omen-battles 6
 late-omen-terramutant 4
 late-omen-zeal 5
 menus-end-of-time 6
-menus-epoch 8
+menus-epoch 10
 menus-field-menu 4
 menus-new-game-plus 4
 menus-save-point 4

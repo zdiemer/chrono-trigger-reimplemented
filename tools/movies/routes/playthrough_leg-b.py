@@ -11,7 +11,8 @@ to Melchior's hut in 1000 A.D., where Melchior and Lucca forge the Masamune; thr
 Gate and Truce Canyon's to 600 A.D., over Zenan Bridge to the Cursed Woods, where Frog takes
 the Masamune and joins; to the Magic Cave's mountainside, where Frog remembers (route
 magic_cave's piece) and opens the cave, and through it to Magus's castle (the castle routes'
-approach, tools/movies/castle.py). The party and items are the save's. Each phase ends at a
+approach, tools/movies/castle.py), its generals, Ozzie and the stair down to Magus's chamber.
+The party and items are the save's, with Mid Tonics and Revives bought at Dorino. Each phase ends at a
 checkpoint, and the route goes on only past checkpoints that succeeded.
 """
 from .. import addresses as A
@@ -105,8 +106,9 @@ CASTLE = castle.APPROACH[1:]
 SLASH = castle_slash.PHASES[len(castle.APPROACH):]
 SLASH_BACK = ["slash_back", "tended_for_flea"]
 FLEA = castle_flea.PHASES[len(castle.APPROACH):]
-INNER = ["hall_again", "trapdoor", "ozzies_corridor", "corridor_end", "tower", "tower_top", "bridge_room",
-         "gallery", "antechamber", "magus_door"]
+INNER = ["hall_again", "trapdoor", "ozzies_corridor", "corridor_end", "tower", "tower_top", "rested", "bridge_room",
+         "gallery", "antechamber", "magus_door", "ozzie_falls", "rested_for_magus", "magus_stairs",
+         "magus_chamber"]
 PHASES = START + NIZBEL + HOME + FLASHBACK + CAVE + CASTLE + ["tended_for_slash"] + SLASH + SLASH_BACK + FLEA + INNER
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 
@@ -491,6 +493,99 @@ def ozzies_corridor(run):
     raise AssertionError("too many fights in the corridor")
 
 
+ON_A_SAVE_POINT = (0x7F01CF, 0x80)   # story_game_notes: the leader stands on a save point
+CASTLE_SAVE_ROOM, CASTLE_SAVE_DOOR = "d701", (808, 60)   # off the tower's top, through its north door
+CASTLE_SAVE_POINT = (24, 272)
+CASTLE_SAVE_ROOM_DOOR = (248, 80)   # the dark room's way back out, where the party comes in
+
+
+def rest_at_save_point(run, spot):
+    """On the save point at `spot`, a Shelter from the bag: every member's HP and MP restored."""
+    machine = run.machine
+    main_leg.walking(run)
+    assert run.go(*spot, tolerance=2), "onto the save point"
+    machine.run(30)
+    address, bit = ON_A_SAVE_POINT
+    assert machine.b(address) & bit, "standing on the save point"
+    shelters = menus.count_of(machine, menus.SHELTER)
+    assert shelters, "a Shelter"
+    menus.open_menu(machine)
+    menus.open_option(machine, menus.ITEMS)
+    menus.use_item(run, menus.SHELTER, choose_member=True)
+    machine.run(180)
+    menus.back_to_main_menu(machine)
+    menus.press(machine, "B", 60)
+    assert run.wait_control(), "the field after resting"
+    party = [who for who in machine.peek(A.PARTY_MEMBERS, 3) if who < 0x80]
+    run.say("rested", [(record_word(run, who, HP), record_word(run, who, MP)) for who in party])
+    assert all(record_word(run, who, HP) == record_word(run, who, MAX_HP) for who in party), "HP restored"
+
+
+def rested(run):
+    """Into the dark room off the tower's top, where a save point is, to rest with a Shelter
+    before the castle's last rooms (the bag holds no Ethers for Ozzie's barrier), and back."""
+    search_walk(run, CASTLE_SAVE_ROOM, CASTLE_SAVE_DOOR)
+    rest_at_save_point(run, CASTLE_SAVE_POINT)
+    search_walk(run, INNER_WAY["tower_top"][0], CASTLE_SAVE_ROOM_DOOR)
+
+
+OZZIE, OZZIE_SPOT = 10, (856, 838)     # in his hall before Magus's: spoken to from below him
+STORY_OZZIE_FALLS = 0x89
+MAGUS_HALL_SAVE_POINT = (904, 840)     # the right of the two sparkles beside where Ozzie stood
+MAGUS_STAIRS, MAGUS_STAIRS_WAY = "bf01", (808, 840)   # the left sparkle takes the party down
+MAGUS_CHAMBER, MAGUS_CHAMBER_DOOR = "ac00", (15 * 16 + 8, 29 * 16 + 8)
+
+
+def levers(bot, state, rng, inventory):
+    """Ozzie's last stand: his barrier answers every blow, so the party strikes the levers
+    beside him instead; each opens the floor under him, until he falls for good."""
+    others = [slot for slot in policies.enemies(state) if slot != OZZIE_SLOT]
+    if others:
+        return "attack", others[0]
+    return castle_fights(bot, state, rng, inventory)
+
+
+OZZIE_SLOT = 3                          # the battle's first enemy slot; the levers come after
+
+
+def ozzie_falls(run):
+    """Ozzie, spoken to, fights from behind his barrier; the levers drop him."""
+    machine = run.machine
+    main_leg.walking(run)
+    assert run.go(*OZZIE_SPOT, tolerance=3), "below Ozzie"
+    machine.run(4, "UP")
+    machine.run(10)
+    machine.run(3, "A")
+    assert run.dialogs_until(lambda: early.battle_ready(run), 12000), "Ozzie's fight"
+    for _ in range(8):
+        if story(run) >= STORY_OZZIE_FALLS and main_leg.in_hand(run, 6000, policy=levers):
+            break
+        main_leg.in_hand(run, 30000, policy=levers)
+    assert story(run) == STORY_OZZIE_FALLS, "Ozzie gone"
+
+
+def rested_for_magus(run):
+    rest_at_save_point(run, MAGUS_HALL_SAVE_POINT)
+
+
+def magus_stairs(run):
+    """The left sparkle takes the party down onto the dark stair to Magus."""
+    main_leg.walking(run)
+    gx, gy = MAGUS_STAIRS_WAY
+    assert run.walk_here(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL)
+                         or (abs(x - gx) <= 3 and abs(y - gy) <= 3)) is not None, "the left sparkle"
+    for _ in range(4):
+        if run.map_id() == MAGUS_STAIRS:
+            break
+        main_leg.in_hand(run, 6000, policy=castle_fights)
+    assert run.map_id() == MAGUS_STAIRS, "the stair down"
+    assert main_leg.in_hand(run, policy=castle_fights)
+
+
+def magus_chamber(run):
+    search_walk(run, MAGUS_CHAMBER, MAGUS_CHAMBER_DOOR)
+
+
 def inner_room(name):
     want, aim = INNER_WAY[name]
     return lambda run: search_walk(run, want, aim)
@@ -504,7 +599,9 @@ STEPS = {
     "frog": frog, "woods_out": woods_out, "mountainside": mountainside,
     "magic_cave": magic_cave_scene, "cave_out": cave_out, "slash_back": slash_back,
     "tended_for_slash": tend, "tended_for_flea": tend,
-    "hall_again": hall_again, "trapdoor": trapdoor, "ozzies_corridor": ozzies_corridor,
+    "hall_again": hall_again, "trapdoor": trapdoor, "ozzies_corridor": ozzies_corridor, "rested": rested,
+    "ozzie_falls": ozzie_falls, "rested_for_magus": rested_for_magus, "magus_stairs": magus_stairs,
+    "magus_chamber": magus_chamber,
 }
 STEPS.update({name: inner_room(name) for name in INNER_WAY})
 

@@ -453,25 +453,31 @@ static inline uint8_t menu_font_byte(const GameState *g, uint32_t at) { return r
 
 static inline uint16_t menu_text_column_offset(const GameState *g, unsigned column)
 {
-    return rom_read16(g, 0xC25FE6u + 2u * column);
+    return asset_read16(g, ASSET_MENU_CHARACTER_NAME_PLACE, 0xEu + 2u * column);
 }
 
 static inline uint16_t menu_text_column_offset_16_colour(const GameState *g, unsigned column)
 {
-    return rom_read16(g, 0xC26066u + 2u * column);
+    return asset_read16(g, ASSET_MENU_CHARACTER_NAME_PLACE, 0x8Eu + 2u * column);
 }
 
 /* How far the pen moves after each of the font's glyphs ($C2:60E6), by the
  * glyph's number less $A0 (a byte: the two-byte glyphs take their low byte's
  * entry, and the table runs on into what follows it). */
-static inline uint8_t menu_glyph_width(const GameState *g, uint8_t index) { return rom_read8(g, 0xC260E6u + index); }
+static inline uint8_t menu_glyph_width(const GameState *g, uint8_t index)
+{
+    return asset_read8(g, ASSET_DIALOG_FONT_WIDTHS, index);
+}
 
 static inline uint8_t menu_rom_graphic_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
 /* The heights the healing's numbers rise to, a frame at a time, above
  * their member's sprite: the HP's path from its start, the MP's from the
  * 43rd, each ending with a negative height ($FF:CEBA). */
-static inline uint8_t menu_amount_height(const GameState *g, uint8_t step) { return rom_read8(g, 0xFFCEBAu + step); }
+static inline uint8_t menu_amount_height(const GameState *g, uint8_t step)
+{
+    return asset_read8(g, ASSET_MENU_AMOUNT_HEIGHT, step);
+}
 
 static inline uint16_t menu_rom_colour(const GameState *g, uint16_t from, unsigned i)
 {
@@ -480,16 +486,28 @@ static inline uint16_t menu_rom_colour(const GameState *g, uint16_t from, unsign
 
 static inline uint8_t menu_item_category_start(const GameState *g, unsigned category)
 {
-    return rom_read8(g, 0xC288A7u + category);
+    return asset_read8(g, ASSET_MENU_ITEM_CATEGORY_START, category);
 }
 
-static inline uint16_t menu_item_data_table(const GameState *g, unsigned category) { return rom_read16(g, 0xFFCF0Eu + 2u * category); }
+static inline uint16_t menu_item_data_table(const GameState *g, unsigned category)
+{
+    return asset_read16(g, ASSET_MENU_ITEM_DATA_TABLE, 2u * category);
+}
 
-static inline uint8_t menu_item_data_record_bytes(const GameState *g, unsigned category) { return rom_read8(g, 0xFFCF18u + category); }
+static inline uint8_t menu_item_data_record_bytes(const GameState *g, unsigned category)
+{
+    return asset_read8(g, ASSET_MENU_ITEM_DATA_RECORD_BYTES, category);
+}
 
-static inline uint16_t menu_item_figures_table(const GameState *g, unsigned category) { return rom_read16(g, 0xFFCF1Du + 2u * category); }
+static inline uint16_t menu_item_figures_table(const GameState *g, unsigned category)
+{
+    return asset_read16(g, ASSET_MENU_ITEM_FIGURES_TABLE, 2u * category);
+}
 
-static inline uint8_t menu_item_figures_record_bytes(const GameState *g, unsigned category) { return rom_read8(g, 0xFFCF27u + category); }
+static inline uint8_t menu_item_figures_record_bytes(const GameState *g, unsigned category)
+{
+    return asset_read8(g, ASSET_MENU_ITEM_FIGURES_RECORD_BYTES, category);
+}
 
 static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at) { return rom_read8(g, MENU_ITEM_TABLES_BANK | at); }
 
@@ -497,69 +515,97 @@ static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at) { re
  * rest): where the string is in bank $FF, from a word an item at $FF:B310. */
 static inline uint32_t menu_item_kind_label(const GameState *g, uint8_t item)
 {
-    return 0xFF0000u | rom_read16(g, 0xFFB310u + 2u * item);
+    return 0xFF0000u | asset_read16(g, ASSET_MENU_ITEM_KIND_LABEL, 2u * item);
 }
 
 /* Who an item of the rest is used on, a byte an item by its place in the
  * category ($CC:1BB5): one member, or every member. */
-static inline uint8_t menu_item_targets(const GameState *g, uint8_t index) { return rom_read8(g, 0xCC1BB5u + index); }
+static inline uint8_t menu_item_targets(const GameState *g, uint8_t index)
+{
+    return asset_read8(g, ASSET_ITEM_AIM_MODE, index);
+}
 
 /* The categories in the order the sort writes them (the rest first, then the
  * weapons, the armour, the helmets and the accessories): each one's first
  * item ($C2:AC12) and how many it has ($C2:AC17). */
-static inline uint8_t menu_sort_category_first(const GameState *g, unsigned order) { return rom_read8(g, 0xC2AC12u + order); }
+static inline uint8_t menu_sort_category_first(const GameState *g, unsigned order)
+{
+    return asset_read8(g, ASSET_MENU_SORT_CATEGORY_FIRST, order);
+}
 
-static inline uint8_t menu_sort_category_items(const GameState *g, unsigned order) { return rom_read8(g, 0xC2AC17u + order); }
+static inline uint8_t menu_sort_category_items(const GameState *g, unsigned order)
+{
+    return asset_read8(g, ASSET_MENU_SORT_CATEGORY_FIRST, 0x5u + order);
+}
 
 /* The label of the figure the window of who can equip an item shows, by the
  * item's category ($C2:AF3A, a word each): where in bank $FF its string is. */
 static inline uint16_t menu_item_power_label_at(const GameState *g, uint8_t category)
 {
-    return rom_read16(g, 0xC2AF3Au + 2u * category);
+    return asset_read16(g, ASSET_MENU_ITEM_POWER_LABEL_AT, 2u * category);
 }
 
 /* The chances an item used by chance has, the limit of each of its first
  * three outcomes in a hundred ($C2:B13D). */
-static inline uint8_t menu_chance_limit(const GameState *g, unsigned outcome) { return rom_read8(g, 0xC2B13Du + outcome); }
+static inline uint8_t menu_chance_limit(const GameState *g, unsigned outcome)
+{
+    return asset_read8(g, ASSET_MENU_CHANCE_LIMIT, outcome);
+}
 
 /* A tab's figure (menu_use_effect's index): its offset among a character's
  * figures ($FF:CF2B), its cap ($FF:CF32), and its base's offset among the
  * bases ($C2:B315). */
-static inline uint8_t menu_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xFFCF2Bu + figure); }
+static inline uint8_t menu_figure_offset(const GameState *g, uint8_t figure)
+{
+    return asset_read8(g, ASSET_MENU_FIGURE_OFFSET, figure);
+}
 
-static inline uint8_t menu_figure_cap(const GameState *g, uint8_t figure) { return rom_read8(g, 0xFFCF32u + figure); }
+static inline uint8_t menu_figure_cap(const GameState *g, uint8_t figure)
+{
+    return asset_read8(g, ASSET_MENU_FIGURE_CAP, figure);
+}
 
 static inline uint8_t menu_base_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xC2B315u + figure); }
 
-static inline uint8_t menu_stat_place(const GameState *g, unsigned stat) { return rom_read8(g, 0xFFCF2Cu + stat); }
+static inline uint8_t menu_stat_place(const GameState *g, unsigned stat)
+{
+    return asset_read8(g, ASSET_MENU_STAT_PLACE, stat);
+}
 
-static inline uint8_t menu_stat_cap(const GameState *g, unsigned stat) { return rom_read8(g, 0xFFCF33u + stat); }
+static inline uint8_t menu_stat_cap(const GameState *g, unsigned stat)
+{
+    return asset_read8(g, ASSET_MENU_STAT_CAP, stat);
+}
 
 /* Ayla's fists' part of her attack, by her level ($CC:2D69, a word a
  * level; the original doubles the level in a byte). */
-static inline uint16_t menu_fist_power(const GameState *g, uint8_t level) { return rom_read16(g, 0xCC2D69u + (uint8_t)(level * 2)); }
+static inline uint16_t menu_fist_power(const GameState *g, uint8_t level)
+{
+    return asset_read16(g, ASSET_MENU_FIST_POWER, (uint8_t)(level * 2));
+}
 
 static inline MenuSpritePlace menu_member_sprite_place(const GameState *g, uint8_t member)
 {
-    return (MenuSpritePlace){ rom_read8(g, 0xC2B045u + 2u * member), rom_read8(g, 0xC2B046u + 2u * member) };
+    return (MenuSpritePlace){ asset_read8(g, ASSET_MENU_MEMBER_SPRITE_PLACE, 2u * member),
+                              asset_read8(g, ASSET_MENU_MEMBER_SPRITE_PLACE, 0x1u + 2u * member) };
 }
 
 /* The glyph a hex digit is set with ($C2:5D03, a word each: 0-9, then A-F). */
 static inline uint16_t menu_hex_digit_glyph(const GameState *g, uint8_t digit)
 {
-    return rom_read16(g, 0xC25D03u + 2u * (digit & 0x0Fu));
+    return asset_read16(g, ASSET_MENU_HEX_DIGIT_GLYPH, 2u * (digit & 0x0Fu));
 }
 
 /* The dictionary: the commonest pieces of the script's English, each its
  * count of glyphs and the glyphs ($DE:FA00, a word each, in bank $DE). */
 static inline uint32_t menu_dictionary_word(const GameState *g, uint16_t entry)
 {
-    return 0xDE0000u | rom_read16(g, 0xDEFA00u + 2u * entry);
+    return 0xDE0000u | asset_read16(g, ASSET_MENU_DICTIONARY_WORD, 2u * entry);
 }
 
 static inline uint16_t menu_character_name_place(const GameState *g, unsigned index)
 {
-    return rom_read16(g, 0xC25FD8u + 2u * index);
+    return asset_read16(g, ASSET_MENU_CHARACTER_NAME_PLACE, 2u * index);
 }
 
 static inline uint32_t menu_item_name(const GameState *g, uint8_t item)
@@ -591,19 +637,22 @@ static inline uint8_t menu_text_byte(const GameState *g, uint32_t at) { return r
 /* The tiles a hex digit is drawn with ($C2:F27D), one for each of 0-15. */
 static inline uint8_t menu_hex_digit_tile(const GameState *g, uint8_t digit)
 {
-    return rom_read8(g, 0xC2F27Du + (digit & 0x0Fu));
+    return asset_read8(g, ASSET_MENU_HEX_DIGIT_TILE, (digit & 0x0Fu));
 }
 
 /* The limits the text's limited numbers are shown under ($FF:CF33): a value
  * at or over its limit shows as dashes. `which` is the string's operand, the
  * table's index. */
-static inline uint8_t menu_number_limit(const GameState *g, uint8_t which) { return rom_read8(g, 0xFFCF33u + which); }
+static inline uint8_t menu_number_limit(const GameState *g, uint8_t which)
+{
+    return asset_read8(g, ASSET_MENU_STAT_CAP, which);
+}
 
 /* The address of each control code's handler in bank C2 ($C2:EFD4), which the
  * original's dispatch leaves behind it. */
 static inline uint16_t menu_text_code_handler(const GameState *g, uint8_t code)
 {
-    return rom_read16(g, 0xC2EFD4u + 2u * code);
+    return asset_read16(g, ASSET_MENU_TEXT_CODE_HANDLER, 2u * code);
 }
 
 /* ---- The windows --------------------------------------------------------------------------- */
@@ -623,23 +672,26 @@ static inline uint16_t menu_window_string(const GameState *g, uint16_t number)
  * the tile of the style that many past its first. */
 static inline uint8_t menu_window_inside_tile(const GameState *g, unsigned row, unsigned column)
 {
-    return rom_read8(g, 0xC2EEF5u + 4u * row + column);
+    return asset_read8(g, ASSET_MENU_WINDOW_INSIDE_TILE, 4u * row + column);
 }
 
 static inline uint16_t menu_window_design_colour(const GameState *g, uint8_t design, unsigned i)
 {
-    return rom_read16(g, 0xFFB210u + 16u * design + 2u * i);
+    return asset_read16(g, ASSET_WINDOW_DESIGN_COLORS, 16u * design + 2u * i);
 }
 
 /* ---- The load screen ---------------------------------------------------------------------- */
 
 /* The values the load screen's per-line effect gives its slot rows ($C2:D044,
  * 33 bytes). */
-static inline uint8_t menu_slot_row_value(const GameState *g, unsigned i) { return rom_read8(g, 0xC2D044u + i); }
+static inline uint8_t menu_slot_row_value(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_SLOT_ROW_VALUE, i);
+}
 
 static inline uint8_t menu_portrait_first_tile(const GameState *g, uint8_t character)
 {
-    return rom_read8(g, 0xC2D4B4u + character);
+    return asset_read8(g, ASSET_MENU_PORTRAIT_FIRST_TILE, character);
 }
 
 static inline uint16_t menu_portrait_colour(const GameState *g, uint8_t character, unsigned i)
@@ -647,14 +699,26 @@ static inline uint16_t menu_portrait_colour(const GameState *g, uint8_t characte
     return rom_read16(g, 0xFF0000u | (uint16_t)(0xCC84u + character * 32u + 2u * i));
 }
 
-static inline uint16_t menu_load_screen_text_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFCC74u + 2u * i); }
+static inline uint16_t menu_load_screen_text_colour(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_COLORS, 0xD8u + 2u * i);
+}
 
-static inline uint16_t menu_load_screen_row_7_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFCE30u + 2u * i); }
+static inline uint16_t menu_load_screen_row_7_colour(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_COLORS, 0x294u + 2u * i);
+}
 
-static inline uint8_t menu_chapter_start(const GameState *g, uint8_t chapter) { return rom_read8(g, 0xFFD024u + chapter); }
+static inline uint8_t menu_chapter_start(const GameState *g, uint8_t chapter)
+{
+    return asset_read8(g, ASSET_MENU_CHAPTER_START, chapter);
+}
 
 /* How far right each slot's name label is moved ($C2:D329): pairs of pixels. */
-static inline uint8_t menu_slot_name_shift(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC2D329u + slot); }
+static inline uint8_t menu_slot_name_shift(const GameState *g, uint8_t slot)
+{
+    return asset_read8(g, ASSET_MENU_SLOT_NAME_SHIFT, slot);
+}
 
 /* The era each location is in ($FF:D296): a nibble a location, the even
  * location's in the low half of its byte. */
@@ -689,21 +753,26 @@ static inline uint16_t menu_option_colour(const GameState *g, uint8_t option, un
 
 static inline MenuIcon menu_main_menu_icon(const GameState *g, unsigned option)
 {
-    uint32_t at = 0xFFBD5Cu + 4u * option;
-    return (MenuIcon){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+    uint32_t at = 4u * option;
+    return (MenuIcon){ asset_read8(g, ASSET_MENU_MAIN_MENU_ICON, at), asset_read8(g, ASSET_MENU_MAIN_MENU_ICON, at + 1),
+                       asset_read8(g, ASSET_MENU_MAIN_MENU_ICON, at + 2),
+                       asset_read8(g, ASSET_MENU_MAIN_MENU_ICON, at + 3) };
 }
 
 static inline uint8_t menu_name_grid_letter(const GameState *g, unsigned row, unsigned column)
 {
-    return rom_read8(g, 0xFFC9ACu + row * MENU_NAME_GRID_COLUMNS + column);
+    return asset_read8(g, ASSET_MENU_NAME_GRID_LETTER, row * MENU_NAME_GRID_COLUMNS + column);
 }
 
 static inline uint16_t menu_battle_mode_screen_tile(const GameState *g, unsigned tile)
 {
-    return rom_read16(g, 0xFFF008u + 2u * tile);
+    return asset_read16(g, ASSET_MENU_BATTLE_MODE_SCREEN_TILE, 2u * tile);
 }
 
-static inline uint16_t menu_battle_mode_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFCE9Au + 2u * i); }
+static inline uint16_t menu_battle_mode_colour(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_BATTLE_MODE_COLOUR, 2u * i);
+}
 
 /* ---- The sprite-object mode --------------------------------------------------------------- */
 
@@ -713,9 +782,15 @@ static inline uint16_t menu_battle_mode_colour(const GameState *g, unsigned i) {
  * whose offset the callers wrap in its bank. */
 /* The items each of the equipment screen's slots takes ($C2:89DC): a range
  * of item numbers, the first and the one past the last, a pair a slot. */
-static inline uint8_t menu_slot_first_item(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC289DCu + 2u * slot); }
+static inline uint8_t menu_slot_first_item(const GameState *g, uint8_t slot)
+{
+    return asset_read8(g, ASSET_MENU_SLOT_FIRST_ITEM, 2u * slot);
+}
 
-static inline uint8_t menu_slot_past_items(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC289DDu + 2u * slot); }
+static inline uint8_t menu_slot_past_items(const GameState *g, uint8_t slot)
+{
+    return asset_read8(g, ASSET_MENU_SLOT_FIRST_ITEM, 0x1u + 2u * slot);
+}
 
 static inline uint8_t menu_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
@@ -734,12 +809,12 @@ static inline uint8_t menu_sprite_group_byte(const GameState *g, uint32_t at) { 
  * by which the port finds the command's own handler and its time. */
 static inline uint16_t menu_script_handler(const GameState *g, uint8_t opcode)
 {
-    return rom_read16(g, 0xC20F91u + 2u * opcode);
+    return asset_read16(g, ASSET_MENU_SCRIPT_HANDLER, 2u * opcode);
 }
 
 static inline uint16_t menu_sprite_script_start(const GameState *g, uint8_t script)
 {
-    return rom_read16(g, 0xC3E000u + 2u * script);
+    return asset_read16(g, ASSET_MENU_SPRITE_SCRIPT_START, 2u * script);
 }
 
 /* For each plane of the map ($C2:0556, $C2:055C, $C2:0562, a word a plane):
@@ -767,11 +842,14 @@ static inline uint32_t menu_scene_stream(const GameState *g, MenuSceneResource k
 /* The way the party faces coming back to the world map from a location, by
  * the way it faced arriving there (the low two bits of the location's flags):
  * turned round ($C2:2509, four bytes). */
-static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC22509u + kind); }
+static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind)
+{
+    return asset_read8(g, ASSET_MENU_RETURN_FLAGS, kind);
+}
 
 /* The sizes of the waves on the layer over the map ($C0:F900): a byte a
  * step, 1024 steps a turn, of which the second half is read below zero. */
-static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return rom_read8(g, 0xC0F900u + step); }
+static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return asset_read8(g, ASSET_SINES, step); }
 
 static inline int16_t menu_sine(const GameState *g, uint16_t phase)
 {
@@ -785,64 +863,84 @@ static inline int16_t menu_cosine(const GameState *g, uint16_t phase)
     return menu_sine(g, (uint16_t)(phase + MENU_SINE_STEPS / 4));
 }
 
-static inline uint8_t menu_world_tilt_step(const GameState *g, uint16_t tilt) { return rom_read8(g, 0xC6EB23u + tilt); }
+static inline uint8_t menu_world_tilt_step(const GameState *g, uint16_t tilt)
+{
+    return asset_read8(g, ASSET_MENU_WORLD_TILT_STEP, tilt);
+}
 
 /* A sine wave of 256 steps a turn ($C0:F800), as signed bytes: the table the
  * field reads as its directions' velocity factors, read whole by the scenes'
  * objects. */
-static inline int8_t menu_sine_step(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
+static inline int8_t menu_sine_step(const GameState *g, uint8_t angle)
+{
+    return (int8_t)asset_read8(g, ASSET_DIRECTION_FACTORS, angle);
+}
 
 static inline uint8_t menu_equipment_figure_shown(const GameState *g, unsigned i)
 {
-    return (uint8_t)(rom_read8(g, 0xC2A642u + i) - MENU_RECORD_FIGURES_PLACE);
+    return (uint8_t)(asset_read8(g, ASSET_MENU_EQUIPMENT_FIGURE_SHOWN, i) - MENU_RECORD_FIGURES_PLACE);
 }
 
 static inline uint8_t menu_shop_figure_shown(const GameState *g, unsigned i)
 {
-    return (uint8_t)(rom_read8(g, 0xC2E1DCu + i) - MENU_RECORD_FIGURES_PLACE);
+    return (uint8_t)(asset_read8(g, ASSET_MENU_SHOP_FIGURE_SHOWN, i) - MENU_RECORD_FIGURES_PLACE);
 }
 
 static inline uint8_t menu_arctangent(const GameState *g, unsigned down, unsigned across)
 {
-    return rom_read8(g, 0xC0F300u + down * MENU_ARCTANGENT_STEPS + across);
+    return asset_read8(g, ASSET_SLOPE_ANGLES, down * MENU_ARCTANGENT_STEPS + across);
 }
 
-static inline uint8_t menu_facing_of_angle(const GameState *g, uint8_t angle) { return rom_read8(g, 0xC0F700u + angle); }
+static inline uint8_t menu_facing_of_angle(const GameState *g, uint8_t angle)
+{
+    return asset_read8(g, ASSET_DIRECTION_FACINGS, angle);
+}
 
 /* The menus' random bytes ($C0:FE00, 256 of them), which the sprite-object
  * mode's scenes take in turn; the healing draws six from a frame's place,
  * the last few reading on past the table. */
-static inline uint8_t menu_random_byte(const GameState *g, unsigned index) { return rom_read8(g, 0xC0FE00u + index); }
+static inline uint8_t menu_random_byte(const GameState *g, unsigned index)
+{
+    return asset_read8(g, ASSET_RANDOM_BYTES, index);
+}
 
 /* The sixteen velocities a scene's object may be given at random ($C6:F640):
  * across, then down, each 16.16 fixed point. */
 static inline uint32_t menu_scene_velocity_x(const GameState *g, uint8_t pick)
 {
-    uint32_t at = 0xC6F640u + 8u * pick;
-    return rom_read16(g, at) | (uint32_t)rom_read16(g, at + 2) << 16;
+    uint32_t at = 8u * pick;
+    return asset_read16(g, ASSET_MENU_SCENE_VELOCITY_X, at) |
+           (uint32_t)asset_read16(g, ASSET_MENU_SCENE_VELOCITY_X, at + 2) << 16;
 }
 
 static inline uint32_t menu_scene_velocity_y(const GameState *g, uint8_t pick)
 {
-    uint32_t at = 0xC6F640u + 8u * pick + 4;
-    return rom_read16(g, at) | (uint32_t)rom_read16(g, at + 2) << 16;
+    uint32_t at = 8u * pick + 4;
+    return asset_read16(g, ASSET_MENU_SCENE_VELOCITY_X, at) |
+           (uint32_t)asset_read16(g, ASSET_MENU_SCENE_VELOCITY_X, at + 2) << 16;
 }
 
 static inline uint8_t menu_map_view_graphics(const GameState *g, uint16_t map)
 {
-    return rom_read8(g, 0xC269F0u + map);
+    return asset_read8(g, ASSET_MENU_MAP_VIEW_GRAPHICS, map);
 }
 
 static inline uint16_t menu_landing_marker_x(const GameState *g, uint16_t map)
 {
-    return rom_read16(g, 0xC268E4u + (uint16_t)(2u * map));
+    return asset_read16(g, ASSET_MENU_LANDING_MARKER_X, (uint16_t)(2u * map));
 }
 
 /* The map view's cursor's path: its zoom across ($C6:F560) and down
  * ($C6:F5A0) at each of 32 steps, words, by the step's byte offset. */
-static inline uint16_t menu_cursor_path_zoom_x(const GameState *g, uint16_t at) { return rom_read16(g, 0xC6F560u + at); }
+static inline uint16_t menu_cursor_path_zoom_x(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_MENU_CURSOR_PATH_ZOOM_X, at);
+}
 
-static inline uint16_t menu_cursor_path_zoom_y(const GameState *g, uint16_t at) { return rom_read16(g, 0xC6F5A0u + at); }
+static inline uint16_t menu_cursor_path_zoom_y(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_MENU_CURSOR_PATH_ZOOM_Y, at);
+}
 
 static inline uint8_t menu_map_view_colour_byte(const GameState *g, unsigned i) { return rom_read8(g, MENU_MAP_VIEW_COLOURS + i); }
 
@@ -858,31 +956,58 @@ static inline uint16_t menu_period_angle(const GameState *g, uint8_t period)
 
 /* The gate's triangle: its three corners about the screen's centre, a signed
  * pair each ($C2:6F2D). */
-static inline int8_t menu_gate_corner_x(const GameState *g, unsigned corner) { return (int8_t)rom_read8(g, 0xC26F2Du + 2u * corner); }
+static inline int8_t menu_gate_corner_x(const GameState *g, unsigned corner)
+{
+    return (int8_t)asset_read8(g, ASSET_MENU_GATE_CORNER_X, 2u * corner);
+}
 
-static inline int8_t menu_gate_corner_y(const GameState *g, unsigned corner) { return (int8_t)rom_read8(g, 0xC26F2Eu + 2u * corner); }
+static inline int8_t menu_gate_corner_y(const GameState *g, unsigned corner)
+{
+    return (int8_t)asset_read8(g, ASSET_MENU_GATE_CORNER_X, 0x1u + 2u * corner);
+}
 
 /* The dial's digits, by period: where each stands ($C2:71DD, across then
  * down), and the sprite scripts that show and hide it ($C2:71EB, $C2:71EC).
  * The original doubles the period in a byte. */
-static inline uint8_t menu_digit_x(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271DDu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_x(const GameState *g, uint8_t period)
+{
+    return asset_read8(g, ASSET_MENU_DIGIT_X, (uint8_t)(period << 1));
+}
 
-static inline uint8_t menu_digit_y(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271DEu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_y(const GameState *g, uint8_t period)
+{
+    return asset_read8(g, ASSET_MENU_DIGIT_X, 0x1u + (uint8_t)(period << 1));
+}
 
-static inline uint8_t menu_digit_show_script(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271EBu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_show_script(const GameState *g, uint8_t period)
+{
+    return asset_read8(g, ASSET_MENU_DIGIT_X, 0xEu + (uint8_t)(period << 1));
+}
 
-static inline uint8_t menu_digit_hide_script(const GameState *g, uint8_t period) { return rom_read8(g, 0xC271ECu + (uint8_t)(period << 1)); }
+static inline uint8_t menu_digit_hide_script(const GameState *g, uint8_t period)
+{
+    return asset_read8(g, ASSET_MENU_DIGIT_X, 0xFu + (uint8_t)(period << 1));
+}
 
 /* The time dial's compressed streams ($C2:7220): where each is, in the bank
  * its loader names, and where in bank $7F it goes, a word each. */
-static inline uint16_t menu_gate_stream_source(const GameState *g, uint8_t stream) { return rom_read16(g, 0xC27220u + 4u * stream); }
+static inline uint16_t menu_gate_stream_source(const GameState *g, uint8_t stream)
+{
+    return asset_read16(g, ASSET_MENU_GATE_STREAM_SOURCE, 4u * stream);
+}
 
-static inline uint16_t menu_gate_stream_dest(const GameState *g, uint8_t stream) { return rom_read16(g, 0xC27222u + 4u * stream); }
+static inline uint16_t menu_gate_stream_dest(const GameState *g, uint8_t stream)
+{
+    return asset_read16(g, ASSET_MENU_GATE_STREAM_SOURCE, 0x2u + 4u * stream);
+}
 
 /* The gate's tiles go to sixteen rows of VRAM ($C2:72B8, a word a row), and
  * its tilemap's rows are picked from a table of row numbers wherever its
  * pointer puts it (the dial's own at $C2:7321). */
-static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row) { return rom_read16(g, 0xC272B8u + 2u * row); }
+static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row)
+{
+    return asset_read16(g, ASSET_MENU_GATE_TILE_ROW, 2u * row);
+}
 
 /* Only the row number is used. Keep the time of the discarded high-byte
  * read without loading the byte beyond the last row. */
@@ -895,14 +1020,20 @@ static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at)
 
 /* The gate's plane: two pixels a byte, a colour in each nibble, the left one
  * in the high nibble ($C6:F700, 1024 bytes). */
-static inline uint8_t menu_gate_pixel_pair(const GameState *g, unsigned i) { return rom_read8(g, 0xC6F700u + i); }
+static inline uint8_t menu_gate_pixel_pair(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_GATE_PIXEL_PAIR, i);
+}
 
 /* The End of Time's gate screen's setup, twelve bytes ($FF:D57A). */
-static inline uint8_t menu_gate_screen_setup(const GameState *g, unsigned i) { return rom_read8(g, 0xFFD57Au + i); }
+static inline uint8_t menu_gate_screen_setup(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_GATE_SCREEN_SETUP, i);
+}
 
 static inline uint16_t menu_sprite_set_place(const GameState *g, uint8_t set_doubled)
 {
-    return rom_read16(g, 0xC2F55Cu + set_doubled);
+    return asset_read16(g, ASSET_MENU_OPENING_RECORD_TILE, 0x14u + set_doubled);
 }
 
 static inline uint8_t menu_sprite_assignment_byte(const GameState *g, uint16_t at)
@@ -913,9 +1044,15 @@ static inline uint8_t menu_sprite_assignment_byte(const GameState *g, uint16_t a
 /* The graphics and the frames of a sprite: a 24-bit address each, three
  * bytes a sprite in the tables $E4:FFE0 and $E4:FFE2 place; `at` is the entry's
  * place, the table's own offset added. */
-static inline uint16_t menu_sprite_graphics_table(const GameState *g) { return rom_read16(g, 0xE4FFE0u); }
+static inline uint16_t menu_sprite_graphics_table(const GameState *g)
+{
+    return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0);
+}
 
-static inline uint16_t menu_sprite_frames_table(const GameState *g) { return rom_read16(g, 0xE4FFE2u); }
+static inline uint16_t menu_sprite_frames_table(const GameState *g)
+{
+    return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0x2u);
+}
 
 static inline uint32_t menu_sprite_place(const GameState *g, uint16_t at)
 {
@@ -925,23 +1062,38 @@ static inline uint32_t menu_sprite_place(const GameState *g, uint16_t at)
 /* A sprite's animations: where their frames and their frame times start in
  * bank $E4, a word a sprite in the tables $E4:FFE4 and $E4:FFE6 place (the
  * next sprite's frames' start ends this one's). */
-static inline uint16_t menu_sprite_animation_frames_table(const GameState *g) { return rom_read16(g, 0xE4FFE4u); }
+static inline uint16_t menu_sprite_animation_frames_table(const GameState *g)
+{
+    return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0x4u);
+}
 
-static inline uint16_t menu_sprite_animation_times_table(const GameState *g) { return rom_read16(g, 0xE4FFE6u); }
+static inline uint16_t menu_sprite_animation_times_table(const GameState *g)
+{
+    return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0x6u);
+}
 
 static inline uint16_t menu_sprite_table_word(const GameState *g, uint16_t at) { return rom_read16(g, MENU_SPRITE_BANK + at); }
 
 /* A sprite's colours: twelve colours (24 bytes) at the place the table
  * $E4:FFE8 gives, a word a sprite; its second set $200 bytes on. */
-static inline uint16_t menu_sprite_colours_table(const GameState *g) { return rom_read16(g, 0xE4FFE8u); }
+static inline uint16_t menu_sprite_colours_table(const GameState *g)
+{
+    return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0x8u);
+}
 
 static inline uint8_t menu_sprite_colour_byte(const GameState *g, uint16_t at) { return rom_read8(g, MENU_SPRITE_BANK | at); }
 
 /* The blocks a sprite's size class has ($C2:F562), and the bytes a frame of
  * that many blocks takes in its frames ($C2:F755: 40 a block). */
-static inline uint8_t menu_sprite_blocks(const GameState *g, uint8_t size) { return rom_read8(g, 0xC2F562u + (size & 3u)); }
+static inline uint8_t menu_sprite_blocks(const GameState *g, uint8_t size)
+{
+    return asset_read8(g, ASSET_MENU_OPENING_RECORD_TILE, 0x1Au + (size & 3u));
+}
 
-static inline uint8_t menu_sprite_frame_bytes(const GameState *g, uint8_t blocks) { return rom_read8(g, 0xC2F755u + blocks); }
+static inline uint8_t menu_sprite_frame_bytes(const GameState *g, uint8_t blocks)
+{
+    return asset_read8(g, ASSET_MENU_SPRITE_FRAME_BYTES, blocks);
+}
 
 /* A byte of a sprite's graphics, frames or animation lists, wherever its
  * record's pointer puts it. */
@@ -949,28 +1101,38 @@ static inline uint8_t menu_sprite_byte(const GameState *g, uint32_t at) { return
 
 static inline uint16_t menu_opening_record_tile(const GameState *g, unsigned record)
 {
-    return (uint16_t)(rom_read8(g, 0xC2F548u + 2u * record) | rom_read8(g, 0xC2F549u + 2u * record) << 8);
+    return (uint16_t)(asset_read8(g, ASSET_MENU_OPENING_RECORD_TILE, 2u * record) |
+                      asset_read8(g, ASSET_MENU_OPENING_RECORD_TILE, 0x1u + 2u * record) << 8);
 }
 
-static inline uint16_t menu_last_record_tile(const GameState *g) { return rom_read16(g, 0xC2F556u); }
+static inline uint16_t menu_last_record_tile(const GameState *g)
+{
+    return asset_read16(g, ASSET_MENU_OPENING_RECORD_TILE, 0xEu);
+}
 
 /* A byte of pixels mirrored left to right ($C0:FD00). */
-static inline uint8_t menu_mirrored_pixels(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
+static inline uint8_t menu_mirrored_pixels(const GameState *g, uint8_t b)
+{
+    return asset_read8(g, ASSET_MIRRORED_BYTES, b);
+}
 
 /* ---- The menus' input and portraits -------------------------------------------------------- */
 
 /* The frames held buttons wait before they repeat, by the pacing's phase
  * ($C2:84D0: 0 quick, 1 before the first repeat). */
-static inline uint8_t menu_repeat_delay(const GameState *g, uint8_t phase) { return rom_read8(g, 0xC284D0u + phase); }
+static inline uint8_t menu_repeat_delay(const GameState *g, uint8_t phase)
+{
+    return asset_read8(g, ASSET_MENU_REPEAT_DELAY, phase);
+}
 
 static inline uint8_t menu_large_portrait_first_tile(const GameState *g, uint8_t character)
 {
-    return rom_read8(g, 0xFFCE70u + character);
+    return asset_read8(g, ASSET_MENU_LARGE_PORTRAIT_FIRST_TILE, character);
 }
 
 static inline uint16_t menu_large_portrait_colours(const GameState *g, unsigned slot)
 {
-    return rom_read16(g, 0xFFCE78u + 2u * slot);
+    return asset_read16(g, ASSET_MENU_LARGE_PORTRAIT_COLOURS, 2u * slot);
 }
 
 static inline uint16_t menu_large_portrait_colour(const GameState *g, uint16_t colours, unsigned i)
@@ -980,7 +1142,7 @@ static inline uint16_t menu_large_portrait_colour(const GameState *g, uint16_t c
 
 static inline MenuElement menu_character_element(const GameState *g, uint8_t character)
 {
-    return (MenuElement)(rom_read8(g, 0xC2A2C6u + character) / 2u);
+    return (MenuElement)(asset_read8(g, ASSET_MENU_CHARACTER_ELEMENT, character) / 2u);
 }
 
 /* An element's label, six tiles by two beside a member's portrait: its first
@@ -988,12 +1150,12 @@ static inline MenuElement menu_character_element(const GameState *g, uint8_t cha
  * $FF:CE92). */
 static inline uint16_t menu_element_label_tile(const GameState *g, MenuElement element)
 {
-    return rom_read16(g, 0xFFCE88u + 2u * element);
+    return asset_read16(g, ASSET_MENU_ELEMENT_LABEL_TILE, 2u * element);
 }
 
 static inline uint16_t menu_element_label_colour(const GameState *g, MenuElement element, unsigned i)
 {
-    uint16_t colours = rom_read16(g, 0xFFCE92u + 2u * element);
+    uint16_t colours = asset_read16(g, ASSET_MENU_ELEMENT_LABEL_COLOUR, 2u * element);
     return rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
 }
 
@@ -1003,27 +1165,48 @@ static inline uint32_t menu_slot_label(const GameState *g, uint8_t slot)
     return 0xC20000u | (uint16_t)(0xA3BA + slot * MENU_SLOT_LABEL_BYTES);
 }
 
-static inline uint8_t menu_slot_record_place(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC2A4ABu + slot); }
+static inline uint8_t menu_slot_record_place(const GameState *g, uint8_t slot)
+{
+    return asset_read8(g, ASSET_MENU_SLOT_RECORD_PLACE, slot);
+}
 
-static inline uint8_t menu_slots_bands_at_rest_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xC2AA06u + i); }
+static inline uint8_t menu_slots_bands_at_rest_byte(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_SLOTS_BANDS_AT_REST_BYTE, i);
+}
 
-static inline uint8_t menu_tech_group_first(const GameState *g, uint8_t group) { return rom_read8(g, 0xC2BD40u + group); }
+static inline uint8_t menu_tech_group_first(const GameState *g, uint8_t group)
+{
+    return asset_read8(g, ASSET_MENU_TECH_GROUP_FIRST, group);
+}
 
 /* Each kind of tech's groups (the characters' own, the doubles, the triples):
  * its first group and how many it has ($C2:BD65, two bytes a kind). */
-static inline uint8_t menu_tech_kind_first_group(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC2BD65u + 2u * kind); }
+static inline uint8_t menu_tech_kind_first_group(const GameState *g, uint8_t kind)
+{
+    return asset_read8(g, ASSET_MENU_TECH_GROUP_FIRST, 0x25u + 2u * kind);
+}
 
-static inline uint8_t menu_tech_kind_groups(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC2BD66u + 2u * kind); }
+static inline uint8_t menu_tech_kind_groups(const GameState *g, uint8_t kind)
+{
+    return asset_read8(g, ASSET_MENU_TECH_GROUP_FIRST, 0x26u + 2u * kind);
+}
 
 /* A group's members, a bit a character from Crono's bit 7 ($CC:2963); and a
  * character's bit in such a byte ($FF:F9BB, nine entries, the last 0). */
-static inline uint8_t menu_tech_group_members(const GameState *g, uint8_t group) { return rom_read8(g, 0xCC2963u + group); }
+static inline uint8_t menu_tech_group_members(const GameState *g, uint8_t group)
+{
+    return asset_read8(g, ASSET_MENU_TECH_GROUP_MEMBERS, group);
+}
 
-static inline uint8_t menu_character_bit(const GameState *g, uint8_t character) { return rom_read8(g, 0xFFF9BBu + character); }
+static inline uint8_t menu_character_bit(const GameState *g, uint8_t character)
+{
+    return asset_read8(g, ASSET_MENU_CHARACTER_BIT, character);
+}
 
 static inline uint8_t menu_tech_effect_byte(const GameState *g, uint8_t tech, unsigned n)
 {
-    return rom_read8(g, 0xCC213Fu + (uint32_t)(tech * MENU_TECH_EFFECT_BYTES) + n);
+    return asset_read8(g, ASSET_PARTY_EFFECT_BYTES, (uint32_t)(tech * MENU_TECH_EFFECT_BYTES) + n);
 }
 
 /* Who a tech is used on: the first of its two bytes at $CC:1ACB, bit 0 set
@@ -1040,72 +1223,111 @@ static inline uint8_t menu_tech_part_mp(const GameState *g, uint16_t part) { ret
 /* The techs screen's member rows: the sprite beside each row stands this far
  * down the screen ($C2:BB1A, a byte a row: the three rows, then the row a
  * slide brings in from above and the one from below). */
-static inline uint8_t menu_tech_row_sprite_y(const GameState *g, uint16_t row) { return rom_read8(g, 0xC2BB1Au + row); }
+static inline uint8_t menu_tech_row_sprite_y(const GameState *g, uint16_t row)
+{
+    return asset_read8(g, ASSET_MENU_TECH_ROW_SPRITE_Y, row);
+}
 
 /* The window of members a tech is used on: each member's sprite's place
  * ($C2:BF2F, a row's Y then its X's low byte). */
 static inline MenuSpritePlace menu_tech_target_sprite_place(const GameState *g, uint8_t member)
 {
-    return (MenuSpritePlace){ rom_read8(g, 0xC2BF2Fu + 2u * member), rom_read8(g, 0xC2BF30u + 2u * member) };
+    return (MenuSpritePlace){ asset_read8(g, ASSET_MENU_TECH_TARGET_SPRITE_PLACE, 2u * member),
+                              asset_read8(g, ASSET_MENU_TECH_TARGET_SPRITE_PLACE, 0x1u + 2u * member) };
 }
 
 /* The frame a character's sprite holds while it uses a healing tech
  * ($C2:B519, a byte a character). */
-static inline uint8_t menu_tech_casting_frame(const GameState *g, uint8_t character) { return rom_read8(g, 0xC2B519u + character); }
+static inline uint8_t menu_tech_casting_frame(const GameState *g, uint8_t character)
+{
+    return asset_read8(g, ASSET_MENU_TECH_CASTING_FRAME, character);
+}
 
-static inline uint16_t menu_exchange_row_at(const GameState *g, unsigned place) { return rom_read16(g, 0xC2CDCBu + 2u * place); }
+static inline uint16_t menu_exchange_row_at(const GameState *g, unsigned place)
+{
+    return asset_read16(g, ASSET_MENU_EXCHANGE_ROW_AT, 2u * place);
+}
 
 static inline MenuSpritePlace menu_exchange_sprite_place(const GameState *g, unsigned place)
 {
-    return (MenuSpritePlace){ rom_read8(g, 0xC2CE6Eu + 2u * place), rom_read8(g, 0xC2CE6Fu + 2u * place) };
+    return (MenuSpritePlace){ asset_read8(g, ASSET_MENU_EXCHANGE_SPRITE_PLACE, 2u * place),
+                              asset_read8(g, ASSET_MENU_EXCHANGE_SPRITE_PLACE, 0x1u + 2u * place) };
 }
 
 /* ---- The menus' display ------------------------------------------------------------------- */
 
 /* The colors the menus' color math ramps step through ($C2:8771, sixteen
  * words), copied into work RAM before each table is built. */
-static inline uint16_t menu_math_ramp_color(const GameState *g, unsigned i) { return rom_read16(g, 0xC28771u + 2u * i); }
+static inline uint16_t menu_math_ramp_color(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_MATH_RAMP_COLOR, 2u * i);
+}
 
 /* The values of the window line table's sixteen groups ($FF:FC57). */
-static inline uint8_t menu_window_line_value(const GameState *g, unsigned group) { return rom_read8(g, 0xFFFC57u + group); }
+static inline uint8_t menu_window_line_value(const GameState *g, unsigned group)
+{
+    return asset_read8(g, ASSET_MENU_WINDOW_LINE_VALUE, group);
+}
 
-static inline uint8_t menu_saved_runs_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xFFFA7Bu + i); }
+static inline uint8_t menu_saved_runs_byte(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_SAVED_RUNS_BYTE, i);
+}
 
 static inline MenuSavedRun menu_saved_run(const GameState *g, unsigned run)
 {
-    uint32_t at = 0xFFFA7Bu + run * MENU_SAVED_RUN_BYTES;
-    return (MenuSavedRun){ (uint32_t)rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16, rom_read16(g, at + 3) };
+    uint32_t at = run * MENU_SAVED_RUN_BYTES;
+    return (MenuSavedRun){ (uint32_t)asset_read16(g, ASSET_MENU_SAVED_RUNS_BYTE, at) |
+                               (uint32_t)asset_read8(g, ASSET_MENU_SAVED_RUNS_BYTE, at + 2) << 16,
+                           asset_read16(g, ASSET_MENU_SAVED_RUNS_BYTE, at + 3) };
 }
 
-static inline uint8_t menu_carried_runs_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xFFFBC1u + i); }
+static inline uint8_t menu_carried_runs_byte(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_CARRIED_RUNS_BYTE, i);
+}
 
 static inline MenuCarriedRun menu_carried_run(const GameState *g, unsigned run)
 {
-    uint32_t at = 0xFFFBC1u + run * MENU_CARRIED_RUN_BYTES;
-    return (MenuCarriedRun){ rom_read16(g, at), (uint32_t)rom_read16(g, at + 2) | (uint32_t)rom_read8(g, at + 4) << 16,
-                             rom_read16(g, at + 5) };
+    uint32_t at = run * MENU_CARRIED_RUN_BYTES;
+    return (MenuCarriedRun){ asset_read16(g, ASSET_MENU_CARRIED_RUNS_BYTE, at),
+                             (uint32_t)asset_read16(g, ASSET_MENU_CARRIED_RUNS_BYTE, at + 2) |
+                                 (uint32_t)asset_read8(g, ASSET_MENU_CARRIED_RUNS_BYTE, at + 4) << 16,
+                             asset_read16(g, ASSET_MENU_CARRIED_RUNS_BYTE, at + 5) };
 }
 
 /* Where each slot's game is in save memory, as the original addresses it on
  * the bus ($FF:FBE1, a word a slot). */
-static inline uint16_t menu_saved_game_on_the_bus(const GameState *g, uint8_t slot) { return rom_read16(g, 0xFFFBE1u + 2u * slot); }
+static inline uint16_t menu_saved_game_on_the_bus(const GameState *g, uint8_t slot)
+{
+    return asset_read16(g, ASSET_MENU_SAVED_GAME_ON_THE_BUS, 2u * slot);
+}
 
 static inline uint8_t menu_starting_record_byte(const GameState *g, uint8_t character, uint8_t at)
 {
     return rom_read8(g, 0xCC0000u + (uint32_t)(character * MENU_STARTING_RECORD_BYTES) + at);
 }
 
-static inline uint8_t menu_starting_equipment_place(const GameState *g, unsigned which) { return rom_read8(g, 0xFFFBCFu + which); }
+static inline uint8_t menu_starting_equipment_place(const GameState *g, unsigned which)
+{
+    return asset_read8(g, ASSET_MENU_CARRIED_RUNS_BYTE, 0xEu + which);
+}
 
 static inline uint8_t menu_new_game_record_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xCC0000u + i); }
 
-static inline uint8_t menu_new_game_setting(const GameState *g, unsigned i) { return rom_read8(g, 0xC2FCA6u + i); }
+static inline uint8_t menu_new_game_setting(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_NEW_GAME_SETTING, 0xD8u + i);
+}
 
-static inline uint8_t menu_weapon_colour_set(const GameState *g, uint8_t weapon) { return rom_read8(g, 0xCD6CECu + weapon); }
+static inline uint8_t menu_weapon_colour_set(const GameState *g, uint8_t weapon)
+{
+    return asset_read8(g, ASSET_SETUP_MEMBER_COLOR_SET, weapon);
+}
 
 static inline uint16_t menu_weapon_colour(const GameState *g, uint8_t set, unsigned i)
 {
-    return rom_read16(g, 0xD14B00u + (uint32_t)(set * MENU_WEAPON_COLOURS + i) * 2u);
+    return asset_read16(g, ASSET_BATTLE_MEMBER_COLORS, (uint32_t)(set * MENU_WEAPON_COLOURS + i) * 2u);
 }
 
 /* ---- The techs as the menus open ---------------------------------------------------------- */
@@ -1114,73 +1336,94 @@ static inline uint16_t menu_weapon_colour(const GameState *g, uint8_t set, unsig
  * ($CC:24B3, three bytes a group, the characters in the second and third). */
 static inline uint8_t menu_double_tech_character(const GameState *g, uint8_t group, unsigned which)
 {
-    return rom_read8(g, 0xCC24B4u + 3u * group + which);
+    return asset_read8(g, ASSET_MENU_DOUBLE_TECH_CHARACTER, 3u * group + which);
 }
 
 /* Each character's part in each of a double group's three techs ($CC:28DB,
  * six bytes a group: a tech's first character's part, then its second's). */
 static inline uint8_t menu_double_tech_part(const GameState *g, uint8_t group, unsigned tech, unsigned which)
 {
-    return rom_read8(g, 0xCC28DBu + 6u * group + 2u * tech + which);
+    return asset_read8(g, ASSET_MENU_DOUBLE_TECH_PART, 6u * group + 2u * tech + which);
 }
 
 /* The triple techs' parts, one after another: each tech's characters' in the
  * order of their bits from Crono's ($CC:2935). */
-static inline uint8_t menu_triple_tech_part(const GameState *g, unsigned n) { return rom_read8(g, 0xCC2935u + n); }
+static inline uint8_t menu_triple_tech_part(const GameState *g, unsigned n)
+{
+    return asset_read8(g, ASSET_MENU_TRIPLE_TECH_PART, n);
+}
 
 static inline uint8_t menu_rock_tech_needs(const GameState *g, unsigned rock, unsigned which)
 {
-    return rom_read8(g, 0xCC2953u + 3u * rock + which);
+    return asset_read8(g, ASSET_MENU_ROCK_TECH_NEEDS, 3u * rock + which);
 }
 
 /* How many of a character's single techs show in the menus before its
  * locked ones are unlocked ($FF:F951, a byte a character; $FF none locked). */
-static inline uint8_t menu_techs_before_the_lock(const GameState *g, uint8_t character) { return rom_read8(g, 0xFFF951u + character); }
+static inline uint8_t menu_techs_before_the_lock(const GameState *g, uint8_t character)
+{
+    return asset_read8(g, ASSET_MENU_TECHS_BEFORE_THE_LOCK, character);
+}
 
 static inline uint8_t menu_small_digit_byte(const GameState *g, unsigned digit, unsigned at)
 {
-    return rom_read8(g, 0xFFCAFCu + digit * MENU_DIGIT_BYTES + at);
+    return asset_read8(g, ASSET_MENU_SMALL_DIGIT_BYTE, digit * MENU_DIGIT_BYTES + at);
 }
 
 static inline uint8_t menu_amount_digit_byte(const GameState *g, unsigned digit, unsigned at)
 {
-    return rom_read8(g, 0xFF9390u + digit * MENU_DIGIT_BYTES + at);
+    return asset_read8(g, ASSET_SMALL_FONT, 0x530u + digit * MENU_DIGIT_BYTES + at);
 }
 
-static inline uint8_t menu_settings_option_cell(const GameState *g, uint8_t option) { return rom_read8(g, 0xC2C4F9u + option); }
+static inline uint8_t menu_settings_option_cell(const GameState *g, uint8_t option)
+{
+    return asset_read8(g, ASSET_MENU_SETTINGS_OPTION_CELL, option);
+}
 
 static inline uint8_t menu_settings_first_value_text(const GameState *g, uint8_t option)
 {
-    return rom_read8(g, 0xC2C505u + option);
+    return asset_read8(g, ASSET_MENU_SETTINGS_OPTION_CELL, 0xCu + option);
 }
 
 static inline uint16_t menu_settings_option_icon(const GameState *g, uint8_t option)
 {
-    return rom_read16(g, 0xFFD562u + 2u * option);
+    return asset_read16(g, ASSET_MENU_SETTINGS_OPTION_ICON, 2u * option);
 }
 
-static inline uint16_t menu_settings_box_place(const GameState *g, uint8_t box) { return rom_read16(g, 0xC2C41Bu + 2u * box); }
+static inline uint16_t menu_settings_box_place(const GameState *g, uint8_t box)
+{
+    return asset_read16(g, ASSET_MENU_SETTINGS_BOX_PLACE, 2u * box);
+}
 
 static inline bool menu_settings_box_ticked_for_off(const GameState *g, uint8_t box)
 {
-    return (rom_read8(g, 0xC2C42Fu + box) & 1u) != 0;
+    return (asset_read8(g, ASSET_MENU_SETTINGS_BOX_PLACE, 0x14u + box) & 1u) != 0;
 }
 
-static inline uint8_t menu_settings_button_choice(const GameState *g, unsigned i) { return rom_read8(g, 0xC2C207u + i); }
+static inline uint8_t menu_settings_button_choice(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_SETTINGS_BUTTON_CHOICE, i);
+}
 
-static inline uint8_t menu_default_button_assignment(const GameState *g, unsigned i) { return rom_read8(g, 0xC2FCA9u + i); }
+static inline uint8_t menu_default_button_assignment(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_NEW_GAME_SETTING, 0xDBu + i);
+}
 
 static inline uint16_t menu_button_glyph(const GameState *g, unsigned bit_from_the_top)
 {
-    return rom_read16(g, 0xFFD554u + 2u * bit_from_the_top);
+    return asset_read16(g, ASSET_MENU_BUTTON_GLYPH, 2u * bit_from_the_top);
 }
 
 static inline uint16_t menu_settings_button_row_place(const GameState *g, unsigned row)
 {
-    return rom_read16(g, 0xC2C5A7u + 2u * row);
+    return asset_read16(g, ASSET_MENU_SETTINGS_BUTTON_ROW_PLACE, 2u * row);
 }
 
-static inline uint8_t menu_settings_row_assignment(const GameState *g, unsigned row) { return rom_read8(g, 0xC2C2BDu + row); }
+static inline uint8_t menu_settings_row_assignment(const GameState *g, unsigned row)
+{
+    return asset_read8(g, ASSET_MENU_SETTINGS_ROW_ASSIGNMENT, row);
+}
 
 /* The assignments a button given to one is taken from ($C2:C2C5, the place
  * of a list in bank C2 for each of the eight: a count, then the
@@ -1188,7 +1431,7 @@ static inline uint8_t menu_settings_row_assignment(const GameState *g, unsigned 
  * first list's first two bytes, and its list lies in bank C2's code. */
 static inline uint16_t menu_settings_conflicts_place(const GameState *g, unsigned assignment)
 {
-    return rom_read16(g, 0xC2C2C5u + 2u * assignment);
+    return asset_read16(g, ASSET_MENU_SETTINGS_ROW_ASSIGNMENT, 0x8u + 2u * assignment);
 }
 
 static inline uint8_t menu_settings_conflicts_count(const GameState *g, unsigned assignment)
@@ -1203,44 +1446,68 @@ static inline uint8_t menu_settings_conflict(const GameState *g, unsigned assign
 
 static inline uint8_t menu_shop_good(const GameState *g, uint8_t shop, unsigned i)
 {
-    uint16_t list = rom_read16(g, 0xCC2C6Du + 2u * shop);
+    uint16_t list = asset_read16(g, ASSET_MENU_SHOP_GOOD, 2u * shop);
     return rom_read8(g, 0xCC0000u | (uint16_t)(list + i));
 }
 
 /* Where each member's sprite stands along the shop's bottom window
  * ($C2:DC74, an X each). */
-static inline uint8_t menu_shop_member_x(const GameState *g, unsigned member) { return rom_read8(g, 0xC2DC74u + member); }
+static inline uint8_t menu_shop_member_x(const GameState *g, unsigned member)
+{
+    return asset_read8(g, ASSET_MENU_SHOP_MEMBER_X, member);
+}
 
 /* The place in a character's record of the slot an item of each category
  * goes in ($C2:DE1D; the ROM has a copy at $C2:894F): the weapon, the
  * armour, the helmet, the accessory. The other items' category reads the
  * byte past the table, the first of the routine after it in both copies, 8,
  * a byte of the record that is no slot. */
-static inline uint8_t menu_category_slot_place(const GameState *g, uint8_t category) { return rom_read8(g, 0xC2DE1Du + category); }
+static inline uint8_t menu_category_slot_place(const GameState *g, uint8_t category)
+{
+    return asset_read8(g, ASSET_MENU_CATEGORY_SLOT_PLACE, category);
+}
 
 /* The quantity window's list of what an item of each category shows beside
  * its count ($C2:DFC5, a window list in bank $FF each). */
-static inline uint16_t menu_shop_quantity_windows(const GameState *g, uint8_t category) { return rom_read16(g, 0xC2DFC5u + 2u * category); }
+static inline uint16_t menu_shop_quantity_windows(const GameState *g, uint8_t category)
+{
+    return asset_read16(g, ASSET_MENU_SHOP_QUANTITY_WINDOWS, 2u * category);
+}
 
-static inline uint16_t menu_gate_row_first_tile(const GameState *g, unsigned row) { return rom_read16(g, 0xFFF6F2u + 2u * row); }
+static inline uint16_t menu_gate_row_first_tile(const GameState *g, unsigned row)
+{
+    return asset_read16(g, ASSET_MENU_GATE_ROW_FIRST_TILE, 2u * row);
+}
 
-static inline uint16_t menu_gate_palette_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF706u + 2u * i); }
+static inline uint16_t menu_gate_palette_colour(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_GATE_ROW_FIRST_TILE, 0x14u + 2u * i);
+}
 
-static inline uint16_t menu_gate_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF6FEu + 2u * i); }
+static inline uint16_t menu_gate_colour(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_GATE_ROW_FIRST_TILE, 0xCu + 2u * i);
+}
 
-static inline uint16_t menu_gate_wave(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF759u + 2u * i); }
+static inline uint16_t menu_gate_wave(const GameState *g, unsigned i)
+{
+    return asset_read16(g, ASSET_MENU_GATE_WAVE, 2u * i);
+}
 
-static inline uint8_t menu_screen_opened_on(const GameState *g, uint8_t opening) { return rom_read8(g, 0xC2808Fu + opening); }
+static inline uint8_t menu_screen_opened_on(const GameState *g, uint8_t opening)
+{
+    return asset_read8(g, ASSET_MENU_SCREEN_OPENED_ON, opening);
+}
 
 static inline uint16_t menu_screen_step_list(const GameState *g, uint8_t screen)
 {
-    return rom_read16(g, 0xC28292u + 2u * screen);
+    return asset_read16(g, ASSET_MENU_SCREEN_STEP_LIST, 2u * screen);
 }
 
 /* Four rows of tiles repeated across the scene's small Mode 7 picture. */
 static inline uint8_t menu_scene_pattern_tile(const GameState *g, unsigned tile)
 {
-    return rom_read8(g, 0xC27C28u + tile);
+    return asset_read8(g, ASSET_MENU_SCENE_PATTERN_TILE, tile);
 }
 
 /* The travelling scroll effect uses the cartridge's initial code bytes as

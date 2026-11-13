@@ -1,21 +1,33 @@
-/* The cartridge's data, by the address the original keeps it at: what the
- * named resource accessors in the subsystems' *_data.h headers read through,
- * and nothing else.
+/* The cartridge's data: what the named resource accessors in the subsystems'
+ * *_data.h headers read through, and nothing else.
  *
  * A port never reads ROM by address (CLAUDE.md, "ROM data is loaded, not
- * addressed"): it calls an accessor named for the resource, and the accessor
- * is where the address lives. The address is a key: game/data/assets.c finds
- * the resource of the catalogue it lies in and reads that resource's bytes
- * from the store the driver supplied (data/assets.h), the asset pack in
- * ct_play. No port knows which. */
+ * addressed"): it calls an accessor named for the resource. The accessor
+ * reads its resource by name (asset_read8: the catalogue's rows by name,
+ * data/asset_names.h), a place in it, from the store the driver supplied
+ * (data/assets.h), the asset pack in ct_native; so a pack may keep a
+ * resource anywhere, in any order. What the data's own pointers name -- a
+ * stream a table points to, a script's text -- is still found by the
+ * address the original keeps it at (rom_read8): that address is a key,
+ * game/data/assets.c finding the resource of the catalogue it lies in. No
+ * port knows which store answers. */
 #ifndef CT_GAME_ROM_H
 #define CT_GAME_ROM_H
 
 #include <stdint.h>
 
-#include "state.h"
+#include "data/asset_names.h"
+#include "data/assets.h"
 #include "platform/platform.h"
+#include "state.h"
 
+/* A byte or a little-endian word of a named resource (ASSET_...), `offset`
+ * bytes into it. An offset past its end reads on at the address after it, as
+ * the original's indexing does, into whatever the catalogue holds there. */
+uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset);
+uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset);
+
+/* A byte or a word where the data's own pointers lead, by the address. */
 uint8_t rom_read8(const GameState *g, uint32_t at);
 uint16_t rom_read16(const GameState *g, uint32_t at);
 

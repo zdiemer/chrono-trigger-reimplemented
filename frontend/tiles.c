@@ -7,12 +7,14 @@
 #include "packed.h"
 
 /* A tile is eight lines of eight pixels; its planes go two at a time, the
- * pair's sixteen bytes a byte of each plane a line. */
-enum { TILE_SIZE = 8, PAIR_BYTES = 16, TILES_ACROSS = 16 };
+ * pair's sixteen bytes a byte of each plane a line. A chunky tile of four
+ * bits a pixel (Mode 7's, packed two pixels a byte for the scenes to spread)
+ * is four bytes a line, the left pixel the low nibble. */
+enum { TILE_SIZE = 8, PAIR_BYTES = 16, TILES_ACROSS = 16, CHUNKY_LINE_BYTES = 4, MOST_PLANES = 8 };
 
 typedef struct {
     unsigned planes;
-    bool packed, pool;
+    bool packed, pool, chunky;
 } Tiles;
 
 static bool tiles_of(const AssetEntry *e, Tiles *t)
@@ -21,9 +23,10 @@ static bool tiles_of(const AssetEntry *e, Tiles *t)
         const char *codec;
         Tiles tiles;
     } codecs[] = {
-        { "tiles:2bpp", { 2, false, false } }, { "tiles:4bpp", { 4, false, false } },
-        { "lz:2bpp", { 2, true, false } },     { "lz:4bpp", { 4, true, false } },
-        { "tiles:plane-pool", { 3, false, true } },
+        { "tiles:2bpp", { 2, false, false, false } }, { "tiles:4bpp", { 4, false, false, false } },
+        { "lz:2bpp", { 2, true, false, false } },     { "lz:4bpp", { 4, true, false, false } },
+        { "lz:8bpp", { 8, true, false, false } },     { "lz:4bpp-chunky", { 4, true, false, true } },
+        { "tiles:plane-pool", { 3, false, true, false } },
     };
     for (size_t i = 0; i < sizeof codecs / sizeof *codecs; i++) {
         if (!strcmp(asset_codec_names[e->codec], codecs[i].codec)) {
@@ -34,13 +37,28 @@ static bool tiles_of(const AssetEntry *e, Tiles *t)
     return false;
 }
 
-static uint32_t tile_bytes(Tiles t) { return t.planes * TILE_SIZE; }
+static uint32_t tile_bytes(Tiles t) { return t.chunky ? CHUNKY_LINE_BYTES * TILE_SIZE : t.planes * TILE_SIZE; }
 
 static bool decodes(const AssetEntry *e, bool *named)
 {
     Tiles t;
     *named = true;
     return tiles_of(e, &t);
+}
+
+/* A pixel's characters: one, or two in hex for eight planes ('..' color 0). */
+static unsigned pixel_chars(unsigned planes) { return planes > 4 ? 2 : 1; }
+
+static unsigned chunky_pixel(const uint8_t *tile, unsigned x, unsigned y)
+{
+    return (unsigned)(tile[y * CHUNKY_LINE_BYTES + x / 2] >> (4 * (x & 1)) & 0x0F);
+}
+
+static void set_chunky_pixel(uint8_t *tile, unsigned x, unsigned y, unsigned color)
+{
+    uint8_t *byte = &tile[y * CHUNKY_LINE_BYTES + x / 2];
+    unsigned shift = 4 * (x & 1);
+    *byte = (uint8_t)((*byte & ~(0x0Fu << shift)) | (color & 0x0F) << shift);
 }
 
 static unsigned pixel(const uint8_t *tile, unsigned planes, unsigned x, unsigned y)
@@ -61,6 +79,33 @@ static void set_pixel(uint8_t *tile, unsigned planes, unsigned x, unsigned y, un
 }
 
 static const char PIXEL[] = ".123456789ABCDEF";
+
+static unsigned tile_pixel(Tiles t, const uint8_t *tile, unsigned x, unsigned y)
+{
+    return t.chunky ? chunky_pixel(tile, x, y) : pixel(tile, t.planes, x, y);
+}
+
+static void set_tile_pixel(Tiles t, uint8_t *tile, unsigned x, unsigned y, unsigned color)
+{
+    if (t.chunky)
+        set_chunky_pixel(tile, x, y, color);
+    else
+        set_pixel(tile, t.planes, x, y, color);
+}
+
+/* A pixel written: '.' (or '..') for color 0, else its digit (or two). */
+static char *put_pixel(char *c, unsigned planes, unsigned color)
+{
+    static const char HEX[] = "0123456789ABCDEF";
+    if (pixel_chars(planes) == 1) {
+        *c++ = PIXEL[color];
+    } else if (color == 0) {
+        *c++ = '.', *c++ = '.';
+    } else {
+        *c++ = HEX[color >> 4], *c++ = HEX[color & 0x0F];
+    }
+    return c;
+}
 
 /* ---- The battlefield's pool ---------------------------------------------------------------------- *
  *
@@ -162,9 +207,9 @@ static void write_pool(DecodedText *t, const uint8_t *bytes, uint32_t len, const
 
 /* ---- Writing ----------------------------------------------------------------------------------- */
 
-static void write_tiles(DecodedText *t, const uint8_t *bytes, uint32_t count, unsigned planes)
+static void write_tiles(DecodedText *t, const uint8_t *bytes, uint32_t count, Tiles tiles)
 {
-    char line[TILES_ACROSS * (TILE_SIZE + 1) + 2];
+    char line[TILES_ACROSS * (2 * TILE_SIZE + 1) + 2];
     for (uint32_t first = 0; first < count; first += TILES_ACROSS) {
         uint32_t across = count - first < TILES_ACROSS ? count - first : TILES_ACROSS;
         snprintf(line, sizeof line, "# %04X\n", (unsigned)first);
@@ -172,11 +217,11 @@ static void write_tiles(DecodedText *t, const uint8_t *bytes, uint32_t count, un
         for (unsigned y = 0; y < TILE_SIZE; y++) {
             char *c = line;
             for (uint32_t k = 0; k < across; k++) {
-                const uint8_t *tile = bytes + (first + k) * planes * TILE_SIZE;
+                const uint8_t *tile = bytes + (first + k) * tile_bytes(tiles);
                 if (k)
                     *c++ = ' ';
                 for (unsigned x = 0; x < TILE_SIZE; x++)
-                    *c++ = PIXEL[pixel(tile, planes, x, y)];
+                    c = put_pixel(c, tiles.planes, tile_pixel(tiles, tile, x, y));
             }
             *c++ = '\n';
             *c = 0;
@@ -210,12 +255,16 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     if (whole) {
         char line[80];
         uint32_t count = (uint32_t)(len / tile_bytes(tiles));
-        snprintf(line, sizeof line, "# %u tiles, %u bit planes%s\n", (unsigned)count, tiles.planes,
-                 tiles.packed ? ", packed" : "");
+        if (tiles.chunky)
+            snprintf(line, sizeof line, "# %u tiles, %u bits a pixel, chunky%s\n", (unsigned)count, tiles.planes,
+                     tiles.packed ? ", packed" : "");
+        else
+            snprintf(line, sizeof line, "# %u tiles, %u bit planes%s\n", (unsigned)count, tiles.planes,
+                     tiles.packed ? ", packed" : "");
         decoded_put(t, line);
         if (tiles.packed)
             packed_write_form(t, long_runs);
-        write_tiles(t, unpacked ? unpacked : bytes, count, tiles.planes);
+        write_tiles(t, unpacked ? unpacked : bytes, count, tiles);
     }
     free(unpacked);
     return whole;
@@ -223,22 +272,47 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
 
 /* ---- Reading ----------------------------------------------------------------------------------- */
 
-/* The tiles a line of pixels has: how many, NULL where it is wrong. */
-static const char *count_tiles(const char *s, const char *end, uint32_t *across)
+/* The tiles a line of pixels has (`chars` a pixel): how many, NULL where it is wrong. */
+static const char *count_tiles(const char *s, const char *end, unsigned chars, uint32_t *across)
 {
     *across = 0;
     while (s < end) {
         const char *tile = s;
         while (s < end && *s != ' ' && *s != '\t')
             s++;
-        if (s - tile != TILE_SIZE)
-            return "a tile's line is 8 pixels, a space between tiles";
+        if (s - tile != (ptrdiff_t)(TILE_SIZE * chars))
+            return chars == 1 ? "a tile's line is 8 pixels, a space between tiles"
+                              : "a tile's line is 8 pixels of two characters each, a space between tiles";
         if (++*across > TILES_ACROSS)
             return "at most 16 tiles a line";
         while (s < end && (*s == ' ' || *s == '\t'))
             s++;
     }
     return NULL;
+}
+
+/* A pixel's characters from *s: its color. */
+static bool read_pixel(const char **s, unsigned planes, unsigned *color)
+{
+    if (pixel_chars(planes) == 1) {
+        char c = **s >= 'a' && **s <= 'f' ? (char)(**s - 'a' + 'A') : **s;
+        const char *at = memchr(PIXEL, c, (size_t)1 << planes);
+        (*s)++;
+        *color = at ? (unsigned)(at - PIXEL) : 0;
+        return at != NULL;
+    }
+    const char *p = *s;
+    *s += 2;
+    if (p[0] == '.' && p[1] == '.') {
+        *color = 0;
+        return true;
+    }
+    unsigned v;
+    const char *q = p;
+    if (!decoded_number(&q, p + 2, 16, 0xFF, &v) || q != p + 2 || v == 0)
+        return false;
+    *color = v;
+    return true;
 }
 
 /* The pool's parts: its tiles, then the bytes no tile is cut from. */
@@ -281,7 +355,7 @@ static const char *read_pool_line(Decoded *d, DecodedReading *r, const char *s, 
         return read_rest(r, word, end);
     if (r->part == POOL_REST)
         return "nothing but the rest after the rest";
-    const char *wrong = count_tiles(s, end, &across);
+    const char *wrong = count_tiles(s, end, 1, &across);
     if (wrong)
         return wrong;
     if (r->lines == 0) {
@@ -324,7 +398,7 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
     if (tiles.packed && r->form == PACKED_UNSAID)
         return packed_read_form(d, r, s, end);
     uint32_t across = 0, size = tile_bytes(tiles);
-    const char *wrong = count_tiles(s, end, &across);
+    const char *wrong = count_tiles(s, end, pixel_chars(tiles.planes), &across);
     if (wrong)
         return wrong;
     if (r->lines == 0) {   /* a row of tiles starts */
@@ -344,12 +418,13 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
     for (uint32_t k = 0; k < across; k++) {
         while (*s == ' ' || *s == '\t')
             s++;
-        for (unsigned x = 0; x < TILE_SIZE; x++, s++) {
-            char c = *s >= 'a' && *s <= 'f' ? (char)(*s - 'a' + 'A') : *s;
-            const char *at = memchr(PIXEL, c, (size_t)1 << tiles.planes);
-            if (!at)
-                return tiles.planes == 2 ? "a pixel is '.' or '1'-'3'" : "a pixel is '.', '1'-'9' or 'A'-'F'";
-            set_pixel(row + k * size, tiles.planes, x, r->lines, (unsigned)(at - PIXEL));
+        for (unsigned x = 0; x < TILE_SIZE; x++) {
+            unsigned color;
+            if (!read_pixel(&s, tiles.planes, &color))
+                return tiles.planes == 2   ? "a pixel is '.' or '1'-'3'"
+                       : tiles.planes == 4 ? "a pixel is '.', '1'-'9' or 'A'-'F'"
+                                           : "a pixel is '..' or two hex digits, 01-FF";
+            set_tile_pixel(tiles, row + k * size, x, r->lines, color);
         }
     }
     if (++r->lines == TILE_SIZE) {
@@ -377,8 +452,9 @@ const DecodedKind tile_text = {
     "graphics",
     "# Chrono Trigger's graphics, from your cartridge: not for sharing.\n"
     "# 8x8 tiles, sixteen a row, a character a pixel: '.' color 0, then '1'-'3', or\n"
-    "# '1'-'9' and 'A'-'F' for four bit planes. A packed resource says how it packs\n"
+    "# '1'-'9' and 'A'-'F' for four bits a pixel; two for eight bit planes, '..' and\n"
+    "# then 01-FF. A packed resource says how it packs\n"
     "# first; edited, it is packed again as it is read, and must still fit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end,
+    decodes, write_resource, read_line, read_end, NULL, NULL,
 };
