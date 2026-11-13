@@ -93,6 +93,23 @@ def runtime_faults(lines):
     return [line for line in lines if FAULT.search(line)]
 
 
+def carried_fight(name, lines):
+    """For a route that carries a gate movie's fight (tools/fight_routes.txt),
+    what its run's fight retries and facts get wrong (tools/movies/fight_facts.py);
+    nothing for any other route."""
+    if __package__:
+        from . import fight_facts
+        from .. import outcomes
+    else:  # run as a file, tools/movies/route_check.py
+        sys.path.insert(0, REPO)
+        from tools.movies import fight_facts
+        from tools import outcomes
+    bounds = outcomes.fight_retries()
+    if name not in bounds:
+        return []
+    return fight_facts.verdict(name, lines, bounds[name], fight_facts.read_expected().get(name, {}))
+
+
 def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=False):
     """Run one native route and report its asserted outcome."""
     name, _, until = route.partition(":")
@@ -138,7 +155,11 @@ def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=Fals
             phases.append((match.group(1), int(match.group(2))))
     faults = runtime_faults(lines)
     passed = status == 0 and outcome is not None and outcome[0] == "reached" and not faults
-    if faults:
+    facts = carried_fight(name, lines) if passed and not until else []
+    passed = passed and not facts
+    if facts:
+        what = "fight facts: " + "; ".join(facts)
+    elif faults:
         what = "runtime fault: %s" % faults[0]
     elif passed:
         what = outcome[1]

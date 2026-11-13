@@ -23,7 +23,7 @@ import random
 import time
 
 from . import addresses as A
-from . import bfs, mkmovie, policies
+from . import bfs, fight_facts, mkmovie, policies
 from .bot import Bot
 from .driver import Driver
 
@@ -73,6 +73,10 @@ class Run:
     """One route run: a machine, a log, and the helpers above."""
 
     cell = 6            # BFS cell size in pixels for field maps
+    # Frames between A presses while a window is open, for wait_control and
+    # dialogs_until; None leaves each its own. A stretch whose windows must be
+    # hurried (the Blackbird's alarms) sets it for its own play.
+    dialog_pace = None
 
     def __init__(self, prefix, rom=None, sram=None, drive=None, until=None):
         self.until = until
@@ -81,6 +85,7 @@ class Run:
         self.machine = Driver(rom=rom, sram=sram, drive=drive)
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
+        self.fight_tries = []   # each fight's retries this session (fight_facts)
 
     def close(self):
         self.logfile.close()
@@ -121,7 +126,9 @@ class Run:
             raise RouteDone("%s frame %d" % (name, frame))
 
     def finish(self, what):
-        """The route reached its goal: say so, with the frame, for route_check."""
+        """The route reached its goal: say so, with the frame, its fights'
+        retries and the facts they left (fight_facts), for route_check."""
+        fight_facts.report(self, self.fight_tries)
         self.say("outcome reached", what, "frame", self.machine.frame)
 
     def resume(self, name):
@@ -177,8 +184,9 @@ class Run:
                 return index
         return None
 
-    def wait_control(self, max_frames=6000, press_every=40):
+    def wait_control(self, max_frames=6000, press_every=None):
         """Advance dialogue until the player answers the pad for a few checks running."""
+        press_every = press_every or self.dialog_pace or 40
         machine = self.machine
         start = machine.frame
         good = 0
@@ -211,8 +219,9 @@ class Run:
                 quiet += 5
                 machine.run(5)
 
-    def dialogs_until(self, condition, max_frames=20000, press_every=45):
+    def dialogs_until(self, condition, max_frames=20000, press_every=None):
         """Advance dialogue until `condition()`; True when it held."""
+        press_every = press_every or self.dialog_pace or 45
         machine = self.machine
         start = machine.frame
         while machine.frame - start < max_frames:
@@ -504,6 +513,7 @@ class Run:
             if until(self, state):
                 for point in checkpoints:
                     machine.free(point["slot"])
+                self.fight_tries.append(tries)
                 self.say("fight done frame", machine.frame, "tries", tries,
                          "elapsed %.0fs" % (time.time() - started))
                 return True
