@@ -8,7 +8,7 @@ carry the party out of shelter. Search crossings on machine copies.
 from ..campaign import Run, route_arguments, run_route
 
 SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
-PHASES = ["loaded", "entered", "tree", "second", "after"]
+PHASES = ["loaded", "entered", "tree", "second", "wind_crossed"]
 WIND = 0x7F0218
 GUIDES = 0x7F007C
 SLOPE, LOWER = "f400", "f500"
@@ -92,7 +92,7 @@ def play(run, start=1):
         fresh_calm(run, "UP+B")
         crossing(run, 12, lambda: run.map_id() == LOWER, 400)
         assert run.wait_control(), "the field beyond the wind in hand"
-        run.checkpoint("after")
+        run.checkpoint("wind_crossed")
 
 
 def main():

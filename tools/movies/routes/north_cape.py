@@ -24,6 +24,90 @@ HEADER = """\
 # <start_frame> <frame_count> <buttons>"""
 
 
+def play(run, start=1, seed=1, join=False):
+    """From the Earthbound Village ($1A9) out onto the 12000 B.C. map to North
+    Cape, where Magus tells his story; with `join` the party refuses his
+    fight and he joins it, otherwise it fights him. `start` is the index in
+    PHASES of the first phase to run."""
+    machine = run.machine
+    if start <= 1:
+        visited = set()
+        for _ in range(5):
+            if int(run.map_id()[2:] + run.map_id()[:2], 16) >= 0x1F0:
+                break
+            here = run.map_id()
+            assert run.exit_other(visited), "out of the village"
+            visited.add(here)
+            machine.run(120)
+            run.wait_control(600)
+        assert run.map_id() == "f601", "the surviving land in 12,000 B.C."
+        run.checkpoint("world")
+    if start <= 2:
+        moves, _ = bfs.ow_bfs(machine, lambda m, x, y: m.peek(A.MAP_ID, 2).hex() == CAPE,
+                              lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(),
+                              confirm=True, max_nodes=1200)
+        assert moves is not None, "North Cape's entrance"
+        assert run.wait_control(), "North Cape in hand"
+        run.checkpoint("cape")
+    if start <= 3:
+        run.find_player()
+        for _ in range(60):
+            if run.me()[1] <= 160:
+                break
+            before = run.me()
+            machine.run(8, "UP+B")
+            assert run.me() != before, "the open path up the cape"
+        tx, ty = run.object_pos(16)
+        assert run.go(tx, ty + 18), "below the glimmer"
+        machine.run(2, "UP")
+        machine.run(8)
+        machine.run(3, "A")
+        assert run.dialogs_until(lambda: machine.b(CHOICE_ACTIVE) and machine.b(DIALOG_STRING) == 0x96,
+                                 16000), "Magus's fight question after the flashback"
+        machine.run(120)
+        run.checkpoint("choice")
+    if start <= 4:
+        if join:
+            machine.run(3, "DOWN")
+            machine.run(20)
+            assert machine.b(CHOICE_POINTER) == 2, "refuse the fight"
+        else:
+            assert machine.b(CHOICE_POINTER) == 1, "accept the fight"
+        machine.run(3, "A")
+        machine.run(30)
+        if join:
+            assert run.wait_control(), "walk away from Magus"
+        else:
+            assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 5000), "Magus battle menu"
+        run.checkpoint("branch")
+    if start <= 5:
+        if join:
+            assert run.find_player() is not None, "the leader after refusing the fight"
+            assert run.go(120, 232), "walk away to invite Magus's offer"
+            assert run.dialogs_until(lambda: machine.b(OUTCOME) & 1, 8000), "Magus joins"
+            # Keep the default name, then close the party screen.
+            machine.run(180)
+            assert machine.b(0x7E0A00) == 3, "Magus's naming screen"
+            machine.run(3, "START")
+            machine.run(180)
+            machine.run(3, "B")
+            machine.run(120)
+        else:
+            seen = []
+
+            def won(r, state):
+                living = policies.enemies(state)
+                if living:
+                    seen.append(True)
+                return bool(seen) and not living and any(state.hp(i) for i in range(3))
+
+            run.fight("party", won, party=3, seed=seed, max_frames=25000)
+        assert run.wait_control(10000), "North Cape back in hand"
+        assert machine.b(OUTCOME) & (1 if join else 2), "the branch's outcome flag"
+        assert run.map_id() == CAPE, "still on North Cape"
+        run.checkpoint("after")
+
+
 def main(join=False):
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -43,82 +127,7 @@ def main(join=False):
             assert machine.b(0x7F0000) == 0xD2 and machine.b(OUTCOME) == 0, "Magus still waiting"
             assert machine.peek(A.PARTY_MEMBERS, 3) == bytes((1, 2, 3)), "Marle, Lucca and Robo"
             run.checkpoint("loaded")
-        if start <= 1:
-            visited = set()
-            for _ in range(5):
-                if int(run.map_id()[2:] + run.map_id()[:2], 16) >= 0x1F0:
-                    break
-                here = run.map_id()
-                assert run.exit_other(visited), "out of the village"
-                visited.add(here)
-                machine.run(120)
-                run.wait_control(600)
-            assert run.map_id() == "f601", "the surviving land in 12,000 B.C."
-            run.checkpoint("world")
-        if start <= 2:
-            moves, _ = bfs.ow_bfs(machine, lambda m, x, y: m.peek(A.MAP_ID, 2).hex() == CAPE,
-                                  lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(),
-                                  confirm=True, max_nodes=1200)
-            assert moves is not None, "North Cape's entrance"
-            assert run.wait_control(), "North Cape in hand"
-            run.checkpoint("cape")
-        if start <= 3:
-            run.find_player()
-            for _ in range(60):
-                if run.me()[1] <= 160:
-                    break
-                before = run.me()
-                machine.run(8, "UP+B")
-                assert run.me() != before, "the open path up the cape"
-            tx, ty = run.object_pos(16)
-            assert run.go(tx, ty + 18), "below the glimmer"
-            machine.run(2, "UP")
-            machine.run(8)
-            machine.run(3, "A")
-            assert run.dialogs_until(lambda: machine.b(CHOICE_ACTIVE) and machine.b(DIALOG_STRING) == 0x96,
-                                     16000), "Magus's fight question after the flashback"
-            machine.run(120)
-            run.checkpoint("choice")
-        if start <= 4:
-            if join:
-                machine.run(3, "DOWN")
-                machine.run(20)
-                assert machine.b(CHOICE_POINTER) == 2, "refuse the fight"
-            else:
-                assert machine.b(CHOICE_POINTER) == 1, "accept the fight"
-            machine.run(3, "A")
-            machine.run(30)
-            if join:
-                assert run.wait_control(), "walk away from Magus"
-            else:
-                assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 5000), "Magus battle menu"
-            run.checkpoint("branch")
-        if start <= 5:
-            if join:
-                assert run.find_player() is not None, "the leader after refusing the fight"
-                assert run.go(120, 232), "walk away to invite Magus's offer"
-                assert run.dialogs_until(lambda: machine.b(OUTCOME) & 1, 8000), "Magus joins"
-                # Keep the default name, then close the party screen.
-                machine.run(180)
-                assert machine.b(0x7E0A00) == 3, "Magus's naming screen"
-                machine.run(3, "START")
-                machine.run(180)
-                machine.run(3, "B")
-                machine.run(120)
-            else:
-                seen = []
-
-                def won(r, state):
-                    living = policies.enemies(state)
-                    if living:
-                        seen.append(True)
-                    return bool(seen) and not living and any(state.hp(i) for i in range(3))
-
-                run.fight("party", won, party=3, seed=args.seed, max_frames=25000)
-            assert run.wait_control(10000), "North Cape back in hand"
-            assert machine.b(OUTCOME) & (1 if join else 2), "the branch's outcome flag"
-            assert run.map_id() == CAPE, "still on North Cape"
-            run.checkpoint("after")
+        play(run, start, args.seed, join)
         machine.screenshot(run.prefix + "_end.png")
         run.finish("Magus recruited" if join else "Magus beaten at North Cape")
         if args.movie:
