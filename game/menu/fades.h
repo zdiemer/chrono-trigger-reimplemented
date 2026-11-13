@@ -21,4 +21,10 @@ void menu_fade_to_black(GameState *g);
 enum { MENU_FADE_IN_TASK_START = 0x83BD };
 void menu_fade_in_task(GameState *g, Platform *pf);
 
+/* One step of the fade under way, by the step the menus keep for it (the one
+ * a fade out started over the fade in sets for both): on, or at full
+ * brightness or black, where the fade ends. */
+typedef enum { MENU_FADE_GOES_ON, MENU_FADE_AT_FULL, MENU_FADE_AT_BLACK } MenuFadeEnd;
+MenuFadeEnd menu_fade_a_step(GameState *g);
+
 #endif
