@@ -6,13 +6,16 @@ The way: out of the save point's room into the lair's hall ($12A), through to th
 the throne room ($12C), where walking past its twentieth tile row starts Azala's look down from
 the stairs, and up into the throne room ($12D). Confirm at the throne's foot starts the scene
 (Azala's challenge and the battle with Azala riding the Black Tyrano, formation $93); the battle
-bot fights it. After it Azala's last words, and event $FF $24 hands the screen to the scene
+bot fights it. The route plays the movie's own way there (battle-black-tyrano) on time and starts
+from the battle; the playthrough walks it. After it Azala's last words, and event $FF $24 hands the screen to the scene
 program at mode 4 ($7E:53BB): Lavos falling on the 65,000,000 B.C. world, which no other movie
 plays. The route stops once the scene has run its course and the field is back.
 """
+from pathlib import Path
+
 from .. import addresses as A
 from .. import policies
-from ..campaign import Run, route_arguments, run_route
+from ..campaign import REPO, Run, route_arguments, run_route
 
 HEADER = """\
 # Tyrano Lair, 65,000,000 B.C.: from the save point's room through the hall and the corridor (Azala's look down from the
@@ -25,7 +28,9 @@ HEADER = """\
 # <start_frame> <frame_count> <buttons>"""
 
 SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
-SLOT = 0
+MOVIE = Path(REPO) / "movies/saves/battle-black-tyrano.ctm"
+# The movie's walk ends as the battle begins (its first command menu opens at frame 7233 in the reference).
+WALK_ENDS = 7190
 PHASES = ["loaded", "lair_hall", "lair_corridor", "lair_throne", "tyrano_battle", "tyrano_won", "lavos_falls",
           "tyrano_after"]
 
@@ -34,7 +39,6 @@ SCENE_MODE = 0x7E0384           # the scene program's mode, as $C3:0000 stores t
 LAVOS_FALLS = 0x24              # event $FF $24: mode 4
 CORRIDOR_SCENE_ROW = 20         # the corridor's scene starts past this tile row ($12C, object 0)
 THRONE_FOOT = 16                # the first of the objects at the throne's foot ($12D's object $10)
-BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
 
 
 def play(run, start=1, seed=1):
@@ -93,21 +97,12 @@ def main():
     machine = run.machine
     start = run.start_at(PHASES)
 
-    if start <= 0:
-        machine.run(1620)
-        machine.run(5, "START")
-        machine.run(2420 - machine.frame)
-        run.select_slot(SLOT)
-        machine.run(4, "A")
-        for _ in range(200):
-            machine.run(10)
-            if run.map_id() not in ("0000", "b101"):
-                break
-        assert run.wait_control(), "the party in hand"
-        run.say("loaded map", run.map_id(), "frame", machine.frame)
-        assert run.map_id() == SAVE_ROOM, "Tyrano Lair's save point"
-        run.checkpoint("loaded")
-    play(run, start, args.seed)
+    if start <= 4:
+        # The way to the throne is the movie's own, which the field plays on time.
+        machine.play_movie(str(MOVIE), WALK_ENDS)
+        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 3000), "the battle's first menu"
+        run.checkpoint("tyrano_battle")
+    play(run, max(start, 5), args.seed)
     machine.screenshot(run.prefix + "_end.png")
     run.finish("Lavos's fall after the Black Tyrano")
     if args.movie:

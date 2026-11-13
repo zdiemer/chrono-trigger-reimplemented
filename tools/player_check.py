@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check native snapshots and recording with a local ROM, one process at a time.
+"""Check native snapshots and recording with a local ROM, two checks at a time.
 
     python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc
 
@@ -7,10 +7,15 @@ Outputs are ROM-derived and go only to the ignored build directory. The
 ROM-free format/bindings/name checks are separate CMake test executables.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
 import subprocess
+import sys
 import wave
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools import native_slots  # noqa: E402
 
 
 def main():
@@ -25,7 +30,7 @@ def main():
     suffix = ".exe" if os.name == "nt" else ""
 
     def run(app, label, *options, input_text=None):
-        with (out / (label + ".log")).open("wb") as log:
+        with (out / (label + ".log")).open("wb") as log, native_slots.slot():
             subprocess.run([str(build / (app + suffix)), "--rom", str(rom), *map(str, options)],
                            cwd=root, input=input_text.encode() if input_text is not None else None,
                            stdout=log, stderr=subprocess.STDOUT, check=True, timeout=300)
@@ -36,11 +41,7 @@ def main():
 
     # A state file loads in a later process only on Windows (docs/PLAYING.md,
     # "Snapshots"); elsewhere these continuations aren't offered.
-    for name, movie, cut, end in () if os.name != "nt" else (
-        ("opening", "new-game", 5200, 7200),
-        ("menu", "menu", 7400, 8000),
-        ("battle", "saves/battle-magus", 5000, 5600),
-    ):
+    def continuation(name, movie, cut, end):
         source = root / "movies" / (movie + ".ctm")
         state = out / (name + ".native-state")
         run("ct_native", name + "-prefix", "--movie", source, "--frames", cut,
@@ -56,45 +57,57 @@ def main():
                 raise RuntimeError(f"{name}: continued {extension} differs")
         if pcm(name + "-whole")[len(pcm(name + "-prefix")):] != pcm(name + "-resumed"):
             raise RuntimeError(f"{name}: continued audio differs")
-        print(f"{name}: continued state, picture and audio identical", flush=True)
+        return f"{name}: continued state, picture and audio identical"
 
     # Route slots and state files are the same snapshots as the player's.
-    route_state = out / "route.state"
-    commands = [f"movie {root / 'movies/menu.ctm'} 7400", "save 0", f"savefile {route_state}"]
-    for kind, restore in (("whole", None), ("slot", "load 0"), ("file", f"loadfile {route_state}")):
-        if restore:
-            commands.append(restore)
-        commands += ["run 300 0", f"wram {out / ('route-' + kind + '.bin')}",
-                     f"shot {out / ('route-' + kind + '.png')}"]
-    commands.append("quit")
-    run("ct_native", "route", "--drive", input_text="\n".join(commands) + "\n")
-    if any(line.startswith("err ") for line in (out / "route.log").read_text().splitlines()):
-        raise RuntimeError("route checkpoint command failed")
-    for extension in ("bin", "png"):
-        expected = (out / f"route-whole.{extension}").read_bytes()
-        for kind in ("slot", "file"):
-            if (out / f"route-{kind}.{extension}").read_bytes() != expected:
-                raise RuntimeError(f"route {kind}: continued {extension} differs")
-    print("route: slot and file restores preserve continued state and picture", flush=True)
+    def route_restores():
+        route_state = out / "route.state"
+        commands = [f"movie {root / 'movies/menu.ctm'} 7400", "save 0", f"savefile {route_state}"]
+        for kind, restore in (("whole", None), ("slot", "load 0"), ("file", f"loadfile {route_state}")):
+            if restore:
+                commands.append(restore)
+            commands += ["run 300 0", f"wram {out / ('route-' + kind + '.bin')}",
+                         f"shot {out / ('route-' + kind + '.png')}"]
+        commands.append("quit")
+        run("ct_native", "route", "--drive", input_text="\n".join(commands) + "\n")
+        if any(line.startswith("err ") for line in (out / "route.log").read_text().splitlines()):
+            raise RuntimeError("route checkpoint command failed")
+        for extension in ("bin", "png"):
+            expected = (out / f"route-whole.{extension}").read_bytes()
+            for kind in ("slot", "file"):
+                if (out / f"route-{kind}.{extension}").read_bytes() != expected:
+                    raise RuntimeError(f"route {kind}: continued {extension} differs")
+        return "route: slot and file restores preserve continued state and picture"
 
     # Snapshots taken and put back often, through the field, the menus' tasks,
     # a battle and the scene program: every frame played again must match.
-    for name, movie, frames in (("field", "field", 6000), ("menu", "menu", 9000),
-                                ("battle", "saves/battle-magus", 6000), ("scene", "saves/events-epoch-lavos", 6000)):
+    def snapshots(name, movie, frames):
         run("ct_native", "check-" + name, "--movie", root / "movies" / (movie + ".ctm"), "--frames", frames,
             "--check-snapshots", "211,60")
-        print(f"{name}: " + next(line for line in (out / f"check-{name}.log").read_text().splitlines()
-                                 if line.startswith("snapshots:")), flush=True)
+        return f"{name}: " + next(line for line in (out / f"check-{name}.log").read_text().splitlines()
+                                  if line.startswith("snapshots:"))
 
-    source = root / "movies/new-game.ctm"
-    recording = out / "recorded.ctm"
-    run("ct_native", "record", "--movie", source, "--record", recording, "--frames", 7200,
-        "--end-state", out / "record.bin")
-    run("ct_native", "replay", "--movie", recording, "--frames", 7200, "--end-state", out / "replay.bin")
-    if (out / "record.bin").read_bytes() != (out / "replay.bin").read_bytes():
-        raise RuntimeError("recording changed native playback")
-    print("recording: native playback unchanged", flush=True)
+    def recording():
+        source = root / "movies/new-game.ctm"
+        recorded = out / "recorded.ctm"
+        run("ct_native", "record", "--movie", source, "--record", recorded, "--frames", 7200,
+            "--end-state", out / "record.bin")
+        run("ct_native", "replay", "--movie", recorded, "--frames", 7200, "--end-state", out / "replay.bin")
+        if (out / "record.bin").read_bytes() != (out / "replay.bin").read_bytes():
+            raise RuntimeError("recording changed native playback")
+        return "recording: native playback unchanged"
 
+    # The checks are independent: two at a time, the longest first, each
+    # ct_native process holding one of the gate's slots (tools/native_slots.py).
+    checks = [(snapshots, "menu", "menu", 9000), (snapshots, "field", "field", 6000),
+              (snapshots, "battle", "saves/battle-magus", 6000), (snapshots, "scene", "saves/events-epoch-lavos", 6000)]
+    if os.name == "nt":
+        checks += [(continuation, "opening", "new-game", 5200, 7200), (continuation, "menu", "menu", 7400, 8000),
+                   (continuation, "battle", "saves/battle-magus", 5000, 5600)]
+    checks += [(recording,), (route_restores,)]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        for line in [pool.submit(check, *rest) for check, *rest in checks]:
+            print(line.result(), flush=True)
 
 if __name__ == "__main__":
     main()

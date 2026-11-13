@@ -10,7 +10,7 @@ import zlib
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from tools import outcomes, places
+from tools import native_slots, outcomes, places
 from tools.native_state import ROOT, SavedGame, seconds_for
 
 
@@ -63,7 +63,8 @@ def run_native(binary, rom, path, frames, sram, extra):
     if sram:
         command += ['--sram', str(sram)]
     try:
-        p = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=seconds_for(frames))
+        with native_slots.slot():
+            p = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=seconds_for(frames))
         return p.stderr.decode(errors='replace'), p.returncode
     except subprocess.TimeoutExpired as e:
         return (e.stderr or b'').decode(errors='replace'), None
@@ -146,6 +147,8 @@ def main(argv=None):
                 _, rc = run_native(args.ct_native.resolve(), args.rom, rows[0][1], 1, None, extra)
                 if rc or not pack.exists():
                     raise ValueError('could not import native assets')
+            by_length = sorted(rows, key=lambda row: -row[2])
+
             def one(row):
                 name, movie, frames = row
                 sram = save_for(movie, saves)
@@ -164,8 +167,10 @@ def main(argv=None):
                     ok = False
                     detail += '; native picture fingerprint changed'
                 return name, ok, how + (': ' + detail if detail else '') + '; ' + kept.summary()
+            # longest first, so no long movie is left running alone at the end
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(args.jobs, 2))) as pool:
-                results = list(pool.map(one, rows))
+                ran = dict(zip((row[0] for row in by_length), pool.map(one, by_length)))
+            results = [ran[row[0]] for row in rows]
         for name, ok, detail in results:
             print('%s: %s%s' % (name, detail, '' if ok else ' <-- FAILED'))
         print('native: %d/%d movies complete without unexplained dark screens' % (sum(ok for _, ok, _ in results), len(results)))
