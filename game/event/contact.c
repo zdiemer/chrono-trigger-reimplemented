@@ -117,10 +117,12 @@ static void push(GameState *g, FieldObject object, MapTile to)
     mark_field_object_pushed(g);
 }
 
+enum { TOUCH = 0xC03154 };
+
 // $C0:3154, and its push $C0:31B1
 /* The leader walks into the object it is up against: the object is touched,
  * and where it can be it is pushed. */
-void touch_what_the_leader_met(GameState *g)
+static void touch_and_push(GameState *g)
 {
     FieldObject object = contact(g);
     Touch t = leaders_touch(g);
@@ -128,6 +130,11 @@ void touch_what_the_leader_met(GameState *g)
         call_on(g, object, TOUCH_LEVEL, TOUCH_FUNCTION);
     if (t.pushed)
         push(g, object, t.to);
+}
+
+void touch_what_the_leader_met(GameState *g)
+{
+    TIMED_AS(g, TOUCH, touch_and_push(g));
 }
 
 /* ---- The confirm button ---------------------------------------------------------------- */

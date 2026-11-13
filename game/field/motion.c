@@ -268,8 +268,10 @@ static Look look_ahead(const GameState *g, FieldObject obj, uint16_t across, int
                    map_tile_attributes(g, tile_ahead(g, obj, across, sign_extended(down))) };
 }
 
+enum { START_STEP = 0xC0ACFD };
+
 // $C0:ACFD
-StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
+static StepStart start_step(GameState *g, FieldObject obj, Direction direction)
 {
     StepStart r = { START_STILL, direction };
     Velocity first = field_velocity_for(g, obj, direction), retry = { 0, 0 }, steps = first;
@@ -303,6 +305,13 @@ StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
     charge_rom_accesses(g, 1);
     charge_io_accesses(g, 4);
     return r;
+}
+
+StepStart object_start_step(GameState *g, FieldObject obj, Direction direction)
+{
+    StepStart result;
+    TIMED_AS(g, START_STEP, result = start_step(g, obj, direction));
+    return result;
 }
 
 /* ---- Objects in the way ------------------------------------------------------------------- */
@@ -460,8 +469,10 @@ static ObjectsAhead look_past_the_tables(const GameState *g, FieldObject obj, Fi
     return past;
 }
 
+enum { OBJECTS_AHEAD = 0xC05B95 };
+
 // $C0:5B95
-ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
+static ObjectsAhead find_objects_ahead(GameState *g, FieldObject obj)
 {
     SearchLength n = { 0, 0, 0 };
     ObjectsAhead r = { false, false, 0 };
@@ -476,6 +487,13 @@ ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
     charge_accesses(g, r.measured ? 2 : 4); /* the selected target */
     charge_search(g, n);
     return r;
+}
+
+ObjectsAhead object_in_the_way(GameState *g, FieldObject obj)
+{
+    ObjectsAhead result;
+    TIMED_AS(g, OBJECTS_AHEAD, result = find_objects_ahead(g, obj));
+    return result;
 }
 
 /* ---- Lining up ---------------------------------------------------------------------------- */
