@@ -43,6 +43,22 @@ def fly_to(run, x, y):
         machine.run(10)
 
 
+def land(run, max_nodes=100):
+    """Bring the Epoch down on the nearest ground that takes it: confirm on
+    each tile tried, kept where the party is on foot after the landing."""
+    def landed(m, x, y):
+        m.mark(4000)
+        m.probe(150)
+        on_foot = m.b(A.OVERWORLD_TRAVEL) == 0
+        m.restore(4000)
+        m.free(4000)
+        return on_foot
+    moves, _ = bfs.ow_bfs(run.machine, landed, lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(),
+                          confirm=True, max_nodes=max_nodes)
+    run.machine.run(150)
+    return moves is not None
+
+
 def win(run, seed, policy="party_with_lapis"):
     seen = []
     def won(r, state):
@@ -127,18 +143,7 @@ def main():
             run.checkpoint("world")
         if start <= 3:
             fly_to(run, 1048, 408)
-            def landing(m, x, y):
-                m.mark(4000)
-                m.probe(150)
-                landed = m.b(A.OVERWORLD_TRAVEL) == 0
-                m.restore(4000)
-                m.free(4000)
-                return landed
-            moves, _ = bfs.ow_bfs(machine, landing,
-                                  lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(),
-                                  confirm=True, max_nodes=100)
-            assert moves is not None, "ground beside Ozzie's Fort"
-            machine.run(150)
+            assert land(run), "ground beside Ozzie's Fort"
             assert run.world_exit(max_nodes=300) and run.map_id() == "b100", "Ozzie's Fort"
             assert run.wait_control()
             run.checkpoint("fort")
