@@ -9,6 +9,7 @@ outside the repository, never commit them.
     python3 tools/font_sheets.py <pack>.fonts OUT_DIR [--scale N]
 """
 import argparse
+import re
 import struct
 import sys
 import zlib
@@ -17,6 +18,12 @@ from pathlib import Path
 COLORS = {".": (90, 100, 112), "1": (255, 255, 255), "2": (176, 176, 176), "3": (16, 16, 16)}
 PAPER, INK, WIDTH_MARK = (40, 44, 52), (255, 220, 120), (230, 80, 80)
 COLUMNS, GAP = 16, 2
+
+# A font name comes from a text's `[...]` header and becomes a file name, so it
+# follows the asset catalogue's name pattern (tools/assets.py), and it may not
+# contain ".." or a separator: the pattern allows dots, and `[../x]` would write
+# outside OUT_DIR.
+FONT_NAME = re.compile(r"[a-z][a-z0-9_.]*")
 
 # Hex digits three pixels wide and five tall, for the labels.
 DIGITS = {
@@ -35,8 +42,14 @@ def parse(text: str):
         if not line:
             continue
         if line.startswith("["):
-            glyphs = fonts.setdefault(line[1:-1], [])
+            name = line[1:-1]
+            if not FONT_NAME.fullmatch(name) or ".." in name:
+                raise SystemExit(f"line {n}: {name!r} isn't a font name: lower case letters, "
+                                 "digits, '_' and '.', no '..'")
+            glyphs = fonts.setdefault(name, [])
         elif line.startswith("glyph"):
+            if glyphs is None:
+                raise SystemExit(f"line {n}: glyph before any [font]")
             words = line.split()
             width = int(words[3]) if len(words) >= 4 and words[2] == "width" else None
             current = (int(words[1], 16), width, [])
@@ -85,8 +98,9 @@ def main(argv=None):
     ap.add_argument("out", type=Path, help="the directory to write <font>.png into")
     ap.add_argument("--scale", type=int, default=4)
     args = ap.parse_args(argv)
+    fonts = parse(args.fonts.read_text(encoding="utf-8"))
     args.out.mkdir(parents=True, exist_ok=True)
-    for name, glyphs in parse(args.fonts.read_text(encoding="utf-8")).items():
+    for name, glyphs in fonts.items():
         w, h, rows = sheet(glyphs, args.scale)
         path = args.out / f"{name}.png"
         path.write_bytes(png(w, h, rows))
