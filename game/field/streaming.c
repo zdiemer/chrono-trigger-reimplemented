@@ -630,8 +630,7 @@ static void send_a_margin_column(GameState *g, Platform *pf, unsigned layer, int
     }
     uint16_t vram = (uint16_t)(field_layer_map_base(g, layer) + field_tile_map_index(ring, 0));
     static const VidVramPort column_port = { .step = FIELD_TILE_MAP_HALF_COLUMNS, .after_high = true };
-    /* no original site: a wider view's own send */
-    vid_send_vram(pf, PF_AT(0), vram, (PfData){ .ptr = ring_order }, sizeof ring_order, &column_port);
+    vid_send_view_vram(pf, vram, (PfData){ .ptr = ring_order }, sizeof ring_order, &column_port);
 }
 
 /* The columns either side of the screen a view needs, the fine scroll's

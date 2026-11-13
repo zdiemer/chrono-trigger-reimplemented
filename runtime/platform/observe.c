@@ -26,6 +26,9 @@ struct VidObserver {
 
     VidLineState state;
     uint8_t vram[0x10000];
+    /* VRAM as the game's own sends left it, without a wider view's: what the
+     * game reads back (vid_vram_word), the same at every view. */
+    uint8_t game_vram[0x10000];
     uint16_t cgram[256];
     uint8_t oam[0x220];
     VidSpritePlace places[VID_SPRITES];   /* where the game put each sprite, beside the table */
@@ -45,6 +48,7 @@ struct VidObserver {
     uint8_t enabled_slots;
 
     bool palette_dirty, vram_dirty, sprites_dirty;
+    bool view_only;   /* the VRAM sends now are a wider view's own (vid_obs_upload_view_vram) */
     bool recording;
     /* Lazily allocated, reused between frames. At most one version per
      * emitted span is needed, even if a send changes thousands of bytes. */
@@ -259,6 +263,7 @@ void vid_obs_snapshot_peak(const VidObserver *ob, int *vram, int *cgram, int *sp
 void vid_obs_seed_memory(VidObserver *ob, const uint8_t *vram, const uint16_t *cgram, const uint8_t *oam)
 {
     memcpy(ob->vram, vram, sizeof ob->vram);
+    memcpy(ob->game_vram, vram, sizeof ob->game_vram);
     memcpy(ob->cgram, cgram, sizeof ob->cgram);
     memcpy(ob->oam, oam, sizeof ob->oam);
     ob->palette_dirty = true;
@@ -296,7 +301,10 @@ static uint8_t data_byte(const VidObserver *ob, PfData src, uint32_t i)
 static void vram_put(VidObserver *ob, bool high, uint8_t v)
 {
     keep_vram(ob);
-    ob->vram[(uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0))] = v;
+    uint16_t at = (uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0));
+    ob->vram[at] = v;
+    if (!ob->view_only)
+        ob->game_vram[at] = v;
     if (ob->port.after_high == high)
         ob->vram_addr = (uint16_t)(ob->vram_addr + ob->port.step);
 }
@@ -556,11 +564,26 @@ void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half)
         vram_put(ob, half < 0 ? (i & 1) != 0 : half == 1, data_byte(ob, src, i));
 }
 
-/* A word as the uploads left it, at its plain address. */
+/* A wider view's own upload: shown, but kept out of what the game reads back,
+ * and leaving the port and the address where the game's sends left them, so
+ * a send of the game's that goes on from them goes on as at any view. */
+void vid_obs_upload_view_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
+                              const VidVramPort *port)
+{
+    VidVramPort game_port = ob->port;
+    uint16_t game_addr = ob->vram_addr;
+    ob->view_only = true;
+    vid_obs_upload_vram(ob, vram_addr, src, len, false, port);
+    ob->view_only = false;
+    ob->port = game_port;
+    ob->vram_addr = game_addr;
+}
+
+/* A word as the game's uploads left it, at its plain address. */
 uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr)
 {
     uint16_t at = (uint16_t)((vram_addr & 0x7FFF) << 1);
-    return (uint16_t)(ob->vram[at] | ob->vram[at + 1] << 8);
+    return (uint16_t)(ob->game_vram[at] | ob->game_vram[at + 1] << 8);
 }
 
 void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,

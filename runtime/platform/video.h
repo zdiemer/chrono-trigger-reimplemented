@@ -628,6 +628,13 @@ PF_API void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *
  * (NULL: as vid_start_vram_uploads left it). A `len` of 0 uploads nothing. */
 PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                           const VidVramPort *port);
+/* The same for a view wider than the original's screen (vid_view), from its
+ * own work rather than the game's: the margins' columns a mode builds. It is
+ * shown, but takes none of the game's time, leaves the port and the address
+ * where the game's sends left them, and is never read back (vid_vram_word),
+ * so the game finds VRAM as at the original's view. */
+PF_API void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len,
+                               const VidVramPort *port);
 /* From the game's main thread rather than a handler: `len` bytes (1-65536)
  * from `src` into VRAM at word address `vram_addr`, there before the next
  * picture, the call returning once they are. A machine that can reach VRAM
@@ -681,10 +688,10 @@ PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *screen);
 PF_API void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len);
 PF_API void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, VidVramHalf half);
 
-/* The word VRAM holds at word address `vram_addr`, as the uploads left it: a
- * setup that builds a map out of one already sent reads it back so. A read
- * takes no time of its own; the caller charges what its copy takes
- * (tm_charge_transfer). */
+/* The word VRAM holds at word address `vram_addr`, as the game's uploads left
+ * it (never a wider view's, vid_send_view_vram): a setup that builds a map
+ * out of one already sent reads it back so. A read takes no time of its own;
+ * the caller charges what its copy takes (tm_charge_transfer). */
 PF_API uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr);
 
 /* The picture's settings that the game's own data names by the SNES address
@@ -756,6 +763,8 @@ void vid_obs_fill_vram_half(VidObserver *ob, PfData value, uint32_t len, VidVram
 void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
                          const VidVramPort *port);
 void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half);   /* half as vid_obs_write_vram's */
+void vid_obs_upload_view_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
+                              const VidVramPort *port);
 uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
