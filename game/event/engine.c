@@ -54,7 +54,7 @@ const EventOpcode *event_opcode(uint8_t opcode)
     return by_opcode[opcode];
 }
 
-#if CT_EVENT_SCRIPT_TEXT
+#if CT_SCRIPT_TEXT
 /* The commands that read their own operands, by name, for a script's text. */
 static const struct {
     uint8_t opcode;

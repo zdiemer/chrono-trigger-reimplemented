@@ -87,7 +87,7 @@ bool event_copy_data(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     return true;
 }
 
-#if CT_EVENT_SCRIPT_TEXT
+#if CT_SCRIPT_TEXT
 /* The command's length: its six bytes and the data after them. */
 static uint16_t measure_copy_data(const uint8_t *command, uint16_t available)
 {

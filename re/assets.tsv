@@ -9,6 +9,7 @@
 # text; `lz:field-map`, `lz:looks`, `lz:tilemap:N`, `lz:bytes:N`, `lz:nibbles:N`, `lz:colors:N`:
 # packed maps, looks and grids, and `lz` other packed streams, as frontend/maps.h's; `lz:event`
 # a location's event script and `lz:place-lists` a world map's places, as frontend/scripts.h's;
+# `lz:object` a world map's scene's menu object scripts, as frontend/commands.h's;
 # `text:dialog` a string, `text:names:N` names of N glyphs, `text:dialog-dictionary` the
 # dictionary's words, as frontend/text.h's; `tiles:plane-pool` the battlefield's tiles of two or
 # three bitplanes, cut by their descriptors, as frontend/tiles.h's; `struct:sprite-records:N`,
@@ -85,31 +86,31 @@ undetermined_c2b316	undetermined	C2:B316	C2:B31B	raw	read
 menu_tech_casting_frame	bytes	C2:B519	C2:B51F	raw	accessor menu_tech_casting_frame
 menu_tech_row_sprite_y	bytes	C2:BB1A	C2:BB1E	raw	accessor menu_tech_row_sprite_y
 menu_tech_group_first	bytes	C2:BD40	C2:BD6A	raw	accessor menu_tech_group_first
-script_c2bece	script	C2:BECE	C2:BEDB	script:C2:8385	read
+script_c2bece	struct	C2:BECE	C2:BEDB	struct:records:7	read
 menu_tech_target_sprite_place	bytes	C2:BF2F	C2:BF34	raw	accessor menu_tech_target_sprite_place
 menu_settings_button_choice	bytes	C2:C207	C2:C20E	raw	accessor menu_settings_button_choice
 menu_settings_row_assignment	words	C2:C2BD	C2:C2FE	raw	accessor menu_settings_row_assignment
 menu_settings_box_place	bytes	C2:C41B	C2:C439	raw	accessor menu_settings_box_place
 menu_settings_option_cell	bytes	C2:C4F9	C2:C510	raw	accessor menu_settings_option_cell
-script_c2c548	script	C2:C548	C2:C54E	script:C2:8385	read
+script_c2c548	struct	C2:C548	C2:C54E	struct:records:7	read
 menu_settings_button_row_place	words	C2:C5A7	C2:C5B2	raw	accessor menu_settings_button_row_place
-script_c2cad9	script	C2:CAD9	C2:CADF	script:C2:8385	read
+script_c2cad9	struct	C2:CAD9	C2:CADF	struct:records:7	read
 menu_exchange_row_at	words	C2:CDCB	C2:CDE2	raw	accessor menu_exchange_row_at
 menu_exchange_sprite_place	words	C2:CE6E	C2:CE85	raw	accessor menu_exchange_sprite_place
-script_c2ce96	script	C2:CE96	C2:CE9C	script:C2:8385	read
-script_c2cf30	script	C2:CF30	C2:CF36	script:C2:8385	read
+script_c2ce96	struct	C2:CE96	C2:CE9C	struct:records:7	read
+script_c2cf30	struct	C2:CF30	C2:CF36	struct:records:7	read
 menu_slot_row_value	bytes	C2:D044	C2:D064	raw	accessor menu_slot_row_value
-script_c2d198	script	C2:D198	C2:D19E	script:C2:8385	read
+script_c2d198	struct	C2:D198	C2:D19E	struct:records:7	read
 menu_slot_name_shift	bytes	C2:D329	C2:D32B	raw	accessor menu_slot_name_shift
-script_c2d45f	script	C2:D45F	C2:D465	script:C2:8385	read
+script_c2d45f	struct	C2:D45F	C2:D465	struct:records:7	read
 menu_portrait_first_tile	bytes	C2:D4B4	C2:D4BA	raw	accessor menu_portrait_first_tile
-script_c2db98	script	C2:DB98	C2:DB9E	script:C2:8385	read
+script_c2db98	struct	C2:DB98	C2:DB9E	struct:records:7	read
 menu_shop_member_x	bytes	C2:DC74	C2:DC7A	raw	accessor menu_shop_member_x
 menu_category_slot_place	bytes	C2:DE1D	C2:DE21	raw	accessor menu_category_slot_place
 menu_shop_quantity_windows	words	C2:DFC5	C2:DFCE	raw	accessor menu_shop_quantity_windows
 menu_shop_figure_shown	bytes	C2:E1DC	C2:E1E2	raw	accessor menu_shop_figure_shown
-script_c2e53e	script	C2:E53E	C2:E544	script:C2:8385	read
-script_c2e88a	script	C2:E88A	C2:E890	script:C2:8385	read
+script_c2e53e	struct	C2:E53E	C2:E544	struct:records:7	read
+script_c2e88a	struct	C2:E88A	C2:E890	struct:records:7	read
 menu_window_inside_tile	bytes	C2:EEF5	C2:EF04	raw	accessor menu_window_inside_tile
 menu_text_code_handler	words	C2:EFD4	C2:EFF3	raw	accessor menu_text_code_handler
 menu_hex_digit_tile	bytes	C2:F27D	C2:F28C	raw	accessor menu_hex_digit_tile
@@ -120,14 +121,14 @@ scene_matrix_table	words	C3:09D9	C3:09E8	raw	accessor scene_matrix_table
 attract_resource_ptrs.0	lz	C3:1200	C3:1312	lz	attract_resource_ptrs entry
 attract_resource_ptrs.1	lz	C3:1313	C3:7A2B	lz	attract_resource_ptrs entry
 mixed_c37a2c	mixed	C3:7A2C	C3:8B6B	raw	read
-scene_script_ptrs.0	lz	C3:8B6C	C3:97D6	lz	scene_script_ptrs entry
-scene_script_ptrs.1	lz	C3:97D7	C3:9F40	lz	scene_script_ptrs entry
-scene_script_ptrs.2	lz	C3:9F41	C3:A606	lz	scene_script_ptrs entry
-scene_script_ptrs.3	lz	C3:A607	C3:AC3D	lz	scene_script_ptrs entry
-scene_script_ptrs.4	lz	C3:AC3E	C3:BA13	lz	scene_script_ptrs entry
-scene_script_ptrs.5	lz	C3:BA14	C3:BF7A	lz	scene_script_ptrs entry
-scene_script_ptrs.6	lz	C3:BF7B	C3:C804	lz	scene_script_ptrs entry
-scene_script_ptrs.7	lz	C3:C805	C3:CE43	lz	scene_script_ptrs entry
+scene_script_ptrs.0	lz	C3:8B6C	C3:97D6	lz:object	scene_script_ptrs entry
+scene_script_ptrs.1	lz	C3:97D7	C3:9F40	lz:object	scene_script_ptrs entry
+scene_script_ptrs.2	lz	C3:9F41	C3:A606	lz:object	scene_script_ptrs entry
+scene_script_ptrs.3	lz	C3:A607	C3:AC3D	lz:object	scene_script_ptrs entry
+scene_script_ptrs.4	lz	C3:AC3E	C3:BA13	lz:object	scene_script_ptrs entry
+scene_script_ptrs.5	lz	C3:BA14	C3:BF7A	lz:object	scene_script_ptrs entry
+scene_script_ptrs.6	lz	C3:BF7B	C3:C804	lz:object	scene_script_ptrs entry
+scene_script_ptrs.7	lz	C3:C805	C3:CE43	lz:object	scene_script_ptrs entry
 menu_scene_stream_c6fea0.0	lz	C3:CE44	C3:CED9	lz:colors:16	menu_scene_stream_c6fea0 entry
 menu_scene_stream_c6fea0.1	lz	C3:CEDA	C3:CF6B	lz:colors:16	menu_scene_stream_c6fea0 entry
 menu_scene_stream_c6fea0.2	lz	C3:CF6C	C3:CFF4	lz:colors:16	menu_scene_stream_c6fea0 entry

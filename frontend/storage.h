@@ -15,6 +15,7 @@ typedef struct {
     char maps[1024];      /* the pack's maps as text (frontend/maps.h): beside it, .maps */
     char text[1024];      /* the pack's text as text (frontend/text.h): beside it, .text */
     char scripts[1024];   /* the pack's event scripts as text (frontend/scripts.h): beside it, .scripts */
+    char commands[1024];  /* its battle animation and menu object scripts (frontend/commands.h): .commands */
     char records[1024];   /* the pack's tables of records as text (frontend/records.h): beside it, .records */
     const char *movie;    /* the movie being recorded, or NULL */
 } Files;

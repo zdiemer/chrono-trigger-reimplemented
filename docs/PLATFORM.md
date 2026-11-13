@@ -123,7 +123,8 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.scripts`, `<pack>.text`, `<pack>.records`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.scripts`, `<pack>.commands`, `<pack>.text`,
+`<pack>.records`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
@@ -360,8 +361,9 @@ A command whose length its operands decide (the colour effects, the tint's
 short form, the screen commands, the data a copy carries) has its row's
 `MEASURED` length, the same function the engine's operations take it from.
 The names and measures are the text's alone: a build without it (the
-65816's) leaves them out of the table with `CT_EVENT_SCRIPT_TEXT 0`, which
-`ct_event_without_text` compiles every build.
+65816's) leaves them out of the table with `CT_SCRIPT_TEXT 0`
+(`game/script_text.h`), which `ct_languages_without_text` compiles every
+build, the battle's and the menus' languages with it.
 Bits of an operand byte no parameter reads would be kept as byteN=XX (N
 its operand) and a command's own data after its operands as
 `data=XX.XX...`; the places a
@@ -411,6 +413,67 @@ script and list of places of the cartridge reads back as its bytes. It also
 checks the table's jumps lie inside their commands and the places' fields
 are bytes and words filling their records. The
 lean gate runs every movie on the decoded scripts.
+
+### Commands
+
+The battle's animation scripts (`script:battle-animation`, four resources),
+the menus' object scripts (`script:object`, three), the world maps' scenes'
+object scripts (`lz:object`, the eight `scene_script_ptrs.N`, packed) and
+the enemies' scripts (`script:enemy-ai`) are the commands kind,
+`frontend/commands.c`, kept as `<pack>.commands`. The first three are
+written from their interpreters' own tables as the event scripts are: the
+battle's (`battle/script_language.h`) and the menus' (`menu/script.h`)
+languages share their C names, so `frontend/battle_language.c` and
+`frontend/menu_language.c` each read one table into a common description
+(`frontend/languages.h`), a row an opcode with its operation's name (the
+table's `OPERATION`, or `NAMED` for the battle's sound rows, which have no
+operation) and its parameters: operand bytes, words and addresses (`slot:`
+before a byte of the running object's, `cell:` before a cell of low RAM),
+and the ones the opcode fixes, which a line gives too and reading matches:
+
+    wait_frames frames=08
+    play_sound voices=18 sound=4E
+    change_byte change=03 byte=cell:0045 value=02
+    jump to=046C
+
+The screen effect, whose settings it carries are as many as its first says,
+is `MEASURED` like the event commands, its settings after the first as
+`data=`; a screen effect giving none reads its count from the next byte, so
+reading measures it over zeros. Where two rows read a line alike (the
+battle's halts, its two forms of `play_and_wait`) `@XX` names the opcode:
+3,513 of the 52,900 lines. Bytes no row reads are `bytes` (the battle's
+commands the port leaves to the original, 569 lines).
+
+The enemies' scripts aren't a table's language (`frontend/enemy_scripts.c`):
+where each enemy's starts is a row of words, then each script's two
+sections, blocks of conditions by their test's name (the conditions' table,
+`enemy_condition_name`) and the actions they choose by name
+(`enemy_action_name`), as many bytes as the battle's table of their lengths
+says; `then` and `done` end a block's conditions and actions, `end` a
+section, and a comment names the enemies whose script starts there:
+
+    # enemy 00
+    if always 00 00 00
+    then
+    do attack 01 05 05
+    done
+    end
+
+Every byte of the enemies' scripts reads as one of these. The names and
+measures are the text's, left out without it (`CT_SCRIPT_TEXT`).
+
+Other tables point into these scripts by place, and the scenes' scripts name
+places in themselves by address, so a script keeps its length: an edit must
+leave it as many bytes as the cartridge's (and the scenes' must pack into
+their slot). Measured: `commands_test` (ROM-free) writes and reads back
+made-up scripts of each language and an enemy's, serves an edited command,
+and refuses wrong text at its line (a command or action that isn't one, a
+value too long, an opcode not the command's, a condition short of its
+bytes, a script a byte longer, a byte shorter); with the ROM staged every
+script of the cartridge reads back as its bytes. The upload records the
+menus queue (`script_c2bece` and nine more) were typed `script` and are
+records, `struct:records:7`. The event commands built into the field
+(`built_in_command_byte`, 55 bytes) are still bytes.
 
 ### Text
 

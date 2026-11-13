@@ -350,17 +350,18 @@ add_library(ct_game STATIC
   game/battle/wait.c
   game/battle/window.c)
 target_link_libraries(ct_game PUBLIC ct_state_host)
-# The event language as a build without the script text compiles it (the
-# 65816's): the commands' names and measures left out (game/event/script.h).
+# The script languages as a build without the scripts' text compiles them (the
+# 65816's): the commands' names and measures left out (game/script_text.h).
 get_target_property(CT_GAME_SOURCES ct_game SOURCES)
-list(FILTER CT_GAME_SOURCES INCLUDE REGEX "^game/event/")
-add_library(ct_event_without_text OBJECT ${CT_GAME_SOURCES})
-target_compile_definitions(ct_event_without_text PRIVATE CT_EVENT_SCRIPT_TEXT=0)
-target_link_libraries(ct_event_without_text PRIVATE ct_state_host)
+list(FILTER CT_GAME_SOURCES INCLUDE REGEX "^game/(event/|battle/script_|battle/numbers|battle/enemy_|menu/(object_)?script)")
+add_library(ct_languages_without_text OBJECT ${CT_GAME_SOURCES})
+target_compile_definitions(ct_languages_without_text PRIVATE CT_SCRIPT_TEXT=0)
+target_link_libraries(ct_languages_without_text PRIVATE ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
   frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/scripts.c frontend/text.c
+  frontend/commands.c frontend/battle_language.c frontend/menu_language.c frontend/enemy_scripts.c
   frontend/records.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
@@ -450,6 +451,10 @@ if(BUILD_TESTING)
     frontend/lz.c frontend/assets.c)
   target_include_directories(scripts_test PRIVATE frontend game)
   target_link_libraries(scripts_test PRIVATE ct_game)
+  add_executable(commands_test tests/frontend/commands_test.c frontend/decoded.c frontend/commands.c frontend/packed.c frontend/lz.c
+    frontend/battle_language.c frontend/menu_language.c frontend/enemy_scripts.c frontend/assets.c)
+  target_include_directories(commands_test PRIVATE frontend game)
+  target_link_libraries(commands_test PRIVATE ct_game)
   add_executable(text_test tests/frontend/text_test.c frontend/decoded.c frontend/text.c frontend/assets.c
     game/data/asset_catalogue.c)
   target_include_directories(text_test PRIVATE frontend game)
@@ -479,7 +484,7 @@ if(BUILD_TESTING)
   add_executable(enemy_movement_test tests/port/enemy_movement_test.c)
   target_include_directories(enemy_movement_test PRIVATE game runtime)
   target_link_libraries(enemy_movement_test PRIVATE ct_game)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps scripts text records sound_setting sound_native object_talk party_trail enemy_movement menu_fade screen_command palette_sharers)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps scripts commands text records sound_setting sound_native object_talk party_trail enemy_movement menu_fade screen_command palette_sharers)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()
