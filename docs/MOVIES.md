@@ -165,8 +165,14 @@ measured in ct_native only, unconfirmed against the original), opens the sealed 
 Lab 32's race is steered with `events-jetbike-race-won`'s input from the race's
 first frame, as `proto_dome`'s own approach is; a rest in Proto Dome's Enertron
 and Tonics before the R Series keep Crono and Lucca fit for it, the factory's
-fights before it leaving their MP alone. It ends at the End of Time after the
-R Series (frame 551350). Lab 16's Shadows,
+fights before it leaving their MP alone. At the End of Time Spekkio's three
+laps pass each post once (a post counts again each time its count runs while
+the leader is still against it, so the walk ends on the touch and the party
+then stands still); `heckran_prepare` and `heckran` then play the Medina gate,
+the cave, a Shelter at its save point and Heckran. Heckran's whirlpool,
+Leene Square's Gate (which shows Truce Canyon's pillar at the End of Time) and
+that pillar lead to 600 A.D.; Guardia's kitchen gives Zenan Bridge's jerky,
+and `zombor` plays the bridge. It ends with Zombor beaten (frame 698042). Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
