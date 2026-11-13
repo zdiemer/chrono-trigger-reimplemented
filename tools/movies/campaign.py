@@ -38,10 +38,11 @@ class RouteDone(Exception):
     """Raised by Run.checkpoint at the phase --until names: the route stops there."""
 
 
-def route_arguments(description, save=None, blank=False):
+def route_arguments(description, save=None, blank=False, seed=1):
     """The command line every route script takes. `save` is the route's cartridge
     save, relative to the repo (saves), the default for --sram; a route that
-    starts from a blank cartridge (`blank`) has none."""
+    starts from a blank cartridge (`blank`) has none. `seed` is the fights'
+    seed the route is checked with."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--sram", required=save is None and not blank, default=save and os.path.join(REPO, save),
                         help="cartridge save the route starts from" + (" (default %s)" % save if save else ""))
@@ -49,7 +50,7 @@ def route_arguments(description, save=None, blank=False):
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
     parser.add_argument("--drive", help="ct_native binary (default build/main/ct_native, or $CT_NATIVE)")
     parser.add_argument("--movie", help="write the finished run as this .ctm")
-    parser.add_argument("--seed", type=int, default=1, help="seed for the fights' choices")
+    parser.add_argument("--seed", type=int, default=seed, help="seed for the fights' choices")
     parser.add_argument("--until", metavar="PHASE", help="stop once this phase's checkpoint is written")
     return parser.parse_args()
 
