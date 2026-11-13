@@ -5996,6 +5996,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Frames left before the object's next animation frame; cleared to restart an animation"
 source = "game/field/animation.c, object_animation_tick $C0:C98A"
+unchecked = "a member waiting in a place of the party emptied under it shows its pose on the slot the empty place's marker names, the first past the tables (game/field/party_trail.c wait_on_the_trail, $C0:9F6F; the Prophet's ending, frame 133126): logic, the delay table running into the animation frames'"
 
 [[var]]
 name = "field_object_looped_animation"
@@ -6007,6 +6008,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "The animation the object loops, or animates its movement with ($FF while a one-off or a held frame has nothing to go back to)"
 source = "game/field/animation.c looped_animation, object_loop_animation $C0:2E6D, object_animate_movement $C0:5614"
+unchecked = "a member waiting in a place of the party emptied under it shows its pose on the slot the empty place's marker names, the first past the tables (game/field/party_trail.c wait_on_the_trail, $C0:9F6F; the Prophet's ending, frame 133126): logic, the table running into the sprite records'"
 
 [[var]]
 name = "field_object_animation_frame"
@@ -6018,6 +6020,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Where the object is in its animation: a frame number ($FF, a frame before the first, where it starts over)"
 source = "game/field/animation.c object_restart_animation, next_frame, object_take_next_frame $C0:CB3A"
+unchecked = "a member waiting in a place of the party emptied under it shows its pose on the slot the empty place's marker names, the first past the tables (game/field/party_trail.c wait_on_the_trail, $C0:9F6F; the Prophet's ending, frame 133126): logic, the table running into the sprite records'"
 
 [[var]]
 name = "field_object_sprite_records"

@@ -60,14 +60,29 @@ def walk_through(run, direction, goal, seed=1, interact=False):
     raise AssertionError("too many encounters in one corridor")
 
 
+TILE_EXITS, TILE_EXIT_ROW, NO_EXIT = 0x7E7080, 0x100, 0x80   # field_tile_exits
+
+
+def on_an_exit(machine, x, y):
+    """Whether the leader at (x, y) stands on one of the map's exits."""
+    column, row = int(x) // 16, int(y) // 16
+    if not (0 <= column < 64 and 0 <= row < 64):
+        return False
+    return not machine.b(TILE_EXITS + row * TILE_EXIT_ROW + column) & NO_EXIT
+
+
 def search_through(run, goal, seed=1, inside=lambda x, y: True, policy=None):
     """Search a room, stopping to resolve scripted encounters on the way."""
     from .. import bfs
     machine = run.machine
     for _ in range(8):
         assert run.wait_control(), "the room in hand"
+        # An encounter stops the search where it takes the field; a door,
+        # which takes it too as the party steps onto it, leads out of the
+        # room, not to the goal.
         moves, visited = bfs.bfs_walk(machine,
-            lambda m, x, y: inside(x, y) and (goal(m, x, y) or not m.b(PLAYER_CONTROL)),
+            lambda m, x, y: inside(x, y) and (goal(m, x, y) or not m.b(PLAYER_CONTROL)
+                                              and not on_an_exit(m, x, y)),
             run._pos(), lambda m: (run.map_id(), m.b(PLAYER_CONTROL), inside(*run.me())),
             step=16, cell=6, max_nodes=3000)
         run.say("room search", "steps", None if moves is None else len(moves),

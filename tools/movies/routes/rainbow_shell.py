@@ -112,9 +112,11 @@ def approach(run):
 
     def throne():
         enter(run, "2901")
-        assert run.walk(lambda m, x, y: y >= 15 * 16) is not None
+        # Down the throne room itself: its door back out lies below the
+        # party too, and a walk that leaves the room also ends lower down.
+        assert run.walk_here(lambda m, x, y: y >= 15 * 16) is not None
         assert run.wait_control()
-        assert run.walk(lambda m, x, y: y >= 27 * 16) is not None
+        assert run.walk_here(lambda m, x, y: y >= 27 * 16) is not None
         enter(run, "c300")
 
     def first_fight():
@@ -127,6 +129,7 @@ def approach(run):
         enter(run, "6e00")
 
     def pit():
+        assert run.wait_control()
         assert run.go(168, 424)
         assert run.wait_control()
         m.run(24, "UP")
@@ -163,7 +166,9 @@ def approach(run):
 
     def upper():
         enter(run, "c300")
-        assert run.walk(lambda m, x, y: x > 330 or not m.b(CONTROL)) is not None
+        # East along the upper cave (not back through the door beside the
+        # party, which a walk would also count) to the hall's far door.
+        assert run.walk_here(lambda m, x, y: x > 330 or not m.b(CONTROL)) is not None
         m.run(300)
         assert m.b(CONTROL), "past the upper cave's enemies"
         enter(run, "6d00")
