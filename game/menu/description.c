@@ -303,7 +303,7 @@ static void type_the_text(GameState *g)
 
 static bool type(GameState *g)
 {
-    if (!typing_goes_on(g)) {
+    if (!PORT_CHECK(typing_goes_on(g))) {
         program_breaks_a_contract(g, 0xC2FAA8, "a description the port doesn't type");
         return false;
     }
@@ -338,7 +338,7 @@ static void type_by_task(GameState *g, TypingTask task)
 static void typing_task(GameState *g, TypingTask task)
 {
     static const uint32_t starts[] = { 0xC2FA9F, 0xC2F9B2, 0xC2FA06 };
-    if (!typing_task_can_start(g, task)) {
+    if (!PORT_CHECK(typing_task_can_start(g, task))) {
         program_breaks_a_contract(g, starts[task], "a typing task the port doesn't start");
         return;
     }

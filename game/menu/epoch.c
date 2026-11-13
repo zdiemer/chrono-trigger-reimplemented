@@ -1354,7 +1354,7 @@ static bool load_the_markers(GameState *g, Platform *pf)
 
 static bool build_the_map(GameState *g, Platform *pf)
 {
-    if (!overworld_map_tiles_can_load(g) || !map_picture_buffer_fits(g)) {
+    if (!PORT_CHECK(overworld_map_tiles_can_load(g) && map_picture_buffer_fits(g))) {
         program_breaks_a_contract(g, 0xC263DF, "a map view without its map record or a strip buffer clear of low RAM");
         return false;
     }
@@ -1364,7 +1364,7 @@ static bool build_the_map(GameState *g, Platform *pf)
 
 static bool build_the_gate(GameState *g, Platform *pf)
 {
-    if (!menu_object_address_names_one(menu_object_current(g))) {
+    if (!PORT_CHECK(menu_object_address_names_one(menu_object_current(g)))) {
         program_breaks_a_contract(g, 0xC27389, "a time dial built with no object running");
         return false;
     }
@@ -1379,7 +1379,7 @@ static void load_a_stream(GameState *g, GateStream stream)
 
 static bool start_the_text(GameState *g)
 {
-    if (!menu_text_can_start(g)) {
+    if (!PORT_CHECK(menu_text_can_start(g))) {
         program_breaks_a_contract(g, 0xC257DF, "a text the typesetter doesn't start");
         return false;
     }
@@ -1389,7 +1389,7 @@ static bool start_the_text(GameState *g)
 
 static bool set_the_glyphs(GameState *g)
 {
-    if (!menu_text_can_carry_on(g)) {
+    if (!PORT_CHECK(menu_text_can_carry_on(g))) {
         program_breaks_a_contract(g, 0xC25823, "a text the typesetter doesn't go on with");
         return false;
     }

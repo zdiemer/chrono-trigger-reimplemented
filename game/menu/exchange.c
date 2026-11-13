@@ -50,6 +50,7 @@
 #include "menu/typeset.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The rows ---------------------------------------------------------------------------------- */
@@ -1082,7 +1083,7 @@ static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 
 static bool move_the_cursor(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_exchange_cursor_can_move(g), 0xC2C805, "an exchange cursor the port doesn't move"))
+    if (!takes(g, PORT_CHECK(menu_exchange_cursor_can_move(g)), 0xC2C805, "an exchange cursor the port doesn't move"))
         return false;
     bool back = false;
     TIMED_AS(g, 0xC2C805, back = menu_move_the_exchange_cursor_with(g, pf));
@@ -1102,7 +1103,7 @@ static bool run(GameState *g, Platform *pf, ExchangeRoutine r)
     case EXCHANGE_SWITCHES_TO_THE_GATE_SONG: TIMED_AS(g, 0xC2CB8B, menu_switch_to_the_gate_song(g, pf)); return true;
     case EXCHANGE_SHOWS_THE_PANEL: TIMED_AS(g, 0xC2C9E5, done = menu_show_exchange_panel(g, pf)); return done;
     case EXCHANGE_LAYS_OUT_THE_GATE_SCREEN:
-        if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
+        if (!takes(g, PORT_CHECK(menu_exchange_can_lay_out(g)), 0xC2CAF3, "an exchange the port doesn't lay out"))
             return false;
         TIMED_AS(g, 0xC2CAF3, done = menu_lay_out_the_exchange_with(g, pf));
         return done;
@@ -1120,7 +1121,7 @@ static bool ends(GameState *g, Platform *pf, ExchangeEnd end)
     switch (end) {
     case EXCHANGE_BUZZES: menu_buzz(g, pf); break;
     case EXCHANGE_LAYS_OUT_THE_SCREEN:
-        if (!takes(g, menu_exchange_can_lay_out(g), 0xC2CAF3, "an exchange the port doesn't lay out"))
+        if (!takes(g, PORT_CHECK(menu_exchange_can_lay_out(g)), 0xC2CAF3, "an exchange the port doesn't lay out"))
             return false;
         TIMED_AS(g, 0xC2CAF3, back = menu_lay_out_the_exchange_with(g, pf));
         break;
@@ -1134,7 +1135,7 @@ static bool ends(GameState *g, Platform *pf, ExchangeEnd end)
 /* The panel, where the state is one it handles. */
 bool menu_show_exchange_panel(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_exchange_panel_can_show(g), 0xC2C9E5, "an exchange panel the port doesn't show"))
+    if (!takes(g, PORT_CHECK(menu_exchange_panel_can_show(g)), 0xC2C9E5, "an exchange panel the port doesn't show"))
         return false;
     return menu_show_exchange_panel_with(g, pf);
 }

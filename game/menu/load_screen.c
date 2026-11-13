@@ -41,6 +41,7 @@
 #include "menu/typeset.h"
 #include "menu/windows.h"
 #include "platform/audio.h"
+#include "port/vars_ram.h"
 
 /* ---- Drawing the screen ------------------------------------------------------------------------ */
 
@@ -580,7 +581,7 @@ static bool takes(GameState *g, bool ok, uint32_t routine, const char *what)
 
 static bool show_the_slot(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_load_screen_slot_can_show(g), 0xC2E743, "a save slot the port doesn't show"))
+    if (!takes(g, PORT_CHECK(menu_load_screen_slot_can_show(g)), 0xC2E743, "a save slot the port doesn't show"))
         return false;
     bool back = false;
     TIMED_AS(g, 0xC2E743, back = menu_show_save_slot_with(g, pf));
@@ -589,7 +590,7 @@ static bool show_the_slot(GameState *g, Platform *pf)
 
 static bool draw(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_load_screen_can_draw(g, pf), 0xC2E7C3, "a load screen the port doesn't draw"))
+    if (!takes(g, PORT_CHECK(menu_load_screen_can_draw(g, pf)), 0xC2E7C3, "a load screen the port doesn't draw"))
         return false;
     bool back = false;
     TIMED_AS(g, 0xC2E7C3, back = menu_draw_load_screen_with(g, pf));
@@ -603,7 +604,7 @@ static void ask_which_to_carry_on_from(GameState *g)
 
 static bool load(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_save_code_can_run(g), 0xFFFAA3, "a saved game the port doesn't load"))
+    if (!takes(g, PORT_CHECK(menu_save_code_can_run(g)), 0xFFFAA3, "a saved game the port doesn't load"))
         return false;
     TIMED_AS(g, 0xFFFAA3, saves_load_game(g, pf, menu_save_slot_shown(g)));
     return true;
@@ -611,7 +612,7 @@ static bool load(GameState *g, Platform *pf)
 
 static bool carry_on(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_carry_over_can_run(g), 0xFFFAED, "a New Game+ the port doesn't carry over"))
+    if (!takes(g, PORT_CHECK(menu_carry_over_can_run(g)), 0xFFFAED, "a New Game+ the port doesn't carry over"))
         return false;
     TIMED_AS(g, 0xFFFAED, saves_carry_over(g, pf, menu_save_slot_shown(g)));
     return true;

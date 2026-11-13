@@ -43,6 +43,7 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The settings' cells ------------------------------------------------------------------------ */
@@ -964,7 +965,7 @@ bool menu_choose_buttons_with(GameState *g, Platform *pf)
 
 static bool take_the_option(GameState *g, Platform *pf)
 {
-    if (!menu_settings_option_can_be_taken(g)) {
+    if (!PORT_CHECK(menu_settings_option_can_be_taken(g))) {
         program_breaks_a_contract(g, 0xC2BFD4, "a setting the port doesn't take");
         return false;
     }
@@ -1043,7 +1044,7 @@ static void ends_with_a_tick(GameState *g, Platform *pf)
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
                  bool (*run)(GameState *, Platform *))
 {
-    if (!takes(g)) {
+    if (!PORT_CHECK(takes(g))) {
         program_breaks_a_contract(g, routine, "a settings screen the port doesn't take");
         return false;
     }

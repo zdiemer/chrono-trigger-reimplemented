@@ -32,6 +32,7 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The backdrop -------------------------------------------------------------------------------- */
@@ -312,7 +313,7 @@ static bool show_main_menu_panel(GameState *g, Platform *pf)
 /* The panel shown, where the state is one the showing handles. */
 static bool show_the_panel(GameState *g, Platform *pf)
 {
-    if (!menu_main_menu_panel_can_show(g)) {
+    if (!PORT_CHECK(menu_main_menu_panel_can_show(g))) {
         program_breaks_a_contract(g, 0xC29B54, "a main menu panel the port doesn't show");
         return false;
     }

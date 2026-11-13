@@ -13,6 +13,7 @@
 #include "menu/top_layer.h"
 #include "overworld/music.h"
 #include "platform/video.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* Handlers and routines are reached in bank C2 unless a far call names
@@ -28,7 +29,7 @@ static uint32_t handler_of(const GameState *g, uint8_t opcode) { return HANDLERS
 bool menu_script_scroll_map(GameState *g, MenuAxis axis, uint8_t plane, int8_t step)
 {
     uint32_t routine = axis == MENU_ACROSS ? 0xC20568 : 0xC2066C;
-    if (!menu_map_can_scroll(g, plane, menu_map_scroll_records(axis, step))) {
+    if (!PORT_CHECK(menu_map_can_scroll(g, plane, menu_map_scroll_records(axis, step)))) {
         program_breaks_a_contract(g, routine, "a scroll of the map the port doesn't take");
         return false;
     }
@@ -40,7 +41,7 @@ bool menu_script_scroll_map(GameState *g, MenuAxis axis, uint8_t plane, int8_t s
 bool menu_script_redraw_map(GameState *g, Platform *pf, uint8_t plane)
 {
     uint8_t named = (uint8_t)(plane & 3);
-    if (named == 0 || !menu_map_can_redraw(g, (uint8_t)(named - 1))) {
+    if (named == 0 || !PORT_CHECK(menu_map_can_redraw(g, (uint8_t)(named - 1)))) {
         program_breaks_a_contract(g, 0xC209C5, "a redraw of the map the port doesn't take");
         return false;
     }
@@ -57,7 +58,7 @@ bool menu_script_call_routine(GameState *g, Platform *pf, uint32_t routine, bool
     uint32_t at = far ? routine & 0xFFFFFFu : HANDLERS_BANK | (uint16_t)routine;
     const MenuScriptRoutine *r = script_routine(at);
     MenuObject self = menu_object_running(g);
-    if (!r || (r->takes && !r->takes(g, self))) {
+    if (!r || (r->takes && !PORT_CHECK(r->takes(g, self)))) {
         program_breaks_a_contract(g, at, r ? r->name : "a routine a script calls with no C");
         return false;
     }
@@ -71,6 +72,19 @@ void menu_script_set_console_byte(GameState *g, Platform *pf, uint8_t opcode, ui
     script_set_the_consoles_byte(pf, handler_of(g, opcode), at, v);
 }
 
+/* A command's operands read and the command performed, as its handler does
+ * both in the original; false, with nothing done, where the port doesn't run
+ * what the operands say. */
+static bool decode_and_perform(GameState *g, Platform *pf, const ScriptOpcode *row, MenuObject self, uint32_t at,
+                               ScriptFlow *f)
+{
+    ScriptCommand command = menu_script_decode(g, row, self, at, pf);
+    if (!PORT_CHECK(menu_script_runs_here(g, row, &command)))
+        return false;
+    *f = menu_script_perform(g, row, &command);
+    return true;
+}
+
 /* Each command where its row says the port runs it as the original does; the
  * script pointer on it, as the routines the commands reach read it. */
 ScriptFlow menu_script_run_command(GameState *g, Platform *pf, MenuObject self, uint32_t at)
@@ -78,15 +92,14 @@ ScriptFlow menu_script_run_command(GameState *g, Platform *pf, MenuObject self, 
     set_menu_object_script(g, at);
     uint8_t opcode = menu_script_byte(g, at);
     const ScriptOpcode *row = menu_script_opcode(opcode);
-    ScriptCommand command = { 0 };
+    ScriptFlow f = handed_back();
+    bool ran = false;
     if (row)
-        command = menu_script_decode(g, row, self, at, pf);
-    if (!row || !menu_script_runs_here(g, row, &command)) {
+        TIMED_AS(g, handler_of(g, opcode), ran = decode_and_perform(g, pf, row, self, at, &f));
+    if (!ran) {
         program_breaks_a_contract(g, row ? handler_of(g, opcode) : 0xC20F63, "a script command the port doesn't run");
         return handed_back();
     }
-    ScriptFlow f = handed_back();
-    TIMED_AS(g, handler_of(g, opcode), f = menu_script_perform(g, row, &command));
     return f;
 }
 
