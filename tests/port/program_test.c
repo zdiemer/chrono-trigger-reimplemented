@@ -1,10 +1,12 @@
 /* The real program loop with small mode bodies: hand-offs, callback ownership,
- * replacement during dispatch, disabling, and failure propagation. No ROM. */
+ * replacement during dispatch, disabling, failure propagation, and the
+ * sprites' places forgotten as a mode takes the frame over. No ROM. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "core/program.h"
+#include "core/sprite_table.h"
 #include "charge.h"
 #include "platform/native/host.h"
 #include "port/state_host.h"
@@ -95,6 +97,18 @@ int main(void)
     program_starts_in_a_scene(other, 2, 7);
     program_main_thread(other, &pf);
     CHECK(strcmp(order, "PAS") == 0 && program_went_no_further(other));
+
+    /* A place a mode gave holds while that mode changes its own handler, and
+     * is gone once another mode takes the frame: an entry the new mode writes
+     * with the same X and Y reads as the table says. */
+    sprite_table_place(g, 5, -20, 40);
+    sprite_table_hide(g, 127, 0x100, 0xE0);
+    program_install_vblank_handler(g, line_handler);
+    CHECK(sprite_table_places(g)[5].kind == VID_PLACE_AT && sprite_table_places(g)[127].kind == VID_PLACE_HIDDEN);
+    program_hand_the_vblank_to(g, next_handler);
+    CHECK(program_handlers(g)->vblank == next_handler);
+    CHECK(sprite_table_places(g)[5].kind == VID_PLACE_NONE && sprite_table_places(g)[127].kind == VID_PLACE_NONE);
+    CHECK(!vid_place_holds(&sprite_table_places(g)[5], (uint16_t)-20 & 0x1FF, 40));
     vid_host_stop(&pf);
     state_host_destroy(g);
     state_host_destroy(other);

@@ -252,6 +252,11 @@ void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uin
     vid_obs_upload_vram(ob(pf), vram_addr, src, len, false, port);
 }
 
+void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len, const VidVramPort *port)
+{
+    vid_obs_upload_view_vram(ob(pf), vram_addr, src, len, port);
+}
+
 void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len)
 {
     (void)o;

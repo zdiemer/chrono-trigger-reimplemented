@@ -190,15 +190,19 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   it), the battle's combatants theirs, hiding what leaves the screen up or
   down; the battle's cursors, the scenes' leftover group entries and the time
   warp's spare sprites are hidden. The sprite limits count the original's
-  screen.
+  screen. Each mode takes the frame over with `program_hand_the_vblank_to`,
+  which forgets the last mode's places, so none outlives its mode to place an
+  entry the next writes with the same X and Y.
 - **The field** keeps its screen's edges, which decide which objects run
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank: the map's own columns, which its tables
+  own and sends them in the vblank (`vid_send_view_vram`, below): the map's own columns, which its tables
   hold whatever the screen's limits within it. Past the map's width a column
   is built as the edge's, and shown only where the edge is one entry all the
-  way down (a room's void); elsewhere the layer stops at the map. Each frame
+  way down (a room's void), which is judged as the margins are built and kept
+  for the frames between, when a battle's data may lie over the map's looks;
+  elsewhere the layer stops at the map. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
   within the map's width. Objects show in the margins within the
@@ -216,9 +220,16 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
 its state (`SpritePlaces`, `FieldMargins`) is the program's, beside the game's
-memory. So a movie played at a wider view ends in the same work RAM and save
-RAM as at the original's: `field.ctm`, `gato-battle.ctm` and
-`attract-demo.ctm` were checked so with `--end-state` at 398x224.
+memory. Its columns go to VRAM through `vid_send_view_vram`, which shows them
+but keeps them out of what the game reads back (`vid_vram_word`: the palace
+rising copies the field's map out of VRAM) and leaves the VRAM port's step and
+address where the game's own sends left them. So a movie played at a wider
+view ends in the same work RAM and save RAM as at the original's.
+`tools/wide_check.py` plays each gate movie at 256x224 and 480x224 and
+compares the whole end state, work RAM and save RAM: all 58 end the same,
+`attract-demo` through the palace's rise among them. It plays the gate's
+movies twice over, about six minutes at `-j 2` beside the gate's own four and a half, so
+it runs in the non-blocking `suite.py --long` batch rather than the gate.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
@@ -254,7 +265,8 @@ sound driver's register write, is under Audio). Each is now one of four things:
   decodes its cells' mode and port into one or the other. The race's plane
   halves and column use the half forms, the battle's described transfer
   `vid_send_vram_in_mode`.
-- **VRAM read back.** `vid_vram_word` answers a word as the uploads left it.
+- **VRAM read back.** `vid_vram_word` answers a word as the game's uploads
+  left it, never a wider view's own (`vid_send_view_vram`).
   The race copies its plane's column and the palace its map out of VRAM with
   it, keeping what the original's port reads give: the first read after the
   address is set hands back the prefetched word, which the next read fetches

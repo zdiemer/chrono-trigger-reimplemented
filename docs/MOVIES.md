@@ -37,7 +37,8 @@ reached instead of a save (`_trial_cathedral`, `cronos_trial`, `dragon_tank`,
 ends with the Guardian beaten in Arris Dome, 2300 A.D. (frame 356087).
 A fight with no enemy the bot can hurt (Lab 16's 1-HP Shadows) is run from.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
-whole library and every public route module as a non-blocking batch. Findings
+whole library, every public route module and the wide-view end-state check
+(`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings
 become fixes; the batch never blocks a commit, merge or push. Its stage logs,
 route logs and `findings.json` live under `build/suite-long`. At most two native
 processes run at once; individual routes retain their six-hour timeout.

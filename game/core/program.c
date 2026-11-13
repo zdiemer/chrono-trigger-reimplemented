@@ -3,6 +3,7 @@
  * and install the callbacks the frame driver invokes. */
 #include "core/program.h"
 #include "charge.h"
+#include "core/sprite_table.h"
 
 #include "field/main_loop.h"
 #include "scene/scene.h"
@@ -60,6 +61,12 @@ enum { HANDLER_SELECTION_ACCESSES = 4, IGNORE_HANDLERS_ACCESSES = 16 };
 void program_install_vblank_handler(GameState *g, ProgramHandler handler)
 {
     program_handlers(g)->vblank = handler;
+}
+
+void program_hand_the_vblank_to(GameState *g, ProgramHandler handler)
+{
+    program_install_vblank_handler(g, handler);
+    sprite_table_forget_places(g);
 }
 
 void program_install_line_handler(GameState *g, ProgramHandler handler)

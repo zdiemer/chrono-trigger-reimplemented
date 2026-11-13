@@ -31,6 +31,13 @@ typedef struct { ProgramHandler vblank, line; } ProgramHandlers;
 ProgramHandlers *program_handlers(GameState *g);
 void program_install_vblank_handler(GameState *g, ProgramHandler handler);
 void program_install_line_handler(GameState *g, ProgramHandler handler);
+/* A mode taking the frame over from another (the field, a battle, the menus,
+ * the sprite-object mode, a scene, the time warp): its vblank handler
+ * installed, and what the last mode left beside the game's memory for the
+ * picture forgotten -- the sprites' places (core/sprite_table.h), which would
+ * otherwise go on placing an entry the new mode writes with the same X and Y.
+ * A mode changing its own handler from frame to frame installs it as above. */
+void program_hand_the_vblank_to(GameState *g, ProgramHandler handler);
 void program_ignore_interrupts(GameState *g);
 
 /* Record the first invalid or unsupported state. The routine identifies the

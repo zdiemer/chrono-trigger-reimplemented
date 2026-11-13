@@ -575,9 +575,8 @@ static void send_a_margin_column(GameState *g, Platform *pf, const MapPlane *p, 
         line[2 * r + 1] = (uint8_t)(word >> 8);
     }
     static const VidVramPort column_port = { .step = TILEMAP_COLUMNS, .after_high = true };
-    /* no original site: a wider view's own send */
-    vid_send_vram(pf, PF_AT(0), (uint16_t)(tilemap_column(ring) + p->tilemap), (PfData){ .ptr = line }, STRIP_BYTES,
-                  &column_port);
+    vid_send_view_vram(pf, (uint16_t)(tilemap_column(ring) + p->tilemap), (PfData){ .ptr = line }, STRIP_BYTES,
+                       &column_port);
 }
 
 void menu_map_fill_the_views_margins(GameState *g, Platform *pf)

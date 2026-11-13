@@ -43,6 +43,9 @@ void sprite_table_place(GameState *g, unsigned sprite, int16_t x, uint8_t y);
  * its high bits alone. */
 void sprite_table_hide(GameState *g, unsigned sprite, int16_t x, uint8_t y);
 void sprite_table_hide_as_it_stands(GameState *g, unsigned sprite);
+/* Every sprite back to reading as the table says, as a mode takes the frame
+ * over (program_hand_the_vblank_to). */
+void sprite_table_forget_places(GameState *g);
 /* The places, for the send (vid_send_oam). */
 const VidSpritePlace *sprite_table_places(GameState *g);
 

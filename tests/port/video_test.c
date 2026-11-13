@@ -43,6 +43,29 @@ static void resource_transfers(void)
     vid_host_stop(&pf);
 }
 
+/* A wider view's own columns are shown but never read back, and leave the
+ * game's port and address as they were: the game finds VRAM as at the
+ * original's view. */
+static void view_sends(void)
+{
+    Platform pf = {0};
+    const uint8_t game[] = { 0x11, 0x22, 0x33, 0x44 }, margin[] = { 0xAA, 0xBB, 0xCC, 0xDD }, more[] = { 0x55, 0x66 };
+    vid_host_start(&pf, unexpected_read, NULL);
+    vid_send_vram(&pf, PF_AT(0), 0x100, (PfData){ .ptr = game }, sizeof game, &(VidVramPort){ .step = 1, .after_high = true });
+    vid_send_view_vram(&pf, 0x100, (PfData){ .ptr = margin }, sizeof margin, &(VidVramPort){ .step = 32, .after_high = true });
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(f->vram[0x200] == 0xAA && f->vram[0x201] == 0xBB && f->vram[0x240] == 0xCC);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x100) == 0x2211 && vid_vram_word(&pf, PF_AT(0), 0x101) == 0x4433);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x120) == 0);
+    /* The game's next send goes on from its own address, a word at a time. */
+    vid_continue_vram(&pf, PF_AT(0), (PfData){ .ptr = more }, sizeof more);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x102) == 0x6655 && f->vram[0x204] == 0x55);
+    /* A game send over a view's column is the game's again. */
+    vid_send_vram(&pf, PF_AT(0), 0x100, (PfData){ .ptr = more }, sizeof more, NULL);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x100) == 0x6655 && f->vram[0x200] == 0x55);
+    vid_host_stop(&pf);
+}
+
 static uint8_t effect_byte(void *ctx, uint32_t at)
 {
     (void)ctx;
@@ -337,6 +360,7 @@ int main(void)
     view_size();
     wider_view();
     resource_transfers();
+    view_sends();
     fill_half_from_cursor();
     changing_picture();
     raster_changes();
