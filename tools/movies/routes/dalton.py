@@ -23,9 +23,9 @@ def boss_policy(bot, state, rng, inventory):
         return policies.party(bot, state, rng, inventory)
     member = state.member
     character = policies.party_ids(bot)[member]
-    choices = {1: [(5, 8)], 2: [(7, 20), (6, 15), (5, 8)], 3: [(5, 12), (0, 1)]}
+    choices = {1: [(5, 8)], 2: [(7, 20), (6, 15), (5, 8)], 3: [(3, 4), (0, 1)]}
     for tech, cost in choices.get(character, []):
-        if not policies.tech_known(bot, member, tech):
+        if not policies.single_tech_known(bot, member, tech):
             continue
         if state.mp(member) < cost:
             for item in (policies.FULL_ETHER, policies.HYPER_ETHER, policies.MID_ETHER, policies.ETHER):

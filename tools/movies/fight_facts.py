@@ -8,8 +8,8 @@ and the facts the fights leave in the saved game:
 
 - each character's level and experience;
 - the party's gold;
-- the items the movie's reference play ended with more of than its save held
-  (what the fights and the story gave), at the reference's counts;
+- the inventory, every item but the consumables (CONSUMABLES), at the
+  reference's counts: what the fights and the story gave, and what they took;
 - the story's event memory ($7F:0000-$7F:01FF), as a digest.
 
 tools/fight_facts.txt holds the expected values, taken from the movie's
@@ -27,6 +27,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 FACTS = os.path.join(REPO, "tools", "fight_facts.txt")
 
 CHARACTERS = 7
+# Tonic ($BD) to Lapis ($CA): how many of these a fight uses goes with its
+# course -- whose HP ran low, on which turn -- which a route's commands choose
+# otherwise than the recording's, so they aren't facts of the fight.
+CONSUMABLES = range(0xBD, 0xCB)
 CHARACTER_RECORDS, CHARACTER_STRIDE = 0x7E2600, 0x50
 LEVEL, EXPERIENCE = 0x12, 0x13          # character_records' fields (re/ram.toml)
 GOLD = 0x7E2C53
@@ -76,9 +80,9 @@ def items_from_text(text):
     return items
 
 
-def won_items(start, end):
-    """The items `end` holds more of than `start`, at end's counts."""
-    return {item: count for item, count in end.items() if count > start.get(item, 0)}
+def kept_items(items):
+    """The inventory without the consumables."""
+    return {item: count for item, count in items.items() if item not in CONSUMABLES}
 
 
 def read_expected(path=FACTS):
@@ -100,10 +104,10 @@ def check(observed, expected):
     problems = []
     for kind, want in expected.items():
         if kind == "items":
-            for item, count in sorted(items_from_text(want).items()):
-                got = observed["items"].get(item, 0)
-                if got != count:
-                    problems.append("item %02X: %d, expected %d" % (item, got, count))
+            wanted, held = items_from_text(want), kept_items(observed["items"])
+            for item in sorted(set(wanted) | set(held)):
+                if held.get(item, 0) != wanted.get(item, 0):
+                    problems.append("item %02X: %d, expected %d" % (item, held.get(item, 0), wanted.get(item, 0)))
         elif observed[kind] != want:
             problems.append("%s: %s, expected %s" % (kind, observed[kind], want))
     return problems
