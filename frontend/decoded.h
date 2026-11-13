@@ -34,13 +34,25 @@ void decoded_put(DecodedText *t, const char *s);
 typedef struct Decoded Decoded;
 
 /* The resource a kind is reading lines of: its row of the catalogue, its
- * bytes as they are being made, and two counts of the kind's own (how many
- * colors, how many glyphs and lines of the one being read). */
+ * bytes as they are being made, and what the kind keeps of its own as it
+ * reads: counts (how many colors; how many glyphs and lines; how many tiles
+ * and lines, and how many tiles a line has), how the resource is kept, how
+ * much it may make, and
+ * bytes it makes before it makes the resource's from them (a packed
+ * resource's unpacked bytes: decoded_grow). */
 typedef struct {
     int entry;
     uint8_t *bytes;
-    uint32_t items, lines;
+    uint32_t items, lines, across;
+    unsigned form;
+    uint32_t most;   /* the most bytes the kind will make of it, once it knows */
+    uint8_t *made;
+    uint32_t made_len, made_room;
 } DecodedReading;
+
+/* `more` bytes, 0, added to the reading's own bytes: where they start, or NULL
+ * once memory runs out. What it has made is dropped at the next resource. */
+uint8_t *decoded_grow(DecodedReading *r, uint32_t more);
 
 typedef struct {
     const char *what;     /* "palettes": what the messages call them */
@@ -65,6 +77,10 @@ int decoded_entry(const char *name, size_t len, uint16_t *hint);
  * kind reading one resource may fill another it decodes unnamed. */
 uint8_t *decoded_bytes(Decoded *d, int entry);
 
+/* What the store the text is read over serves for a row of the catalogue:
+ * its bytes, or NULL where it hasn't them. */
+const uint8_t *decoded_beneath(const Decoded *d, int entry);
+
 /* A number, in base 10 or 16, from *s (spaces before it skipped): false
  * unless it is there, is at most `most`, and ends where the line or a space does. */
 bool decoded_number(const char **s, const char *end, unsigned base, unsigned most, unsigned *v);
@@ -76,7 +92,8 @@ bool decoded_word(const char **s, const char *end, const char *word);
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why);
 
 /* Resources read from text, served over `base`: NULL with *why and the line
- * (from 1) where the text is wrong. `base` must outlive the result. */
+ * (from 1) where the text is wrong; what is wrong with a resource as a whole
+ * (too short, say) at its [name] line. `base` must outlive the result. */
 Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, const AssetStore *base,
                         unsigned *line, const char **why);
 void decoded_store(Decoded *d, AssetStore *store);

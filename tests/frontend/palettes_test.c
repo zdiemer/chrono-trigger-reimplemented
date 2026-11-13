@@ -171,7 +171,7 @@ int main(void)
     snprintf(bad, sizeof bad, "[%s]\n1 2 3 x\n", e->name);
     refused(&made, bad, 2);
     snprintf(bad, sizeof bad, "[%s]\n1 2 3\n", e->name);
-    refused(&made, bad, 2);                           /* too few colors */
+    refused(&made, bad, 1);                           /* too few colors: at its [name] */
     char *twice = malloc(2 * strlen(one) + 1);
     strcpy(twice, one);
     strcat(twice, one + strlen("# just one\n"));

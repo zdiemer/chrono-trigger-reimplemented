@@ -96,13 +96,14 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
 write leaves the pack's own bytes to play, after a warning; a text that is
-wrong stops the start, naming its line.
+wrong stops the start, naming its line (a resource that is wrong as a whole,
+too short or too big to pack, at its `[name]` line).
 
 ### Fonts
 
@@ -130,11 +131,10 @@ them, each where its accessor's indexing and the data agree:
 lines, `.` for color 0 and `1`-`3` for the rest, so a person edits a glyph by
 drawing it. A font is read back whole, its glyphs in order, and its widths
 with it. `tools/assets.py check` holds a font row to whole glyphs and a
-widths row to its font's glyphs. `tools/font_sheets.py` draws each font of a
+widths row to its font's glyphs. `tools/sheets.py` draws each font of a
 text as a picture of its glyphs under their numbers, written where it is
 told, never into the repository. The credits' letters (`$FD:0000`) are glyphs
-too but are packed (`lz`); decoding them waits on a packer that gives back the
-cartridge's bytes (an issue labelled kind: target).
+too but packed, so they are graphics (below).
 
 Measured: `fonts_test` (ROM-free) writes and reads back made-up glyphs of
 every font and their widths, serves an edited pixel and width and only the
@@ -145,6 +145,71 @@ back as its bytes. The lean gate runs on the decoded fonts. Drawing a box
 over the dialog font's `e` and a checkerboard over the small font's `A` shows
 both in the Battle Mode screen of a new game (frame 2000 of
 `movies/new-game.ctm`).
+
+### Graphics
+
+A catalogue row whose codec is `tiles:2bpp` or `tiles:4bpp` is 8x8 tiles of
+two or four bitplanes as the SNES keeps them, and `lz:2bpp` or `lz:4bpp` the
+same packed, which the game unpacks as it loads them
+(`game/data/decompress.c`). The packed graphics are the field's tile blocks
+(`graphics_block_address.N`, from `$F6:2220`: blocks 0-18 two planes, since
+the locations' records load them into BG3, the rest four), the characters'
+sprites (`setup_character_graphics.N`), the world maps' tiles
+(`overworld_map_graphics.N`, the top layer's two planes), the menus' scenes'
+(`menu_scene_stream.N`) and the credits' letters
+(`field_credits_letters_packed`). The tiles kept as they are are the
+battlefield's two-plane sheet (`battlefield_tiles`, `$CF:0000`, split from
+the descriptors and palettes after it) and the sprites' four banks
+(`sprite_tiles_d2` to `_d5`). `tools/assets.py check` holds a tiles row to
+whole tiles and a packed row to the `lz` type.
+
+`frontend/lz.c` unpacks a stream and packs one. Okumura's LZSS (1989) with
+its binary-tree search, a 4096-byte ring and runs of 3-18 bytes, or 2048
+and 3-34 for a stream with long runs, is what packed the cartridge: with
+two of its packer's habits kept (a control byte's unused bits set; the
+bytes ahead of the last items 0 in a stream exactly a ring long) every one
+of the cartridge's 1371 packed streams, scripts and maps as well as
+graphics, packs again to its own bytes. So no packed resource needs its
+original bytes kept beside the text.
+
+`frontend/tiles.c` writes a resource's tiles sixteen a row, a character a
+pixel (`.` for color 0, then `1`-`3`, or `1`-`9` and `A`-`F`), a space
+between tiles and each row's first tile's number in a comment, so a sprite
+or a block reads as the picture it is; a packed resource says `packed
+short` or `packed long` first. Text was chosen over an indexed PNG because
+a tile has no palette of its own (the tilemap or the sprite picks one as
+the game draws it), because it round-trips exactly through the reader the
+other kinds share with no image decoder in the host, and because the
+palettes and fonts are already edited this way. Read back, a packed
+resource whose tiles are the store's beneath, unpacked, is served as that
+store has it, which is what packing it again gives, only sooner; one that
+was edited is packed again and must fit the cartridge's room for it, and
+have no more tiles than the stream beneath unpacks to, since the game
+unpacks it into a buffer made for those; otherwise the text is refused. `tools/sheets.py` draws a graphics text's
+resources as it draws fonts, a grey ramp for four planes, refusing a name
+that isn't the catalogue's kind (so no sheet lands outside its directory)
+and pixels before a font's first glyph, at their line.
+
+Measured: `lz_test` (ROM-free) packs and unpacks made-up bytes of every
+size and kind, short runs and long, and refuses streams that aren't one;
+with the ROM staged it packs every packed stream of the catalogue again to
+its bytes. `tiles_test` (ROM-free) writes and reads back made-up tiles,
+packed and not, serves an edited pixel of each (the packed one packed
+again) and only the resources a text names, and refuses wrong text at its
+line (a pixel that isn't one, a tile short a line or a pixel, a short row
+that isn't the last, how it packs unsaid, too few tiles, more tiles
+than the stream beneath, an edit that doesn't fit); with the ROM staged every graphics resource reads back as
+its bytes. The lean gate runs on the decoded graphics. Filling the first
+tile of the field's block 135 with color 15 darkens the walls and floor of
+Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed
+again.
+
+Not decoded yet (issue #273): the attract sequence's packed resources
+(graphics, tilemaps and mode 7 pictures, which the scene program picks),
+and the battlefield's pool of two- and three-plane tiles at `$D0:0000`
+(`gfx:plane-pool`), which only its descriptors cut into tiles. The packed
+tilemaps, maps and scripts (`lz`, `lz:event`) pack again but have no text
+(issue #130).
 
 ## Further targets
 
