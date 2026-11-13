@@ -40,6 +40,16 @@ class Catalogue(unittest.TestCase):
             widths = assets.Row("w", "bytes", 0xC00040, end, codec, "read")
             self.assertEqual(assets.problems_of([glyphs, widths]) == [], ok, codec)
 
+    def test_packed(self):
+        def packed(codec, type_="lz"):
+            return assets.Row("p", type_, 0xC00000, 0xC0000F, codec, "read")
+        for codec in ("lz", "lz:event", "lz:4bpp", "lz:field-map", "lz:looks", "lz:tilemap:32", "lz:bytes:96",
+                      "lz:nibbles:4", "lz:colors:16"):
+            self.assertEqual(assets.problems_of([packed(codec)]), [], codec)
+        for bad in (packed("lz:nibbles:3"), packed("lz:tilemap"), packed("lz:tilemap:0"), packed("lz:maps"),
+                    packed("lz:looks", "gfx"), packed("raw")):
+            self.assertTrue(assets.problems_of([bad]), (bad.type, bad.codec))
+
     def test_version_follows_the_rows_not_how_they_were_found(self):
         a = [row("a", 0xC00000, 0xC0000F)]
         b = [assets.Row("a", "bytes", 0xC00000, 0xC0000F, "raw", "read")]
