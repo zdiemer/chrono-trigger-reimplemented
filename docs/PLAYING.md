@@ -13,9 +13,13 @@ The build needs no ROM. SDL2 supplies windowed video and audio; without it the
 program is headless. Use `.exe` on Windows. `--help` lists display options.
 The native frontend imports the user's cartridge into a local asset pack on
 first use. `--assets <pack>` chooses the pack; no game assets are distributed.
-Beside the pack, `<pack name>.palettes` holds the game's palettes as text,
-written from the pack the first time: edit a color there and it is what the
-game shows from the next start; delete the file to write it afresh.
+Beside the pack, `<pack name>.palettes`, `<pack name>.fonts` and
+`<pack name>.graphics` hold the game's palettes, fonts and tiles as text,
+written from the pack the first time: edit a color, draw a glyph or a tile
+there and it is what the game shows from the next start; delete a file to
+write it afresh. `tools/sheets.py <pack name>.fonts DIR` (or `.graphics`, with
+`--only NAME...` for a few) draws each font or graphics resource into DIR as
+a picture.
 `--sram <save.srm>` loads a cartridge save, including fixtures in `saves/`.
 
 ## Movies and diagnostics
@@ -70,7 +74,9 @@ toggles fullscreen, Escape quits. SDL gamepads use positional face buttons,
 D-pad/left stick, shoulders, Start/Back and right trigger for fast-forward.
 `ct_native.keys` beside the executable supplies bindings; `--keys FILE` and
 `--bind INPUT=ACTION` override them. `--scale`, `--fullscreen` and `--mute`
-control the window.
+control the window. `--view WIDTHx224` shows a wider picture (up to 480 across,
+the original's screen in its middle; docs/PLATFORM.md, "The wider view, as
+built"), in the window and in screenshots; the game plays the same at any view.
 
 F5 saves a snapshot of the completed frame; F7 loads it at once.
 `--save-state` and `--load-state` do the same headlessly. Snapshots belong to

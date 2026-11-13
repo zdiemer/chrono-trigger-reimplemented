@@ -18,10 +18,12 @@
 #include "charge.h"
 #include "field/main_loop.h"
 #include "core/program.h"
+#include "core/sprite_table.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/fades.h"
 #include "menu/menu.h"
+#include "menu/map.h"
 #include "menu/menu_data.h"
 #include "menu/handlers.h"
 #include "menu/objects.h"
@@ -351,7 +353,7 @@ static void send_the_frame(GameState *g, Platform *pf)
 {
     send_menu_scroll(g, pf);
     send_menu_screen_shadows(g, pf);
-    vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER));
+    vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
     if (menu_line_effects(g) & BLOCK_MOVE_ASKED) {
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         move_the_block(g);
@@ -574,7 +576,7 @@ void menu_object_reset_the_mode(GameState *g)
 
 void menu_object_take_the_interrupts(GameState *g)
 {
-    program_install_vblank_handler(g, menu_object_vblank);
+    program_hand_the_vblank_to(g, menu_object_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, menu_object_line);
     charge_accesses(g, 4);
@@ -678,12 +680,13 @@ static void send_object_frame(GameState *g, Platform *pf)
 {
     vid_set_display(pf, PF_AT(0xC2017D), &BLANK);
     vid_enable_line_effects(pf, PF_AT(0xC20181), 0x00);
-    vid_send_oam(pf, PF_AT(0xC20187), PF_GAME(RAM_ABS(RAM_OAM_BUFFER)));
+    vid_send_oam(pf, PF_AT(0xC20187), PF_GAME(RAM_ABS(RAM_OAM_BUFFER)), sprite_table_places(g));
     if (menu_object_frame_state(g) & PALETTE_TO_SEND)
         vid_send_palette(pf, PF_AT(0xC201AD), 0, PF_GAME(RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
     set_menu_object_frame_state(g, 0);
     send_object_shadows(g, pf);
     place_line_tables(g);
+    menu_map_fill_the_views_margins(g, pf);
 }
 
 /* The mode's own work after its frame is sent, each a routine of its own,
@@ -707,6 +710,8 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step);
 static bool object_mode_vblank(GameState *g, Platform *pf)
 {
     (void)tm_ack_vblank(pf, PF_AT(0xC2016D));
+    menu_map_show_the_planes_across(g, pf);
+    menu_show_the_sprites_past_the_screen(g, pf);
     set_menu_object_frame_counter(g, (uint8_t)(menu_object_frame_counter(g) + 1));
     if (!(menu_object_frame_state(g) & FRAME_TO_SHOW))
         return true;
@@ -768,6 +773,7 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step)
             return false;
         }
         TIMED_AS(g, 0xC20CEA, menu_draw_the_sprite_list(g));
+        menu_list_the_sprites_past_the_screen(g, pf);
         return true;
     default:
         return false;

@@ -45,6 +45,7 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_display(ob, &v->display);
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
+    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->margin, v->margin_count);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
             vid_obs_display(ob, &v->display_below);
@@ -70,13 +71,45 @@ void vid_host_frame_begins(Platform *pf)
     }
     v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
+    for (unsigned bg = 0; bg < 4; bg++) {
+        v->layer_left[bg] = 0;
+        v->layer_right[bg] = VID_ORIGINAL_VIEW_WIDTH;
+    }
+    v->margin_count = 0;
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
 
 /* ---- The view ------------------------------------------------------------------------------ */
 
-void vid_host_set_view(Platform *pf, VidView view) { pf->video.view = view; }
+/* A view the renderer draws: the original's height, and from its width up to
+ * the widest; anything else leaves the original's. */
+void vid_host_set_view(Platform *pf, VidView view)
+{
+    bool drawn = view.height == VID_ORIGINAL_VIEW_HEIGHT && view.width >= VID_ORIGINAL_VIEW_WIDTH &&
+                 view.width <= VID_MAX_VIEW_WIDTH;
+    pf->video.view = drawn ? view : (VidView){ 0, 0 };
+}
+
+void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right)
+{
+    if (bg > VID_BG4)
+        return;
+    pf->video.layer_left[bg] = left;
+    pf->video.layer_right[bg] = right;
+}
+
+void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture)
+{
+    VidHost *v = &pf->video;
+    if (!vid_view_is_wider(vid_view(pf)) || v->margin_count >= VID_MARGIN_SPRITES)
+        return;
+    VidMarginEntry *e = &v->margin[v->margin_count++];
+    e->sprite = *s;
+    e->own = picture != NULL;
+    if (picture)
+        e->picture = *picture;
+}
 
 /* The driver's choice, or the original's screen where it made none. */
 VidView vid_view(const Platform *pf)
@@ -232,6 +265,11 @@ void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uin
     vid_obs_upload_vram(ob(pf), vram_addr, src, len, false, port);
 }
 
+void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len, const VidVramPort *port)
+{
+    vid_obs_upload_view_vram(ob(pf), vram_addr, src, len, port);
+}
+
 void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len)
 {
     (void)o;
@@ -304,7 +342,11 @@ uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr)
     return vid_obs_vram_word(ob(pf), vram_addr);
 }
 
-void vid_send_oam(Platform *pf, PfOrigin o, PfData oam) { (void)o; vid_obs_upload_oam(ob(pf), oam); }
+void vid_send_oam(Platform *pf, PfOrigin o, PfData oam, const VidSpritePlace *places)
+{
+    (void)o;
+    vid_obs_upload_oam(ob(pf), oam, places);
+}
 
 void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)
 {

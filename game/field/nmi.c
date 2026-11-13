@@ -14,6 +14,7 @@
  * Most of that work is other routines, which the handler calls as the
  * original does; its decisions are plain C over the game's state. */
 #include "field/field.h"
+#include "field/streaming.h"
 #include "core/input.h"
 #include "core/palette.h"
 #include "core/program.h"
@@ -24,6 +25,7 @@
 #include "field/dialog_window.h"
 #include "field/display.h"
 #include "field/line_effects.h"
+#include "field/margin_objects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
@@ -148,6 +150,8 @@ static void run_screen_transition(GameState *g, Platform *pf, int step)
  * ended with it (and is finished). */
 static bool run_map_transition(GameState *g, Platform *pf, uint8_t asked)
 {
+    field_margins_due(g);
+    field_forget_the_objects_past_the_window(g);
     if (asked >= 1 && asked <= FIELD_MAP_MOVES) {
         start_map_move(g, (FieldMapMove)asked);
         TIMED_AS(g, FIELD_SEND_STAGED_SCREEN_ENTRY, field_send_staged_layer(g, pf, false));
@@ -201,7 +205,7 @@ static bool work_before_the_queue(GameState *g, Platform *pf)
             TIMED_AS(g, FIELD_SEND_DIALOG_TEXT_ENTRY, field_send_dialog_text(g, pf));
     }
     TIMED_AS(g, PALETTE_UPLOAD_ENTRY, palette_send_working(pf));
-    TIMED_AS(g, SEND_SPRITE_TABLE, field_upload_sprite_table(pf));
+    TIMED_AS(g, SEND_SPRITE_TABLE, field_upload_sprite_table(g, pf));
     return false;
 }
 
@@ -237,12 +241,17 @@ static void no_more_edges_asked(GameState *g)
         set_field_layer_upload_flags(g, group, 0);
 }
 
-static void upload_the_edges(GameState *g, Platform *pf)
+/* Whether any edge came in. */
+static bool upload_the_edges(GameState *g, Platform *pf)
 {
+    bool any = false;
     for (unsigned k = 0; k < FIELD_EDGE_UPLOADS; k++)
-        if (edge_upload_asked(g, k))
+        if (edge_upload_asked(g, k)) {
             TIMED_AS(g, edge_uploads[k], field_upload_layer_edge(g, pf, k));
+            any = true;
+        }
     no_more_edges_asked(g);
+    return any;
 }
 
 /* ---- The handler ------------------------------------------------------------------------------ */
@@ -259,9 +268,13 @@ void field_vblank(GameState *g, Platform *pf)
             program_breaks_a_contract(g, FIELD_VBLANK_HANDLER, "layers' edges the port doesn't upload");
             return;
         }
-        upload_the_edges(g, pf);
+        bool moved = upload_the_edges(g, pf);
+        field_fill_the_views_margins(g, pf, moved);
+        field_list_the_objects_past_the_window(g, pf);
         finish_frame(g, pf);
     }
+    field_show_the_layers_across(g, pf);
+    field_show_the_objects_past_the_window(g, pf);
     bool read = false;
     TIMED_AS(g, MENUS_FRAME, read = input_take_frame(g, pf));
     if (!read) {

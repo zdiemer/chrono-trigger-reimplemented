@@ -48,4 +48,11 @@ void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane);
 void menu_map_draw_plane(GameState *g, Platform *pf, uint8_t plane);
 bool menu_map_can_redraw(const GameState *g, uint8_t plane);
 
+/* On a view wider than the original's screen, the world map's columns either
+ * side of it built and sent: a wider view's own work, in the vblank, which
+ * neither changes the game nor takes its time. */
+void menu_map_fill_the_views_margins(GameState *g, Platform *pf);
+/* ... and the two planes shown across the view, every frame. */
+void menu_map_show_the_planes_across(GameState *g, Platform *pf);
+
 #endif

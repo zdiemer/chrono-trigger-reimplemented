@@ -182,6 +182,7 @@ void object_note_frame_part_drawn(GameState *g, FieldObject obj);
 uint8_t object_frame_drawn(const GameState *g, FieldObject obj);
 void object_set_frame_drawn(GameState *g, FieldObject obj, uint8_t frame);
 void object_forget_frame_drawn(GameState *g, FieldObject obj);
+bool object_has_a_frame_drawn(const GameState *g, FieldObject obj);
 
 /* Where the object's pictures come from: its graphics set, whose tiles its
  * frames are drawn from, and its frame descriptions, which say which tiles
@@ -409,6 +410,16 @@ typedef struct {
     uint8_t frame;
 } ObjectFrame;
 ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables_bank);
+/* The frame the object shows now, found without changing anything: the frame
+ * it holds, or the one at its place in its animation (the first, where the
+ * animation is starting over); and at the end of a one-off's frames, the
+ * frame it last drew, if any. For a wider view to show an object the field
+ * doesn't run (field/margin_objects.c), whose animation stands still. */
+ObjectFrame object_frame_shown(const GameState *g, FieldObject obj);
+/* Whether the object's frame tables for its facing lie within their bank, as
+ * the port reads them: it faces one of the four ways, and the table for the
+ * last of them adds up without carrying past 16 bits. */
+bool object_frame_tables_in_bank(const GameState *g, FieldObject obj);
 
 /* ---- Motion (field/motion.c, field/object.c) ------------------------------------------- */
 
@@ -593,6 +604,9 @@ ScreenPoint object_screen_position(const GameState *g, FieldObject obj);
 /* Where on the screen the object is drawn, from its position and the
  * screen's. */
 void object_update_screen_position(GameState *g, FieldObject obj);
+/* The same place worked out without keeping it, nor its nine bits: where an
+ * object the field doesn't place stands (field/margin_objects.c). */
+ScreenPoint object_place_on_the_screen(const GameState *g, FieldObject obj);
 /* Where on the screen the battle kept it drawn, in pixels, as bytes: the
  * ninth bit of each stays as it was. */
 void object_put_on_screen_as_kept(GameState *g, FieldObject obj, uint8_t x, uint8_t y);

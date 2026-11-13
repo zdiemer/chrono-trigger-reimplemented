@@ -33,6 +33,7 @@
 #include "battle/entries.h"
 #include "battle/sprite_data.h"
 #include "charge.h"
+#include "core/sprite_table.h"
 #include "battle/program.h"
 #include "vars.h"
 
@@ -66,12 +67,19 @@ static bool needs_x_ninth_bit(uint16_t x, uint16_t y)
     return (x >> 8) != 0;
 }
 
+/* The ninth bit takes a sprite above or below the screen out of sight; one
+ * past an edge across stands at its whole X, which a wider view shows. */
 static void place_sprite(GameState *g, unsigned sprite, uint16_t x, uint16_t y)
 {
     set_oam_buffer_x(g, sprite, (uint8_t)x);
     set_oam_buffer_y(g, sprite, (uint8_t)y);
-    if (needs_x_ninth_bit(x, y))
+    bool ninth = needs_x_ninth_bit(x, y);
+    if (ninth)
         set_x_ninth_bit(g, sprite);
+    if (y >> 8 && ninth)
+        sprite_table_hide(g, sprite, (int16_t)(VID_OAM_HIDDEN_X | (uint8_t)x), (uint8_t)y);
+    else
+        sprite_table_place(g, sprite, (int16_t)x, (uint8_t)y);
 }
 
 static void put_sprite(GameState *g, unsigned sprite, uint8_t x, uint8_t y, uint8_t tile, uint8_t attributes)

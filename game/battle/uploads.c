@@ -26,6 +26,9 @@
 #include "battle/entries.h"
 #include "battle/frame_data.h"
 #include "battle/wait.h"
+#include "core/sprite_table.h"
+#include "field/field.h"
+#include "field/streaming.h"
 #include "battle/window.h"
 #include "platform/video.h"
 #include "ram.h"
@@ -258,11 +261,27 @@ static void count_down_to_reupload(GameState *g, Platform *pf)
         send_queued_upload(g, pf, 0, 0xCFE51C, 0xCFE55B);
 }
 
+/* On a wider view, the field's layers the battle is fought over hold the map
+ * as far across as the field built them, moved with the battle's scroll (read
+ * outside the game's time: the original never reads it here). */
+static void show_the_fields_layers(GameState *g, Platform *pf)
+{
+    if (!vid_view_is_wider(vid_view(pf)))
+        return;
+    uint16_t scroll[FIELD_LAYERS];
+    uint32_t mark = charge_uncounted_begin(g);
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
+        scroll[layer] = battle_bg_scroll_x(g, layer);
+    charge_uncounted_end(g, mark);
+    field_show_the_layers_under_a_battle(g, pf, scroll);
+}
+
 // $CF:E300
 /* The sprite table goes from work RAM's mirror in bank $00. */
 void battle_send_vblank_uploads(GameState *g, Platform *pf)
 {
-    vid_send_oam(pf, PF_AT(0xCFE301), PF_GAME((uint16_t)RAM_OAM_BUFFER));
+    vid_send_oam(pf, PF_AT(0xCFE301), PF_GAME((uint16_t)RAM_OAM_BUFFER), sprite_table_places(g));
+    show_the_fields_layers(g, pf);
     if (battle_transfer_pending(g))
         send_described_transfer(g, pf);
     send_window_frames(g, pf);

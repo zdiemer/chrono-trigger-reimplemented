@@ -550,6 +550,8 @@ static bool record_noted(const GameState *g)
  * draw it. */
 bool overworld_can_be_set_up(const GameState *g) { return on_a_world_map(g) && menu_map_party_centres_on_the_map(g); }
 
+bool overworld_on_a_world_map(const GameState *g) { return on_a_world_map(g); }
+
 /* Loading the map again draws it where the camera is, through the upload
  * buffer the main loop has just started over. */
 bool overworld_map_can_be_loaded_again(const GameState *g)

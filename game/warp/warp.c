@@ -28,6 +28,7 @@
 
 #include "charge.h"
 #include "core/program.h"
+#include "core/sprite_table.h"
 #include "field/main_loop.h"
 #include "scene/scene.h"
 #include "platform/timing.h"
@@ -87,7 +88,7 @@ static void start_the_warp(GameState *g, Platform *pf)
     vid_set_display(pf, PF_AT(0xFDDBAD), &(VidDisplay){ .brightness = FULL_BRIGHTNESS, .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xFDDBB0), 0);
     set_warp_zero(g, 0);
-    program_install_vblank_handler(g, warp_vblank);
+    program_hand_the_vblank_to(g, warp_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, warp_line);
     charge_accesses(g, 4);
@@ -264,7 +265,7 @@ static void take_the_frame(GameState *g, Platform *pf)
     vid_enable_line_effects(pf, PF_AT(0xFDDE2E), 0);
     vid_set_display(pf, PF_AT(0xFDDE33), &(VidDisplay){ .blank = true });
     vid_send_palette(pf, PF_AT(0xFDF266), 0, PF_GAME(RAM_PALETTE_BASE), PALETTE_COLOURS);
-    vid_send_oam(pf, PF_AT(0xFDF222), PF_GAME((uint16_t)RAM_OAM_BUFFER));
+    vid_send_oam(pf, PF_AT(0xFDF222), PF_GAME((uint16_t)RAM_OAM_BUFFER), sprite_table_places(g));
     warp_show_circle_table(g, warp_circle_tables_built(g) % WARP_CIRCLE_TABLES);
     set_warp_frame(g, (uint16_t)(warp_frame(g) + 1));
     set_warp_frame_ended(g, (uint8_t)(warp_frame_ended(g) + 1));

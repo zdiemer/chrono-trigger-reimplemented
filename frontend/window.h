@@ -7,9 +7,12 @@
 #include "audio_fill.h"
 #include <stdio.h>
 
-/* Overscan rows cropped from the 256x224 picture, and the displayed width of
- * a pixel relative to its height. Geometry belongs to the window driver. */
+/* The picture's width in pixels (0: the original's 256; a wider view is the
+ * driver's choice), the overscan rows cropped from its 224, and the displayed
+ * width of a pixel relative to its height. Geometry belongs to the window
+ * driver. */
 typedef struct {
+    int width;
     int crop_top, crop_bottom;
     double pixel_aspect;
 } Display;

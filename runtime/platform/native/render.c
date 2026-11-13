@@ -26,11 +26,17 @@
 
 enum { L_BG1, L_BG2, L_BG3, L_BG4, L_OBJ, L_BACK, L_COUNT };
 
-#define W VID_RENDER_WIDTH
+#define W VID_MAX_VIEW_WIDTH
 #define H VID_RENDER_HEIGHT
+#define SCREEN_W VID_ORIGINAL_VIEW_WIDTH
 
-/* Layers are drawn up to 7 pixels past the right edge (whole tiles); only the
- * first W pixels are used. */
+/* A line is drawn across the frame's view (VidFrame.view): `width` pixels from
+ * screen X `left`, which is 0 on the original's screen and negative on a wider
+ * view, the original's screen in its middle. Arrays are sized for the widest
+ * view; pixel i of a line is screen X left + i.
+ *
+ * Layers are drawn up to 7 pixels past the right edge (whole tiles); only the
+ * first `width` pixels are used. */
 typedef struct {
     uint8_t z[W + 8];        /* depth in the layer order; 0: transparent */
     uint16_t color[W + 8];   /* RGB565 */
@@ -49,6 +55,8 @@ typedef struct {
     const uint8_t *vram;
     const VidSprite *sprites;      /* the span's sprites, in OAM order */
     uint8_t first_sprite;          /* OAM priority rotation */
+    const VidMarginEntry *margin;  /* the frame's sprites in the view's margins */
+    uint16_t margin_count;
     const uint16_t *pal;           /* CGRAM as RGB565, scaled by brightness */
     uint8_t brightness;
     uint8_t depth[L_OBJ + 1][4];   /* layer, priority -> depth; 0: not in this mode's order */
@@ -60,6 +68,8 @@ typedef struct {
     uint8_t win[L_COUNT][W];       /* per layer: 1 inside the combined window */
     bool windowed[L_COUNT];
     uint8_t clip[W], math_on[W];   /* the color window's effect */
+    int width, left;               /* the view: pixels across, and the screen X of the first */
+    int layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across */
 } SpanCtx;
 
 /* VRAM is tracked in 32-byte pages: one 4bpp tile each, which the dependency
@@ -115,6 +125,7 @@ struct VidRenderer {
         bool valid;
         uint8_t size;               /* the size pair OBSEL selects */
         VidSprite sprites[VID_SPRITES];
+        int left, width;            /* the view they were placed for */
         int16_t x[VID_SPRITES];     /* signed screen X */
         uint8_t w[VID_SPRITES], h[VID_SPRITES];
         uint64_t rows[256][2];      /* per row: bit n set when sprite n covers it */
@@ -130,6 +141,10 @@ struct VidRenderer {
     VidLineState span_key;      /* the span's state, masked for the line cache */
     LineCache lines[H + 1];
     const uint32_t *last_out;   /* the framebuffer the cached lines are in */
+    int width, left;            /* the view the cached lines were drawn for */
+    int16_t layer_left[4], layer_right[4];   /* and where its layers held the picture */
+    uint16_t margin_count;                   /* and the sprites in its margins */
+    VidMarginEntry margin[VID_MARGIN_SPRITES];
     VidRenderStats stats;
     bool range_over, time_over;
 };
@@ -373,16 +388,23 @@ static inline void mark_entry(uint64_t entries[4], unsigned index, bool used)
 
 /* Sets out[x] to 1 inside the combined window and 0 outside. Returns false,
  * leaving out alone, when neither window is enabled (nothing is inside). */
-static bool window_mask(const VidWindows *ww, int layer, uint8_t *out)
+static bool window_mask(const VidWindows *ww, int layer, uint8_t *out, int left, int width)
 {
     VidWinUse u1 = ww->w1[layer], u2 = ww->w2[layer];
     bool en1 = (u1 & 2) != 0, en2 = (u2 & 2) != 0;
     if (!en1 && !en2)
         return false;
     int l1 = ww->w1_left, r1 = ww->w1_right, l2 = ww->w2_left, r2 = ww->w2_right;
+    /* Past the original's screen, an edge on its first or last dot reaches on
+     * to the view's side (VidWindows). */
+    if (l1 == VID_WINDOW_FIRST_DOT) l1 = left;
+    if (l2 == VID_WINDOW_FIRST_DOT) l2 = left;
+    if (r1 == VID_WINDOW_LAST_DOT) r1 = left + width - 1;
+    if (r2 == VID_WINDOW_LAST_DOT) r2 = left + width - 1;
     uint8_t inv1 = (uint8_t)(u1 & 1), inv2 = (uint8_t)(u2 & 1);
     VidWinLogic logic = ww->logic[layer];
-    for (int x = 0; x < W; x++) {
+    for (int i = 0; i < width; i++) {
+        int x = left + i;
         uint8_t in1 = (uint8_t)((x >= l1 && x <= r1) ^ inv1);
         uint8_t in2 = (uint8_t)((x >= l2 && x <= r2) ^ inv2);
         uint8_t v;
@@ -398,7 +420,7 @@ static bool window_mask(const VidWindows *ww, int layer, uint8_t *out)
             default: v = (uint8_t)!(in1 ^ in2); break;
             }
         }
-        out[x] = v;
+        out[i] = v;
     }
     return true;
 }
@@ -452,7 +474,7 @@ static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, u
     uint64_t pages[VRAM_WORDS] = { 0 }, entries[4] = { 0 };
 
     uint32_t by = ((uint32_t)c->line + b->vofs) & hmask;
-    uint32_t bx = b->hofs & wmask;
+    uint32_t bx = (uint32_t)(b->hofs + sp->left) & wmask;
     /* map_entry, with the row's part of the address computed once. */
     uint32_t map_row = by >> 3;
     uint32_t quad_y = ((map_row & 0x20) && tall) ? (wide ? 2048 : 1024) : 0;
@@ -464,9 +486,9 @@ static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, u
     if (wide)
         mark_vram_span(pages, row_base + 2048, 64);
 
-    for (int x = 0; x < W;) {
+    for (int x = 0, width = sp->width; x < width;) {
         int tx0 = (int)(bx & 7);
-        int n = min_i(8 - tx0, W - x);
+        int n = min_i(8 - tx0, width - x);
         uint32_t col = bx >> 3;
         uint32_t a = (row_base + (((col & 0x20) ? quad_x : 0) + (col & 0x1F)) * 2) & 0xFFFF;
         uint16_t entry = (uint16_t)(vram[a] | vram[(a + 1) & 0xFFFF] << 8);
@@ -576,7 +598,9 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
     int cached_ty = -1;
     uint64_t row = 0;
 
-    for (int sx = 0; sx < W; sx += msize) {
+    /* sx: screen X of the mosaic block, from the one the view's first pixel is in */
+    int left = sp->left, right = sp->left + sp->width;
+    for (int sx = left - ((left % msize) + msize) % msize; sx < right; sx += msize) {
         uint32_t hofs = b->hofs, vofs = b->vofs;
         if (opt && sx >= 8 - (int)(hofs & 7)) {
             int seg = sx - (int)((sx + hofs) & 7);   /* first pixel of this BG tile on screen */
@@ -620,9 +644,9 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
             color = sp->pal[px];
         else
             color = sp->pal[(pal_base + pal * (1u << planes) + px) & 0xFF];
-        for (int x = sx, end = min_i(sx + msize, W); x < end; x++) {
-            lb->z[x] = z;
-            lb->color[x] = color;
+        for (int x = sx < left ? left : sx, end = min_i(sx + msize, right); x < end; x++) {
+            lb->z[x - left] = z;
+            lb->color[x - left] = color;
         }
     }
 }
@@ -658,9 +682,10 @@ static void draw_mode7(LayerBuf *lb, LineCtx *c, int bg)
          * per pixel (the same values as ox + a * sx), and pixels outside the
          * 1024x1024 map either read tile 0 or are transparent. */
         int step = m7->hflip ? -1 : 1;
-        int ax = ox + a * (m7->hflip ? 255 : 0), ay = oy + cc * (m7->hflip ? 255 : 0);
+        int first = m7->hflip ? 255 - sp->left : sp->left;
+        int ax = ox + a * first, ay = oy + cc * first;
         bool extbg = bg == L_BG2;
-        for (int x = 0; x < W; x++, ax += a * step, ay += cc * step) {
+        for (int x = 0, width = sp->width; x < width; x++, ax += a * step, ay += cc * step) {
             int px = ax >> 8, py = ay >> 8;
             bool outside = limit & (((px | py) & ~1023) != 0);
             uint8_t tile = vram[(((py >> 3) & 127) * 128 + ((px >> 3) & 127)) * 2];
@@ -675,7 +700,8 @@ static void draw_mode7(LayerBuf *lb, LineCtx *c, int bg)
     }
 
     memset(lb->z, 0, sizeof lb->z);
-    for (int s = 0; s < W; s += msize) {
+    int left = sp->left, right = sp->left + sp->width;
+    for (int s = left - ((left % msize) + msize) % msize; s < right; s += msize) {
         int sx = m7->hflip ? 255 - s : s;
         int px = (ox + a * sx) >> 8;
         int py = (oy + cc * sx) >> 8;
@@ -701,9 +727,9 @@ static void draw_mode7(LayerBuf *lb, LineCtx *c, int bg)
             z = depth[0];
             color = direct ? direct565(v, 0, sp->brightness) : sp->pal[v];
         }
-        for (int x = s, end = min_i(s + msize, W); x < end; x++) {
-            lb->z[x] = z;
-            lb->color[x] = color;
+        for (int x = s < left ? left : s, end = min_i(s + msize, right); x < end; x++) {
+            lb->z[x - left] = z;
+            lb->color[x - left] = color;
         }
     }
 }
@@ -720,26 +746,46 @@ static const uint8_t obj_height[8][2] = {
 static bool sprite_equal(const VidSprite *a, const VidSprite *b)
 {
     return a->x == b->x && a->y == b->y && a->tile == b->tile && a->palette == b->palette &&
-           a->priority == b->priority && a->hflip == b->hflip && a->vflip == b->vflip && a->large == b->large;
+           a->priority == b->priority && a->hflip == b->hflip && a->vflip == b->vflip && a->large == b->large &&
+           a->placed == b->placed && a->hidden == b->hidden;
+}
+
+/* Where a sprite is drawn. The table's nine bits read -256 to 255, as on the
+ * original's screen, where a sprite right of the screen reads as one far left
+ * of it, and where the game parks a sprite it hides; so a wider view shows a
+ * sprite right of the screen only where the game placed it there
+ * (VidSpritePlace). */
+static int sprite_x(const VidSprite *s, int left)
+{
+    int x9 = s->x & 0x1FF;
+    if (left != 0 && s->placed)
+        return s->x;
+    return x9 >= 256 ? x9 - 512 : x9;
 }
 
 /* Rows sprite n covers, as (first row, count): none when it's entirely off the
- * left edge. */
-static int sprite_rows(const VidSprite *s, uint8_t size, int *first)
+ * view, or, on a wider view, out of sight. The original's screen counts a
+ * sprite at X -256 as on it (the hardware's), and draws hidden ones from the
+ * table as it stands. */
+static int sprite_rows(const VidSprite *s, uint8_t size, int left, int width, int *first)
 {
     int large = s->large ? 1 : 0;
     int w = obj_width[size][large];
-    int x9 = s->x & 0x1FF;
     *first = s->y;
-    return (x9 > 256 && x9 + w - 1 < 512) ? 0 : obj_height[size][large];
+    if (left == 0) {
+        int x9 = s->x & 0x1FF;
+        return (x9 > 256 && x9 + w - 1 < 512) ? 0 : obj_height[size][large];
+    }
+    int x = sprite_x(s, left);
+    return s->hidden || x + w <= left || x >= left + width ? 0 : obj_height[size][large];
 }
 
 /* Rebuilds the per-row sprite sets when the frame's sprites or their size pair
  * changed, bumping the generation of every row a changed sprite covered or
  * covers. */
-static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t size)
+static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t size, int left, int width)
 {
-    if (r->sprites.valid && r->sprites.size == size) {
+    if (r->sprites.valid && r->sprites.size == size && r->sprites.left == left && r->sprites.width == width) {
         bool same = true;
         for (int n = 0; n < VID_SPRITES && same; n++)
             same = sprite_equal(&r->sprites.sprites[n], &sprites[n]);
@@ -749,7 +795,7 @@ static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t siz
             if (sprite_equal(&r->sprites.sprites[n], &sprites[n]))
                 continue;
             for (int version = 0; version < 2; version++) {
-                int first, count = sprite_rows(&(version ? sprites : r->sprites.sprites)[n], size, &first);
+                int first, count = sprite_rows(&(version ? sprites : r->sprites.sprites)[n], size, left, width, &first);
                 for (int k = 0; k < count; k++)
                     r->sprites.row_gen[(first + k) & 0xFF]++;
             }
@@ -760,18 +806,75 @@ static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t siz
     }
     memcpy(r->sprites.sprites, sprites, sizeof r->sprites.sprites);
     r->sprites.size = size;
+    r->sprites.left = left;
+    r->sprites.width = width;
     r->sprites.valid = true;
     memset(r->sprites.rows, 0, sizeof r->sprites.rows);
     for (int n = 0; n < VID_SPRITES; n++) {
         const VidSprite *s = &sprites[n];
         int large = s->large ? 1 : 0;
-        int x9 = s->x & 0x1FF;
-        r->sprites.x[n] = (int16_t)(x9 >= 256 ? x9 - 512 : x9);
+        r->sprites.x[n] = (int16_t)sprite_x(s, left);
         r->sprites.w[n] = obj_width[size][large];
         r->sprites.h[n] = obj_height[size][large];
-        int first, count = sprite_rows(s, size, &first);
+        int first, count = sprite_rows(s, size, left, width, &first);
         for (int k = 0; k < count; k++)
             r->sprites.rows[(first + k) & 0xFF][n >> 6] |= (uint64_t)1 << (n & 63);
+    }
+}
+
+/* The sprites in the view's margins on this line (VidMarginEntry): behind the
+ * table's, the first over the rest, and only past the original's screen,
+ * which the table alone draws. */
+static void draw_margin_sprites(LayerBuf *lb, LineCtx *c)
+{
+    const SpanCtx *sp = c->sp;
+    const VidObjConfig *obj = &sp->st->obj;
+    uint32_t base = (uint32_t)obj->base << 1;
+    uint32_t name_select = (uint32_t)obj->name_select << 1;
+    int row = c->line - 1;
+    for (int k = (int)sp->margin_count - 1; k >= 0; k--) {
+        const VidMarginEntry *e = &sp->margin[k];
+        const VidMarginSprite *s = &e->sprite;
+        int large = s->large ? 1 : 0;
+        int w = e->own ? VID_PICTURE_DOTS : obj_width[sp->st->obj.size_select][large];
+        int h = e->own ? VID_PICTURE_DOTS : obj_height[sp->st->obj.size_select][large];
+        int dy = row - s->y;
+        if (dy < 0 || dy >= h || s->x >= sp->left + sp->width || s->x + w <= sp->left)
+            continue;
+        if (s->vflip)
+            dy = h - 1 - dy;
+        uint8_t zt = sp->depth[L_OBJ][s->priority & 3], math = (s->palette & 7) >= 4;
+        const uint16_t *pals = sp->pal + 128 + (s->palette & 7) * 16;
+        for (int t = 0; t < w; t += 8) {
+            int dxt = s->hflip ? w - 8 - t : t;
+            uint64_t pixels;
+            if (e->own) {
+                pixels = tile_row(e->picture.tile[(dy >> 3) * 2 + (dxt >> 3)], 0, 4, dy & 7);
+            } else {
+                uint32_t tile = (uint32_t)s->tile + (uint32_t)((dy >> 3) * 16 + (dxt >> 3));
+                uint32_t addr = base + ((tile & 0x3FF) << 5);
+                if (tile & 0x100)
+                    addr += name_select;
+                pixels = tile_row(sp->vram, addr & 0xFFFF, 4, dy & 7);
+                mark_vram_span(c->vram_pages, addr, 32);
+            }
+            for (int j = 0; pixels && j < 8; j++) {
+                int x = s->x + t + j, i = x - sp->left;
+                if ((x >= 0 && x < SCREEN_W) || i < 0 || i >= sp->width)
+                    continue;
+                uint8_t v = (uint8_t)(pixels >> (8 * (s->hflip ? 7 - j : j)));
+                if (!v)
+                    continue;
+                lb->z[i] = zt;
+                lb->math[i] = math;
+                if (e->own) {
+                    lb->color[i] = color565(e->picture.colour[v], sp->brightness);
+                } else {
+                    lb->color[i] = pals[v];
+                    mark_entry(c->palette_entries, 128u + (s->palette & 7) * 16u + v, true);
+                }
+            }
+        }
     }
 }
 
@@ -818,7 +921,7 @@ listed:;
         int n = list[k];
         int w = r->sprites.w[n], x = r->sprites.x[n];
         for (int t = 0; t < w; t += 8) {
-            if (x + t > -8 && x + t < 256 && ++tiles > 34) {
+            if (x + t > -8 && x + t < SCREEN_W && ++tiles > 34) {
                 r->time_over = true;
                 keep = k;
                 break;
@@ -827,6 +930,8 @@ listed:;
     }
 
     memset(lb->z, 0, sizeof lb->z);
+    if (sp->margin_count)
+        draw_margin_sprites(lb, c);
     const uint8_t *depth = sp->depth[L_OBJ];
     /* Back to front, so earlier sprites overwrite later ones. */
     for (int k = keep - 1; k >= 0; k--) {
@@ -842,8 +947,8 @@ listed:;
         uint8_t zt = depth[s->priority], math = pal >= 4;   /* color math only for palettes 4-7 */
         bool hflip = s->hflip;
         for (int t = 0; t < w; t += 8) {
-            int x0 = x + t;
-            if (x0 >= W || x0 + 8 <= 0)
+            int x0 = x + t - sp->left;   /* the tile's first pixel on the line */
+            if (x0 >= sp->width || x0 + 8 <= 0)
                 continue;
             /* With a horizontal flip, screen pixels t..t+7 show sprite columns
              * w-1-t down to w-8-t: one tile, mirrored. */
@@ -858,7 +963,7 @@ listed:;
                 continue;
             for (int j = 0; j < 8; j++) {
                 int sx = x0 + j;
-                if (sx < 0 || sx >= W)
+                if (sx < 0 || sx >= sp->width)
                     continue;
                 uint8_t v = (uint8_t)(pixels >> (8 * (hflip ? 7 - j : j)));
                 if (!v)
@@ -916,13 +1021,13 @@ static const uint8_t no_window[W];
 /* Merges a layer into a screen: where the layer's pixel is in front of what the
  * screen has and hide[x] is 0, it replaces it. Branch-free so compilers can
  * vectorize it. */
-static void merge(Screen *s, const LayerBuf *lb, const uint8_t *restrict hide, uint8_t math, bool obj_math)
+static void merge(Screen *s, const LayerBuf *lb, const uint8_t *restrict hide, uint8_t math, bool obj_math, int width)
 {
     uint8_t *restrict sz = s->z, *restrict smath = s->math;
     uint16_t *restrict scolor = s->color;
     const uint8_t *restrict lz = lb->z, *restrict lmath = lb->math;
     const uint16_t *restrict lcolor = lb->color;
-    for (int x = 0; x < W; x++) {
+    for (int x = 0; x < width; x++) {
         uint8_t take8 = (uint8_t)-(uint8_t)((lz[x] > sz[x]) & (hide[x] == 0));   /* 0 or 0xFF */
         uint16_t take16 = (uint16_t)-(uint16_t)(take8 & 1);
         uint8_t pixel_math = obj_math ? (uint8_t)(math & lmath[x]) : math;
@@ -936,9 +1041,9 @@ static void merge(Screen *s, const LayerBuf *lb, const uint8_t *restrict hide, u
  * combination gets its own branch-free loop. */
 static inline void compose_math(uint32_t *restrict out, const Screen *m, const Screen *s, const uint8_t *restrict clip,
                                 const uint8_t *restrict math_on, bool subtract, bool halve_on, bool sub_add,
-                                int add_cap)
+                                int add_cap, int width)
 {
-    for (int x = 0; x < W; x++) {
+    for (int x = 0; x < width; x++) {
         uint16_t main565 = m->color[x] & (uint16_t)(clip[x] - 1);   /* clip[x] 1: black */
         uint16_t sub565 = s->color[x];
         uint16_t halve = (uint16_t)-(uint16_t)(halve_on & (clip[x] == 0) & (!sub_add | (s->z[x] != 0)));
@@ -960,16 +1065,24 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     SpanCtx *sp = &r->span;
     const VidLineState *st = &span->state;
     sp->st = st;
+    sp->width = r->width;
+    sp->left = r->left;
+    for (int bg = 0; bg < 4; bg++) {
+        sp->layer_left[bg] = f->layer_left[bg];
+        sp->layer_right[bg] = f->layer_right[bg];
+    }
     sp->vram = span->vram ? span->vram : f->vram;
     sp->sprites = span->sprites ? span->sprites->sprites : f->sprites;
     sp->first_sprite = span->sprites ? span->sprites->first_sprite : f->first_sprite;
+    sp->margin = f->margin;
+    sp->margin_count = f->margin_count;
     sp->brightness = (uint8_t)(st->display.brightness & 15);
     if (recheck_vram)
         vram_update(r, sp->vram);
     palette_update(r, span->cgram ? span->cgram : f->cgram, sp->brightness);
     sp->pal = r->palette.rgb565;
     if ((st->main_layers | st->sub_layers) & VID_LAYER_BIT(VID_OBJ))
-        sprites_update(r, sp->sprites, st->obj.size_select);
+        sprites_update(r, sp->sprites, st->obj.size_select, sp->left, sp->width);
     order_depths(layer_order(st), sp->depth);
     const uint8_t *s = scale5[sp->brightness];
     sp->fixed565 = pack565(s[st->fixed_color & 31], s[(st->fixed_color >> 5) & 31], s[(st->fixed_color >> 10) & 31]);
@@ -990,7 +1103,7 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     for (int layer = L_BG1; layer <= L_OBJ; layer++) {
         uint8_t bit = (uint8_t)(1 << layer);
         sp->windowed[layer] = ((sp->win_main | (sp->need_sub ? sp->win_sub : 0)) & bit) != 0 &&
-                              window_mask(&st->windows, layer, sp->win[layer]);
+                              window_mask(&st->windows, layer, sp->win[layer], sp->left, sp->width);
     }
 
     /* Color window: per value (outside, inside), whether to clip the main screen
@@ -1010,8 +1123,8 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
         default: math_when[v] = 0; break;
         }
     }
-    if (window_mask(&st->windows, L_BACK, sp->win[L_BACK])) {
-        for (int x = 0; x < W; x++) {
+    if (window_mask(&st->windows, L_BACK, sp->win[L_BACK], sp->left, sp->width)) {
+        for (int x = 0; x < sp->width; x++) {
             sp->clip[x] = clip_when[sp->win[L_BACK][x]];
             sp->math_on[x] = math_when[sp->win[L_BACK][x]];
         }
@@ -1021,6 +1134,35 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     }
 }
 
+/* On a wider view a layer is left out past where it holds the picture
+ * (VidFrame.layer_left/right, the original's screen unless the mode said
+ * more), so a tilemap never repeats or shows stale columns in the margins.
+ * A line whose tilemap is one screen across (32 tiles: the menus', the
+ * battle's and the dialog's panels, which line effects can switch to partway
+ * down) is kept to the original's screen whatever the frame says. */
+static void keep_the_layer_to_its_picture(LayerBuf *lb, const SpanCtx *sp, int layer)
+{
+    if (sp->left == 0)
+        return;
+    /* the original's screen is drawn as the original draws it, whatever */
+    int screen_from = -sp->left, screen_to = -sp->left + SCREEN_W;
+    int from = sp->layer_left[layer] - sp->left, to = sp->layer_right[layer] - sp->left;
+    from = from < screen_from ? from : screen_from;
+    to = to > screen_to ? to : screen_to;
+    if (sp->st->bg[layer].map_w == 32) {
+        from = screen_from;
+        to = screen_to;
+    }
+    if (from > sp->width)
+        from = sp->width;
+    if (to < from)
+        to = from;
+    if (from > 0)
+        memset(lb->z, 0, (size_t)from);
+    if (to < sp->width)
+        memset(lb->z + (to < 0 ? 0 : to), 0, (size_t)(sp->width - (to < 0 ? 0 : to)));
+}
+
 static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
 {
     const SpanCtx *sp = c->sp;
@@ -1028,15 +1170,16 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
     Screen *main_s = &r->main_s, *sub_s = &r->sub_s;
     LayerBuf *lb = &r->lb;
     uint8_t layers_math = st->math.layers;
+    int width = sp->width;
 
     memset(main_s->z, 0, sizeof main_s->z);
-    for (int x = 0; x < W; x++) {
+    for (int x = 0; x < width; x++) {
         main_s->color[x] = sp->pal[0];   /* backdrop */
         main_s->math[x] = (layers_math & VID_LAYER_BIT(VID_BACK)) != 0;
     }
     if (sp->any_math) {
         memset(sub_s->z, 0, sizeof sub_s->z);
-        for (int x = 0; x < W; x++)
+        for (int x = 0; x < width; x++)
             sub_s->color[x] = sp->fixed565;
     }
 
@@ -1076,30 +1219,34 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
             break;
         }
 
+        if (layer != L_OBJ && sp->mode != 7)
+            keep_the_layer_to_its_picture(lb, sp, layer);
         uint8_t bit = (uint8_t)(1 << layer);
         bool windowed = sp->windowed[layer];
         uint8_t math = (layers_math & bit) != 0;
         if (sp->main_layers & bit)
-            merge(main_s, lb, windowed && (sp->win_main & bit) ? sp->win[layer] : no_window, math, layer == L_OBJ);
+            merge(main_s, lb, windowed && (sp->win_main & bit) ? sp->win[layer] : no_window, math, layer == L_OBJ,
+                  width);
         if (sp->need_sub && (sp->sub_layers & bit))
-            merge(sub_s, lb, windowed && (sp->win_sub & bit) ? sp->win[layer] : no_window, math, layer == L_OBJ);
+            merge(sub_s, lb, windowed && (sp->win_sub & bit) ? sp->win[layer] : no_window, math, layer == L_OBJ,
+                  width);
     }
 
     if (!sp->any_math) {
-        for (int x = 0; x < W; x++)
+        for (int x = 0; x < width; x++)
             out[x] = rgb565_to_xrgb8888(sp->clip[x] ? 0 : main_s->color[x]);
         return;
     }
     int cap = sp->add_cap;
     switch ((st->math.subtract ? 2 : 0) | (st->math.half ? 1 : 0) | (sp->sub_add ? 4 : 0)) {
-    case 0: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, false, false, cap); break;
-    case 1: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, true, false, cap); break;
-    case 2: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, false, false, cap); break;
-    case 3: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, true, false, cap); break;
-    case 4: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, false, true, cap); break;
-    case 5: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, true, true, cap); break;
-    case 6: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, false, true, cap); break;
-    default: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, true, true, cap); break;
+    case 0: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, false, false, cap, width); break;
+    case 1: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, true, false, cap, width); break;
+    case 2: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, false, false, cap, width); break;
+    case 3: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, true, false, cap, width); break;
+    case 4: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, false, true, cap, width); break;
+    case 5: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, false, true, true, cap, width); break;
+    case 6: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, false, true, cap, width); break;
+    default: compose_math(out, main_s, sub_s, sp->clip, sp->math_on, true, true, true, cap, width); break;
     }
 }
 
@@ -1114,6 +1261,12 @@ VidRenderer *vid_render_create(void)
 void vid_render_destroy(VidRenderer *r) { free(r); }
 
 void vid_render_get_stats(const VidRenderer *r, VidRenderStats *out) { *out = r->stats; }
+
+int vid_render_width(const VidFrame *f)
+{
+    int width = f->view.width;
+    return width > VID_ORIGINAL_VIEW_WIDTH && width <= VID_MAX_VIEW_WIDTH ? width : VID_ORIGINAL_VIEW_WIDTH;
+}
 
 /* The span's state with the parts that can't affect a line in it zeroed, so
  * that writes to them don't make its lines look changed. The same for every
@@ -1156,14 +1309,26 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
 {
     r->range_over = r->time_over = false;
     r->stats.frames++;
-    /* The cached lines are the pixels in the framebuffer they were drawn into. */
-    if (out != r->last_out) {
+    int width = vid_render_width(f);
+    /* The cached lines are the pixels in the framebuffer they were drawn into,
+     * across the view they were drawn for. */
+    if (out != r->last_out || width != r->width || memcmp(f->layer_left, r->layer_left, sizeof r->layer_left) ||
+        memcmp(f->layer_right, r->layer_right, sizeof r->layer_right) || f->margin_count != r->margin_count ||
+        (f->margin_count && memcmp(f->margin, r->margin, sizeof *f->margin * f->margin_count))) {
         for (int line = 1; line <= H; line++)
             r->lines[line].valid = false;
         r->last_out = out;
+        r->width = width;
+        r->left = vid_view_left((VidView){ (uint16_t)width, H });
+        r->sprites.valid = false;
+        memcpy(r->layer_left, f->layer_left, sizeof r->layer_left);
+        memcpy(r->layer_right, f->layer_right, sizeof r->layer_right);
+        r->margin_count = f->margin_count < VID_MARGIN_SPRITES ? f->margin_count : VID_MARGIN_SPRITES;
+        if (r->margin_count)
+            memcpy(r->margin, f->margin, sizeof *f->margin * r->margin_count);
     }
     if (f->span_count == 0) {
-        memset(out, 0, sizeof *out * (size_t)W * H);
+        memset(out, 0, sizeof *out * (size_t)width * H);
         for (int line = 1; line <= H; line++)
             r->lines[line].valid = false;
         if (flags)
@@ -1193,7 +1358,7 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
             if (recheck_vram)
                 vram_update(r, vram);
             for (int line = from; line <= to; line++) {
-                memset(out + (size_t)(line - 1) * W, 0, sizeof *out * W);
+                memset(out + (size_t)(line - 1) * width, 0, sizeof *out * width);
                 r->lines[line].valid = false;
                 r->stats.lines_blank++;
             }
@@ -1205,7 +1370,7 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         bool has_obj = (sp->used & VID_LAYER_BIT(VID_OBJ)) != 0;
         uint8_t first_sprite = has_obj ? sp->first_sprite : 0;
         for (int line = from; line <= to; line++) {
-            uint32_t *row = out + (size_t)(line - 1) * W;
+            uint32_t *row = out + (size_t)(line - 1) * width;
             LineCache *cache = &r->lines[line];
             uint64_t row_gen = has_obj ? r->sprites.row_gen[(line - 1) & 0xFF] : 0;
             if (cache->valid && cache->first_sprite == first_sprite && cache->sprite_row_gen == row_gen &&

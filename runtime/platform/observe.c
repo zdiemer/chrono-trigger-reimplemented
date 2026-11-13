@@ -26,8 +26,12 @@ struct VidObserver {
 
     VidLineState state;
     uint8_t vram[0x10000];
+    /* VRAM as the game's own sends left it, without a wider view's: what the
+     * game reads back (vid_vram_word), the same at every view. */
+    uint8_t game_vram[0x10000];
     uint16_t cgram[256];
     uint8_t oam[0x220];
+    VidSpritePlace places[VID_SPRITES];   /* where the game put each sprite, beside the table */
 
     /* Latches the scroll and Mode 7 registers share, which per-line effects and
      * the scroll calls both go through (as in runtime/snes/ppu.c). */
@@ -44,6 +48,7 @@ struct VidObserver {
     uint8_t enabled_slots;
 
     bool palette_dirty, vram_dirty, sprites_dirty;
+    bool view_only;   /* the VRAM sends now are a wider view's own (vid_obs_upload_view_vram) */
     bool recording;
     /* Lazily allocated, reused between frames. At most one version per
      * emitted span is needed, even if a send changes thousands of bytes. */
@@ -258,6 +263,7 @@ void vid_obs_snapshot_peak(const VidObserver *ob, int *vram, int *cgram, int *sp
 void vid_obs_seed_memory(VidObserver *ob, const uint8_t *vram, const uint16_t *cgram, const uint8_t *oam)
 {
     memcpy(ob->vram, vram, sizeof ob->vram);
+    memcpy(ob->game_vram, vram, sizeof ob->game_vram);
     memcpy(ob->cgram, cgram, sizeof ob->cgram);
     memcpy(ob->oam, oam, sizeof ob->oam);
     ob->palette_dirty = true;
@@ -295,7 +301,10 @@ static uint8_t data_byte(const VidObserver *ob, PfData src, uint32_t i)
 static void vram_put(VidObserver *ob, bool high, uint8_t v)
 {
     keep_vram(ob);
-    ob->vram[(uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0))] = v;
+    uint16_t at = (uint16_t)((vram_mapped(ob) << 1) + (high ? 1 : 0));
+    ob->vram[at] = v;
+    if (!ob->view_only)
+        ob->game_vram[at] = v;
     if (ob->port.after_high == high)
         ob->vram_addr = (uint16_t)(ob->vram_addr + ob->port.step);
 }
@@ -555,11 +564,26 @@ void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half)
         vram_put(ob, half < 0 ? (i & 1) != 0 : half == 1, data_byte(ob, src, i));
 }
 
-/* A word as the uploads left it, at its plain address. */
+/* A wider view's own upload: shown, but kept out of what the game reads back,
+ * and leaving the port and the address where the game's sends left them, so
+ * a send of the game's that goes on from them goes on as at any view. */
+void vid_obs_upload_view_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
+                              const VidVramPort *port)
+{
+    VidVramPort game_port = ob->port;
+    uint16_t game_addr = ob->vram_addr;
+    ob->view_only = true;
+    vid_obs_upload_vram(ob, vram_addr, src, len, false, port);
+    ob->view_only = false;
+    ob->port = game_port;
+    ob->vram_addr = game_addr;
+}
+
+/* A word as the game's uploads left it, at its plain address. */
 uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr)
 {
     uint16_t at = (uint16_t)((vram_addr & 0x7FFF) << 1);
-    return (uint16_t)(ob->vram[at] | ob->vram[at + 1] << 8);
+    return (uint16_t)(ob->game_vram[at] | ob->game_vram[at + 1] << 8);
 }
 
 void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
@@ -597,11 +621,15 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
     ob->palette_dirty = true;
 }
 
-void vid_obs_upload_oam(VidObserver *ob, PfData oam)
+void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places)
 {
     keep_sprites(ob);
     for (uint32_t i = 0; i < sizeof ob->oam; i++)
         ob->oam[i] = data_byte(ob, oam, i);
+    if (places)
+        memcpy(ob->places, places, sizeof ob->places);
+    else
+        memset(ob->places, 0, sizeof ob->places);
 }
 
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len)
@@ -860,14 +888,19 @@ static void decode_sprites(VidObserver *ob)
     for (int n = 0; n < VID_SPRITES; n++) {
         const uint8_t *e = &ob->oam[n * 4];
         uint8_t hi = (uint8_t)(ob->oam[0x200 + n / 4] >> ((n % 4) * 2));
-        ob->frame.sprites[n] = (VidSprite){ .x = (int16_t)(e[0] | (hi & 1) << 8),
+        uint16_t x9 = (uint16_t)(e[0] | (hi & 1) << 8);
+        const VidSpritePlace *place = &ob->places[n];
+        bool holds = vid_place_holds(place, x9, e[1]);
+        ob->frame.sprites[n] = (VidSprite){ .x = holds && place->kind == VID_PLACE_AT ? place->x : (int16_t)x9,
                                             .y = e[1],
                                             .tile = (uint16_t)(e[2] | (e[3] & 1) << 8),
                                             .palette = (uint8_t)((e[3] >> 1) & 7),
                                             .priority = (uint8_t)((e[3] >> 4) & 3),
                                             .hflip = (e[3] & 0x40) != 0,
                                             .vflip = (e[3] & 0x80) != 0,
-                                            .large = ((hi >> 1) & 1) != 0 };
+                                            .large = ((hi >> 1) & 1) != 0,
+                                            .placed = holds && place->kind == VID_PLACE_AT,
+                                            .hidden = holds && place->kind == VID_PLACE_HIDDEN };
     }
 }
 
@@ -882,6 +915,16 @@ void vid_obs_frame_start(VidObserver *ob)
 }
 
 void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
+
+void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
+                  const VidMarginEntry *margin, uint16_t margin_count)
+{
+    ob->frame.view = view;
+    ob->frame.margin = margin;
+    ob->frame.margin_count = margin_count;
+    memcpy(ob->frame.layer_left, layer_left, sizeof ob->frame.layer_left);
+    memcpy(ob->frame.layer_right, layer_right, sizeof ob->frame.layer_right);
+}
 
 void vid_obs_line(VidObserver *ob, uint16_t line)
 {
@@ -1038,7 +1081,8 @@ bool vid_frame_diff(const VidFrame *a, const VidFrame *b, VidDiff *out)
     for (int n = 0; n < VID_SPRITES; n++) {
         const VidSprite *x = &a->sprites[n], *y = &b->sprites[n];
         if (x->x != y->x || x->y != y->y || x->tile != y->tile || x->palette != y->palette ||
-            x->priority != y->priority || x->hflip != y->hflip || x->vflip != y->vflip || x->large != y->large)
+            x->priority != y->priority || x->hflip != y->hflip || x->vflip != y->vflip || x->large != y->large ||
+            x->placed != y->placed || x->hidden != y->hidden)
             DIFF("sprite", "sprite %d: (%d,%u) tile $%03X pal %u pri %u, commands (%d,%u) tile $%03X pal %u pri %u", n,
                  x->x, x->y, x->tile, x->palette, x->priority, y->x, y->y, y->tile, y->palette, y->priority);
     }

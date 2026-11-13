@@ -39,7 +39,8 @@ center's computer showing the Day of Lavos (frame 365902). Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
-whole library and every public route module as a non-blocking batch. Findings
+whole library, every public route module and the wide-view end-state check
+(`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings
 become fixes; the batch never blocks a commit, merge or push. Its stage logs,
 route logs and `findings.json` live under `build/suite-long`. At most two native
 processes run at once; individual routes retain their six-hour timeout.

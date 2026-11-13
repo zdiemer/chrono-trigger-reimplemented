@@ -33,6 +33,7 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/vram.h"
+#include "overworld/setup.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -544,4 +545,74 @@ bool menu_map_can_redraw(const GameState *g, uint8_t plane)
 bool menu_map_party_centres_on_the_map(const GameState *g)
 {
     return location_x(g) < TILE_COLUMNS + CENTRING_COLUMNS && location_y(g) < TILE_ROWS + CENTRING_ROWS;
+}
+
+/* ---- a wider view's margins ------------------------------------------------------------------ */
+
+/* On a view wider than the original's screen (vid_view), a world map's two
+ * scrolling planes show tilemap columns either side of the screen's, which the
+ * scrolls never fill: they hold whatever the ring held. So each frame the
+ * columns the margins show are built from the map and sent, beside the game's
+ * work and outside it -- into a line of the view's own, its reads left out of
+ * the game's time, its sends made in the vblank -- so the game runs the same
+ * at any view; the camera stays the original's. The tilemap is 64 columns
+ * round: the screen's 33 and up to 15 more either side fit. */
+enum { MOST_MARGIN_COLUMNS = (2 * TILEMAP_COLUMNS - SCREEN_COLUMNS - 1) / 2, MARGIN_ROWS_ABOVE = 2 };
+
+/* The tilemap column `ring` filled with the plane's background tile column
+ * `column`, its rows round from the top of the screen. */
+static void send_a_margin_column(GameState *g, Platform *pf, const MapPlane *p, uint16_t column, uint16_t ring)
+{
+    uint16_t top = tile_row(g, p->plane), top_in_ring = (uint16_t)(scroll_of(g, p->plane, MENU_DOWN) / TILE_PIXELS);
+    uint8_t line[STRIP_BYTES];
+    for (uint16_t r = 0; r < TILEMAP_ROWS; r++) {
+        int down = (int)((r - top_in_ring + MARGIN_ROWS_ABOVE) & (TILEMAP_ROWS - 1)) - MARGIN_ROWS_ABOVE;
+        uint16_t row = (uint16_t)((top + TILE_ROWS + down) % TILE_ROWS);
+        uint8_t byte = map_byte(g, p->map, (uint16_t)(row_start(row >> 1) + (column >> 1)));
+        Corner corner = (Corner)(((row & 1) ? BOTTOM_LEFT : TOP_LEFT) + ((column & 1) ? TOP_RIGHT - TOP_LEFT : 0));
+        uint16_t word = group_tile(g, p, byte, corner);
+        line[2 * r] = (uint8_t)word;
+        line[2 * r + 1] = (uint8_t)(word >> 8);
+    }
+    static const VidVramPort column_port = { .step = TILEMAP_COLUMNS, .after_high = true };
+    vid_send_view_vram(pf, (uint16_t)(tilemap_column(ring) + p->tilemap), (PfData){ .ptr = line }, STRIP_BYTES,
+                       &column_port);
+}
+
+void menu_map_fill_the_views_margins(GameState *g, Platform *pf)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_wider(view))
+        return;
+    int margin = (-vid_view_left(view) + TILE_PIXELS - 1) / TILE_PIXELS + 1;
+    if (margin > MOST_MARGIN_COLUMNS)
+        margin = MOST_MARGIN_COLUMNS;
+    uint32_t mark = charge_uncounted_begin(g);
+    for (uint8_t plane = 0; plane < 2 && overworld_on_a_world_map(g); plane++) {
+        if (!plane_is_on_the_map(g, plane))
+            continue;
+        MapPlane p = plane_of(g, plane);
+        uint16_t left = tile_column(g, plane), in_ring = (uint16_t)(scroll_of(g, plane, MENU_ACROSS) / TILE_PIXELS);
+        for (int k = 1; k <= margin; k++) {
+            send_a_margin_column(g, pf, &p, (uint16_t)((left + TILE_COLUMNS - k) % TILE_COLUMNS),
+                                 (uint16_t)((in_ring - k) & (2 * TILEMAP_COLUMNS - 1)));
+            send_a_margin_column(g, pf, &p, (uint16_t)((left + SCREEN_COLUMNS + k) % TILE_COLUMNS),
+                                 (uint16_t)((in_ring + SCREEN_COLUMNS + k) & (2 * TILEMAP_COLUMNS - 1)));
+        }
+    }
+    charge_uncounted_end(g, mark);
+}
+
+/* The two planes hold the world map across the whole view, every frame its
+ * margins are kept filled; anything else holds the original's screen alone. */
+void menu_map_show_the_planes_across(GameState *g, Platform *pf)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_wider(view))
+        return;
+    uint32_t mark = charge_uncounted_begin(g);
+    for (uint8_t plane = 0; plane < 2 && overworld_on_a_world_map(g); plane++)
+        if (plane_is_on_the_map(g, plane))
+            vid_show_a_layer_across(pf, (VidLayer)(VID_BG1 + plane), vid_view_left(view), vid_view_right(view));
+    charge_uncounted_end(g, mark);
 }

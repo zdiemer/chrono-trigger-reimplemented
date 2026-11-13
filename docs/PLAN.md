@@ -23,8 +23,9 @@ C. Observable divergence is accepted where the game stays structurally the same.
 
 ## Phase 4b: platform milestones
 
-Decode assets one resource at a time into named, editable data. Widen the
-renderer and add GPU/controller backends. Keep the portability subset for
+Decode assets one resource at a time into named, editable data. Finish the
+wider view (PLATFORM.md, "The wider view, as built", says what shows at its
+edges) and add GPU/controller backends. Keep the portability subset for
 smaller targets; measure stacks and memory before the GBA experiment.
 
 A relocatable asset layout and a SNES target follow from the C logic, with

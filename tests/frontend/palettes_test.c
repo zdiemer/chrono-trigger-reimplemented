@@ -51,11 +51,11 @@ static void refused(const AssetStore *base, const char *text, unsigned at)
 {
     unsigned line = 0;
     const char *why = "";
-    AssetPalettes *p = palettes_import(text, strlen(text), base, &line, &why);
+    Decoded *p = decoded_import(&palette_text, text, strlen(text), base, &line, &why);
     CHECK(p == NULL);
     if (p || line != at)
         fprintf(stderr, "  refused at line %u, not %u: %s\n", line, at, text);
-    palettes_close(p);
+    decoded_close(p);
 }
 
 static void the_cartridge(void)
@@ -74,7 +74,7 @@ static void the_cartridge(void)
     AssetStore store;
     asset_store_rom(&store, &ctx, rom, size);
     const char *why = "";
-    bool same = size == ASSET_ROM_SIZE && palettes_round_trip(&store, &why);
+    bool same = size == ASSET_ROM_SIZE && decoded_round_trip(&palette_text, &store, &why);
     CHECK(same);
     if (!same)
         fprintf(stderr, "  the cartridge's %s doesn't read back\n", why);
@@ -99,13 +99,13 @@ int main(void)
     CHECK(palettes > 0);
 
     const char *why = "";
-    CHECK(palettes_round_trip(&made, &why));
+    CHECK(decoded_round_trip(&palette_text, &made, &why));
 
     /* An edited color: the first palette's second color made pure red, its
      * top bit kept. */
     const AssetEntry *e = first_palette();
     size_t len = 0;
-    char *text = palettes_export(&made, &len, &why);
+    char *text = decoded_export(&palette_text, &made, &len, &why);
     CHECK(text != NULL && e != NULL);
     if (!text || !e)
         return 1;
@@ -126,11 +126,11 @@ int main(void)
         edited_len += len - (size_t)(rest - text);
     }
     unsigned line = 0;
-    AssetPalettes *p = palettes_import(edited, edited_len, &made, &line, &why);
+    Decoded *p = decoded_import(&palette_text, edited, edited_len, &made, &line, &why);
     CHECK(p != NULL);
     AssetStore served;
     if (p) {
-        palettes_store(p, &served);
+        decoded_store(p, &served);
         uint32_t n = 0;
         const uint8_t *got = served.find(served.ctx, e->name, asset_type_names[e->type], &n);
         CHECK(got && n == e->length && got[2] == 31 && got[3] == (was[3] & 0x80));
@@ -139,7 +139,7 @@ int main(void)
         CHECK(served.find(served.ctx, other->name, asset_type_names[other->type], &n) ==
               made_up_bytes + made_up_at[other - asset_catalogue]);
     }
-    palettes_close(p);
+    decoded_close(p);
     free(edited);
     free(text);
 
@@ -149,15 +149,15 @@ int main(void)
     strcpy(one, header);
     for (uint32_t c = 0; c < e->length / 2; c++)
         strcat(one, " 1  2  3\r\n");
-    p = palettes_import(one, strlen(one), &made, &line, &why);
+    p = decoded_import(&palette_text, one, strlen(one), &made, &line, &why);
     CHECK(p != NULL);
     if (p) {
-        palettes_store(p, &served);
+        decoded_store(p, &served);
         uint32_t n = 0;
         const uint8_t *got = served.find(served.ctx, e->name, asset_type_names[e->type], &n);
         CHECK(got && got[0] == (1 | 2 << 5) && got[1] == (2 >> 3 | 3 << 2));
     }
-    palettes_close(p);
+    decoded_close(p);
 
     /* Wrong text, refused where it is wrong. */
     char bad[256];
@@ -171,7 +171,7 @@ int main(void)
     snprintf(bad, sizeof bad, "[%s]\n1 2 3 x\n", e->name);
     refused(&made, bad, 2);
     snprintf(bad, sizeof bad, "[%s]\n1 2 3\n", e->name);
-    refused(&made, bad, 2);                           /* too few colors */
+    refused(&made, bad, 1);                           /* too few colors: at its [name] */
     char *twice = malloc(2 * strlen(one) + 1);
     strcpy(twice, one);
     strcat(twice, one + strlen("# just one\n"));

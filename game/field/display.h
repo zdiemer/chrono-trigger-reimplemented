@@ -13,7 +13,7 @@
  * upload flags ask for (FIELD_EDGE_UPLOADS of them, in the flags' order),
  * whose parts' sizes must fit an edge run for the port to send them. */
 enum { FIELD_EDGE_UPLOADS = 12 };
-void field_upload_sprite_table(Platform *pf);
+void field_upload_sprite_table(GameState *g, Platform *pf);
 void field_upload_queued_transfers(GameState *g, Platform *pf);
 /* The queued sprite tile transfers forgotten unsent, as a map's objects
  * start. */

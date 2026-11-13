@@ -32,6 +32,9 @@
  * place in VRAM, with its sprites' records laid out once
  * (object_draw_whole_figure). */
 #include "field/frames.h"
+
+#include <string.h>
+
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/graphics.h"
@@ -245,6 +248,66 @@ static void frame_sprites(GameState *g, FieldObject obj, const FramePlan *plan, 
             sprites_set_record_sprite(g, obj, n, sprite);
         tile = (uint8_t)(tile + NEXT_SPRITE_TILE);
     }
+}
+
+/* ---- A frame's look, without drawing it ----------------------------------------------------- */
+
+/* Where the builder's plan puts each of the description's tiles in VRAM: a
+ * run puts it in the areas, an upload sends that stretch of them to the
+ * object's tiles plus a number of words. Counted in tiles from the object's
+ * first, VRAM's rows NEXT_TILE_ROW across; NO_TILE where no upload sends it. */
+enum { PLAN_TILES = 0x40, NO_TILE = 0xFF };
+
+static uint8_t sent_to(const FramePlan *plan, uint16_t area)
+{
+    for (unsigned u = 0; u < 2; u++) {
+        const Upload *up = &plan->upload[u];
+        if (area >= up->from && area < up->from + up->bytes)
+            return (uint8_t)((up->to_words + (area - up->from) / 2) / VRAM_WORDS_A_TILE);
+    }
+    return NO_TILE;
+}
+
+static void plan_tiles(const FramePlan *plan, uint8_t description_tile_at[PLAN_TILES])
+{
+    memset(description_tile_at, NO_TILE, PLAN_TILES);
+    for (unsigned p = 0; p < plan->parts; p++)
+        for (unsigned r = 0; r < plan->part[p].runs; r++) {
+            TileRun run = plan->part[p].run[r];
+            for (unsigned t = 0; t < run.count; t++) {
+                uint8_t at = sent_to(plan, (uint16_t)(run.to + t * TILE_BYTES));
+                if (at < PLAN_TILES)
+                    description_tile_at[at] = (uint8_t)(run.first + t);
+            }
+        }
+}
+
+unsigned object_frame_look(const GameState *g, FieldObject obj, uint8_t frame, FrameSpriteLook out[FIELD_FRAME_MOST_SPRITES])
+{
+    SpriteLayout layout = object_sprite_layout(g, obj);
+    if (layout == LAYOUT_24)
+        return 0;
+    const FramePlan *plan = plan_for(g, obj, layout);
+    uint32_t description = frame_description(g, obj, plan, frame);
+    uint8_t description_tile_at[PLAN_TILES];
+    plan_tiles(plan, description_tile_at);
+    uint8_t tile = 0;
+    for (unsigned n = 0; n < plan->sprites; n++) {
+        if (n == plan->row_break)
+            tile = (uint8_t)(tile + NEXT_TILE_ROW);
+        FrameSpriteLook *look = &out[n];
+        for (unsigned q = 0; q < FIELD_SPRITE_QUARTERS; q++) {
+            uint8_t at = description_tile_at[tile + (q & 1) + (q >> 1) * NEXT_TILE_ROW];
+            look->has_tile[q] = at != NO_TILE;
+            look->tile[q] = at != NO_TILE ? tile_name(g, description, at) : 0;
+        }
+        look->y = sprite_offset(g, plan->sprites, description, n, AXIS_Y);
+        look->x = sprite_offset(g, plan->sprites, description, n, AXIS_X);
+        bool upper = plan->lower_sprites == BY_OFFSET ? (look->y >= UPPER_OFFSET && look->y < 0) : n >= plan->lower_sprites;
+        look->attributes = object_frame_attributes(g, obj, upper);
+        tile = (uint8_t)(tile + NEXT_SPRITE_TILE);
+    }
+    return plan->sprites;
 }
 
 /* ---- The builder --------------------------------------------------------------------------- */

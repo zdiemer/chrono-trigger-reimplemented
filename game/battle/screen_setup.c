@@ -311,7 +311,7 @@ static void keep_the_row_colors(GameState *g)
  * (battle/message.c), and the battle's song (field/sounds.c). */
 bool battle_screen_set_up(GameState *g, Platform *pf)
 {
-    program_install_vblank_handler(g, battle_vblank);
+    program_hand_the_vblank_to(g, battle_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, battle_line);
     charge_accesses(g, 4);

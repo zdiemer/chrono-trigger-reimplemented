@@ -19,8 +19,10 @@
  * (frontend/assets.h; game/data/assets.h, the store): <rom name>.assets beside
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
- * kept. The palettes are served from the text beside the pack, <pack
- * name>.palettes (frontend/palettes.h), written from the pack where there is none.
+ * kept. The palettes, the fonts and the graphics are served from the text
+ * beside the pack, <pack name>.palettes, .fonts and .graphics
+ * (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h), written from the
+ * pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
  * --frames. It reports invalid game state with its frame and source origin, and what it
@@ -43,7 +45,9 @@
 
 #include "assets.h"
 #include "file_store.h"
+#include "fonts.h"
 #include "palettes.h"
+#include "tiles.h"
 #include "storage.h"
 #include "track.h"
 #include "snapshot.h"
@@ -113,13 +117,14 @@ enum { DARK_LEVEL = 0x10 };
 typedef struct {
     VidRenderer *renderer;
     uint32_t *pixels;
+    unsigned width;              /* the view's: pixels across a row */
     unsigned long dark_since;    /* the frame the current dark run began; 0 while showing */
     unsigned long longest_from, longest;
 } Picture;
 
-static bool picture_is_dark(const uint32_t *px)
+static bool picture_is_dark(const uint32_t *px, unsigned width)
 {
-    for (unsigned i = 0; i < VID_RENDER_WIDTH * VID_RENDER_HEIGHT; i++) {
+    for (unsigned i = 0; i < width * VID_RENDER_HEIGHT; i++) {
         uint32_t c = px[i];
         if (((c >> 16) & 0xFF) > DARK_LEVEL || ((c >> 8) & 0xFF) > DARK_LEVEL || (c & 0xFF) > DARK_LEVEL)
             return false;
@@ -130,7 +135,7 @@ static bool picture_is_dark(const uint32_t *px)
 static void picture_frame(Picture *p, Platform *pf, unsigned long frame)
 {
     vid_render_frame(p->renderer, vid_host_picture(pf), p->pixels, NULL);
-    if (!picture_is_dark(p->pixels)) {
+    if (!picture_is_dark(p->pixels, p->width)) {
         p->dark_since = 0;
         return;
     }
@@ -198,61 +203,72 @@ static uint8_t *lasting(uint8_t *bytes, size_t len, AssetPack **pack)
     return *pack ? copy : NULL;
 }
 
-/* The text of the palettes beside the pack (frontend/palettes.h): the file's,
- * or where there is none, written from the pack once each palette is seen to
- * read back as the bytes it was written from. Two players starting on one
- * pack may both write it; the one that finds the file there first reads it.
- * NULL, after a warning, where there is no text to be had: the pack's own
- * palettes serve. */
-static char *palettes_text(const char *path, const AssetStore *raw, size_t *len)
+/* The text of a kind of decoded resource beside the pack (frontend/decoded.h):
+ * the file's, or where there is none, written from the pack once each
+ * resource is seen to read back as the bytes it was written from. Two players
+ * starting on one pack may both write it; the one that finds the file there
+ * first reads it. NULL, after a warning, where there is no text to be had:
+ * the pack's own resources serve. */
+static char *decoded_text(const DecodedKind *kind, const char *path, const AssetStore *raw, size_t *len)
 {
     const char *why = "";
     bool missing = false;
     char *text = (char *)files_read(path, len, true, &missing);
     if (text || !missing) {
         if (!text)
-            fprintf(stderr, "ct_native: cannot read %s; playing the pack's own palettes\n", path);
+            fprintf(stderr, "ct_native: cannot read %s; playing the pack's own %s\n", path, kind->what);
         return text;
     }
-    if (!palettes_round_trip(raw, &why)) {
-        fprintf(stderr, "ct_native: palette %s doesn't read back as its bytes; playing the pack's own\n", why);
+    if (!decoded_round_trip(kind, raw, &why)) {
+        fprintf(stderr, "ct_native: %s doesn't read back as its bytes; playing the pack's own %s\n", why, kind->what);
         return NULL;
     }
-    text = palettes_export(raw, len, &why);
+    text = decoded_export(kind, raw, len, &why);
     int written = text ? file_store_create(path, text, *len) : -1;
     if (written == 0)
-        fprintf(stderr, "wrote the palettes into %s\n", path);
+        fprintf(stderr, "wrote the %s into %s\n", kind->what, path);
     else if (written > 0)
         free(text), text = (char *)files_read(path, len, true, NULL);
     else
-        fprintf(stderr, "ct_native: cannot write %s; playing the pack's own palettes\n", path);
+        fprintf(stderr, "ct_native: cannot write %s; playing the pack's own %s\n", path, kind->what);
     return written < 0 ? (free(text), NULL) : text;
 }
 
-/* The pack made again with its palettes as the text beside it says. True
- * with the pack unchanged where there is no text; false, the pack and its
- * bytes gone, only where the text is wrong or the remade pack can't be had. */
-static bool serve_palettes(const char *path, uint8_t **bytes, size_t *len, AssetPack **pack)
+/* The pack made again with its palettes, fonts and graphics as the text beside it
+ * says, each kind's store over the one before. True with the pack unchanged
+ * where there is no text; false, the pack and its bytes gone, only where a
+ * text is wrong or the remade pack can't be had. */
+enum { DECODED_KINDS = 3 };
+
+static bool serve_decoded(const Files *files, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
-    AssetStore raw;
-    asset_pack_store(*pack, &raw);
-    size_t text_len = 0, made_len = 0;
-    char *text = palettes_text(path, &raw, &text_len);
-    if (!text)
-        return true;
+    const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text, &tile_text };
+    const char *paths[DECODED_KINDS] = { files->palettes, files->fonts, files->graphics };
+    Decoded *decoded[DECODED_KINDS] = { NULL };
+    AssetStore stores[DECODED_KINDS + 1];
+    asset_pack_store(*pack, &stores[0]);
+    unsigned top = 0;
+    bool wrong = false;
     const char *why = "";
-    unsigned line = 0;
-    AssetPalettes *palettes = palettes_import(text, text_len, &raw, &line, &why);
-    free(text);
-    uint8_t *made = NULL;
-    if (!palettes) {
-        fprintf(stderr, "ct_native: %s:%u: %s\n", path, line, why);
-    } else {
-        AssetStore served;
-        palettes_store(palettes, &served);
-        made = asset_pack_build(&served, ASSET_ROM_CRC32, &made_len, &why);
-        palettes_close(palettes);
+    for (unsigned k = 0; k < DECODED_KINDS && !wrong; k++) {
+        size_t text_len = 0;
+        unsigned line = 0;
+        char *text = decoded_text(kinds[k], paths[k], &stores[0], &text_len);
+        if (!text)
+            continue;
+        decoded[k] = decoded_import(kinds[k], text, text_len, &stores[top], &line, &why);
+        free(text);
+        if (decoded[k])
+            decoded_store(decoded[k], &stores[++top]);
+        else
+            fprintf(stderr, "ct_native: %s:%u: %s\n", paths[k], line, why), wrong = true;
     }
+    if (!wrong && top == 0)
+        return true;
+    size_t made_len = 0;
+    uint8_t *made = wrong ? NULL : asset_pack_build(&stores[top], ASSET_ROM_CRC32, &made_len, &why);
+    for (unsigned k = 0; k < DECODED_KINDS; k++)
+        decoded_close(decoded[k]);
     asset_pack_close(*pack);
     free(*bytes);
     *bytes = made;
@@ -272,7 +288,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     const char *why = "";
     uint8_t *bytes = fresh ? NULL : files_read(files->assets, &len, false, NULL);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
-    if (*pack) return serve_palettes(files->palettes, &bytes, &len, pack) ? lasting(bytes, len, pack) : NULL;
+    if (*pack) return serve_decoded(files, &bytes, &len, pack) ? lasting(bytes, len, pack) : NULL;
     if (bytes) fprintf(stderr, "ct_native: %s: %s; importing again\n", files->assets, why);
     free(bytes);
     uint8_t *rom = rom_path ? files_read(rom_path, &len, false, NULL) : NULL;
@@ -286,7 +302,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     free(rom);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
     if (!*pack) { free(bytes); return NULL; }
-    if (!serve_palettes(files->palettes, &bytes, &len, pack)) return NULL;
+    if (!serve_decoded(files, &bytes, &len, pack)) return NULL;
     return lasting(bytes, len, pack);
 }
 
@@ -491,7 +507,7 @@ static bool native_frame(void *ctx, uint32_t pads)
     if (!d->drive)
         picture_frame(d->picture, d->pf, d->frame);
     if (d->outcomes && outcome_picture_due(d->frame, d->frames))
-        outcome_picture(d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT, d->frame);
+        outcome_picture(d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT, d->frame);
     if (d->locations && location_id(d->game) != d->location) {
         d->location = location_id(d->game);
         fprintf(stderr, "location: frame %lu $%03X\n", d->frame, d->location & LOCATION_BITS);
@@ -499,7 +515,7 @@ static bool native_frame(void *ctx, uint32_t pads)
     if (d->shot_every && d->frame % d->shot_every == 0) {
         char path[1024];
         snprintf(path, sizeof path, "%s/frame_%06lu.png", d->shot_dir, d->frame);
-        if (ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) != 0)
+        if (ct_png_write(path, d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT) != 0)
             fprintf(stderr, "ct_native: cannot write %s\n", path);
     }
     uint32_t routine;
@@ -552,7 +568,7 @@ static bool route_shot(void *ctx, const char *path)
 {
     NativeDriver *d = ctx;
     picture_frame(d->picture, d->pf, d->frame);
-    return ct_png_write(path, d->picture->pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT) == 0;
+    return ct_png_write(path, d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT) == 0;
 }
 static uint8_t *route_snapshot(void *ctx, size_t *len) { return native_snapshot(ctx, len); }
 static bool route_restore(void *ctx, const uint8_t *bytes, size_t len) { return native_restore(ctx, bytes, len); }
@@ -584,7 +600,7 @@ static FrameDigest frame_digest(NativeDriver *d, uint8_t *state)
     int16_t audio[8192 * 2];
     size_t count = sound_native_take_audio(d->sound, audio, 8192);
     return (FrameDigest){ ct_crc32(state, state_host_snapshot_bytes()),
-                          ct_crc32((const uint8_t *)d->picture->pixels, VID_RENDER_WIDTH * VID_RENDER_HEIGHT * sizeof(uint32_t)),
+                          ct_crc32((const uint8_t *)d->picture->pixels, d->picture->width * VID_RENDER_HEIGHT * sizeof(uint32_t)),
                           ct_crc32((const uint8_t *)audio, count * 2 * sizeof *audio) };
 }
 
@@ -633,7 +649,7 @@ static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native [ROM | --rom ROM] [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--load-state FILE] [--save-state FILE] [--record out.ctm] [--save-dir DIR] [--import ROM] [--keys FILE] [--bind INPUT=ACTION]\n"
-                 "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--mute]\n"
+                 "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--mute] [--view WIDTHx224]\n"
                  "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
@@ -653,6 +669,25 @@ static bool count_from(const char *text, unsigned long *out)
         return false;
     *out = strtoul(text, &end, 10);
     return !errno && !*end;
+}
+
+/* --view WIDTHx224: a view as wide as the original's screen or wider, up to
+ * the widest the renderer draws, and as tall. */
+static bool view_from(const char *text, VidView *out)
+{
+    char head[16];
+    const char *x = strchr(text, 'x');
+    size_t n = x ? (size_t)(x - text) : 0;
+    unsigned long width, height;
+    if (!x || n == 0 || n >= sizeof head)
+        return false;
+    memcpy(head, text, n);
+    head[n] = 0;
+    if (!count_from(head, &width) || !count_from(x + 1, &height) || width < VID_ORIGINAL_VIEW_WIDTH ||
+        width > VID_MAX_VIEW_WIDTH || height != VID_ORIGINAL_VIEW_HEIGHT)
+        return false;
+    *out = (VidView){ (uint16_t)width, (uint16_t)height };
+    return true;
 }
 
 /* --check-snapshots EVERY[,SPAN]: both whole numbers above 0. */
@@ -682,6 +717,7 @@ int main(int argc, char **argv)
     unsigned long frames = 600, shot_every = 0, scale = 3, check_every = 0, check_span = 60;
     bool frames_given = false, fullscreen = false, mute = false;
     bool drive = false;
+    VidView view = { VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
     int display_mode = 0;   /* auto, headless, window */
 #ifdef CT_HAVE_SDL
     SDL_SetMainReady();
@@ -715,6 +751,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--window")) display_mode = 2;
         else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
         else if (!strcmp(a, "--fullscreen")) fullscreen = true;
+        else if (!strcmp(a, "--view") && v && view_from(v, &view)) i++;
         else if (!strcmp(a, "--mute")) mute = true;
         else if (!strcmp(a, "--help")) help = true;
         else if (!strcmp(a, "--shot-every") && v && count_from(v, &shot_every)) i++;
@@ -802,6 +839,8 @@ int main(int argc, char **argv)
     files_side_path(files.assets, sizeof files.assets, identity, identity, save_dir, ".assets");
     if (pack_path) snprintf(files.assets, sizeof files.assets, "%s", pack_path);
     files_side_path(files.palettes, sizeof files.palettes, files.assets, files.assets, NULL, ".palettes");
+    files_side_path(files.fonts, sizeof files.fonts, files.assets, files.assets, NULL, ".fonts");
+    files_side_path(files.graphics, sizeof files.graphics, files.assets, files.assets, NULL, ".graphics");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");
@@ -864,8 +903,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;
     }
-    static uint32_t pixels[VID_RENDER_WIDTH * VID_RENDER_HEIGHT];
-    Picture picture = { vid_render_create(), pixels, 0, 0, 0 };
+    static uint32_t pixels[VID_RENDER_MAX_PIXELS];
+    vid_host_set_view(&pf, view);
+    Picture picture = { vid_render_create(), pixels, view.width, 0, 0, 0 };
     if (!picture.renderer) {
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;
@@ -902,7 +942,7 @@ int main(int argc, char **argv)
     if (windowed) {
         WindowOptions options = {
             .scale = (int)scale, .fullscreen = fullscreen, .mute = mute,
-            .display = { 8, 8, 4.0 / 3.0 * VID_RENDER_HEIGHT / VID_RENDER_WIDTH }
+            .display = { view.width, 8, 8, 4.0 / 3.0 * VID_RENDER_HEIGHT / VID_RENDER_WIDTH }
         };
         WindowClient client = {
             .ctx = &driver, .name = "ct_native", .step = native_step, .pixels = native_pixels,
@@ -930,7 +970,7 @@ int main(int argc, char **argv)
         }
         if (wav_path && ct_wav_close(&wav)) driver.result = 2;
     }
-    if (screenshot && ct_png_write(screenshot, picture.pixels, VID_RENDER_WIDTH, VID_RENDER_HEIGHT)) driver.result = 2;
+    if (screenshot && ct_png_write(screenshot, picture.pixels, picture.width, VID_RENDER_HEIGHT)) driver.result = 2;
     if (save_state && !driver.result && !native_save_state(&driver, save_state)) driver.result = 2;
     native_flush(&driver);
     free(driver.track.pads);

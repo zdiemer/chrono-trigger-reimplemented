@@ -26,6 +26,8 @@ bool overworld_map_can_be_loaded_again(const GameState *g);
 /* Whether the world map can be set up as it stands: a world map's location,
  * the camera put on the party on the map (which the port checks first). */
 bool overworld_can_be_set_up(const GameState *g);
+/* Whether the location is one of the world maps. */
+bool overworld_on_a_world_map(const GameState *g);
 /* Whether the map's tiles can be loaded as it stands: on a world map whose
  * record is noted (which the port checks first). */
 bool overworld_map_tiles_can_load(const GameState *g);

@@ -43,6 +43,29 @@ static void resource_transfers(void)
     vid_host_stop(&pf);
 }
 
+/* A wider view's own columns are shown but never read back, and leave the
+ * game's port and address as they were: the game finds VRAM as at the
+ * original's view. */
+static void view_sends(void)
+{
+    Platform pf = {0};
+    const uint8_t game[] = { 0x11, 0x22, 0x33, 0x44 }, margin[] = { 0xAA, 0xBB, 0xCC, 0xDD }, more[] = { 0x55, 0x66 };
+    vid_host_start(&pf, unexpected_read, NULL);
+    vid_send_vram(&pf, PF_AT(0), 0x100, (PfData){ .ptr = game }, sizeof game, &(VidVramPort){ .step = 1, .after_high = true });
+    vid_send_view_vram(&pf, 0x100, (PfData){ .ptr = margin }, sizeof margin, &(VidVramPort){ .step = 32, .after_high = true });
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(f->vram[0x200] == 0xAA && f->vram[0x201] == 0xBB && f->vram[0x240] == 0xCC);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x100) == 0x2211 && vid_vram_word(&pf, PF_AT(0), 0x101) == 0x4433);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x120) == 0);
+    /* The game's next send goes on from its own address, a word at a time. */
+    vid_continue_vram(&pf, PF_AT(0), (PfData){ .ptr = more }, sizeof more);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x102) == 0x6655 && f->vram[0x204] == 0x55);
+    /* A game send over a view's column is the game's again. */
+    vid_send_vram(&pf, PF_AT(0), 0x100, (PfData){ .ptr = more }, sizeof more, NULL);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x100) == 0x6655 && f->vram[0x200] == 0x55);
+    vid_host_stop(&pf);
+}
+
 static uint8_t effect_byte(void *ctx, uint32_t at)
 {
     (void)ctx;
@@ -266,10 +289,104 @@ static void view_size(void)
     CHECK(v.width == 400 && v.height == 224);
 }
 
+/* A wider view: the original's screen in its middle; a sprite placed past the
+ * screen's right edge shown there, and one the game hid shown nowhere though
+ * its nine bits would land in the margin; a background layer left out of the
+ * margins until the mode says it holds the picture there. */
+static void wider_view(void)
+{
+    enum { WIDTH = 320, LEFT = (256 - WIDTH) / 2, ROW = 10, MAP = 0x0800, CHARS = 0x1000 };
+    Platform pf = {0};
+    vid_host_start(&pf, NULL, NULL);
+    vid_host_frame_begins(&pf);
+    vid_host_set_view(&pf, (VidView){ WIDTH, 224 });
+    vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
+    vid_set_mode(&pf, PF_AT(0), &(VidMode){ .mode = 1 });
+    vid_set_screens(&pf, PF_AT(0), VID_BG1_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
+    vid_set_obj_config(&pf, PF_AT(0), &(VidObjConfig){ 0 });
+    vid_set_bg_map(&pf, PF_AT(0), VID_BG1, &(VidBg){ VID_TILEMAP(MAP, 64, 32) });
+    vid_set_bg_chars(&pf, PF_AT(0), VID_BG1, CHARS, CHARS);
+    vid_set_palette_color(&pf, PF_AT(0), 0, 31);
+    vid_set_palette_color(&pf, PF_AT(0), 1, 31 << 5);
+    vid_set_palette_color(&pf, PF_AT(0), 129, 31 << 10);
+    uint8_t tile[32] = { 0 };
+    for (unsigned row = 0; row < 8; row++)
+        tile[2 * row] = 0xFF;   /* every pixel colour 1 */
+    vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .ptr = tile }, sizeof tile, VID_VRAM_WORD_PORT);
+    vid_send_vram(&pf, PF_AT(0), CHARS + 16, (PfData){ .ptr = tile }, sizeof tile, VID_VRAM_WORD_PORT);
+    static uint8_t map[64 * 32 * 2];
+    for (unsigned i = 0; i < sizeof map; i += 2)
+        map[i] = 1;   /* tile 1 everywhere */
+    vid_send_vram(&pf, PF_AT(0), MAP, (PfData){ .ptr = map }, sizeof map, VID_VRAM_WORD_PORT);
+    uint8_t oam[0x220] = { 0 };
+    for (unsigned n = 0; n < VID_SPRITES; n++)
+        oam[4 * n + 1] = VID_OAM_HIDDEN_Y;
+    oam[0] = vid_oam_x_low(270), oam[1] = ROW, oam[0x200] = vid_oam_high_bits(270, false);
+    oam[4] = vid_oam_x_low(VID_OAM_HIDDEN_X), oam[5] = ROW, oam[0x200] |= vid_oam_high_bits(VID_OAM_HIDDEN_X, false) << 2;
+    VidSpritePlace places[VID_SPRITES] = { { 270, ROW, VID_PLACE_AT }, { VID_OAM_HIDDEN_X, ROW, VID_PLACE_HIDDEN } };
+    vid_send_oam(&pf, PF_AT(0), (PfData){ .ptr = oam }, places);
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(vid_render_width(f) == WIDTH);
+    CHECK(f->sprites[0].placed && f->sprites[0].x == 270 && f->sprites[1].hidden);
+
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = calloc(VID_RENDER_MAX_PIXELS, sizeof *pixels);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t backdrop = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    uint32_t layer = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15));
+    uint32_t sprite = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 10, 15));
+    const uint32_t *row = pixels + ROW * WIDTH;
+    CHECK(row[270 - LEFT] == sprite && row[277 - LEFT] == sprite && row[278 - LEFT] == backdrop);
+    CHECK(row[256 - LEFT] == backdrop);   /* the hidden one, over no layer */
+    CHECK(row[0] == backdrop && row[-LEFT - 1] == backdrop && row[-LEFT] == layer && row[255 - LEFT] == layer);
+
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(row[0] == layer && row[279 - LEFT] == layer && row[280 - LEFT] == backdrop);
+
+    /* Sprites in the margins, in front of the layer: one of VRAM's tiles
+     * straddling the screen's left edge, shown only past it, and one of its
+     * own picture, under the table's sprite at 270, which is behind the
+     * layer; and every frame starts with none. */
+    VidSpritePicture picture = { 0 };
+    for (unsigned q = 0; q < VID_PICTURE_TILES; q++)
+        for (unsigned line = 0; line < 8; line++)
+            picture.tile[q][2 * line + 1] = 0xFF;   /* every dot colour 2 */
+    picture.colour[2] = 31;
+    vid_show_a_sprite_in_the_margins(&pf, &(VidMarginSprite){ .x = -4, .y = ROW, .priority = 3 }, NULL);
+    vid_show_a_sprite_in_the_margins(&pf, &(VidMarginSprite){ .x = 262, .y = ROW - 8, .priority = 3 }, &picture);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    CHECK(f->margin_count == 2 && !f->margin[0].own && f->margin[1].own);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t own = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    CHECK(row[-4 - LEFT] == sprite && row[-1 - LEFT] == sprite && row[-LEFT] == layer);
+    CHECK(row[262 - LEFT] == own && row[269 - LEFT] == own && row[270 - LEFT] == layer && row[278 - LEFT] == layer);
+    CHECK(pixels[(ROW - 8) * WIDTH + 262 - LEFT] == own && pixels[(ROW - 9) * WIDTH + 262 - LEFT] == layer);
+    vid_host_frame_begins(&pf);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    CHECK(f->margin_count == 0);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(row[-4 - LEFT] == layer && row[262 - LEFT] == layer);
+
+    /* The original's screen draws from the table alone. */
+    vid_host_set_view(&pf, (VidView){ 256, 224 });
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(vid_render_width(f) == 256 && pixels[ROW * 256 + 255] == layer);
+    free(pixels);
+    vid_render_destroy(r);
+    vid_host_stop(&pf);
+}
+
 int main(void)
 {
     view_size();
+    wider_view();
     resource_transfers();
+    view_sends();
     fill_half_from_cursor();
     changing_picture();
     raster_changes();
