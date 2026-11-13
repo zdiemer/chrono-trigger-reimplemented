@@ -161,7 +161,25 @@ which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
 The other legs of the playthrough start from cartridge saves so the whole
-game is played in parallel. `playthrough_leg-d` starts from ctsave11 slot 1,
+game is played in parallel. `playthrough_leg-c` starts from ctsave08 slot 1,
+Crono, Ayla and Marle at Tyrano Lair's save point, and plays through `play()`
+of `black_tyrano`, `zeal_palace`, `mud_imp`, `giga_gaia`, `golem_twins` and
+`ocean_palace_lavos`, with its own phases between them: the Lair Ruins' Gate,
+the Golem and the exile, a dactyl to the Mystic Mountains' Gate, the End of
+Time's 2300 A.D. pillar, Lab 32, the Sewer Access's switch, Belthasar's Epoch
+to Algetty, Mt. Woe's islands, Dalton, the Ocean Palace's buttons, platforms,
+elevator and floor switches. It ends as Lavos rises from the Mammon Machine
+(frame 568835). The save's bag has no Tonics by Zeal, so its fights heal
+with Lapis, Marle's Cure 2 and Revives, and use weapons (the Ocean Palace's
+Scouts drink the element they are hit with); Shelters at Algetty's, Mt. Woe's
+and the Ocean Palace's save points restore the party before Mud Imp, Giga
+Gaia, Dalton and the Twins. No level or purchase was needed. The Ocean
+Palace's platform statues take the field's control a moment at a time while
+the pad still walks the party, so that stretch walks by position (measured in
+ct_native only). The palace's elevator stands still after its first fight
+until the orb on its left is confirmed, as the original does: checked with the
+frozen `emulator-oracle` oracle from ctsave10 slot 2.
+`playthrough_leg-d` starts from ctsave11 slot 1,
 the party held in the Blackbird after Crono is gone, with the save's party
 and items, and plays on through `play()` of `blackbird_save`, `dalton`,
 `north_cape` (Magus joins; until he is met the Epoch shows Marle's resolve
