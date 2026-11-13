@@ -205,6 +205,36 @@ static inline int16_t vid_view_left(VidView v) { return (int16_t)(((int)VID_ORIG
 static inline int16_t vid_view_right(VidView v) { return (int16_t)(vid_view_left(v) + (int)v.width); }
 static inline bool vid_view_is_wider(VidView v) { return v.width > VID_ORIGINAL_VIEW_WIDTH; }
 
+/* A panel laid out across a wider view: the menus', the battle window's and
+ * the dialog's tilemaps are one screen across (32 columns), so on their own
+ * they would repeat in the margins and keep the original's arrangement. A
+ * layout says, row by row, which of the map's columns each 8-dot column of
+ * the view shows, or that it shows nothing there: a window stretched to the
+ * view's sides (its border's columns moved out and its pattern's repeated
+ * between), or the panel's parts spread apart. It reads only the map's own
+ * row, so it changes where the panel's tiles are drawn and never what they
+ * are. Columns are counted round a ring of VID_LAYOUT_COLUMNS from the layer's
+ * own column 0 (its scroll's X), the original's screen from 0 to 31 and the
+ * margins the columns either side of it, the left one's from 63 down. Every
+ * layer that draws the map at `map_base` (32 columns, 32 or 64 rows) follows the layout
+ * this frame; each frame starts with none, so a mode lays its panels out every
+ * frame, at most VID_MAP_LAYOUTS of them. */
+enum { VID_LAYOUT_ROWS = 64, VID_LAYOUT_COLUMNS = 64, VID_MAP_LAYOUTS = 4, VID_LAYOUT_NOTHING = 0xFF };
+typedef struct {
+    uint8_t column[VID_LAYOUT_ROWS][VID_LAYOUT_COLUMNS];   /* the map's column shown, or VID_LAYOUT_NOTHING */
+} VidMapLayout;
+/* The windows parted with panels that a layout parts in two, each side moved
+ * out to the view's: on each run of eight lines, an edge left of the run's
+ * parting moves `moves` dots left and any other as far right, so a window
+ * keeps to what it framed; an edge on the screen's first or last dot reaches
+ * on to the view's side as before. A parting at the screen's width moves the
+ * whole run left. */
+enum { VID_PARTING_ROWS = VID_ORIGINAL_VIEW_HEIGHT / 8 };
+typedef struct {
+    uint16_t cut[VID_PARTING_ROWS];   /* the dot where each run's right side starts */
+    int16_t moves;
+} VidWindowParting;
+
 /* One OAM entry, as the game builds it. */
 typedef struct {
     int16_t x;              /* 9 bits, as OAM holds it; where `placed`, the X the game placed it at (VidSpritePlace) */
@@ -262,6 +292,7 @@ typedef struct {
     int16_t x;              /* the whole X; for VID_PLACE_HIDDEN, the X the entry was left at */
     uint8_t y;              /* the entry's Y when the place was given */
     uint8_t kind;           /* VidPlaceKind */
+    int16_t moves;          /* for VID_PLACE_AT, the dots a wider view's layout moves it across (vid_lay_out_a_map_across) */
 } VidSpritePlace;
 
 /* Whether a place still describes an entry of X `x9` (its nine bits) and Y `y`. */
@@ -462,9 +493,12 @@ typedef struct {
     uint8_t first_sprite;   /* OAM priority rotation */
     VidView view;           /* how much of the picture to draw (vid_view) */
     int16_t layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across (vid_show_a_layer_across) */
+    uint8_t layout_count;   /* the panels laid out across the view (vid_lay_out_a_map_across) */
+    uint16_t layout_map[VID_MAP_LAYOUTS];
+    const VidMapLayout *layouts;
+    const VidWindowParting *parting;   /* NULL: the windows are whole (vid_part_the_windows) */
     uint16_t margin_count;  /* the sprites in the view's margins (vid_show_a_sprite_in_the_margins), first on top */
     const VidMarginEntry *margin;
-    bool picture_beside_panels;   /* vid_show_the_picture_beside_the_panels */
     uint16_t span_count;
     VidSpan spans[VID_MAX_SPANS];   /* spans[0].line == 1 */
     const uint8_t *vram;    /* 64 KiB, SNES layout */
@@ -614,6 +648,18 @@ PF_API VidView vid_view(const Platform *pf);
  * scrolling in, built past the screen) says so every frame. Mode 7's plane
  * goes on past the screen as its settings say, and is never left out. */
 PF_API void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right);
+/* How a panel is laid out across a wider view (VidMapLayout, above). */
+PF_API void vid_lay_out_a_map_across(Platform *pf, uint16_t map_base, const VidMapLayout *layout);
+/* The windows parted for this frame (VidWindowParting, above); each frame
+ * starts with them whole. */
+PF_API void vid_part_the_windows(Platform *pf, const VidWindowParting *parting);
+/* What a mode laying its panels out reads back of what it sent: `count` words
+ * of VRAM from `vram`, as they stand; and a background layer at a line of the
+ * picture last shown (1-224) -- its map and scroll, and whether it was on the
+ * main screen there. A wider view's own work: nothing the game decides reads
+ * them. */
+PF_API void vid_read_vram(const Platform *pf, uint16_t vram, uint16_t *words, uint16_t count);
+PF_API bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg *out);
 /* A sprite in a wider view's margins this frame (VidMarginSprite), from a
  * mode's own work rather than the game's: it takes none of the game's time and
  * changes nothing the game reads. It is drawn only past the original's
@@ -623,13 +669,6 @@ PF_API void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int
  * them shows them every frame; past VID_MARGIN_SPRITES, and on the
  * original's view, they are left out. */
 PF_API void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture);
-/* This frame, a wider view's margins beside a panel -- lines whose layers
- * hold the original's screen alone, tilemaps one screen across or kept to it,
- * as a battle's windows are -- show the picture the nearest line above that
- * holds more draws there (below, where none above does), as though the panel
- * lay over it. Each frame starts without; the original's screen is drawn as
- * the lines say. */
-PF_API void vid_show_the_picture_beside_the_panels(Platform *pf);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -828,7 +867,9 @@ uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
-                  const VidMarginEntry *margin, uint16_t margin_count, bool picture_beside_panels);
+                  const VidMarginEntry *margin, uint16_t margin_count);
+void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
+                     const VidWindowParting *parting);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 

@@ -26,6 +26,7 @@
 #include "battle/entries.h"
 #include "battle/frame_data.h"
 #include "battle/wait.h"
+#include "battle/wide_window.h"
 #include "core/sprite_table.h"
 #include "field/field.h"
 #include "field/streaming.h"
@@ -168,15 +169,6 @@ static void describe_transfer(GameState *g, TransferDescription d)
     set_battle_transfer_pending(g, TRANSFER_PENDING);
 }
 
-static void send_described_transfer(GameState *g, Platform *pf)
-{
-    TransferDescription d = described_transfer(g);
-    uint32_t bytes = transfer_bytes(d.size);
-    vid_send_vram_in_mode(pf, PF_AT(0xCFE33B), d.vram, battle_described_upload_data(d.source, bytes, d.mode), bytes,
-                          NULL, d.mode);
-    set_battle_transfer_pending(g, 0);
-}
-
 /* The window's rows: 192 entries of its tilemap, six rows of the layer's
  * map, from its top or further down, or the rows the menu kept while it
  * covered them. The window's own tilemap is reached through bank $00, where
@@ -191,6 +183,31 @@ static void request_window_rows(GameState *g, uint32_t source)
 
 static uint32_t window_tilemap_in_bank_0(uint16_t offset) { return (uint16_t)(RAM_BATTLE_WINDOW_TILEMAP + offset); }
 
+/* What the rows sent from `source` show: the party's lines from the window's
+ * top, the item list from further down, the tech list from the rows the menu
+ * kept. */
+static WindowShows rows_shown_from(uint32_t source)
+{
+    if (source == window_tilemap_in_bank_0(0))
+        return WINDOW_SHOWS_PARTY;
+    if (source == window_tilemap_in_bank_0(LOWER_ROWS))
+        return WINDOW_SHOWS_ITEMS;
+    if (source == RAM_BATTLE_MENU_TILEMAP)
+        return WINDOW_SHOWS_TECHS;
+    return WINDOW_SHOWS_OTHER;
+}
+
+static void send_described_transfer(GameState *g, Platform *pf)
+{
+    TransferDescription d = described_transfer(g);
+    uint32_t bytes = transfer_bytes(d.size);
+    vid_send_vram_in_mode(pf, PF_AT(0xCFE33B), d.vram, battle_described_upload_data(d.source, bytes, d.mode), bytes,
+                          NULL, d.mode);
+    set_battle_transfer_pending(g, 0);
+    if (d.vram == WINDOW_ROWS_VRAM)
+        battle_note_window_rows_sent(g, rows_shown_from(d.source));
+}
+
 /* ---- The vblank's uploads ------------------------------------------------------------------ */
 
 /* The party's window frames, when asked for. */
@@ -203,6 +220,7 @@ static void send_window_frames(GameState *g, Platform *pf)
     vid_send_vram(pf, PF_AT(0xCFE386), FRAMES_VRAM, PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
                   FRAMES_BYTES, NULL);
     set_battle_frames_upload_request(g, 0);
+    battle_note_frames_sent(g);
 }
 
 /* One of the four queued uploads: its first transfer, and its second where
@@ -263,8 +281,7 @@ static void count_down_to_reupload(GameState *g, Platform *pf)
 
 /* On a wider view, the field's layers the battle is fought over hold the map
  * as far across as the field built them, moved with the battle's scroll (read
- * outside the game's time: the original never reads it here), and they go on
- * beside the battle's windows, whose panels are a screen across. */
+ * outside the game's time: the original never reads it here). */
 static void show_the_fields_layers(GameState *g, Platform *pf)
 {
     if (!vid_view_is_wider(vid_view(pf)))
@@ -275,7 +292,6 @@ static void show_the_fields_layers(GameState *g, Platform *pf)
         scroll[layer] = battle_bg_scroll_x(g, layer);
     charge_uncounted_end(g, mark);
     field_show_the_layers_under_a_battle(g, pf, scroll);
-    vid_show_the_picture_beside_the_panels(pf);
 }
 
 // $CF:E300
@@ -287,6 +303,7 @@ void battle_send_vblank_uploads(GameState *g, Platform *pf)
     if (battle_transfer_pending(g))
         send_described_transfer(g, pf);
     send_window_frames(g, pf);
+    battle_lay_out_the_window_across(g, pf);
     vid_send_palette(pf, PF_AT(0xCFE3C5), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
     send_next_queued_upload(g, pf);
     send_built_graphics(g, pf);

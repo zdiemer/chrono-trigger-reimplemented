@@ -56,6 +56,8 @@ add_library(ct_game STATIC
   game/core/sound_commands.c
   game/core/tile_animation.c
   game/core/sprite_table.c
+  game/core/panel_layout.c
+  game/menu/panels_across.c
   game/data/assets.c
   game/data/asset_catalogue.c
   game/data/decompress.c
@@ -343,6 +345,7 @@ add_library(ct_game STATIC
   game/battle/beaten_enemies.c
   game/battle/closing.c
   game/battle/uploads.c
+  game/battle/wide_window.c
   game/battle/timers.c
   game/battle/wait.c
   game/battle/window.c)
@@ -438,7 +441,10 @@ if(BUILD_TESTING)
   target_link_libraries(recorder_test PRIVATE ct_media)
   add_executable(sound_setting_test tests/port/sound_setting_test.c)
   target_link_libraries(sound_setting_test PRIVATE ct_game)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles sound_setting)
+  add_executable(sound_native_test tests/frontend/sound_native_test.c frontend/sound_native.c)
+  target_include_directories(sound_native_test PRIVATE frontend runtime)
+  target_link_libraries(sound_native_test PRIVATE ct_game)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles sound_setting sound_native)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()
