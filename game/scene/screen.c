@@ -120,7 +120,7 @@ void scene_set_up_first_screen(GameState *g, Platform *pf)
  * entry, and the first high-table byte. */
 static void upload_sprites(GameState *g, Platform *pf)
 {
-    vid_send_oam(pf, PF_AT(0x7E3811), PF_GAME(SCENE_SPRITE_TABLE));
+    vid_send_oam(pf, PF_AT(0x7E3811), PF_GAME(SCENE_SPRITE_TABLE), sprite_table_places(g));
     vid_set_oam_address(pf, PF_AT(0x7E3830), scene_sprite_priority_start(g), true);
     set_scene_sprite_index(g, 0);
     set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);

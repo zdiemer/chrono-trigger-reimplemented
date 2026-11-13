@@ -93,6 +93,12 @@ static void set_high_bits(GameState *g, uint16_t at, uint8_t bits)
         sprite_table_set_byte(g, at, bits);
 }
 
+/* A sprite's whole X, for a view wider than the original's screen: objects
+ * run only within a little of the screen (object_view.c's window, two map
+ * tiles past it), so a nine-bit X far left of the screen is one right of it. */
+enum { FAR_LEFT_OF_THE_SCREEN = -128, NINE_BITS_ROUND = 0x200 };
+static int16_t whole_x(int16_t x) { return (int16_t)(x < FAR_LEFT_OF_THE_SCREEN ? x + NINE_BITS_ROUND : x); }
+
 /* Write an object's sprites into its range: their high table bits at the
  * range's high table cursor, and their entries from its next entry; and move
  * the range on past them. */
@@ -117,6 +123,7 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
         hw_port_write(g, sprites[n].y);
         hw_port_write(g, sprites[n].tile);
         hw_port_write(g, sprites[n].attributes);
+        sprite_table_place(g, entry / OAM_ENTRY + n, whole_x(sprites[n].x), sprites[n].y);
     }
     charge_accesses(g, 1); /* the completed sprite count */
 }

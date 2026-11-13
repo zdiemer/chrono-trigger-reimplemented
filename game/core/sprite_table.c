@@ -6,6 +6,8 @@
  * original's indexed stores do, and write through sprite_table_set_byte. */
 #include "core/sprite_table.h"
 
+#include "charge.h"
+
 enum { ENTRY_X, ENTRY_Y, ENTRY_TILE, ENTRY_ATTRIBUTES };
 
 void sprite_table_set_byte(GameState *g, unsigned at, uint8_t v)
@@ -21,4 +23,29 @@ void sprite_table_set_byte(GameState *g, unsigned at, uint8_t v)
     case ENTRY_TILE: set_oam_buffer_tile(g, sprite, v); break;
     default: set_oam_buffer_attributes(g, sprite, v); break;
     }
+}
+
+void sprite_table_place(GameState *g, unsigned sprite, int16_t x, uint8_t y)
+{
+    sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_AT };
+}
+
+void sprite_table_hide(GameState *g, unsigned sprite, int16_t x, uint8_t y)
+{
+    sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_HIDDEN };
+}
+
+const VidSpritePlace *sprite_table_places(GameState *g) { return sprite_places(g)->sprite; }
+
+/* The entry is read outside the game's time: the original never reads it. */
+void sprite_table_hide_as_it_stands(GameState *g, unsigned sprite)
+{
+    sprite %= OAM_BUFFER_COUNT;
+    uint32_t mark = charge_uncounted_begin(g);
+    uint8_t high = (uint8_t)(oam_high_table_byte(g, sprite / VID_OAM_SPRITES_A_HIGH_BYTE) >>
+                             (VID_OAM_HIGH_BITS * (sprite % VID_OAM_SPRITES_A_HIGH_BYTE)));
+    int16_t x = vid_oam_x(oam_buffer_x(g, sprite), high);
+    uint8_t y = oam_buffer_y(g, sprite);
+    charge_uncounted_end(g, mark);
+    sprite_table_hide(g, sprite, x, y);
 }

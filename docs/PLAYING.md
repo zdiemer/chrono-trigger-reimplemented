@@ -72,7 +72,9 @@ toggles fullscreen, Escape quits. SDL gamepads use positional face buttons,
 D-pad/left stick, shoulders, Start/Back and right trigger for fast-forward.
 `ct_native.keys` beside the executable supplies bindings; `--keys FILE` and
 `--bind INPUT=ACTION` override them. `--scale`, `--fullscreen` and `--mute`
-control the window.
+control the window. `--view WIDTHx224` shows a wider picture (up to 480 across,
+the original's screen in its middle; docs/PLATFORM.md, "The wider view, as
+built"), in the window and in screenshots; the game plays the same at any view.
 
 F5 saves a snapshot of the completed frame; F7 loads it at once.
 `--save-state` and `--load-state` do the same headlessly. Snapshots belong to

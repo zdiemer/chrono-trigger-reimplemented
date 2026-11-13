@@ -67,6 +67,7 @@ static void update_title(SDL_Window *window, const WindowClient *client, bool pa
 }
 
 static int display_rows(const Display *d) { return VID_RENDER_HEIGHT - d->crop_top - d->crop_bottom; }
+static int display_width(const Display *d) { return d->width ? d->width : VID_RENDER_WIDTH; }
 
 /* The destination rectangle for the picture in an output of w x h: as large as
  * fits with the right aspect, a whole number of output rows per picture row
@@ -74,7 +75,7 @@ static int display_rows(const Display *d) { return VID_RENDER_HEIGHT - d->crop_t
 static SDL_Rect display_rect(const Display *d, int w, int h)
 {
     int rows = display_rows(d);
-    double pic_w = VID_RENDER_WIDTH * d->pixel_aspect, pic_h = rows;
+    double pic_w = display_width(d) * d->pixel_aspect, pic_h = rows;
     double scale = w / pic_w < h / pic_h ? w / pic_w : h / pic_h;
     if (scale >= 1.0)
         scale = (double)(int)scale;
@@ -168,12 +169,12 @@ int window_run(const WindowClient *client, const WindowOptions *o)
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     SDL_Window *window = SDL_CreateWindow(client->name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          (int)(VID_RENDER_WIDTH * display->pixel_aspect * scale + 0.5),
+                                          (int)(display_width(display) * display->pixel_aspect * scale + 0.5),
                                           display_rows(display) * scale,
                                           SDL_WINDOW_RESIZABLE | (fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
     SDL_Renderer *sdl_renderer = window ? SDL_CreateRenderer(window, -1, 0) : NULL;
     SDL_Texture *texture = sdl_renderer ? SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGB888,
-                                                            SDL_TEXTUREACCESS_STREAMING, VID_RENDER_WIDTH,
+                                                            SDL_TEXTUREACCESS_STREAMING, display_width(display),
                                                             VID_RENDER_HEIGHT)
                                         : NULL;
     if (!texture) {
@@ -183,8 +184,8 @@ int window_run(const WindowClient *client, const WindowOptions *o)
         SDL_Quit();
         return 1;
     }
-    SDL_SetWindowMinimumSize(window, (int)(VID_RENDER_WIDTH * display->pixel_aspect + 0.5), display_rows(display));
-    const SDL_Rect src = { 0, display->crop_top, VID_RENDER_WIDTH, display_rows(display) };
+    SDL_SetWindowMinimumSize(window, (int)(display_width(display) * display->pixel_aspect + 0.5), display_rows(display));
+    const SDL_Rect src = { 0, display->crop_top, display_width(display), display_rows(display) };
     static Audio audio;   /* large; keep it off the stack */
     memset(&audio, 0, sizeof audio);
     if (!o->mute)
@@ -207,7 +208,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
     long frames_since_flush = 0;
     update_title(window, client, paused);
 
-    SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), VID_RENDER_WIDTH * 4);
+    SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), display_width(display) * 4);
     while (running) {
         /* The actions of this iteration's key presses, then of pad inputs
          * newly held (sticks and triggers have no press events). */
@@ -255,7 +256,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
                 if (client->quick_load) {
                     audio_frame(&audio, client, true);
                     client->quick_load(client->ctx);
-                    SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), VID_RENDER_WIDTH * 4);
+                    SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), display_width(display) * 4);
                 }
                 break;
             default:
@@ -291,7 +292,7 @@ int window_run(const WindowClient *client, const WindowOptions *o)
             } while (fast && SDL_GetPerformanceCounter() < budget_end);
             if (fast)
                 deadline = SDL_GetPerformanceCounter();
-            SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), VID_RENDER_WIDTH * 4);
+            SDL_UpdateTexture(texture, NULL, client->pixels(client->ctx), display_width(display) * 4);
             update_title(window, client, paused);
         }
         /* Fast frames aren't played: the device stays silent until normal speed. */
