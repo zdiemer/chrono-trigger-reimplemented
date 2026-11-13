@@ -49,6 +49,15 @@ def tech_known(bot, member, index):
     return bot.machine.b(A.BATTLE_TECH_LIST + base + index) != 0xFF
 
 
+def single_tech_known(bot, member, index):
+    """Whether list entry `index` is one of the member's single techs: every
+    row up to it holds a tech. The single techs come first; the double and
+    triple techs follow a blank row, so a single tech's number past the ones
+    learned would name a double tech there."""
+    base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
+    return all(bot.machine.b(A.BATTLE_TECH_LIST + base + i) != 0xFF for i in range(index + 1))
+
+
 def enemies(state):
     """Enemy slots that are alive; the 1 HP dummies and the party are skipped."""
     return [slot for slot in range(3, 11) if 1 < state.max_hp(slot) < 65000 and state.hp(slot) > 0]
