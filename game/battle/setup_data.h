@@ -76,48 +76,69 @@ static inline uint32_t rom_read24(const GameState *g, uint32_t at)
 /* How the battle window is laid out, by the battle gauge setting ($CC:FBC5). */
 static inline uint8_t setup_window_layout_for_gauge(const GameState *g, uint8_t setting)
 {
-    return rom_read8(g, 0xCCFBC5u + setting);
+    return asset_read8(g, ASSET_SETUP_WINDOW_LAYOUT_FOR_GAUGE, setting);
 }
 
 /* A sprite's X high bit in its high-table byte, and the mask that clears it,
  * by its place among the four sprites a byte holds ($CC:F4C4, $CC:F4CC). */
-static inline uint8_t setup_sprite_x_high_bit(const GameState *g, uint8_t place) { return rom_read8(g, 0xCCF4C4u + place); }
+static inline uint8_t setup_sprite_x_high_bit(const GameState *g, uint8_t place)
+{
+    return asset_read8(g, ASSET_SETUP_SPRITE_X_HIGH_BIT, place);
+}
 
 static inline uint8_t setup_sprite_x_high_clear(const GameState *g, uint8_t place)
 {
-    return rom_read8(g, 0xCCF4CCu + place);
+    return asset_read8(g, ASSET_SETUP_SPRITE_X_HIGH_CLEAR, place);
 }
 
 /* The battlefield grid's rows as they start: the rows along the top and the
  * bottom edges (a table of three rows, $CC:F694), and the one row every row
  * between them starts as ($CC:F644). */
-static inline uint8_t setup_grid_edge_cell(const GameState *g, uint16_t at) { return rom_read8(g, 0xCCF694u + at); }
+static inline uint8_t setup_grid_edge_cell(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_SETUP_GRID_EDGE_CELL, at);
+}
 
-static inline uint8_t setup_grid_middle_cell(const GameState *g, uint8_t column) { return rom_read8(g, 0xCCF644u + column); }
+static inline uint8_t setup_grid_middle_cell(const GameState *g, uint8_t column)
+{
+    return asset_read8(g, ASSET_SETUP_GRID_MIDDLE_CELL, column);
+}
 
 /* The window frames' tilemap ($D1:5800), and the start of the tilemap the
  * graphics' second load step uploads ($D1:5D50). */
-static inline uint8_t setup_window_frames_tilemap(const GameState *g, uint16_t at) { return rom_read8(g, 0xD15800u + at); }
+static inline uint8_t setup_window_frames_tilemap(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_SETUP_WINDOW_FRAMES_TILEMAP, at);
+}
 
-static inline uint8_t setup_load_tilemap_start(const GameState *g, uint16_t at) { return rom_read8(g, 0xD15D50u + at); }
+static inline uint8_t setup_load_tilemap_start(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_SETUP_LOAD_TILEMAP_START, at);
+}
 
 /* ---- Names -------------------------------------------------------------------------------- */
 
 /* Where the n-th five-character name is in a table of names ($CC:F83F), and
  * where its two converted rows of five tiles go ($CC:F837). */
-static inline uint8_t setup_name_at(const GameState *g, uint8_t n) { return rom_read8(g, 0xCCF83Fu + n); }
+static inline uint8_t setup_name_at(const GameState *g, uint8_t n) { return asset_read8(g, ASSET_SETUP_NAME_AT, n); }
 
-static inline uint8_t setup_name_tiles_at(const GameState *g, uint8_t n) { return rom_read8(g, 0xCCF837u + n); }
+static inline uint8_t setup_name_tiles_at(const GameState *g, uint8_t n)
+{
+    return asset_read8(g, ASSET_SETUP_NAME_TILES_AT, n);
+}
 
 /* Where a character's name is among the characters' six-byte records
  * ($CC:F846, by character). */
 static inline uint8_t setup_character_name_at(const GameState *g, uint8_t character)
 {
-    return rom_read8(g, 0xCCF846u + character);
+    return asset_read8(g, ASSET_SETUP_CHARACTER_NAME_AT, character);
 }
 
 /* A character of an enemy's name, eleven a name by enemy number ($CC:6500). */
-static inline uint8_t setup_enemy_name_char(const GameState *g, uint16_t at) { return rom_read8(g, 0xCC6500u + at); }
+static inline uint8_t setup_enemy_name_char(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_SETUP_ENEMY_NAME_CHAR, at);
+}
 
 /* ---- Colors -------------------------------------------------------------------------------- */
 
@@ -131,9 +152,15 @@ static inline uint16_t setup_fixed_color(const GameState *g, unsigned run, unsig
 
 /* A party member's color set, by the byte the battle carries for it
  * ($CD:6CEC), and a set's colors (three to a set, $D1:4B00). */
-static inline uint8_t setup_member_color_set(const GameState *g, uint8_t carried) { return rom_read8(g, 0xCD6CECu + carried); }
+static inline uint8_t setup_member_color_set(const GameState *g, uint8_t carried)
+{
+    return asset_read8(g, ASSET_SETUP_MEMBER_COLOR_SET, carried);
+}
 
-static inline uint16_t setup_member_color(const GameState *g, uint16_t at) { return rom_read16(g, 0xD14B00u + at); }
+static inline uint16_t setup_member_color(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_BATTLE_MEMBER_COLORS, at);
+}
 
 /* The colors the cursors' sprite palettes start with ($D1:38F2, $D1:38FA),
  * and the number sprites' colors ($D1:4D80). */
@@ -142,7 +169,10 @@ static inline uint16_t setup_cursor_color(const GameState *g, unsigned palette, 
     return rom_read16(g, (palette ? 0xD138FAu : 0xD138F2u) + 2 * color);
 }
 
-static inline uint16_t setup_number_color(const GameState *g, unsigned color) { return rom_read16(g, 0xD14D80u + 2 * color); }
+static inline uint16_t setup_number_color(const GameState *g, unsigned color)
+{
+    return asset_read16(g, ASSET_BATTLE_NUMBER_COLORS, 2 * color);
+}
 
 /* ---- The party's techs ---------------------------------------------------------------------- */
 
@@ -150,31 +180,52 @@ static inline uint16_t setup_number_color(const GameState *g, unsigned color) { 
  * ($CC:F395, a word a member), and where its tech list starts ($CC:F38C). */
 static inline uint16_t setup_member_tech_records_at(const GameState *g, uint8_t member)
 {
-    return rom_read16(g, 0xCCF395u + 2u * member);
+    return asset_read16(g, ASSET_SETUP_MEMBER_TECH_RECORDS_AT, 2u * member);
 }
 
-static inline uint8_t setup_member_tech_list_start(const GameState *g, uint8_t member) { return rom_read8(g, 0xCCF38Cu + member); }
+static inline uint8_t setup_member_tech_list_start(const GameState *g, uint8_t member)
+{
+    return asset_read8(g, ASSET_SETUP_MEMBER_TECH_LIST_START, member);
+}
 
 static inline uint32_t setup_character_graphics(const GameState *g, uint8_t at) { return rom_read24(g, 0xE42000u + at); }
 
 static inline uint32_t setup_tile_lists(const GameState *g, uint16_t at) { return rom_read24(g, 0xE42300u + at); }
 
-static inline uint16_t setup_frame_lists(const GameState *g, uint16_t at) { return rom_read16(g, 0xE42600u + at); }
+static inline uint16_t setup_frame_lists(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_SETUP_FRAME_LISTS, at);
+}
 
-static inline uint16_t setup_delay_lists(const GameState *g, uint16_t at) { return rom_read16(g, 0xE42800u + at); }
+static inline uint16_t setup_delay_lists(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_SETUP_DELAY_LISTS, at);
+}
 
 /* How many sprites an object of a graphics kind is drawn with ($CC:F505). */
-static inline uint8_t setup_kind_sprites(const GameState *g, uint8_t kind) { return rom_read8(g, 0xCCF505u + kind); }
+static inline uint8_t setup_kind_sprites(const GameState *g, uint8_t kind)
+{
+    return asset_read8(g, ASSET_SETUP_KIND_SPRITES, kind);
+}
 
 /* An object's sprite entries' tiles and attributes as they start, two bytes
  * an entry ($CC:FAF3). */
-static inline uint8_t setup_sprite_entry_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xCCFAF3u + at); }
+static inline uint8_t setup_sprite_entry_byte(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_SETUP_SPRITE_ENTRY_BYTE, at);
+}
 
 /* The tiles the battle's start puts in the decoded tiles: sixteen tiles of two
  * bitplanes ($D1:4C80) and 64 of four ($D1:3900). */
-static inline uint8_t setup_two_plane_tiles(const GameState *g, uint16_t at) { return rom_read8(g, 0xD14C80u + at); }
+static inline uint8_t setup_two_plane_tiles(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_BATTLE_NUMBER_FONT, at);
+}
 
-static inline uint8_t setup_four_plane_tiles(const GameState *g, uint16_t at) { return rom_read8(g, 0xD13900u + at); }
+static inline uint8_t setup_four_plane_tiles(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_SETUP_FOUR_PLANE_TILES, at);
+}
 
 /* Each object's two graphics uploads: their sizes by graphics kind ($CC:F9DF,
  * $CC:F9E9) and their VRAM addresses and sources by battle slot ($CC:F9B3,
@@ -198,35 +249,51 @@ static inline uint16_t setup_upload_source(const GameState *g, unsigned upload, 
 
 /* Where the n-th enemy's record is among the battle's enemy records, in
  * bytes ($CC:F939). */
-static inline uint8_t setup_enemy_record_at(const GameState *g, uint8_t n) { return rom_read8(g, 0xCCF939u + n); }
+static inline uint8_t setup_enemy_record_at(const GameState *g, uint8_t n)
+{
+    return asset_read8(g, ASSET_SETUP_ENEMY_RECORD_AT, n);
+}
 
 static inline EnemyHeader setup_enemy_header(const GameState *g, uint16_t number)
 {
-    uint32_t at = 0xE4F600u + (uint16_t)(number * 10);
-    return (EnemyHeader){ rom_read8(g, at + 1), rom_read8(g, at + 3), rom_read8(g, at + 4), rom_read8(g, at + 5),
-                          rom_read8(g, at + 6), rom_read8(g, at + 7), rom_read8(g, at + 8), rom_read8(g, at + 9) };
+    uint32_t at = (uint16_t)(number * 10);
+    return (EnemyHeader){
+        asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 1), asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 3),
+        asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 4), asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 5),
+        asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 6), asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 7),
+        asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 8), asset_read8(g, ASSET_BATTLE_SPRITE_RECORDS, at + 9)
+    };
 }
 
 /* How often an enemy's effects step, by its orbit's period and radius step
  * ($CC:F544). */
-static inline uint8_t setup_enemy_effect_period(const GameState *g, uint8_t at) { return rom_read8(g, 0xCCF544u + at); }
+static inline uint8_t setup_enemy_effect_period(const GameState *g, uint8_t at)
+{
+    return asset_read8(g, ASSET_SETUP_ENEMY_EFFECT_PERIOD, at);
+}
 
-static inline uint16_t setup_rule_enemy(const GameState *g, uint16_t at) { return rom_read16(g, 0xE1DE00u + at); }
+static inline uint16_t setup_rule_enemy(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_SETUP_RULES, at);
+}
 
-static inline uint16_t setup_rule(const GameState *g, uint16_t at) { return rom_read16(g, 0xE1DE02u + at); }
+static inline uint16_t setup_rule(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_SETUP_RULES, 0x2u + at);
+}
 
 static inline EnemyStatsRecord enemy_stats_record(const GameState *g, uint8_t enemy)
 {
-    uint32_t at = 0xCC4700u + (uint16_t)(enemy * 23);
+    uint32_t at = (uint16_t)(enemy * 23);
     EnemyStatsRecord r;
-    r.hp = rom_read16(g, at);
-    r.level = rom_read8(g, at + 2);
+    r.hp = asset_read16(g, ASSET_ENEMY_STATS_RECORDS, at);
+    r.level = asset_read8(g, ASSET_ENEMY_STATS_RECORDS, at + 2);
     for (unsigned n = 0; n < ENEMY_DEFENCES; n++)
-        r.defences[n] = rom_read8(g, at + 3 + n);
+        r.defences[n] = asset_read8(g, ASSET_ENEMY_STATS_RECORDS, at + 3 + n);
     for (unsigned n = 0; n < ENEMY_STATS; n++)
-        r.stats[n] = rom_read8(g, at + 8 + n);
+        r.stats[n] = asset_read8(g, ASSET_ENEMY_STATS_RECORDS, at + 8 + n);
     for (unsigned n = 0; n < ENEMY_KIND_BYTES; n++)
-        r.kind[n] = rom_read8(g, at + 20 + n);
+        r.kind[n] = asset_read8(g, ASSET_ENEMY_STATS_RECORDS, at + 20 + n);
     return r;
 }
 
@@ -236,7 +303,7 @@ static inline uint8_t character_start_record_byte(const GameState *g, uint16_t a
 
 static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned character)
 {
-    uint16_t at = (uint16_t)(rom_read16(g, 0xFDB99Cu + (uint8_t)(demo << 1)) + character * 8);
+    uint16_t at = (uint16_t)(asset_read16(g, ASSET_DEMO_MEMBER, (uint8_t)(demo << 1)) + character * 8);
     return (DemoMember){ rom_read16(g, 0xFD0000u | at), rom_read16(g, 0xFD0000u | (uint16_t)(at + 2)),
                          rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
 }
@@ -247,20 +314,20 @@ static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned 
  * bank FD ($FD:B957, a word a demo). */
 static inline uint8_t demo_member_action_byte(const GameState *g, uint8_t demo, unsigned member, unsigned at)
 {
-    uint16_t from = rom_read16(g, 0xFDB957u + (uint8_t)(demo << 1));
+    uint16_t from = asset_read16(g, ASSET_DEMO_MEMBER_ACTION_BYTE, (uint8_t)(demo << 1));
     return rom_read8(g, 0xFD0000u | (uint16_t)(from + member * MEMBER_ACTION_RECORD_BYTES + at));
 }
 
 static inline uint8_t first_turn_wait(const GameState *g, uint8_t setting, uint8_t speed)
 {
-    return rom_read8(g, 0xCC2E31u + (uint8_t)(speed - 1 + setting * SPEEDS_A_SETTING));
+    return asset_read8(g, ASSET_FIRST_TURN_WAIT, (uint8_t)(speed - 1 + setting * SPEEDS_A_SETTING));
 }
 
 /* The characters' records, each one's place among them in bytes ($CC:FC1E,
  * a word a character), as the battle's return to the field goes round them. */
 static inline uint16_t battle_character_record_place(const GameState *g, unsigned character)
 {
-    return rom_read16(g, 0xCCFC1Eu + character * 2u);
+    return asset_read16(g, ASSET_BATTLE_CHARACTER_RECORD_PLACE, character * 2u);
 }
 
 #endif

@@ -81,22 +81,25 @@ static inline uint8_t battle_screen_script_byte(const GameState *g, uint32_t at)
 
 static inline uint16_t screen_script_start(const GameState *g, uint8_t script)
 {
-    return rom_read16(g, 0xD1646Cu + script * 2u);
+    return asset_read16(g, ASSET_SCREEN_SCRIPT_START, script * 2u);
 }
 
 static inline uint16_t gradient_set_color(const GameState *g, uint8_t level, unsigned color)
 {
-    uint16_t set = rom_read16(g, 0xD1E9EFu + (uint8_t)(level * 2));
-    return rom_read16(g, 0xD0FBE2u + (uint16_t)(set + 2u * color));
+    uint16_t set = asset_read16(g, ASSET_GRADIENT_SET_COLOR, (uint8_t)(level * 2));
+    return asset_read16(g, ASSET_BATTLE_SCREEN_COLORS, 0x1E2u + (uint16_t)(set + 2u * color));
 }
 
 /* The first of all the sets' colors, which the background's first gradient
  * row is looked for. */
-static inline uint16_t gradient_first_color(const GameState *g) { return rom_read16(g, 0xD0FBE2u); }
+static inline uint16_t gradient_first_color(const GameState *g)
+{
+    return asset_read16(g, ASSET_BATTLE_SCREEN_COLORS, 0x1E2u);
+}
 
 static inline uint8_t gradient_row_turn(const GameState *g, unsigned row, uint8_t phase)
 {
-    return rom_read8(g, 0xD1EA21u + GRADIENT_PHASES * row + phase);
+    return asset_read8(g, ASSET_GRADIENT_ROW_TURN, GRADIENT_PHASES * row + phase);
 }
 
 /* ---- Palette rows ------------------------------------------------------------------------- */
@@ -104,79 +107,104 @@ static inline uint8_t gradient_row_turn(const GameState *g, unsigned row, uint8_
 /* The colors background rows 2-4 start the battle with ($D0:FD00, 48). */
 static inline uint16_t background_row_start_color(const GameState *g, unsigned color)
 {
-    return rom_read16(g, 0xD0FD00u + 2u * color);
+    return asset_read16(g, ASSET_BATTLE_SCREEN_COLORS, 0x300u + 2u * color);
 }
 
 static inline uint8_t effect_graphics_block(const GameState *g, uint8_t effect, unsigned block)
 {
-    return rom_read8(g, 0xD1ECDBu + (uint8_t)(effect * EFFECT_BLOCKS) + block);
+    return asset_read8(g, ASSET_SHAPE_MODEL_POINT, 0x7Cu + (uint8_t)(effect * EFFECT_BLOCKS) + block);
 }
 
 static inline uint16_t effect_color(const GameState *g, uint8_t effect, unsigned color)
 {
-    uint16_t set = rom_read16(g, 0xD1ECCFu + (uint8_t)(effect * 2));
-    return rom_read16(g, 0xD0FA00u + (uint16_t)(set + 2u * color));
+    uint16_t set = asset_read16(g, ASSET_SHAPE_MODEL_POINT, 0x70u + (uint8_t)(effect * 2));
+    return asset_read16(g, ASSET_BATTLE_SCREEN_COLORS, (uint16_t)(set + 2u * color));
 }
 
 /* The compressed graphics an effect puts in the tilemap area: a long pointer
  * per effect ($D0:E000, its index a byte of three times the effect). */
 static inline uint32_t effect_tilemap_graphics_address(const GameState *g, uint8_t effect)
 {
-    uint32_t at = 0xD0E000u + (uint8_t)(effect * 3);
-    return rom_read8(g, at) | (uint32_t)rom_read8(g, at + 1) << 8 | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = (uint8_t)(effect * 3);
+    return asset_read8(g, ASSET_EFFECT_TILEMAP_GRAPHICS_ADDRESS, at) |
+           (uint32_t)asset_read8(g, ASSET_EFFECT_TILEMAP_GRAPHICS_ADDRESS, at + 1) << 8 |
+           (uint32_t)asset_read8(g, ASSET_EFFECT_TILEMAP_GRAPHICS_ADDRESS, at + 2) << 16;
 }
 
 /* ---- Motion ------------------------------------------------------------------------------- */
 
 /* The battle's sine table ($CE:F48E): 256 steps a turn, the magnitude 0-255
  * of each; the second half of the turn is the negative one. */
-static inline uint8_t battle_sine_magnitude(const GameState *g, uint8_t angle) { return rom_read8(g, 0xCEF48Eu + angle); }
+static inline uint8_t battle_sine_magnitude(const GameState *g, uint8_t angle)
+{
+    return asset_read8(g, ASSET_SCREEN_SINE_MAGNITUDES, angle);
+}
 
 /* Where a line from the middle of the screen at each angle (256 a turn, 0
  * pointing right, a quarter turn down) meets the screen's edge ($CE:F28E,
  * across then down, a word an angle). */
 static inline BattlePoint screen_edge_toward(const GameState *g, uint8_t angle)
 {
-    uint32_t at = 0xCEF28Eu + 2u * angle;
-    return (BattlePoint){ rom_read8(g, at), rom_read8(g, at + 1) };
+    uint32_t at = 2u * angle;
+    return (BattlePoint){ asset_read8(g, ASSET_SCREEN_EDGES, at), asset_read8(g, ASSET_SCREEN_EDGES, at + 1) };
 }
 
 static inline uint8_t slope_angle(const GameState *g, uint8_t across, uint8_t down)
 {
-    return rom_read8(g, 0xC0F300u + (uint16_t)(down * SLOPE_STEPS + across));
+    return asset_read8(g, ASSET_SLOPE_ANGLES, (uint16_t)(down * SLOPE_STEPS + across));
 }
 
 /* The random bytes the battle picks from ($C0:FE00), 256 of them. */
 /* The steps a layer bobs by on the special effects' wave ($CE:F1D2), each a
  * signed byte. */
-static inline int8_t battle_layer_wave_step(const GameState *g, uint8_t step) { return (int8_t)rom_read8(g, 0xCEF1D2u + step); }
+static inline int8_t battle_layer_wave_step(const GameState *g, uint8_t step)
+{
+    return (int8_t)asset_read8(g, ASSET_BATTLE_LAYER_WAVE_STEP, step);
+}
 
-static inline uint8_t battle_random_table(const GameState *g, uint8_t pick) { return rom_read8(g, 0xC0FE00u + pick); }
+static inline uint8_t battle_random_table(const GameState *g, uint8_t pick)
+{
+    return asset_read8(g, ASSET_RANDOM_BYTES, pick);
+}
 
 /* The screen shake's settings: how many frames between new magnitudes and
  * between amplitude steps (eight choices each), and which layers each axis
  * moves (four). */
-static inline uint8_t shake_period_choice(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F69Cu + choice); }
+static inline uint8_t shake_period_choice(const GameState *g, unsigned choice)
+{
+    return asset_read8(g, ASSET_SHAKE_PERIOD_CHOICE, choice);
+}
 
-static inline uint8_t shake_rate_choice(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6A4u + choice); }
+static inline uint8_t shake_rate_choice(const GameState *g, unsigned choice)
+{
+    return asset_read8(g, ASSET_SHAKE_PERIOD_CHOICE, 0x8u + choice);
+}
 
-static inline uint8_t shake_layers_across(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6ACu + choice); }
+static inline uint8_t shake_layers_across(const GameState *g, unsigned choice)
+{
+    return asset_read8(g, ASSET_SHAKE_PERIOD_CHOICE, 0x10u + choice);
+}
 
-static inline uint8_t shake_layers_down(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6B0u + choice); }
+static inline uint8_t shake_layers_down(const GameState *g, unsigned choice)
+{
+    return asset_read8(g, ASSET_SHAKE_PERIOD_CHOICE, 0x14u + choice);
+}
 
 /* The screen script's two orbits ($CD:1C5B), four sizes each: the circle's
  * across and down, the sway's and the bob's. The orbit's index is a byte of
  * four times it, as the original's indexing takes it. */
 static inline uint8_t orbit_size(const GameState *g, uint8_t orbit, unsigned size)
 {
-    return rom_read8(g, 0xCD1C5Bu + (uint8_t)(orbit * 4) + size);
+    return asset_read8(g, ASSET_ORBIT_SIZE, (uint8_t)(orbit * 4) + size);
 }
 
 static inline ShapeModelPoint shape_model_point(const GameState *g, uint8_t model, unsigned point)
 {
     enum { MODEL_BYTES = 16, POINT_BYTES = 4 };
     uint8_t at = (uint8_t)(model * MODEL_BYTES + point * POINT_BYTES);
-    return (ShapeModelPoint){ rom_read8(g, 0xD1EC5Fu + at), rom_read8(g, 0xD1EC60u + at), rom_read8(g, 0xD1EC61u + at) };
+    return (ShapeModelPoint){ asset_read8(g, ASSET_SHAPE_MODEL_POINT, at),
+                              asset_read8(g, ASSET_SHAPE_MODEL_POINT, 0x1u + at),
+                              asset_read8(g, ASSET_SHAPE_MODEL_POINT, 0x2u + at) };
 }
 
 /* Where each of the eight slots for triangles put aside is, in bytes from
@@ -184,41 +212,50 @@ static inline ShapeModelPoint shape_model_point(const GameState *g, uint8_t mode
  * it. */
 static inline uint16_t saved_shape_offset(const GameState *g, uint8_t slot)
 {
-    return rom_read16(g, 0xCD26B0u + (uint8_t)(slot * 2));
+    return asset_read16(g, ASSET_SAVED_SHAPE_OFFSET, (uint8_t)(slot * 2));
 }
 
 static inline uint16_t background_set_color(const GameState *g, uint8_t set, unsigned color)
 {
-    return rom_read16(g, 0xD16002u + 8u * set + 2u * color);
+    return asset_read16(g, ASSET_BATTLE_BACKGROUND_COLOR_SETS, 0x2u + 8u * set + 2u * color);
 }
 
 /* The palette animation slots a screen script starts one in, by the three
  * bits of its operand that choose ($CD:2A42): each the slot's byte offset
  * from slot 4. */
-static inline uint8_t script_palette_slot_offset(const GameState *g, unsigned choice) { return rom_read8(g, 0xCD2A42u + choice); }
+static inline uint8_t script_palette_slot_offset(const GameState *g, unsigned choice)
+{
+    return asset_read8(g, ASSET_SCRIPT_PALETTE_SLOT_OFFSET, choice);
+}
 
 static inline PresetFade palette_preset_fade(const GameState *g, uint8_t preset, unsigned slot)
 {
-    uint32_t at = 0xCEF0E6u + 16u * preset + 8u * slot;
-    return (PresetFade){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 6), rom_read8(g, at + 7) };
+    uint32_t at = 16u * preset + 8u * slot;
+    return (PresetFade){ asset_read8(g, ASSET_PALETTE_PRESET_FADE, at),
+                         asset_read8(g, ASSET_PALETTE_PRESET_FADE, at + 1),
+                         asset_read8(g, ASSET_PALETTE_PRESET_FADE, at + 6),
+                         asset_read8(g, ASSET_PALETTE_PRESET_FADE, at + 7) };
 }
 
 /* The two slots' delay and period for each of eight paces ($CE:F126), and
  * their step for each ($CE:F146). */
 static inline uint8_t palette_preset_timing(const GameState *g, unsigned pace, unsigned slot, bool period)
 {
-    return rom_read8(g, 0xCEF126u + 4u * pace + 2u * slot + period);
+    return asset_read8(g, ASSET_PALETTE_PRESET_TIMING, 4u * pace + 2u * slot + period);
 }
 
 static inline uint8_t palette_preset_step(const GameState *g, unsigned pace, unsigned slot)
 {
-    return rom_read8(g, 0xCEF146u + 2u * pace + slot);
+    return asset_read8(g, ASSET_PALETTE_PRESET_STEP, 2u * pace + slot);
 }
 
 /* ---- Debugging ---------------------------------------------------------------------------- */
 
 /* Whether the battle's debug frame advance is on: a byte of the ROM ($CD:3FFF),
  * 0 in the released game. */
-static inline bool battle_debug_frame_advance(const GameState *g) { return rom_read8(g, 0xCD3FFFu) != 0; }
+static inline bool battle_debug_frame_advance(const GameState *g)
+{
+    return asset_read8(g, ASSET_BATTLE_DEBUG_FRAME_ADVANCE, 0) != 0;
+}
 
 #endif

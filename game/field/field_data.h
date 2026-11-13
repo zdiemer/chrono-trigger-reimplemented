@@ -257,7 +257,10 @@ static inline uint8_t field_credits_byte(const GameState *g, uint16_t at)
     return asset_read8(g, ASSET_FIELD_CREDITS, at);
 }
 
-static inline uint8_t field_blank_entries_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xD20000u + i); }
+static inline uint8_t field_blank_entries_byte(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_SPRITE_TILES_D2, i);
+}
 
 /* Sprite tile graphics, wherever a graphics set's pointer puts them: the ROM's
  * banks $D2-$D5, or graphics built in bank $7F. `at` is a 24-bit address,
@@ -335,14 +338,15 @@ static inline FieldSlope field_slope(const GameState *g, uint8_t shape)
 
 static inline FieldExit field_exit(const GameState *g, uint16_t exits, uint8_t index)
 {
-    uint32_t at = 0xE50000u + (uint16_t)(exits + index * FIELD_EXIT_BYTES);
+    uint32_t at = (uint16_t)(exits + index * FIELD_EXIT_BYTES);
     FieldExit e;
-    e.x = rom_read8(g, at);
-    e.y = rom_read8(g, at + 1);
-    e.reach = rom_read8(g, at + 2);
-    e.map_and_how = (uint16_t)(rom_read8(g, at + 3) | rom_read8(g, at + 4) << 8);
-    e.to_x = rom_read8(g, at + 5);
-    e.to_y = rom_read8(g, at + 6);
+    e.x = asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at);
+    e.y = asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at + 1);
+    e.reach = asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at + 2);
+    e.map_and_how = (uint16_t)(asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at + 3) |
+                               asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at + 4) << 8);
+    e.to_x = asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at + 5);
+    e.to_y = asset_read8(g, ASSET_LOCATION_EXIT_LISTS, at + 6);
     return e;
 }
 
@@ -386,8 +390,10 @@ static inline uint16_t location_record_place(uint16_t location)
 
 static inline LocationDescription location_description_at(const GameState *g, uint16_t place)
 {
-    uint32_t at = 0xF60000u + place;
-    return (LocationDescription){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+    uint32_t at = place;
+    return (LocationDescription){ asset_read8(g, ASSET_LOCATION_RECORDS, at),
+                                  asset_read8(g, ASSET_LOCATION_RECORDS, at + 1),
+                                  asset_read8(g, ASSET_LOCATION_RECORDS, at + 2) };
 }
 
 static inline uint16_t location_map(const GameState *g, uint16_t place)
@@ -441,8 +447,9 @@ static inline uint32_t field_packed_map(const GameState *g, uint16_t map)
 
 static inline FieldExitRun field_location_exit_run(const GameState *g, uint16_t location)
 {
-    uint32_t at = 0xE50000u + (uint16_t)((location & LOCATION_NUMBER_BITS) << 1);
-    return (FieldExitRun){ rom_read16(g, at), rom_read16(g, at + 2) };
+    uint32_t at = (uint16_t)((location & LOCATION_NUMBER_BITS) << 1);
+    return (FieldExitRun){ asset_read16(g, ASSET_LOCATION_EXIT_LISTS, at),
+                           asset_read16(g, ASSET_LOCATION_EXIT_LISTS, at + 2) };
 }
 
 static inline uint32_t tile_set_blocks_place(uint8_t set) { return 0xF61C00u + (uint16_t)(set * TILE_SET_BLOCKS); }
