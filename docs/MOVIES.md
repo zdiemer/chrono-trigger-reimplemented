@@ -92,10 +92,10 @@ place after it, follow the time model rather than the game. A route from the
 same save chooses its commands by game state and wins (or, for the Lavos
 game over, loses) whatever the frames. `tools/fight_routes.txt` names the gate
 movies whose fight such a route carries, each movie's own route, the one its
-header names: 17 movies, from Dalton, Giga Gaia, the Golem Twins, the Black
-Tyrano, Son of Sun, Magus at North Cape and the Lavos game over to Cyrus,
-Fiona's forest and Death Peak's summit. The gate runs those routes beside the
-fast pair (about 110 seconds at `-j 2`; the gate took 384 s). For those movies the outcome check
+header names: 16 movies, from Giga Gaia, the Golem Twins, the Black Tyrano,
+Son of Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's
+forest and Death Peak's summit. The gate runs those routes beside the fast
+pair (`routes` in the gate's `times:` line). For those movies the outcome check
 (`tools/outcomes.py`) still holds every protected match in
 `tools/outcomes_baseline.txt`, and `tools/places_baseline.txt` still counts
 their places on time, but a difference elsewhere in their places, saved game
@@ -103,8 +103,31 @@ or save RAM needs no pinned exception, and may have none: the route is the
 fight's outcome. Nothing else moved: every other movie's exceptions still pin
 exactly what it observes.
 
+A route wins by retrying a lost fight from its command menus, so a battle
+that computed otherwise could still be won. A carried route therefore
+reports, as it finishes, each fight's retries and the facts the fights leave
+(`tools/movies/fight_facts.py`), and `route_check` fails it where a fight
+took more retries than its line in `tools/fight_routes.txt` allows (none,
+unless the line says why: Magus at North Cape changes his barrier element and
+may take up to 24; main took 16), or where its levels, experience, gold,
+items won or event memory differ from `tools/fight_facts.txt`. Those values
+are each movie's reference end state, the frozen `emulator-oracle` tag's
+development build playing the movie with the original's code, whose saved
+game matches the movie's
+`game` digest in `tools/outcomes.txt`. All 16 match exactly.
+
+Dalton isn't carried. Its route wins, but the Golem Boss on the Blackbird's
+wing leaves before it is beaten, so the party gets neither its 2,000 gold nor
+its 2,500 experience (the reference has both, at frame 22087). Damage isn't
+the difference: the first round takes the boss from 15,000 to 13,206 HP in
+both plays. The boss leaves by frame 20259 with about 3,488 HP left (20981 with
+2,268 when Robo punches instead of trying Uzzi Punch); the reference was
+still hitting it at frame 21921, when it fell. The boss's countdown runs out
+sooner in native (issue #320's battle timing, or the countdown itself), so
+the movie keeps its pinned exceptions until that is found.
+
 Measured with the time-model change of issue #321 (each lag frame gets its
-own handlers' time) on a throwaway branch: all 17 fight routes still win,
+own handlers' time) on a throwaway branch: all 17 fight routes then carried still win,
 including Black Tyrano's and Son of Sun's, whose movies then lose their
 fights, and the carried movies' outcome checks pass. What still fails there
 is not carried: three native picture fingerprints (attract-demo and both
