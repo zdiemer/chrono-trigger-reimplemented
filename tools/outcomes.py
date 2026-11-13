@@ -14,6 +14,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "tools/outcomes.txt"
 BASELINE = ROOT / "tools/outcomes_baseline.txt"
 EXCEPTIONS = ROOT / "tools/outcomes_exceptions.txt"
+# The movies whose fight a route carries (`movie route # reason`): the route,
+# which chooses its commands by game state, is the fight's outcome, so the
+# movie's places, saved game and save RAM may differ from the reference's
+# without a pinned exception; their protected matches still hold.
+FIGHT_ROUTES = ROOT / "tools/fight_routes.txt"
+ROUTES = ROOT / "tools/movies/routes"
 FAULT = re.compile(r"accessor out of range|page refused:|contract broken:|asset outside the catalogue|"
                    r"asset differs from the cartridge|the program's C goes no further|strays: [1-9]|overlay crossed:")
 KINDS = {"input", "game", "sram", "places"}
@@ -162,7 +168,26 @@ def exceptions(path):
     return out
 
 
-def ratchet(result, run, name, mode, baseline, exc, update=False):
+def fight_routes(path=FIGHT_ROUTES, route_dir=ROUTES):
+    """{movie: route} from tools/fight_routes.txt; each route a public module of
+    tools/movies/routes, each line with its reason."""
+    routes = {p.stem for p in route_dir.glob("*.py") if not p.stem.startswith("_")}
+    out = {}
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        body, _, reason = line.partition("#")
+        fields = body.split()
+        if not fields:
+            continue
+        if len(fields) != 2 or fields[1] not in routes or not reason.strip() or fields[0] in out:
+            raise ValueError("%s:%d: expected movie route # reason, a known route, once" % (path.name, number))
+        out[fields[0]] = fields[1]
+    return out
+
+
+def ratchet(result, run, name, mode, baseline, exc, update=False, carried=False):
+    """A kind's protected entries must hold. Where entries differ, an exception
+    pins exactly what the run observed; a movie whose fight a route carries
+    (`carried`) needs none, and may have none."""
     failures = []
     for kind, items in result.items():
         key = (name + "/" + mode, kind)
@@ -172,8 +197,11 @@ def ratchet(result, run, name, mode, baseline, exc, update=False):
             failures.append(kind + " regressed: " + ",".join(sorted(must - good)))
         if key not in baseline and not update:
             failures.append(kind + " has no baseline")
-        if any(how == "differ" for how in items.values()):
-            exception = exc.get((name, mode, kind))
+        exception = exc.get((name, mode, kind))
+        if carried:
+            if exception:
+                failures.append(kind + " has an exception, but its route carries the fight; delete it")
+        elif any(how == "differ" for how in items.values()):
             if not exception:
                 failures.append(kind + " differs without a reason")
             elif observed_digest(run[name, kind]) != exception[0]:
@@ -195,13 +223,15 @@ def main(argv=None):
     args = ap.parse_args(argv)
     try:
         ledger, base, exc = read(args.ledger), read(args.baseline), exceptions(args.exceptions)
+        carried = fight_routes()
         library = movie_library(args.movies, {name for name, _ in ledger})
         failed = []
         for name, movie, frames in library:
             run = read(args.runs / ('outcome-%s.txt' % name))
             validate(run, name, movie, frames, 'native')
             validate(ledger, name, movie, frames)
-            problems = ratchet(compare(ledger, run, name, frames), run, name, 'native', base, exc)
+            problems = ratchet(compare(ledger, run, name, frames), run, name, 'native', base, exc,
+                               carried=name in carried)
             failed.extend(name + ': ' + p for p in problems)
         for problem in failed:
             print('FAILED: ' + problem)
