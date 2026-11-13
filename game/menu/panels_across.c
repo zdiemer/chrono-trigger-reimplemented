@@ -3,7 +3,11 @@
  * Every menu screen is drawn for the original's screen: three layers of tiles
  * 32 columns across -- the backdrop's pattern, the windows (a frame round a
  * patterned inside) and the text -- and sprites over them. On a wider view
- * (vid_view) each row of the screen is parted in two, at a column near its
+ * (vid_view) each screen takes the layout chosen for it (below). Most are
+ * framed: the windows at the screen's sides and the backdrop reach out to the
+ * view's sides, their insides' pattern repeated across the gap, while the
+ * lists, text and figures stay where the original drew them. The load screen
+ * is parted: each row of the screen is parted in two, at a column near its
  * middle where nothing is cut through, and the two sides move out to the
  * view's sides (core/panel_layout.h). Where a layer runs on in a pattern up to
  * the parting -- the backdrop, a window's inside, its top and bottom edges --
@@ -246,12 +250,12 @@ static void lay_out_a_layers_map(GameState *g, Platform *pf, VidView view, unsig
 
 /* ---- Each screen's layout ---------------------------------------------------------------- */
 
-/* How each screen and step is laid out across a wider view, checked picture
- * by picture at 16:9, one screen at a time: parted near the middle (the
- * rule above), framed (the windows at the screen's sides and the backdrop
- * reach out to the view's sides, everything inside staying where the
- * original drew it), or kept in the middle of the view as the original
- * draws it (issue #284). */
+/* How each screen is laid out across a wider view, checked picture by
+ * picture at 16:9, one screen at a time: parted near the middle (the rule
+ * above), framed (the windows at the screen's sides and the backdrop reach
+ * out to the view's sides, everything inside staying where the original drew
+ * it), or kept in the middle of the view as the original draws it -- naming
+ * and the gate's exchange, not yet checked (issue #284). */
 typedef enum { KEPT_IN_THE_MIDDLE, PARTED, FRAMED } ScreenLayout;
 
 static ScreenLayout layout_of_the_screen(const GameState *g)
