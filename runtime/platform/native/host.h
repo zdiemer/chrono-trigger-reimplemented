@@ -156,6 +156,8 @@ void vid_host_stop(Platform *pf);
  * the original's screen until it does. A snapshot leaves it as it is. */
 void vid_host_set_view(Platform *pf, VidView view);
 const VidFrame *vid_host_picture(Platform *pf);
+/* The bytes the picture's observer holds (platform/observe.h, vid_obs_bytes). */
+size_t vid_host_observer_bytes(const Platform *pf);
 /* A new frame begins: what the last one changed below a line holds from its
  * top (tm_host_frame calls it). */
 void vid_host_frame_begins(Platform *pf);

@@ -606,3 +606,6 @@ void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what)
 {
     program_fail(g, routine, what);
 }
+
+size_t state_host_bytes(void) { return sizeof(GameState); }
+size_t state_host_vars_bytes(void) { return sizeof(VarsHost); }

@@ -356,3 +356,5 @@ size_t sound_native_take_audio(SoundNative *n, int16_t *out, size_t frames)
 }
 
 void sound_native_discard_audio(SoundNative *n) { n->sample_count = 0; }
+
+size_t sound_native_bytes(void) { return sizeof(SoundNative); }

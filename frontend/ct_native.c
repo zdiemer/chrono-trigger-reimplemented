@@ -80,6 +80,7 @@
 #include "vars.h"
 #include "sound_native.h"
 #include "route_driver.h"
+#include "measure.h"
 
 enum { ROM_BYTES = 0x400000 };
 
@@ -367,6 +368,7 @@ typedef struct {
     bool drive;
     uint16_t second_pad;
     unsigned long checks;       /* --check-snapshots' snapshots put back and played again */
+    Measure *measure;           /* --measure */
 } NativeDriver;
 
 /* What the driver keeps in a snapshot beside the program: the frame it is
@@ -528,11 +530,16 @@ static bool native_frame(void *ctx, uint32_t pads)
     NativeDriver *d = ctx;
     in_host_set(d->pf, 0, (uint16_t)pads);
     in_host_set(d->pf, 1, (uint16_t)(pads >> 16));
+    uint64_t began = d->measure ? measure_now_ns() : 0;
     tm_host_frame(d->pf);
+    uint64_t game_done = d->measure ? measure_now_ns() : 0;
     sound_native_frame(d->sound);
+    uint64_t sound_done = d->measure ? measure_now_ns() : 0;
     d->frame++;
     if (!d->drive)
         picture_frame(d->picture, d->pf, d->frame);
+    if (d->measure)
+        measure_frame(d->measure, d->game, game_done - began, sound_done - game_done, measure_now_ns() - sound_done);
     if (d->outcomes && outcome_picture_due(d->frame, d->frames))
         outcome_picture(d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT, d->frame);
     if (d->locations && observed_location(d->game) != d->location) {
@@ -716,7 +723,7 @@ static void usage(FILE *out)
     fprintf(out, "usage: ct_native [ROM | --rom ROM] [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--load-state FILE] [--save-state FILE] [--record out.ctm] [--save-dir DIR] [--import ROM] [--keys FILE] [--bind INPUT=ACTION]\n"
                  "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--mute] [--view WIDTHx224]\n"
-                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
+                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. F5 saves a snapshot of the frame; F7 loads it.\n");
@@ -790,7 +797,7 @@ int main(int argc, char **argv)
     bindings_reset();
 
 #endif
-    bool locations = false, outcomes = false, lag_log = false, timing_report = false;
+    bool locations = false, outcomes = false, lag_log = false, timing_report = false, measuring = false;
     unsigned scenes = 0;
     uint8_t scene[STATE_HOST_FIRST_SCENES], song[STATE_HOST_FIRST_SCENES];
     for (int i = 1; i < argc; i++) {
@@ -827,6 +834,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--locations")) locations = true;
         else if (!strcmp(a, "--lag-log")) lag_log = true;
         else if (!strcmp(a, "--timing-report")) timing_report = true;
+        else if (!strcmp(a, "--measure")) measuring = true;
         else if (!strcmp(a, "--outcomes")) outcomes = true;
         else if (!strcmp(a, "--scene") && v && scenes < STATE_HOST_FIRST_SCENES && scene_and_song(v, &scene[scenes], &song[scenes]))
             scenes++, i++;
@@ -940,9 +948,10 @@ int main(int argc, char **argv)
     if (movie_path && movie.has_sram && !sram_path &&
         ct_sram_find(movie.sram_crc, movie_path, identity, found_sram, sizeof found_sram) == 0)
         sram_path = found_sram;
-    static AssetStore store;
+    static AssetStore store, counted;
     asset_pack_store(pack, &store);
-    assets_use(&store);
+    Measure *measure = measuring ? measure_create(&store, &counted) : NULL;
+    assets_use(measure ? &counted : &store);
     bool fixed_sram = sram_path != NULL;
     if (windowed && !sram_path && !movie_path && !record_path) sram_path = files.sram;
     long sram_len = 0;
@@ -986,7 +995,8 @@ int main(int argc, char **argv)
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
         .movie = movie_path ? &movie : NULL, .pack = pack_bytes, .sram_path = sram_path,
         .shot_dir = shot_dir, .frames = frames, .shot_every = shot_every,
-        .locations = locations, .outcomes = outcomes, .persist = windowed && !movie_path && !record_path, .location = 0xFFFF, .drive = drive
+        .locations = locations, .outcomes = outcomes, .persist = windowed && !movie_path && !record_path, .location = 0xFFFF, .drive = drive,
+        .measure = measure
     };
     driver.state_path = files.state;
     driver.lag_log = lag_log;
@@ -1063,6 +1073,10 @@ int main(int argc, char **argv)
     if (check_every)
         fprintf(stderr, "snapshots: %lu put back and played again, each frame the same\n", driver.checks);
     report_strays(g);
+    if (measure) {
+        measure_report(measure, stderr, &pf);
+        measure_destroy(measure);
+    }
     if (end_state && write_end_state(end_state, g) != 0) {
         fprintf(stderr, "ct_native: cannot write %s\n", end_state);
         rc = 2;

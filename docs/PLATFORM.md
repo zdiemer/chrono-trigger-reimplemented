@@ -639,6 +639,64 @@ GPU backends must preserve line effects and color math. Smaller targets need mea
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.
 
+### Memory, stacks and per-frame work against small targets
+
+`ct_native --measure` (frontend/measure.h) reports what a run holds and does,
+and `tools/measure.py --ct-native <ct_native>` runs it headless over eight
+movies that between them put every mode on screen (the attract sequence, a new
+game, `gato-battle`, `menu`, `field`, `events-epoch-lavos`, `battle-magus`,
+`endings-telepod-lavos`), taking the largest of each figure. The ctest
+`measure` runs one movie and checks the report is whole. Measuring changes
+nothing the game does: the resources are served by the same store through a
+counting wrapper.
+
+What it measures, and how:
+
+- **Sizes**: `sizeof` the GameState and its work RAM's parts, the renderer,
+  the sound player and the picture's observer (with the copies of memory it has
+  taken for the frames' lines), the arena's bytes taken, and the game library's
+  code, constants and static data (`size -t` of the `ct_game` library).
+- **Stacks**: the fiber stacks start zeroed in the arena and grow down, so
+  the lowest byte not zero in a slot is the deepest any fiber in it went
+  (`fiber_stack_high_water`): stack painting, over every frame the movies run.
+- **Resources a mode needs**: each stay in a mode (the vblank handler it
+  installed: the field, a battle, the menus, a scene, the time warp) starts the
+  store's cache afresh, and the bytes of the catalogue's resources the stay
+  reads are summed: the cartridge data a mode reads, in the catalogue's form.
+- **Per-frame work**: host nanoseconds a frame (the platform's monotonic
+  clock), split into the game's frame (its threads and handlers), the sound
+  player and the renderer; the 99th percentile and the heaviest frame per mode.
+  The targets' figures are an estimate, and say so: host time times 12
+  instructions a nanosecond (a desktop core near 4 GHz retiring about three a
+  cycle; `--host-ipc-ghz`), against a frame's worth of the target's: the
+  GBA's ARM7TDMI at 16.78 MHz retiring about half an instruction a cycle from
+  the cartridge or EWRAM (about 140,000 a frame), the SNES's 65816 at 3.58 MHz
+  about one every four cycles (about 15,000 a frame). x86 instructions are
+  neither Thumb's nor the 65816's, and the host was shared with other work, so
+  the heaviest frames are noisy; the 99th percentile is the representative one.
+
+Measured on the gate's build (2026-11-13):
+
+| What | Host | Fits the SNES (128 KiB WRAM, 64 KiB VRAM, 3.58 MHz)? | Fits the GBA (256 KiB EWRAM, 32 KiB IWRAM, 96 KiB VRAM, 16.78 MHz)? |
+|---|---|---|---|
+| GameState | 529.1 KiB: work RAM's parts 372.0 KiB, diagnostics 136.2 KiB (`overlay_writer` 116.5, `crossed` 19.7), save RAM and the rest 21 KiB | No: the parts alone are 2.9x WRAM (244 KiB over); the original fits them by overlaying the modes' memory | No as a whole (372 KiB is 116 KiB over); a mode's set does (below) |
+| A mode's work RAM at once (core, event, palettes and the small parts, plus the mode's) | field 164.1, field with the menus 229.4, field with a battle 210.2, world map 150.9, scene 146.8, time warp 142.2 KiB | No: each is over 128 KiB (by 14-101 KiB) | Yes, each under 256 KiB (27-114 KiB to spare), the modes overlaid as the original overlays them |
+| Largest parts | event 110.5 (its script buffer 56.0), field 49.6, battle 46.1, world map 36.4, sprite-object mode 33.2, scene 32.3, menus 32.1, warp 27.7 KiB | Event alone is 86% of WRAM | Fits |
+| Game library | code and constants 1947.2 KiB, static data 117.5 KiB | Code: a ROM's, not WRAM; the static data is 92% of WRAM besides | Code in the cartridge's 32 MiB; static data 46% of EWRAM besides |
+| Renderer, observer | 253.6, 186.8 KiB | Not needed: the PPU draws | Not needed: the GBA's PPU draws, from VRAM the port fills |
+| Sound player | 126.4 KiB (the sound processor's 64 KiB and its mixer) | Not needed: the APU | Over budget as is: a GBA needs its own player in EWRAM |
+| Picture memory | the SNES's own: 64 KiB VRAM, 512 B CGRAM, 544 B OAM, kept by the observer | Fits: it is the SNES's | Fits 96 KiB VRAM, 32 KiB to spare, where 2bpp layers are widened to the GBA's 4bpp (BG3 doubles) |
+| Resources one stay reads | battle 565.8, field 518.5, menus 451.4, scene 379.0, warp 270.6 KiB; the catalogue 3.67 MiB | ROM: no RAM | Cartridge ROM: no RAM |
+| Fiber stacks | 16 slots of 512 KiB reserved; deepest use 3,432 bytes (the main thread), then 1,768 and under 1,300 in the six task slots used | 8 KiB of stack would do; the 65816's are in WRAM | Seven slots of 4 KiB fit IWRAM (28 KiB) |
+| Work a frame, 99th percentile (game; game and sound on the GBA) | battle 0.14+0.10 ms, field 0.24+0.13, menus 0.35+0.14, scene 0.08+0.11, warp 0.01+0.09 | No: 10-282x a frame's 65816 work (field 189x) | No: 9-42x a frame's ARM7 work (field 32x, menus 42x) |
+| Work a frame, heaviest | game up to 10.3 ms (field, a noisy single frame) | No | No |
+
+The figures say where the small targets' work lies: the work RAM fits a GBA
+mode by mode, and the stacks fit its fast RAM, once the host's diagnostics, its
+renderer and its sound processor are left out; the per-frame work is one to two
+orders of magnitude over both CPUs, so a GBA build needs the game's frame
+made far cheaper, not only fitted. Run `tools/measure.py` again to remeasure.
+
 ## Scene map fills
 
 `vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving
