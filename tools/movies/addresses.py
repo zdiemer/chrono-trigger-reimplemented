@@ -140,6 +140,15 @@ BATTLE_STAT_STRIDE = 0x80
 four 16-bit values. Party members are slots 0-2, enemies 3-10. $5E30 is the HP
 the ported battle_draw_party_status and battle_stats code read."""
 
+BATTLE_ENEMY_KINDS = 0x7E98FF
+BATTLE_ENEMY_KIND_SLOTS = 4
+"""The distinct enemy numbers in the battle, a word each, low byte the
+number, high byte negative for none (`battle_enemy_kinds`)."""
+
+FIELD_PARTY_OBJECTS = 0x7E0197
+"""The field object slot of each active party member, times two, a word each,
+negative for none; the first is the leader (`field_party_objects`)."""
+
 def battle_menu_open(machine):
     """A party member's command menu is open in a battle that has been set up.
     BATTLE_MENU_MEMBER alone isn't enough: the way in clears the battle's
