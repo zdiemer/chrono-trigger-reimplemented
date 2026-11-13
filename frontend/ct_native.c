@@ -19,8 +19,9 @@
  * (frontend/assets.h; game/data/assets.h, the store): <rom name>.assets beside
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
- * kept. The palettes are served from the text beside the pack, <pack
- * name>.palettes (frontend/palettes.h), written from the pack where there is none.
+ * kept. The palettes and the fonts are served from the text beside the pack,
+ * <pack name>.palettes and .fonts (frontend/palettes.h, frontend/fonts.h),
+ * written from the pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
  * --frames. It reports invalid game state with its frame and source origin, and what it
@@ -43,6 +44,7 @@
 
 #include "assets.h"
 #include "file_store.h"
+#include "fonts.h"
 #include "palettes.h"
 #include "storage.h"
 #include "track.h"
@@ -199,61 +201,72 @@ static uint8_t *lasting(uint8_t *bytes, size_t len, AssetPack **pack)
     return *pack ? copy : NULL;
 }
 
-/* The text of the palettes beside the pack (frontend/palettes.h): the file's,
- * or where there is none, written from the pack once each palette is seen to
- * read back as the bytes it was written from. Two players starting on one
- * pack may both write it; the one that finds the file there first reads it.
- * NULL, after a warning, where there is no text to be had: the pack's own
- * palettes serve. */
-static char *palettes_text(const char *path, const AssetStore *raw, size_t *len)
+/* The text of a kind of decoded resource beside the pack (frontend/decoded.h):
+ * the file's, or where there is none, written from the pack once each
+ * resource is seen to read back as the bytes it was written from. Two players
+ * starting on one pack may both write it; the one that finds the file there
+ * first reads it. NULL, after a warning, where there is no text to be had:
+ * the pack's own resources serve. */
+static char *decoded_text(const DecodedKind *kind, const char *path, const AssetStore *raw, size_t *len)
 {
     const char *why = "";
     bool missing = false;
     char *text = (char *)files_read(path, len, true, &missing);
     if (text || !missing) {
         if (!text)
-            fprintf(stderr, "ct_native: cannot read %s; playing the pack's own palettes\n", path);
+            fprintf(stderr, "ct_native: cannot read %s; playing the pack's own %s\n", path, kind->what);
         return text;
     }
-    if (!palettes_round_trip(raw, &why)) {
-        fprintf(stderr, "ct_native: palette %s doesn't read back as its bytes; playing the pack's own\n", why);
+    if (!decoded_round_trip(kind, raw, &why)) {
+        fprintf(stderr, "ct_native: %s doesn't read back as its bytes; playing the pack's own %s\n", why, kind->what);
         return NULL;
     }
-    text = palettes_export(raw, len, &why);
+    text = decoded_export(kind, raw, len, &why);
     int written = text ? file_store_create(path, text, *len) : -1;
     if (written == 0)
-        fprintf(stderr, "wrote the palettes into %s\n", path);
+        fprintf(stderr, "wrote the %s into %s\n", kind->what, path);
     else if (written > 0)
         free(text), text = (char *)files_read(path, len, true, NULL);
     else
-        fprintf(stderr, "ct_native: cannot write %s; playing the pack's own palettes\n", path);
+        fprintf(stderr, "ct_native: cannot write %s; playing the pack's own %s\n", path, kind->what);
     return written < 0 ? (free(text), NULL) : text;
 }
 
-/* The pack made again with its palettes as the text beside it says. True
- * with the pack unchanged where there is no text; false, the pack and its
- * bytes gone, only where the text is wrong or the remade pack can't be had. */
-static bool serve_palettes(const char *path, uint8_t **bytes, size_t *len, AssetPack **pack)
+/* The pack made again with its palettes and fonts as the text beside it
+ * says, each kind's store over the one before. True with the pack unchanged
+ * where there is no text; false, the pack and its bytes gone, only where a
+ * text is wrong or the remade pack can't be had. */
+enum { DECODED_KINDS = 2 };
+
+static bool serve_decoded(const Files *files, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
-    AssetStore raw;
-    asset_pack_store(*pack, &raw);
-    size_t text_len = 0, made_len = 0;
-    char *text = palettes_text(path, &raw, &text_len);
-    if (!text)
-        return true;
+    const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text };
+    const char *paths[DECODED_KINDS] = { files->palettes, files->fonts };
+    Decoded *decoded[DECODED_KINDS] = { NULL };
+    AssetStore stores[DECODED_KINDS + 1];
+    asset_pack_store(*pack, &stores[0]);
+    unsigned top = 0;
+    bool wrong = false;
     const char *why = "";
-    unsigned line = 0;
-    AssetPalettes *palettes = palettes_import(text, text_len, &raw, &line, &why);
-    free(text);
-    uint8_t *made = NULL;
-    if (!palettes) {
-        fprintf(stderr, "ct_native: %s:%u: %s\n", path, line, why);
-    } else {
-        AssetStore served;
-        palettes_store(palettes, &served);
-        made = asset_pack_build(&served, ASSET_ROM_CRC32, &made_len, &why);
-        palettes_close(palettes);
+    for (unsigned k = 0; k < DECODED_KINDS && !wrong; k++) {
+        size_t text_len = 0;
+        unsigned line = 0;
+        char *text = decoded_text(kinds[k], paths[k], &stores[0], &text_len);
+        if (!text)
+            continue;
+        decoded[k] = decoded_import(kinds[k], text, text_len, &stores[top], &line, &why);
+        free(text);
+        if (decoded[k])
+            decoded_store(decoded[k], &stores[++top]);
+        else
+            fprintf(stderr, "ct_native: %s:%u: %s\n", paths[k], line, why), wrong = true;
     }
+    if (!wrong && top == 0)
+        return true;
+    size_t made_len = 0;
+    uint8_t *made = wrong ? NULL : asset_pack_build(&stores[top], ASSET_ROM_CRC32, &made_len, &why);
+    for (unsigned k = 0; k < DECODED_KINDS; k++)
+        decoded_close(decoded[k]);
     asset_pack_close(*pack);
     free(*bytes);
     *bytes = made;
@@ -273,7 +286,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     const char *why = "";
     uint8_t *bytes = fresh ? NULL : files_read(files->assets, &len, false, NULL);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
-    if (*pack) return serve_palettes(files->palettes, &bytes, &len, pack) ? lasting(bytes, len, pack) : NULL;
+    if (*pack) return serve_decoded(files, &bytes, &len, pack) ? lasting(bytes, len, pack) : NULL;
     if (bytes) fprintf(stderr, "ct_native: %s: %s; importing again\n", files->assets, why);
     free(bytes);
     uint8_t *rom = rom_path ? files_read(rom_path, &len, false, NULL) : NULL;
@@ -287,7 +300,7 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     free(rom);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
     if (!*pack) { free(bytes); return NULL; }
-    if (!serve_palettes(files->palettes, &bytes, &len, pack)) return NULL;
+    if (!serve_decoded(files, &bytes, &len, pack)) return NULL;
     return lasting(bytes, len, pack);
 }
 
@@ -824,6 +837,7 @@ int main(int argc, char **argv)
     files_side_path(files.assets, sizeof files.assets, identity, identity, save_dir, ".assets");
     if (pack_path) snprintf(files.assets, sizeof files.assets, "%s", pack_path);
     files_side_path(files.palettes, sizeof files.palettes, files.assets, files.assets, NULL, ".palettes");
+    files_side_path(files.fonts, sizeof files.fonts, files.assets, files.assets, NULL, ".fonts");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");

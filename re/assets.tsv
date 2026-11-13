@@ -2,7 +2,9 @@
 # Written by tools/assets.py build, read by tools/assets.py check, the pack's import and
 # game/data/asset_catalogue.c (docs/PLATFORM.md, "The assets, as built"). Locations and types
 # only: no ROM bytes. `end` is inclusive; `codec` is what decodes it (`raw`: nothing;
-# `palette:N[xM]`: BGR555 colors, N a row and M rows a palette, as frontend/palettes.h's text).
+# `palette:N[xM]`: BGR555 colors, N a row and M rows a palette, as frontend/palettes.h's text;
+# `font:8x8`, `font:12x12`: glyphs of two bitplanes, and `font-widths:FONT:XX` the widths of
+# FONT's glyphs from $XX on, as frontend/fonts.h's text).
 # name	type	at	end	codec	found by
 menu_scene_scroll_pattern	bytes	C0:0000	C0:01BF	raw	accessor menu_scene_scroll_pattern_byte
 built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor built_in_command_byte
@@ -33,7 +35,9 @@ overworld_formation_place	words	C2:543C	C2:545B	raw	accessor overworld_formation
 overworld_following_dactyl_flying_animation	bytes	C2:548C	C2:5493	raw	accessor overworld_following_dactyl_flying_animation
 overworld_sign_sprites_byte	bytes	C2:57B0	C2:57DE	raw	accessor overworld_sign_sprites_byte
 menu_hex_digit_glyph	words	C2:5D03	C2:5D22	raw	accessor menu_hex_digit_glyph
-menu_character_name_place	bytes	C2:5FD8	C2:614A	raw	accessor menu_character_name_place
+menu_character_name_place	bytes	C2:5FD8	C2:60E5	raw	accessor menu_character_name_place
+dialog_font_widths	bytes	C2:60E6	C2:6145	font-widths:dialog_font:A0	accessor menu_glyph_width
+menu_marle_real_name	bytes	C2:6146	C2:614A	raw	accessor menu_character_name_place
 menu_landing_marker_x	words	C2:68E4	C2:68F3	raw	accessor menu_landing_marker_x
 menu_map_view_graphics	words	C2:69F0	C2:6A33	raw	accessor menu_map_view_graphics
 words_c26c97	words	C2:6C97	C2:6CC0	raw	read
@@ -677,7 +681,9 @@ untyped_d0fd60	untyped	D0:FD60	D0:FFFF	raw	read
 battle_animation_tiles_place	mixed	D1:0000	D1:40FF	raw	accessor battle_animation_tiles_place
 battle_sprite_color_sets	words	D1:4100	D1:43FF	palette:3	accessor battle_palette_set_color
 battle_sprite_large_color_sets	words	D1:4400	D1:4AFF	palette:7	accessor battle_palette_set_color
-mixed_d14b00	mixed	D1:4B00	D1:E709	raw	read
+mixed_d14b00	mixed	D1:4B00	D1:4C7F	raw	read
+battle_number_font	gfx	D1:4C80	D1:4D7F	font:8x8	accessor setup_two_plane_tiles
+mixed_d14d80	mixed	D1:4D80	D1:E709	raw	read
 gradient_set_color	words	D1:E9EF	D1:EA00	raw	accessor gradient_set_color
 gradient_row_turn	bytes	D1:EA21	D1:EA4A	raw	accessor gradient_row_turn
 shape_model_point	words	D1:EC5F	D1:ECF2	raw	accessor shape_model_point
@@ -6622,7 +6628,8 @@ attract_resource_ptrs.40	lz	FE:E2E1	FE:F216	lz	attract_resource_ptrs entry
 attract_resource_ptrs.41	lz	FE:F217	FE:F272	lz	attract_resource_ptrs entry
 attract_resource_ptrs.42	lz	FE:F273	FE:F91D	lz	attract_resource_ptrs entry
 untyped_fef91e	untyped	FE:F91E	FE:FFFF	raw	read
-sound_song_byte	mixed	FF:0000	FF:445F	raw	accessor sound_song_byte
+sound_song_byte	mixed	FF:0000	FF:205F	raw	accessor sound_song_byte
+dialog_font	gfx	FF:2060	FF:445F	font:12x12	accessor menu_font_byte
 strings_ff4460	ptr16	FF:4460	FF:4501	raw	read
 strings_ff4460.0	text	FF:4502	FF:4517	text:dialog	strings_ff4460 entry
 strings_ff4460.1	text	FF:4518	FF:458D	text:dialog	read
@@ -7015,7 +7022,11 @@ strings_ff8400.34	text	FF:8B2A	FF:8B58	text:dialog	strings_ff8400 entry
 strings_ff8400.35	text	FF:8B59	FF:8B85	text:dialog	strings_ff8400 entry
 strings_ff8400.36	text	FF:8B86	FF:8BB0	text:dialog	strings_ff8400 entry
 strings_ff8400.37	text	FF:8BB1	FF:8BE9	text:dialog	strings_ff8400 entry
-battle_message_layer_tiles	mixed	FF:8BEA	FF:CF3A	raw	accessor battle_message_layer_tiles
+battle_message_layer_tiles	mixed	FF:8BEA	FF:8E5F	raw	accessor battle_message_layer_tiles
+small_font	gfx	FF:8E60	FF:9C5F	font:8x8	accessor menu_screen_graphics_data
+mixed_ff9c60	mixed	FF:9C60	FF:C9FB	raw	accessor battle_message_layer_tiles
+small_font_replacements	gfx	FF:C9FC	FF:CAFB	font:8x8	accessor menu_screen_graphics_data
+mixed_ffcafc	mixed	FF:CAFC	FF:CF3A	raw	accessor battle_message_layer_tiles
 menu_label_strings	ptr16	FF:CF3B	FF:CF48	raw	accessor menu_label_strings
 menu_label_strings.0	text	FF:CF49	FF:CF72	text:dialog	read
 menu_label_strings.1	text	FF:CF73	FF:CFA0	text:dialog	read
