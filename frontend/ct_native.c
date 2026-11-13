@@ -971,7 +971,7 @@ int main(int argc, char **argv)
 #endif
     {
         ct_wav wav = { 0 };
-        if (wav_path && ct_wav_open(&wav, wav_path, 32000)) return 2;
+        if (wav_path && ct_wav_open(&wav, wav_path, AU_SAMPLE_RATE)) return 2;
         while (!native_done(&driver)) {
             if (check_every && driver.frame && driver.frame % check_every == 0)
                 check_snapshot(&driver, check_span);
