@@ -195,9 +195,10 @@ again) and only the resources a text names, and refuses wrong text at its
 line (a pixel that isn't one, a tile short a line or a pixel, a short row
 that isn't the last, how it packs unsaid, too few tiles, an edit that
 doesn't fit); with the ROM staged every graphics resource reads back as
-its bytes. The lean gate runs on the decoded graphics. Striping every tile
-of the field's block 135 shows on the walls and furniture of Crono's room
-at frame 6000 of `movies/new-game.ctm`.
+its bytes. The lean gate runs on the decoded graphics. Filling the first
+tile of the field's block 135 with color 15 darkens the walls and floor of
+Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed
+again.
 
 Not decoded yet (issue #273): the attract sequence's packed resources
 (graphics, tilemaps and mode 7 pictures, which the scene program picks),
