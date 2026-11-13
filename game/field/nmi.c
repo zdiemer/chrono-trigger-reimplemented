@@ -25,6 +25,7 @@
 #include "field/dialog_window.h"
 #include "field/display.h"
 #include "field/line_effects.h"
+#include "field/margin_objects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
@@ -150,6 +151,7 @@ static void run_screen_transition(GameState *g, Platform *pf, int step)
 static bool run_map_transition(GameState *g, Platform *pf, uint8_t asked)
 {
     field_margins_due(g);
+    field_forget_the_objects_past_the_window(g);
     if (asked >= 1 && asked <= FIELD_MAP_MOVES) {
         start_map_move(g, (FieldMapMove)asked);
         TIMED_AS(g, FIELD_SEND_STAGED_SCREEN_ENTRY, field_send_staged_layer(g, pf, false));
@@ -268,9 +270,11 @@ void field_vblank(GameState *g, Platform *pf)
         }
         bool moved = upload_the_edges(g, pf);
         field_fill_the_views_margins(g, pf, moved);
+        field_list_the_objects_past_the_window(g, pf);
         finish_frame(g, pf);
     }
     field_show_the_layers_across(g, pf);
+    field_show_the_objects_past_the_window(g, pf);
     bool read = false;
     TIMED_AS(g, MENUS_FRAME, read = input_take_frame(g, pf));
     if (!read) {

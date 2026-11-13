@@ -41,6 +41,11 @@ void object_load_colours(GameState *g, FieldObject obj);
  * the palette of the place `from` copied to the place before it. */
 void party_palette_moves_up(GameState *g, unsigned from);
 unsigned object_first_colour(const GameState *g, FieldObject obj);
+/* The sixteen colours the object shows in, worked out without taking a slot:
+ * for a wider view to show an object out of view, which holds none
+ * (field/margin_objects.c). */
+enum { FIELD_COLOURS_A_PALETTE = 16 };
+void object_colours(const GameState *g, FieldObject obj, uint16_t colour[FIELD_COLOURS_A_PALETTE]);
 bool object_palette_slot_is_one(const GameState *g, FieldObject obj);
 
 /* Whether the object's palette slot and the sharers it links to are ones the

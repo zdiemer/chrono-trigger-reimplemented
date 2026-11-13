@@ -525,6 +525,20 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables
     }
 }
 
+ObjectFrame object_frame_shown(const GameState *g, FieldObject obj)
+{
+    if (object_holds_frame(g, obj))
+        return (ObjectFrame){ true, object_held_frame(g, obj) };
+    NextFrame next = find_next_frame(g, obj, FIELD_FRAME_TABLES_BANK);
+    switch (next.found) {
+    case A_FRAME: return (ObjectFrame){ true, next.frame };
+    case STARTING_OVER:
+        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj, FIELD_FRAME_TABLES_BANK),
+                                                                 next.place) };
+    default: return (ObjectFrame){ object_has_a_frame_drawn(g, obj), object_frame_drawn(g, obj) };
+    }
+}
+
 /* ---- What the port ticks ---------------------------------------------------------------- */
 
 /* The tick the port takes: the frame builder's queue holds objects, and the

@@ -93,6 +93,25 @@ void object_load_colours(GameState *g, FieldObject obj)
     (void)mark;
 }
 
+/* Its twelve colours, as the slot it last named shows them where the slot
+ * still has them (a fade or a script's effect on the palette shows on them
+ * too), and from the ROM where another object's took the slot; the colours
+ * past them, which every sprite palette of the field's has alike, as that
+ * slot shows them; and colour 0, clear. */
+void object_colours(const GameState *g, FieldObject obj, uint16_t colour[FIELD_COLOURS_A_PALETTE])
+{
+    unsigned first = object_first_colour(g, obj) + FIRST_OBJECT_COLOUR;
+    uint16_t from = field_object_colours(g, obj);
+    bool kept = true;
+    for (unsigned n = 0; n < FIELD_SPRITE_COLOURS; n++)
+        kept = kept && palette_base(g, first + n) == field_sprite_colour(g, from, n);
+    colour[0] = 0;
+    for (unsigned n = 0; n < FIELD_SPRITE_COLOURS; n++)
+        colour[FIRST_OBJECT_COLOUR + n] = kept ? palette_working(g, first + n) : field_sprite_colour(g, from, n);
+    for (unsigned n = FIRST_OBJECT_COLOUR + FIELD_SPRITE_COLOURS; n < COLOURS_A_PALETTE; n++)
+        colour[n] = palette_working(g, object_first_colour(g, obj) + n);
+}
+
 /* Which slots an object takes its palette from, by what it is: each of the
  * party's places its own (the leader's 5, the members' 6 and 7), the enemies
  * 1-3, and everyone else the people's, 0-4. (The kinds past the objects left

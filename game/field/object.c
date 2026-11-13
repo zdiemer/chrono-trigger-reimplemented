@@ -224,6 +224,7 @@ void object_records_to_build(GameState *g, FieldObject obj) { set_field_object_s
 enum { NO_FRAME_DRAWN = 0xFF };
 void object_forget_frame_drawn(GameState *g, FieldObject obj) { set_field_object_frame_drawn(g, obj, NO_FRAME_DRAWN); }
 uint8_t object_frame_drawn(const GameState *g, FieldObject obj) { return field_object_frame_drawn(g, obj); }
+bool object_has_a_frame_drawn(const GameState *g, FieldObject obj) { return field_object_frame_drawn(g, obj) != NO_FRAME_DRAWN; }
 void object_set_frame_drawn(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_frame_drawn(g, obj, frame); }
 /* A part counted on as the byte it is kept in: past 127 parts it would reach
  * the built bit. */

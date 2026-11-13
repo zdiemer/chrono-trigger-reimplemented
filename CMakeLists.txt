@@ -107,6 +107,7 @@ add_library(ct_game STATIC
   game/field/objects_start.c
   game/field/party_trail.c
   game/field/streaming.c
+  game/field/margin_objects.c
   game/field/switches.c
   game/field/dialog_window.c
   game/field/map.c

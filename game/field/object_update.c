@@ -59,16 +59,22 @@ ScreenPoint object_screen_position(const GameState *g, FieldObject obj)
                           screen_coordinate_of(field_object_screen_y(g, obj)) };
 }
 
+ScreenPoint object_place_on_the_screen(const GameState *g, FieldObject obj)
+{
+    ScreenOrigin o = screen_origin(g);
+    FieldPosition at = object_position(g, obj);
+    return (ScreenPoint){ on_screen(at.x, o.x), on_screen(at.y, o.y) };
+}
+
 // $C0:AB45
 void object_update_screen_position(GameState *g, FieldObject obj)
 {
-    ScreenOrigin o = screen_origin(g);
     /* The original works the place out in four words of scratch memory;
      * their eight accesses stay in the screen position's time. */
     charge_accesses(g, 8);
-    FieldPosition at = object_position(g, obj);
-    set_field_object_screen_x(g, obj, stored_screen_coordinate(on_screen(at.x, o.x)));
-    set_field_object_screen_y(g, obj, stored_screen_coordinate(on_screen(at.y, o.y)));
+    ScreenPoint at = object_place_on_the_screen(g, obj);
+    set_field_object_screen_x(g, obj, stored_screen_coordinate(at.x));
+    set_field_object_screen_y(g, obj, stored_screen_coordinate(at.y));
 }
 
 /* ---- Rows --------------------------------------------------------------------------------- */
