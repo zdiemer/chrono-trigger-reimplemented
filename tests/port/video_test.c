@@ -453,7 +453,7 @@ static void laid_out_panel(void)
     vid_lay_out_a_map_across(&pf, MAP, &layout);
     VidWindowParting parting = { .moves = 16 };
     for (unsigned n = 0; n < VID_PARTING_ROWS; n++)
-        parting.cut[n] = 128;
+        parting.left_side[n] = parting.right_side[n] = 128;
     vid_part_the_windows(&pf, &parting);
     f = vid_host_picture(&pf);
     vid_render_frame(r, f, pixels, NULL);

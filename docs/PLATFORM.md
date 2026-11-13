@@ -320,20 +320,25 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   What the window's rows and frames show is noted as the vblank sends them
   (from the transfer's source, and the frames' window corners), so the layout
   always fits what VRAM holds.
-- **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) part
-  each row of the screen in two near its middle, where no layer has two tiles
-  side by side that stand out (letters, a window's side), and move each side
-  out to the view's: the backdrop and every window across the middle stretch,
-  the windows beside them move out with their text, and a layer that runs on
-  in its pattern up to the parting repeats the pattern across the gap. Rows
-  that can share a parting share it. The layout is read back from what the
+- **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) take
+  a layout per screen from an explicit list in that file. Most screens are
+  framed: where a layer runs on in a four-column pattern across the edge of
+  its outer columns (a window's inside, the backdrop), the columns outside it
+  move out to the view's sides and the pattern fills the gap; the lists, text
+  and figures inside stay where the original drew them, and the windows'
+  edges at the screen's sides move with the frame. The main menu, the
+  equipment, the items, the techs, the settings, the party exchange, the save
+  screen and its prompts, the shops and the save point are framed. The load
+  screen is parted: each row is parted in two near its middle, where no layer
+  has two tiles side by side that stand out (letters, a window's side), and
+  each side moves out with its windows, text and sprites. Naming and the
+  gate's exchange keep the original's arrangement in the middle of the view
+  until they are checked (issue #284). Layouts are read back from what the
   mode sent (`vid_read_vram`) and the rows the last picture showed
-  (`vid_layer_last_shown`); the sprites follow their row's side a frame later.
-  It applies only to the screens on an explicit list in that file (the
-  items but for an item picked up or being used, the party exchange and the
-  load screen); every other screen keeps the original's
-  arrangement in the middle of the view until it is put on the parting or
-  given a layout of its own (issue #284).
+  (`vid_layer_last_shown`). A line that scrolls a one-screen map partway
+  across (a window sliding in) keeps it to the original's screen, and a
+  column repeated into a margin shows its layer without Mode 2's per-column
+  offsets (`VID_LAYOUT_AS_IT_LIES`).
 - **Every other mode** (the scenes, the dialog window over the field, the
   time warp's tunnel aside, which is Mode 7) keeps its layers to the
   original's screen, the backdrop in the margins, until it builds what lies

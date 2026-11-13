@@ -43,7 +43,6 @@ typedef enum {
  * (which a screen's panel holds back while it draws), the scroll bar's, the
  * records', the cursors a screen holds and the healing's rising numbers. */
 enum {
-    MENU_MAIN_TASK = 1,   /* the screens' own: it runs the running screen's steps */
     MENU_DESCRIPTION_TASK = 2, MENU_CURSOR_TASK = 3, MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5,
     MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7,
 };
