@@ -9,9 +9,9 @@
  *   objects 3                        the count of its objects
  *   functions 00 L0060 L0060 ...     each object's 16 functions, where they start
  *   L0060:                           a place the table or a jump names
- *   load_npc npc=0A                  a command: its operation and parameters
- *   if_compares left=var:10 right=05 comparison=00 to=L0081
- *   face object=self facing=03 @1D   ... and its opcode, where another row reads the same
+ *   cast_character character=01      a command: its operation and parameters
+ *   if_compares left=var:08 right=01 comparison=00 to=L0081
+ *   face object=self facing=03 @A6   ... and its opcode, where a shorter form reads the same
  *   bytes 00 3F 12                   bytes no command was read from, in hex
  *
  * A parameter is name=value: a value in hex, as many digits as its operand

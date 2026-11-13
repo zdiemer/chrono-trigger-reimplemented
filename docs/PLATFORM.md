@@ -66,14 +66,14 @@ An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
 offset past the resource's end reads on by address, as the original's
-indexing does. 338 of the accessors' reads name their resource. What the
-data's own pointers lead to (a stream a table points to, a script's text,
-a bank and offset the data gives) is still read by the address the
-original keeps it at, 353 reads, the address a key the catalogue's rows
-are looked up by. A region the catalogue hasn't typed is cut where each
-accessor's table starts, the piece named for its accessor and still
-`mixed`, so a read names its own table rather than the region it shares
-(issue #127 types them).
+indexing does. 491 of the data headers' reads (call sites) name their
+resource. What the data's own pointers lead to (a stream a table points
+to, a script's text, a bank and a 16-bit place the data gives) is still
+read by the address the original keeps it at, 200 call sites, the address
+a key the catalogue's rows are looked up by. A region the catalogue hasn't
+typed is cut where each accessor's table starts, the piece named for its
+accessor and still `mixed`, so a read names its own table rather than the
+region it shares (issue #127 types them).
 
 ### Palettes, the first decoded resource
 
@@ -353,8 +353,9 @@ it names (`var:`, `var16:`, `obj:`, `member:`, `story:`, `bit:`; `self`,
 A command whose length its operands decide (the colour effects, the tint's
 short form, the screen commands, the data a copy carries) has its row's
 `MEASURED` length, the same function the engine's operations take it from.
-Bits of an operand byte no parameter reads would be kept as byteN=XX (N its operand) and
-a command's own data after its operands as `data=XX.XX...`; the places a
+Bits of an operand byte no parameter reads would be kept as byteN=XX (N
+its operand) and a command's own data after its operands as
+`data=XX.XX...`; the places a
 function or a jump names are labels (`L0297:`), so commands may be added
 or taken away, a jump still reaching its place within a byte's distance;
 and bytes no command could be read from would be `bytes`. Read back, a

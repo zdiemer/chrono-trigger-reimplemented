@@ -70,6 +70,8 @@ static void add_param(Row *row, const char *name, const EventArg *a)
     p.order = (uint8_t)row->params;
     if (row->params < MOST_PARAMS)
         row->param[row->params++] = p;
+    else
+        row->known = false;   /* more than the text can hold: its commands are written as bytes */
 }
 
 /* Parameters in the order a line gives them: the fixed ones, then by operand. */
@@ -105,6 +107,8 @@ static const Row *row_of(uint8_t opcode)
             EVENT_PARAMETERS(ADD_PARAM)
             EVENT_RECORD_PARAMETERS(ADD_PARAM)
 #undef ADD_PARAM
+            if (!row->known)
+                continue;
             qsort(row->param, row->params, sizeof row->param[0], param_order);
         }
         built = true;
