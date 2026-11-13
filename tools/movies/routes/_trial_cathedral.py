@@ -79,7 +79,8 @@ def play(run, start=1, seed=1):
         # Bias the encounter-aware search toward the right staircase.
         early.walk_through(run, "RIGHT", lambda: run.me()[0] >= 432, seed=seed)
         # on this map: a door back to the hall lies that way too
-        early.search_through(run, lambda m, x, y: x > 500 and y < 355 and run.map_id() == "8300", seed=seed)
+        early.search_through(run, lambda m, x, y: abs(x - 552) < 12 and 323 < y < 355 and run.map_id() == "8300",
+                             seed=seed)
         # This switch clears the spikes before the inner organ.
         if run.me()[0] < 552:
             early.walk_through(run, "RIGHT", lambda: run.me()[0] >= 552, seed=seed)
