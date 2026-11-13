@@ -33,7 +33,7 @@ from . import north_cape
 from ._epoch import (CHOICE_ACTIVE, CHOICE_READY, CHOICE_ROW, DISEMBARK, END_OF_TIME_DOCK, PERIOD_1000, PERIOD_2300,
                      PERIOD_END_OF_TIME, board, dial, dial_from_the_dock, go_through_time, land_by, wait_until)
 from ._trial_walk import world_enter
-from .menu_sweep import ITEMS, LAPIS, SHELTER, TECHS, back_to_main_menu, count_of, open_menu, open_option, use_item
+from .menu_sweep import EQUIPMENT, ITEMS, LAPIS, SHELTER, TECHS, back_to_main_menu, count_of, open_menu, open_option, use_item
 from .save_point import press
 
 SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
@@ -55,32 +55,32 @@ KEEPER = ["clone", "keepers_dome", "belthasar"]
 # Spawn to the last save point (death_peak), the last Spawn and the summit,
 # where the Chrono Trigger brings Crono back (death_peak_return).
 TO_THE_PEAK = ["peak"]
+AGAIN = "_again"                # the second climb's checkpoints
 WIND = death_peak_wind.PHASES[1:]
-# The party that comes this far (levels 34-38) is no match for Lavos's
-# shell, whose every blow takes some 400 HP from each member: the
-# fantasyanime player had theirs at 42-44 by the mountain's save point and
-# 47-53 when they faced Lavos. It grows here, where the slope's top and the
-# lower field meet: each crossing brings back the monsters by the way in,
-# some 3,200 experience a round, until everyone is at GRIND_LEVEL: Lavos's
-# inner form, in the fight after the shell, wipes a party at 38-45 before
-# anyone acts.
-GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 52
+GRIND = ["lower_field"]
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
-# Crono back, the bucket at the End of Time leads to the Day of Lavos and
-# into Lavos's shell (other_endings), whose imitations of the bosses before
-# it this party beats one after another, healed from the bag between them;
-# Robo's Shock is the lightning its Nizbel imitation gives way to. Before it,
-# the End of Time's light restores the party, and the purse the growing
-# filled buys Full and Mid Tonics in the 12000 B.C. village's shop. Crono,
-# back at the End of Time, stays there: he would join at the level he died at.
-REUNITED = ["restored", "stocked"]
+# Crono back, he joins in Lucca's place at the End of Time, and the party,
+# at levels 34-38 (Crono at the one he died at), goes back to Death Peak to
+# grow: Lavos's shell takes some 400 HP from each member a blow, and its inner
+# form wipes a party at 45 before anyone acts (the fantasyanime player had
+# theirs at 47-53 for Lavos). Where the slope's top and the lower field meet,
+# each crossing brings back the monsters by the way in, some 3,200
+# experience a round, until everyone is at GRIND_LEVEL. Then down to the
+# Epoch, and the purse the growing filled buys the 12000 B.C. village's best
+# armour and helms and its Full and Mid Tonics and Ethers, before the End of
+# Time's light and its bucket into Lavos's shell (other_endings). The shell's
+# imitations fall to the party's techs (Crono's lightning for Nizbel), healed
+# from the bag between them; the shell's own form to Haste and healing first.
+REUNITED = ["restored", "crono_joins", "back_to_the_peak"]
+WIND_AGAIN = [phase + AGAIN for phase in death_peak_wind.PHASES[1:]]
+GROWN = ["lower_field" + AGAIN, "grinding", "ground", "off_the_peak", "stocked", "equipped"]
+GRIND_LEVEL = 52
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + GRIND + CAVES
-          + SUMMIT + REUNITED + LAVOS)
+          + SUMMIT + REUNITED + WIND_AGAIN + GROWN + LAVOS)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg D of the playthrough, from the Blackbird to an ending (route playthrough_leg-d).
@@ -104,7 +104,19 @@ GATO, GATO_POINTS = 8, 15       # the ring's object 8; each win
 SILVER_POINTS = 0x7F0052        # the fair's points (tools/movies/routes/_fair.py)
 CLONE_PRICE = 40
 MENU_CURSOR = 0x7E0054
-ROBO, HEAL_BEAM, HEAL_BEAM_MP = 3, 4, 3         # his tech list's Heal Beam and its cost
+RESERVE_TOP, EXCHANGE_ROWS = 0x7E0080, 0x7E0F02   # the party exchange (menu/exchange.c)
+ACTIVE_ROWS, ROW_PLACE = 3, 0x3F
+CRONO, MARLE, LUCCA, ROBO = 0, 1, 2, 3   # character numbers
+BELOW_CRONO = (472, 400)        # Crono at the End of Time once he is back, spoken to from below
+EQUIPMENT_LIST = 0x7E0F00       # the equipment screen's list of what the slot can take
+WEAPON, HELM, ARMOUR, ACCESSORY = 0, 1, 2, 3                 # its slots' rows
+SLOT_RECORD = {HELM: 0x27, ARMOUR: 0x28, WEAPON: 0x29, ACCESSORY: 0x2A}   # character_records' gear
+FIRST_LIST_ROW = 4                                           # its cursor on the list's first row
+AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
+AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
+BEST_GEAR = [(MARLE, ARMOUR, AEON_SUIT), (MARLE, HELM, AEON_HELM), (ROBO, ARMOUR, AEON_SUIT),
+             (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
+HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
 GOLD, MENU_SCREEN = 0x7E2C53, 0x7E0067
 SHOP_SCREEN, SHOP_BUY, SHOP_COUNT = 12, 8, 10   # the shop's screen, and its Buy row's and count's cursor
@@ -390,6 +402,97 @@ def the_shells_own_form(run, state):
     return policies.enemies(state) == [policies.LAVOS_SHELL] and state.max_hp(policies.LAVOS_SHELL) == policies.LAVOS_SHELL_HP
 
 
+def press_until_choice(run):
+    """Confirm until a choice takes the pad."""
+    machine = run.machine
+    for _ in range(6):
+        machine.run(3, "A")
+        machine.run(40)
+        if machine.b(CHOICE_ACTIVE) == CHOICE_READY:
+            return True
+    return False
+
+
+def member_under_the_cursor(machine):
+    """Who the party exchange's cursor is on: its place is an active row, or
+    one of the reserve's four shown from the reserve's top row."""
+    place = machine.b(MENU_CURSOR)
+    row = place + machine.b(RESERVE_TOP) if place >= ACTIVE_ROWS else place
+    return machine.b(A.PARTY_MEMBERS + (machine.b(EXCHANGE_ROWS + row) & ROW_PLACE))
+
+
+def exchange(run, joining, leaving):
+    """On the party exchange's screen: choose the member `leaving` the active
+    party, then the reserve's `joining`; the two change places."""
+    machine = run.machine
+
+    def choose(member, keys):
+        for _ in range(8):
+            if member_under_the_cursor(machine) == member:
+                break
+            machine.run(4, keys[0] if machine.b(MENU_CURSOR) < ACTIVE_ROWS else keys[1])
+            machine.run(30)
+        assert member_under_the_cursor(machine) == member, ("the exchange's cursor on", member)
+        machine.run(4, "A")
+        machine.run(60)
+    choose(leaving, ("DOWN", "LEFT"))
+    machine.run(4, "RIGHT")
+    machine.run(30)
+    choose(joining, ("RIGHT", "DOWN"))
+    assert joining in machine.peek(A.PARTY_MEMBERS, 3), ("in the party", joining)
+    for _ in range(6):
+        if machine.b(A.FIELD_PLAYER_CONTROL):
+            break
+        machine.run(4, "B")
+        machine.run(90)
+    assert run.wait_control(), "the field after the exchange"
+
+
+def gear(machine, member):
+    """A member's weapon, helm, armour and accessory."""
+    record = CHARACTER_RECORDS + member * CHARACTER_RECORD_BYTES
+    return [machine.b(record + SLOT_RECORD[slot]) for slot in (WEAPON, HELM, ARMOUR, ACCESSORY)]
+
+
+def equip(run, member, slot, item):
+    """On the equipment screen: put `item` in the member's `slot`, from the
+    list of what the slot can take; checked on the member's record."""
+    machine = run.machine
+    record = CHARACTER_RECORDS + member * CHARACTER_RECORD_BYTES + SLOT_RECORD[slot]
+    if machine.b(record) == item:
+        return
+    assert run.wait_control(), "the field in hand"
+    open_menu(machine)
+    open_option(machine, EQUIPMENT)
+    machine.run(30)
+    for _ in range(list(machine.peek(A.PARTY_MEMBERS, 3)).index(member)):
+        press(machine, "DOWN", 30)
+    press(machine, "A", 40)
+    for _ in range(slot):
+        press(machine, "DOWN", 30)
+    press(machine, "A", 40)
+    row = list(machine.peek(EQUIPMENT_LIST, 32)).index(item)
+    for _ in range(row):
+        press(machine, "DOWN", 30)
+    assert machine.b(MENU_CURSOR) == FIRST_LIST_ROW + row, ("the list's row", row)
+    press(machine, "A", 60)
+    back_to_main_menu(machine)
+    press(machine, "B", 120)
+    assert run.wait_control(), "the field after the equipment"
+    assert machine.b(record) == item, ("equipped", member, slot, item)
+
+
+def leave_the_end_of_time(run, period, world):
+    """At the End of Time: board the Epoch at its dock and go to `period`,
+    over `world`."""
+    machine = run.machine
+    run.walk(lambda m, px, py: m.b(CHOICE_ACTIVE) == CHOICE_READY)
+    machine.run(3, "A")                     # Board the Epoch? Yes
+    assert run.dialogs_until(lambda: run.map_id() == END_OF_TIME_DOCK, 3000), "aboard at the dock"
+    dial_from_the_dock(run, period)
+    go_through_time(run, world)
+
+
 def beat_gato(run, seed=1):
     """Gato, the singing robot at the fair: each win is 15 silver points."""
     machine = run.machine
@@ -544,12 +647,6 @@ def main():
             # monsters that stand in the way.
             fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
             run.checkpoint("lower_field")
-        if later <= 2:
-            while min(levels(machine)) < GRIND_LEVEL:
-                grind_a_round(run, args.seed)
-                run.say("levels", levels(machine), "experience", experience(machine))
-                machine.save_state("%s_grinding.st" % run.prefix)
-            run.checkpoint("ground")
         later -= len(GRIND)
         if later <= 0:
             fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower and abs(px - x) <= 2
@@ -570,28 +667,61 @@ def main():
             restore_at_the_light(run)
             run.checkpoint("restored")
         if later <= 1:
-            # The growing has filled the purse and emptied the bag of Lapis:
-            # Full and Mid Tonics and Ethers from the village's shop in 12000
-            # B.C., where the Epoch goes from its dock, and back to the End of
-            # Time.
+            assert run.go(*BELOW_CRONO, tolerance=3), "below Crono"
+            machine.run(2, "UP")
+            machine.run(8)
+            assert press_until_choice(run), "Will you take Crono?"
+            machine.run(30)
+            machine.run(3, "A")                     # Yes
+            machine.run(120)
+            exchange(run, CRONO, LUCCA)
+            run.checkpoint("crono_joins")
+        if later <= 2:
             assert run.wait_control(), "the End of Time in hand"
-            run.walk(lambda m, px, py: m.b(CHOICE_ACTIVE) == CHOICE_READY)
-            machine.run(3, "A")                     # Board the Epoch? Yes
-            assert run.dialogs_until(lambda: run.map_id() == END_OF_TIME_DOCK, 3000), "aboard at the dock"
-            dial_from_the_dock(run, PERIOD_12000)
+            leave_the_end_of_time(run, PERIOD_2300, WORLD_2300)
+            land_by(run, DEATH_PEAK, enter=False)
+            run.checkpoint("back_to_the_peak")
+        later -= len(REUNITED)
+        if later < len(WIND_AGAIN):
+            death_peak_wind.play(run, max(1, later + 1), again=AGAIN)
+        later -= len(WIND_AGAIN)
+        if later <= 0:
+            fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
+            run.checkpoint("lower_field" + AGAIN)
+        if later <= 2:
+            while min(levels(machine)) < GRIND_LEVEL:
+                grind_a_round(run, args.seed)
+                run.say("levels", levels(machine), "experience", experience(machine))
+                machine.save_state("%s_grinding.st" % run.prefix)
+            run.checkpoint("ground")
+        if later <= 3:
+            # Down the slope, with the wind, to the Epoch below it.
+            for want in (death_peak_wind.LOWER, death_peak_wind.SLOPE, WORLD_2300):
+                assert run.exit_to(want), want
+            run.checkpoint("off_the_peak")
+        if later <= 4:
+            board(run)
+            dial(run, PERIOD_12000)
             go_through_time(run, WORLD_12000)
             land_by(run, COMMONS_SHOP)
             assert run.wait_control(), "the shop in hand"
-            stock_up(run, COMMONS_MERCHANT, [(FULL_TONICS, 99, 700), (MID_ETHERS, 45, 2000), (MID_TONICS, 99, 100),
-                                             (ETHERS, 25, 800)])
+            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, 2, 9000), (AEON_HELMS, 2, 7800), (FULL_TONICS, 99, 700),
+                                             (MID_ETHERS, 45, 2000), (MID_TONICS, 99, 100), (ETHERS, 25, 800)])
+            run.checkpoint("stocked")
+        if later <= 5:
+            # The party's armour and helms, the best the shops have by now
+            # (Aeon Suit and Aeon Helm), and Crono's Rage Band from the bag.
+            for member, slot, item in BEST_GEAR:
+                equip(run, member, slot, item)
+            run.say("gear", [gear(machine, member) for member in machine.peek(A.PARTY_MEMBERS, 3)])
             assert run.exit_to(WORLD_12000), "out of the shop"
             board(run)
             dial(run, PERIOD_END_OF_TIME)
             machine.run(4, "A")
             disembark_at_the_end_of_time(run)
             restore_at_the_light(run)
-            run.checkpoint("stocked")
-        later -= len(REUNITED)
+            run.checkpoint("equipped")
+        later -= len(GROWN)
         if later < 2:
             other_endings.bucket_to_shell(run, max(1, later + 1))
         # The bag is the middle game's (Lapis, Mid Tonics, Ethers); the party
@@ -610,7 +740,8 @@ def main():
             assert run.wait_control(), "inside Lavos"
             patch_up(run, 0.95, mp_well=0.8)
         if later < len(LAVOS):
-            other_endings.lavos(run, max(4, later + 1), party=3, seed=args.seed, policy="lavos_shell")
+            other_endings.lavos(run, max(4, later + 1), party=3, seed=args.seed, policy="lavos_inner",
+                                core_policy="lavos_core")
         later -= len(LAVOS)
         run.finish("Lavos beaten")
         if args.movie:

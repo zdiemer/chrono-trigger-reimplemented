@@ -10,6 +10,8 @@ from the in-battle tech list, so a policy never assumes a fixed menu layout.
 """
 from . import addresses as A
 
+ROBO = 3                                # his character number
+
 # Consumables, in inventory order ($BD-$C7).
 TONIC, MID_TONIC, FULL_TONIC, ETHER, MID_ETHER, FULL_ETHER, ELIXIR, HYPER_ETHER, MEGA_ELIXIR, HEAL, REVIVE = \
     range(0xBD, 0xC8)
@@ -266,13 +268,12 @@ def party_with_ethers(bot, state, rng, inventory):
     return party_with_lapis(bot, state, rng, inventory)
 
 
-def holding_out(bot, state, rng, inventory):
-    """For a long fight against an enemy that hits the whole party hard each
-    turn (Lavos): keep everyone up first, then hit. The fallen are raised with
-    Revives; two or more hurt (or one badly) are healed, by Robo's Heal Beam
-    where he has the MP, else a Lapis for two or more and a Mid Tonic for one;
-    a member short of MP drinks an Ether; and the rest attack the weakest enemy,
-    whose defence a weapon still gets through where most magic barely does."""
+def keep_up(bot, state, inventory):
+    """The healing a long fight against an enemy that hits the whole party
+    hard puts first, or None: the fallen raised with Revives; two or more hurt
+    (or one badly) healed, by Robo's Heal Beam where he has the MP, else a
+    Lapis for two or more, a Full or Mid Tonic for one; Robo short of MP
+    drinks an Ether."""
     member = state.member
     members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
     ids = party_ids(bot)
@@ -288,22 +289,64 @@ def holding_out(bot, state, rng, inventory):
         if heal_all and len(hurt) >= 2 and state.mp(member) >= heal_all[1] and tech_known(bot, member, heal_all[0]):
             return ("tech", heal_all[0], None)
         worst = min(hurt or alive, key=lambda slot: fraction(state, slot))
-        for item, target in ((LAPIS, None), (FULL_TONIC, worst), (MID_TONIC, worst)) if len(hurt) >= 2 else                 ((FULL_TONIC, worst), (MID_TONIC, worst)):
+        items = ((LAPIS, None), (FULL_TONIC, worst), (MID_TONIC, worst)) if len(hurt) >= 2 else             ((FULL_TONIC, worst), (MID_TONIC, worst))
+        for item, target in items:
             action = use(inventory, item, target)
             if action:
                 return action
-    if state.mp(member) < 5 and ids[member] == 3:
+    if state.mp(member) < 5 and ids[member] == ROBO:
         for item in (FULL_ETHER, MID_ETHER, ETHER):
             action = use(inventory, item, member)
             if action:
                 return action
+    return None
+
+
+def holding_out(bot, state, rng, inventory):
+    """For a long fight against an enemy that hits the whole party hard each
+    turn (Lavos's shell): keep everyone up first (keep_up), then attack the
+    weakest enemy, whose defence a weapon still gets through where most magic
+    barely does."""
+    action = keep_up(bot, state, inventory)
+    if action:
+        return action
     living = enemies(state)
     return ("attack", min(living, key=lambda slot: state.hp(slot)) if living else None)
 
 
+INNER_ARMS, INNER_BODY = (3, 6), 10     # the inner Lavos's arms (8000 and 12000 HP) and body (20000)
+
+
+def lavos_inner(bot, state, rng, inventory):
+    """Lavos's inner form. Its body's defence turns weapons and the arms raise
+    it again, so the arms go first and together, the one with more HP left
+    taken down (a fan guide, cavesofnarshe.com's walkthrough chapter 35, and
+    gamercorner.net's: Span Death revives the body while an arm stands, and
+    the arms' Protective Seal takes the party's defence status away); then the
+    body. Healing first, Marle's Haste, and the strongest single hits: Robo's
+    Uzzi Punch, Crono's attack."""
+    action = keep_up(bot, state, inventory) or hasten(bot, state)
+    if action:
+        return action
+    arms = [slot for slot in INNER_ARMS if state.hp(slot) > 0]
+    target = max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY
+    member = state.member
+    for index, cost in CHARACTER_TECHS.get(party_ids(bot)[member], {}).get("one", []):
+        if party_ids(bot)[member] == ROBO and state.mp(member) >= cost and tech_known(bot, member, index):
+            return ("tech", index, target)
+    return ("attack", target)
+
+
+def lavos_core(bot, state, rng, inventory):
+    """Lavos's core: healing first and Marle's Haste (its center's Evil Star
+    halves everyone and Grand Stone hits all), then party_lavos_core's
+    targets, the left bit with weapons first."""
+    return keep_up(bot, state, inventory) or hasten(bot, state) or party_lavos_core(bot, state, rng, inventory)
+
+
 LAVOS_SHELL, LAVOS_SHELL_HP = 3, 10000
 MARLE, HASTE, HASTE_MP = 1, 4, 6        # Marle's tech list entry and its cost
-ROBO, SHOCK, SHOCK_MP = 3, 7, 17        # Robo's lightning on all, which takes Nizbel's guard down
+SHOCK, SHOCK_MP = 7, 17                 # Robo's lightning on all, which takes Nizbel's guard down
 NIZBEL_IMITATION_HP = 4200
 STATUS_3, HASTED = 0x20 - 0x03, 0x80    # the stat block's third status byte (from its HP word), haste's bit
 
@@ -637,6 +680,8 @@ POLICIES = {
     "party_with_ethers": party_with_ethers,
     "holding_out": holding_out,
     "lavos_shell": lavos_shell,
+    "lavos_inner": lavos_inner,
+    "lavos_core": lavos_core,
     "r_series": r_series,
     "motherbrain": motherbrain,
     "nizbel_ii": nizbel_ii,
