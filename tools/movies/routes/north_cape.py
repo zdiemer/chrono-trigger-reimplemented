@@ -22,7 +22,10 @@ MOVIE = Path(REPO) / "movies/saves/battle-magus-north-cape.ctm"
 # The movie's walk ends as the battle begins (its first command menu opens at frame 12105 in the reference).
 WALK_ENDS = 12060
 # From the movie's way there, seed 1's choices keep missing Magus's barrier changes past the
-# fight's 25,000 frames; seed 2 wins without the party falling.
+# fight's 25,000 frames; seed 2 wins without the party falling. The seed is the bot's, not the
+# game's: it only picks among the policy's own equally good choices (which spell, which target,
+# how long to wait), so another seed plays the same game by the same rules, and the fight's
+# facts (levels, experience, gold, items, event memory) are still checked against the movie's.
 FIGHT_SEED = 2
 PHASES = ["loaded", "world", "cape", "choice", "branch", "after"]
 HEADER = """\
