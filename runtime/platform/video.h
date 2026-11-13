@@ -292,6 +292,16 @@ typedef struct {
     uint16_t colour[VID_PICTURE_COLOURS];   /* BGR555; colour 0 is clear */
 } VidSpritePicture;
 
+/* A margin sprite showing what a table entry's tile and attributes would:
+ * the name's ninth bit, the palette, the priority and the flips are the
+ * attributes'. */
+static inline VidMarginSprite vid_margin_sprite_as_entry(int16_t x, int16_t y, uint8_t tile, uint8_t attributes,
+                                                         bool large)
+{
+    return (VidMarginSprite){ x, y, (uint16_t)(tile | (attributes & 0x01) << 8), (uint8_t)(attributes >> 1 & 7),
+                              (uint8_t)(attributes >> 4 & 3), (attributes & 0x40) != 0, (attributes & 0x80) != 0, large };
+}
+
 /* A margin sprite as the frame carries it. */
 typedef struct {
     VidMarginSprite sprite;
