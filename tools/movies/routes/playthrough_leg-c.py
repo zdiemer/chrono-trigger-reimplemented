@@ -20,6 +20,8 @@ from . import playthrough
 from . import _trial_party as early
 from ._zeal_navigation import approach
 from . import black_tyrano
+from . import golem_twins
+from . import ocean_palace_lavos
 from . import menu_sweep as menus
 from . import giga_gaia
 from . import mud_imp
@@ -79,6 +81,11 @@ PLATFORMS_TOP = 1700            # the stairs' lowest platform, before the clogge
 CLOGGED_STAIRS = (376, 1790)    # where Masa and Mune's scene begins below it
 PALACE_SAVE_SPOT = (56, 190)    # below the landing's save point
 PALACE_LANDED = 0xC6            # the story once Masa and Mune have spoken
+ELEVATOR, ELEVATOR_SHAFT, ELEVATOR_FOOT, PALACE_FLOOR_MAP, TWINS_SAVE_ROOM = "9b01", "a001", "a201", "9c01", "9d01"
+ELEVATOR_ROW = 20               # on the elevator, below its row 18 where the first fight waits
+ELEVATOR_DOWN = (3 * 16 + 8, 20 * 16 + 8)   # beside its left orb, which sends it down
+FLOOR_SWITCHES = [((28, 12), (623, 488), 0x20), ((4, 12), (256, 488), 0x10)]   # door, below the switch, bit
+TWINS_SAVE_SPOT = (216, 126)    # below the save point before the Twins
 BEAST_NEST, WOE_FOOT, WOE_MIDDLE, WOE_SAVE_POINT = "8401", "8a01", "8801", "8901"
 WOE_FOOT_EXIT = (576, 544)      # $18A's way on to $188
 WOE_SAVE_SPOT = (440, 128)      # below $189's save point
@@ -111,7 +118,14 @@ DALTON = ["melchior", "algetty_again", "terra_cave_out", "skyways", "queens_hall
 # rest at the save point there.
 OCEAN_PALACE = ["ocean_palace", "first_button", "second_button", "palace_stairs", "platforms", "masa_and_mune",
                 "palace_rested"]
-PHASES = ["loaded"] + TYRANO + GATE + ZEAL + EXILE + EPOCH + MUD_IMP + WOE + GIGA_GAIA + DALTON + OCEAN_PALACE
+# The elevator down through its fights to the palace's floor, a switch in
+# each of the floor's side rooms for the bridge, and a rest before Dalton's
+# Golem Twins; then Lavos rising from the Mammon Machine, where the leg ends.
+PALACE_FLOOR = ["elevator", "palace_floor", "east_switch", "west_switch", "twins_rested"]
+TWINS = golem_twins.PHASES[1:4]
+LAVOS = ocean_palace_lavos.PHASES[2:4]
+PHASES = (["loaded"] + TYRANO + GATE + ZEAL + EXILE + EPOCH + MUD_IMP + WOE + GIGA_GAIA + DALTON + OCEAN_PALACE
+          + PALACE_FLOOR + TWINS + LAVOS)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg C of the playthrough (route playthrough_leg-c): from Tyrano Lair to the Ocean Palace's Lavos.
@@ -665,6 +679,68 @@ def ocean_palace(run, ahead, seed):
         run.checkpoint("palace_rested")
 
 
+def palace_floor(run, ahead, seed):
+    """Down the elevator to the palace's floor, its two switches, and a rest
+    at the save point before the Golem Twins."""
+    machine = run.machine
+    if ahead("elevator"):
+        assert leave_fighting(run, ELEVATOR, seed=seed), "the elevator"
+        assert in_hand(run)
+        # Onto the platform: monsters drop onto it as it starts.
+        for _ in range(20):
+            machine.run(8, "DOWN")
+            if not machine.b(A.FIELD_PLAYER_CONTROL) or run.me()[1] > ELEVATOR_ROW * 16:
+                break
+        assert in_hand(run, 30000, seed), "the first fight on the elevator"
+        x, y = ELEVATOR_DOWN
+        assert run.walk(lambda m, px, py: abs(px - x) <= 3 and abs(py - y) <= 3) is not None, "beside the orb"
+        machine.run(1, "LEFT")
+        machine.run(5)
+        machine.run(3, "A")
+        assert run.dialogs_until(lambda: run.map_id() == ELEVATOR_SHAFT, 600), "the elevator going down"
+        # Down the shaft, fighting what lands on the platform, to its foot.
+        for _ in range(3000):
+            if early.battle_ready(run):
+                win(run, seed)
+                continue
+            if run.dialog():
+                machine.run(3, "A")
+            machine.run(20)
+            if run.map_id() == ELEVATOR_FOOT and machine.b(A.FIELD_PLAYER_CONTROL) and run.find_player() is not None:
+                break
+        assert run.map_id() == ELEVATOR_FOOT, "the elevator's foot"
+        run.checkpoint("elevator")
+    if ahead("palace_floor"):
+        assert leave_fighting(run, PALACE_FLOOR_MAP, seed=seed), "the palace's floor"
+        assert in_hand(run)
+        run.checkpoint("palace_floor")
+    for phase, ((column, row), (x, y), bit) in zip(("east_switch", "west_switch"), FLOOR_SWITCHES):
+        if not ahead(phase):
+            continue
+        take_exit(run, column, row, "UP", seed)
+        assert walk_fighting(run, lambda px, py: abs(px - x) < 6 and py <= y + 4, seed), "below the switch"
+        machine.run(2, "UP")
+        machine.run(6)
+        machine.run(3, "A")
+        machine.run(60)
+        assert machine.b(PALACE_BUTTONS) & bit, "the switch"
+        # Its guards, where they still stand on the walkway, come for the party.
+        for _ in range(60):
+            if early.battle_ready(run):
+                win(run, seed)
+                break
+            machine.run(10, "DOWN")
+        assert leave_fighting(run, PALACE_FLOOR_MAP, seed=seed), "back on the floor"
+        run.checkpoint(phase)
+    if ahead("twins_rested"):
+        # The floor's button, with both switches on, lets down the bridge.
+        assert leave_fighting(run, TWINS_SAVE_ROOM, seed=seed), "over the bridge"
+        assert in_hand(run)
+        approach(run, *TWINS_SAVE_SPOT)
+        rest(run)
+        run.checkpoint("twins_rested")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -712,7 +788,13 @@ def main():
             giga_gaia.play(run, within(GIGA_GAIA), args.seed)
         to_dalton(run, ahead, args.seed)
         ocean_palace(run, ahead, args.seed)
-        run.finish("the leg's last checkpoint")
+        palace_floor(run, ahead, args.seed)
+        if within(TWINS):
+            golem_twins.play(run, within(TWINS), args.seed)
+        if within(LAVOS):
+            # From the Twins' room on: the Mammon Machine and Lavos rising.
+            ocean_palace_lavos.play(run, within(LAVOS) + 1, len(LAVOS) + 1)
+        run.finish("Lavos rising from the Mammon Machine")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
     finally:
