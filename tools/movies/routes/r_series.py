@@ -20,8 +20,9 @@ HEADER = """\
 SAVE = "saves/fantasyanime/ctsave03-future_more.srm"
 SLOT = 1
 WORLD_MAP, HALL, LAB_SIDE = "f201", "e400", "e500"
-PHASES = ["loaded", "hall", "reordered", "console", "won", "lab", "upper", "security",
-          "basement", "unlocked", "power", "escaped", "battle", "boss_won", "after"]
+PHASES = ["loaded", "factory_hall", "factory_reordered", "factory_console", "factory_won", "factory_lab",
+          "factory_upper", "factory_security", "factory_basement", "factory_unlocked", "factory_power",
+          "factory_escaped", "r_series", "r_series_won", "r_series_after"]
 
 PARTY = 0x7E2980
 MENU_SCREEN = 0x7E0067          # menu_screen: 5 the main menu's exchange
@@ -53,7 +54,7 @@ def win(run, seed=1, party=3, policy="party_with_lapis"):
     run.fight(policy, won, party=party, seed=seed)
 
 
-def approach(run, x, y, seed):
+def approach(run, x, y, seed, policy="party_with_lapis"):
     """Walk to a console, resolving the lab's coordinate-triggered encounters."""
     machine = run.machine
     for _ in range(8):
@@ -62,7 +63,7 @@ def approach(run, x, y, seed):
         assert moves is not None, "the lab console approach"
         if machine.b(CONTROL):
             return
-        win(run, seed)
+        win(run, seed, policy=policy)
         assert run.wait_control(), "the lab after an encounter"
     raise AssertionError("too many encounters on the console approach")
 
@@ -76,31 +77,19 @@ def check_console(run):
     machine.run(3, "A")
 
 
-def main():
-    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
+def play(run, start=1, seed=1, policy=None, before_the_r_series=None):
+    """From the 2300 A.D. map beside the factory to the R Series beaten, Robo
+    rescued and the field in hand at the End of Time; `start` is the index in
+    PHASES of the first phase to run. `policy`, where given, fights the
+    factory's battles before the R Series (a caller can keep the party's MP
+    for them), and `before_the_r_series` runs before the walk that starts it
+    (a caller can heal the party there)."""
     machine = run.machine
-    start = run.start_at(PHASES)
-    if start > 0:
-        run.find_player()
-
-    if start <= 0:
-        machine.run(1620)
-        machine.run(5, "START")
-        machine.run(2420 - machine.frame)
-        run.select_slot(SLOT)
-        machine.run(4, "A")
-        for _ in range(200):
-            machine.run(10)
-            if run.map_id() not in ("0000", "b101"):
-                break
-        machine.run(120)
-        assert run.map_id() == WORLD_MAP, "the 2300 A.D. world map"
-        run.checkpoint("loaded")
+    fights = policy or "party_with_lapis"
     if start <= 1:
         assert run.world_exit(max_nodes=800) and run.map_id() == HALL, "into the factory's hall"
         assert run.wait_control(), "the hall in hand"
-        run.checkpoint("hall")
+        run.checkpoint("factory_hall")
     if start <= 2:
         # The main menu's exchange (its fifth option) reorders the active three: the second and
         # third change places.
@@ -119,7 +108,7 @@ def main():
         for _ in range(4):
             press(machine, "B", 40)
         assert run.wait_control(), "the hall in hand again"
-        run.checkpoint("reordered")
+        run.checkpoint("factory_reordered")
     if start <= 3:
         x, y = CONSOLE_SPOT
         assert run.walk(lambda m, px, py: abs(px - x) <= 4 and abs(py - y) <= 6) is not None, "below the console"
@@ -132,7 +121,7 @@ def main():
                 break
             if run.dialog():
                 machine.run(3, "A")
-        run.checkpoint("console")
+        run.checkpoint("factory_console")
     if start <= 4:
         seen = []
 
@@ -142,9 +131,9 @@ def main():
                 seen.append(True)
             return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
 
-        run.fight("party", won, party=3, seed=args.seed)
+        run.fight(policy or "party", won, party=3, seed=seed)
         assert run.wait_control(), "the hall in hand after the fight"
-        run.checkpoint("won")
+        run.checkpoint("factory_won")
     if start <= 5:
         cx, cy = LEFT_DOOR_CELL
         moves, _ = bfs.bfs_walk(machine, lambda m, px, py: int(px) // 6 == cx and int(py) // 6 == cy
@@ -160,29 +149,29 @@ def main():
         machine.run(120)
         assert run.map_id() == LAB_SIDE, "the lab side"
         assert run.wait_control(), "the lab side in hand"
-        run.checkpoint("lab")
+        run.checkpoint("factory_lab")
     if start <= 6:
         # $0E5 object 12 appears after the three enemies. Its interaction sets
         # $7F:005C bit 5 and opens the ladder at tile (34, 10).
-        approach(run, 456, 112, args.seed)
+        approach(run, 456, 112, seed, fights)
         check_console(run)
         assert run.wait_control(), "the upper lab console"
         assert machine.b(0x7F005C) & 0x20, "the ladder passage open"
         assert run.exit_to(LOWER_LAB), "down the lab ladder"
         assert run.wait_control(), "the lower lab in hand"
-        run.checkpoint("upper")
+        run.checkpoint("factory_upper")
     if start <= 7:
         # $0E6 object 17: Robo opens both lower doors, then five enemies attack.
-        approach(run, 360, 744, args.seed)
+        approach(run, 360, 744, seed, fights)
         check_console(run)
-        win(run, args.seed)
+        win(run, seed, policy=fights)
         assert run.wait_control(), "the lower security fight won"
         assert machine.b(SECURITY_FLAGS) & 1, "the lower doors open"
-        run.checkpoint("security")
+        run.checkpoint("factory_security")
     if start <= 8:
         assert run.exit_to(BASEMENT), "down the basement ladder"
         assert run.wait_control(), "the basement in hand"
-        run.checkpoint("basement")
+        run.checkpoint("factory_basement")
     if start <= 9:
         # Walk to the ladder's foot before turning: the corner at y=784 is
         # narrower than a BFS cell, which can otherwise discard the turn.
@@ -212,23 +201,25 @@ def main():
             machine.run(12)
         assert run.wait_control(), "the code console finished"
         assert machine.b(CODE_FLAGS) & 1, "the power room unlocked"
-        run.checkpoint("unlocked")
+        run.checkpoint("factory_unlocked")
     if start <= 10:
         assert run.go(824, 170, 8), "the power switch, object 10"
         check_console(run)
         assert run.dialogs_until(lambda: machine.b(STORY) == 0x3F, 8000), "power restored"
         assert run.wait_control(), "the power room in hand"
-        run.checkpoint("power")
+        run.checkpoint("factory_power")
     if start <= 11:
         assert run.walk(lambda m, x, y: m.b(CONTROL) == 0) is not None, "the closing shutters"
         assert run.wait_control(12000), "Robo holds the shutters open"
         assert machine.b(CODE_FLAGS) & 2, "the shutter escape finished"
         assert run.exit_to(LOWER_LAB), "back up the basement ladder"
         assert run.wait_control(), "the lower lab in hand again"
-        run.checkpoint("escaped")
+        run.checkpoint("factory_escaped")
     if start <= 12:
         # $0E6 object 0 tests story $3F and the leader's tile row below $27.
         # The scene removes Robo, then sets variable 9 to start the fight.
+        if before_the_r_series:
+            before_the_r_series(run)
         assert run.walk(lambda m, x, y: m.b(CONTROL) == 0) is not None, "the R Series scene"
         # The menu byte can briefly look open while battle RAM still holds
         # field data. Require the six initialized R Series stat records too.
@@ -236,14 +227,38 @@ def main():
         assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 2 and all(
             machine.w(0x7E5E32 + 0x80 * slot) == 150 for slot in robots), 12000), "the R Series battle"
         assert list(machine.peek(PARTY, 3)) == [0, 2, 0x80], "Crono and Lucca face the R Series"
-        run.checkpoint("battle")
+        run.checkpoint("r_series")
     if start <= 13:
-        win(run, args.seed, party=2, policy="r_series")
-        run.checkpoint("boss_won")
+        win(run, seed, party=2, policy="r_series")
+        run.checkpoint("r_series_won")
     if start <= 14:
         assert run.wait_control(20000), "the field back in hand after rescuing Robo"
         assert machine.b(STORY) >= 0x42, "the R Series victory advanced the story"
-        run.checkpoint("after")
+        run.checkpoint("r_series_after")
+
+
+def main():
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
+    machine = run.machine
+    start = run.start_at(PHASES)
+    if start > 0:
+        run.find_player()
+
+    if start <= 0:
+        machine.run(1620)
+        machine.run(5, "START")
+        machine.run(2420 - machine.frame)
+        run.select_slot(SLOT)
+        machine.run(4, "A")
+        for _ in range(200):
+            machine.run(10)
+            if run.map_id() not in ("0000", "b101"):
+                break
+        machine.run(120)
+        assert run.map_id() == WORLD_MAP, "the 2300 A.D. world map"
+        run.checkpoint("loaded")
+    play(run, start, args.seed)
     machine.screenshot(run.prefix + "_end.png")
     run.finish("the R Series beaten and the field back in hand")
     if args.movie:

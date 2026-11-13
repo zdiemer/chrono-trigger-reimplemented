@@ -30,6 +30,52 @@ def bugs(run, seed):
     assert run.wait_control(6000), "the bugs beaten, the field back in hand"
 
 
+def play(run, start=1, seed=1):
+    """From the 2300 A.D. map past Lab 32 to Robo repaired and the Proto Dome field
+    in hand; `start` is the index in PHASES of the first phase to run."""
+    m = run.machine
+    if start <= 1:
+        if run.map_id() != "f201":
+            assert run.exit_to("f201"), "out of Lab 32"
+        m.run(120)
+        assert run.world_go(114 * 8, 51 * 8, max_nodes=4500), "Proto Dome on the world map"
+        run.checkpoint("world")
+    if start <= 2:
+        assert run.world_exit(), "enter Proto Dome"
+        assert run.map_id() == "e200", "Proto Dome"
+        assert run.wait_control()
+        run.checkpoint("dome")
+    if start <= 3:
+        assert run.walk(lambda m, x, y: x < 59 * 16 and y < 45 * 16, max_nodes=1600) is not None
+        bugs(run, seed)
+        assert m.b(0x7F0150) & 4
+        run.checkpoint("first_bugs")
+    if start <= 4:
+        assert run.walk(lambda m, x, y: m.peek(0x7E0100, 2).hex() == "e200"
+                        and m.b(0x7E011F) == 0 and y < 38 * 16, max_nodes=2400) is not None
+        bugs(run, seed)
+        assert m.b(0x7F0150) & 8
+        run.checkpoint("second_bugs")
+    if start <= 5:
+        # Go around the lower platform on its right, then examine Robo.
+        for frames, direction in ((24, "DOWN"), (104, "RIGHT"), (184, "UP"),
+                                  (87, "LEFT"), (40, "UP")):
+            m.run(frames, direction)
+        m.run(8)
+        m.run(3, "A")
+        m.run(100)
+        assert run.dialogs_until(lambda: m.b(0x7E0067) == 13, 20000), "Robo's naming screen"
+        m.run(120)
+        run.checkpoint("naming")
+    if start <= 6:
+        m.run(3, "START")
+        m.run(180)
+        assert run.dialogs_until(lambda: m.b(0x7F0000) == 0x3C, 16000), "Robo repaired"
+        assert run.wait_control(6000)
+        assert run.map_id() == "e200" and 3 in m.peek(0x7E2980, 3)
+        run.checkpoint("repaired")
+
+
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -44,46 +90,7 @@ def main():
             assert 3 not in m.peek(0x7E2980, 3)
             assert run.wait_control()
             run.checkpoint("race")
-        if start <= 1:
-            if run.map_id() != "f201":
-                assert run.exit_to("f201"), "out of Lab 32"
-            m.run(120)
-            assert run.world_go(114 * 8, 51 * 8, max_nodes=4500), "Proto Dome on the world map"
-            run.checkpoint("world")
-        if start <= 2:
-            assert run.world_exit(), "enter Proto Dome"
-            assert run.map_id() == "e200", "Proto Dome"
-            assert run.wait_control()
-            run.checkpoint("dome")
-        if start <= 3:
-            assert run.walk(lambda m, x, y: x < 59 * 16 and y < 45 * 16, max_nodes=1600) is not None
-            bugs(run, args.seed)
-            assert m.b(0x7F0150) & 4
-            run.checkpoint("first_bugs")
-        if start <= 4:
-            assert run.walk(lambda m, x, y: m.peek(0x7E0100, 2).hex() == "e200"
-                            and m.b(0x7E011F) == 0 and y < 38 * 16, max_nodes=2400) is not None
-            bugs(run, args.seed)
-            assert m.b(0x7F0150) & 8
-            run.checkpoint("second_bugs")
-        if start <= 5:
-            # Go around the lower platform on its right, then examine Robo.
-            for frames, direction in ((24, "DOWN"), (104, "RIGHT"), (184, "UP"),
-                                      (87, "LEFT"), (40, "UP")):
-                m.run(frames, direction)
-            m.run(8)
-            m.run(3, "A")
-            m.run(100)
-            assert run.dialogs_until(lambda: m.b(0x7E0067) == 13, 20000), "Robo's naming screen"
-            m.run(120)
-            run.checkpoint("naming")
-        if start <= 6:
-            m.run(3, "START")
-            m.run(180)
-            assert run.dialogs_until(lambda: m.b(0x7F0000) == 0x3C, 16000), "Robo repaired"
-            assert run.wait_control(6000)
-            assert run.map_id() == "e200" and 3 in m.peek(0x7E2980, 3)
-            run.checkpoint("repaired")
+        play(run, start, args.seed)
         run.finish("Robo repaired and the Proto Dome field in hand")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

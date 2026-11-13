@@ -4,18 +4,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lz.h"
+#include "packed.h"
 
 /* A tile is eight lines of eight pixels; its planes go two at a time, the
  * pair's sixteen bytes a byte of each plane a line. */
 enum { TILE_SIZE = 8, PAIR_BYTES = 16, TILES_ACROSS = 16 };
 
-/* How a packed resource's stream runs, as its text says (DecodedReading.form). */
-enum { FORM_UNSAID, FORM_SHORT_RUNS, FORM_LONG_RUNS };
-
 typedef struct {
     unsigned planes;
-    bool packed;
+    bool packed, pool;
 } Tiles;
 
 static bool tiles_of(const AssetEntry *e, Tiles *t)
@@ -24,8 +21,9 @@ static bool tiles_of(const AssetEntry *e, Tiles *t)
         const char *codec;
         Tiles tiles;
     } codecs[] = {
-        { "tiles:2bpp", { 2, false } }, { "tiles:4bpp", { 4, false } },
-        { "lz:2bpp", { 2, true } },     { "lz:4bpp", { 4, true } },
+        { "tiles:2bpp", { 2, false, false } }, { "tiles:4bpp", { 4, false, false } },
+        { "lz:2bpp", { 2, true, false } },     { "lz:4bpp", { 4, true, false } },
+        { "tiles:plane-pool", { 3, false, true } },
     };
     for (size_t i = 0; i < sizeof codecs / sizeof *codecs; i++) {
         if (!strcmp(asset_codec_names[e->codec], codecs[i].codec)) {
@@ -64,6 +62,104 @@ static void set_pixel(uint8_t *tile, unsigned planes, unsigned x, unsigned y, un
 
 static const char PIXEL[] = ".123456789ABCDEF";
 
+/* ---- The battlefield's pool ---------------------------------------------------------------------- *
+ *
+ * The battlefield's tiles are kept in a pool ($D0:0000) the descriptors cut
+ * into tiles (game/battle/tiles.c): each starts where a descriptor says, at
+ * eight bytes a step, and is two bit planes (16 bytes) or three, the third a
+ * byte a line after the first two (24). The descriptors' table is a resource
+ * of its own, raw; the pool is cut as the store under the text has it. */
+enum { POOL_STEP = 8, POOL_TWO_PLANES = 16, POOL_THREE_PLANES = 24, POOL_THIRD_PLANE = 16 };
+enum { DESCRIPTOR_STEPS = 0x1FFF, DESCRIBES_TWO_PLANES = 0x2000 };
+static const char POOL_DESCRIPTORS[] = "battle_tile_descriptors";
+
+static unsigned pool_pixel(const uint8_t *tile, unsigned planes, unsigned x, unsigned y)
+{
+    unsigned color = pixel(tile, 2, x, y);
+    if (planes == 3)
+        color |= (unsigned)(tile[POOL_THIRD_PLANE + y] >> (TILE_SIZE - 1 - x) & 1) << 2;
+    return color;
+}
+
+static void set_pool_pixel(uint8_t *tile, unsigned planes, unsigned x, unsigned y, unsigned color)
+{
+    set_pixel(tile, 2, x, y, color & 3);
+    if (planes == 3) {
+        unsigned bit = TILE_SIZE - 1 - x;
+        tile[POOL_THIRD_PLANE + y] = (uint8_t)((tile[POOL_THIRD_PLANE + y] & ~(1u << bit)) | (color >> 2 & 1) << bit);
+    }
+}
+
+/* The planes of the tile starting at each step of the pool (`steps` of
+ * them), 0 where none does: false where two descriptors start one there with
+ * different planes. A descriptor past the pool cuts nothing of it. */
+static bool pool_cut(const uint8_t *descriptors, uint32_t n, uint8_t *cut, uint32_t steps)
+{
+    memset(cut, 0, steps);
+    for (uint32_t i = 0; descriptors && i + 1 < n; i += 2) {
+        unsigned word = (unsigned)(descriptors[i] | descriptors[i + 1] << 8), step = word & DESCRIPTOR_STEPS;
+        uint8_t planes = word & DESCRIBES_TWO_PLANES ? 2 : 3;
+        if (step >= steps)
+            continue;
+        if (cut[step] && cut[step] != planes)
+            return false;
+        cut[step] = planes;
+    }
+    return descriptors != NULL;
+}
+
+static uint32_t pool_size(unsigned planes) { return planes == 2 ? POOL_TWO_PLANES : POOL_THREE_PLANES; }
+
+/* The tile at `at` in a pool of `len` bytes: its planes, or 0 where none
+ * starts there whole, before the next does. */
+static unsigned pool_tile(const uint8_t *cut, uint32_t len, uint32_t at)
+{
+    unsigned planes = at % POOL_STEP == 0 && at < len ? cut[at / POOL_STEP] : 0;
+    if (!planes || at + pool_size(planes) > len)
+        return 0;
+    for (uint32_t step = at / POOL_STEP + 1; step < (at + pool_size(planes)) / POOL_STEP; step++)
+        if (cut[step])
+            return 0;
+    return planes;
+}
+
+static void write_pool(DecodedText *t, const uint8_t *bytes, uint32_t len, const uint8_t *cut)
+{
+    char line[TILES_ACROSS * (TILE_SIZE + 1) + 2];
+    uint32_t at = 0, first = 0;
+    while (pool_tile(cut, len, at)) {
+        uint32_t offsets[TILES_ACROSS], across = 0;
+        unsigned planes[TILES_ACROSS];
+        for (; across < TILES_ACROSS && (planes[across] = pool_tile(cut, len, at)) != 0; across++) {
+            offsets[across] = at;
+            at += pool_size(planes[across]);
+        }
+        snprintf(line, sizeof line, "# %04X\n", (unsigned)first);
+        decoded_put(t, line);
+        for (unsigned y = 0; y < TILE_SIZE; y++) {
+            char *c = line;
+            for (uint32_t k = 0; k < across; k++) {
+                if (k)
+                    *c++ = ' ';
+                for (unsigned x = 0; x < TILE_SIZE; x++)
+                    *c++ = PIXEL[pool_pixel(bytes + offsets[k], planes[k], x, y)];
+            }
+            *c++ = '\n';
+            *c = 0;
+            decoded_put(t, line);
+        }
+        first += across;
+    }
+    for (; at < len; at += TILES_ACROSS) {   /* what no tile is cut from */
+        decoded_put(t, "rest");
+        for (uint32_t k = at; k < len && k < at + TILES_ACROSS; k++) {
+            snprintf(line, sizeof line, " %02X", bytes[k]);
+            decoded_put(t, line);
+        }
+        decoded_put(t, "\n");
+    }
+}
+
 /* ---- Writing ----------------------------------------------------------------------------------- */
 
 static void write_tiles(DecodedText *t, const uint8_t *bytes, uint32_t count, unsigned planes)
@@ -91,21 +187,25 @@ static void write_tiles(DecodedText *t, const uint8_t *bytes, uint32_t count, un
 
 static bool write_resource(DecodedText *t, const AssetStore *store, const AssetEntry *e, const uint8_t *bytes)
 {
-    (void)store;
     Tiles tiles = { 0 };
     tiles_of(e, &tiles);
-    const uint8_t *image = bytes;
-    uint8_t *unpacked = NULL;
+    if (tiles.pool) {
+        uint32_t n = 0;
+        const uint8_t *descriptors = store->find(store->ctx, POOL_DESCRIPTORS, "words", &n);
+        uint8_t *cut = malloc(e->length / POOL_STEP + 1);
+        bool written = cut && pool_cut(descriptors, n, cut, e->length / POOL_STEP);
+        if (written) {
+            decoded_put(t, "# tiles of two or three bit planes, as the descriptors cut the pool\n");
+            write_pool(t, bytes, e->length, cut);
+        }
+        free(cut);
+        return written;
+    }
     size_t len = e->length;
     bool long_runs = false;
-    if (tiles.packed) {
-        unpacked = malloc(LZ_MOST);
-        if (!unpacked || !lz_unpack(bytes, e->length, unpacked, &len, &long_runs)) {
-            free(unpacked);
-            return false;
-        }
-        image = unpacked;
-    }
+    uint8_t *unpacked = tiles.packed ? packed_unpack(bytes, e->length, &len, &long_runs) : NULL;
+    if (tiles.packed && !unpacked)
+        return false;
     bool whole = len % tile_bytes(tiles) == 0;
     if (whole) {
         char line[80];
@@ -114,27 +214,14 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
                  tiles.packed ? ", packed" : "");
         decoded_put(t, line);
         if (tiles.packed)
-            decoded_put(t, long_runs ? "packed long\n" : "packed short\n");
-        write_tiles(t, image, count, tiles.planes);
+            packed_write_form(t, long_runs);
+        write_tiles(t, unpacked ? unpacked : bytes, count, tiles.planes);
     }
     free(unpacked);
     return whole;
 }
 
 /* ---- Reading ----------------------------------------------------------------------------------- */
-
-static const char *read_form(DecodedReading *r, const char *s, const char *end)
-{
-    if (!decoded_word(&s, end, "packed"))
-        return "a packed resource starts `packed short` or `packed long`";
-    if (decoded_word(&s, end, "short"))
-        r->form = FORM_SHORT_RUNS;
-    else if (decoded_word(&s, end, "long"))
-        r->form = FORM_LONG_RUNS;
-    else
-        return "its runs are `short` or `long`";
-    return s == end ? NULL : "nothing goes after a stream's runs";
-}
 
 /* The tiles a line of pixels has: how many, NULL where it is wrong. */
 static const char *count_tiles(const char *s, const char *end, uint32_t *across)
@@ -154,29 +241,88 @@ static const char *count_tiles(const char *s, const char *end, uint32_t *across)
     return NULL;
 }
 
-/* As many tiles as the store beneath unpacks the resource to, at most: the
- * game unpacks it into a buffer made for those. */
-static const char *unpacked_most(const Decoded *d, DecodedReading *r)
+/* The pool's parts: its tiles, then the bytes no tile is cut from. */
+enum { POOL_TILES, POOL_REST };
+
+static const char *read_rest(DecodedReading *r, const char *s, const char *end)
 {
-    const AssetEntry *e = &asset_catalogue[r->entry];
-    const uint8_t *was = decoded_beneath(d, r->entry);
-    uint8_t *unpacked = was ? malloc(LZ_MOST) : NULL;
-    size_t len = 0;
-    bool long_runs;
-    bool known = unpacked && lz_unpack(was, e->length, unpacked, &len, &long_runs);
-    free(unpacked);
-    r->most = (uint32_t)len;
-    return known ? NULL : "the store under the text hasn't this packed resource to unpack";
+    uint32_t len = asset_catalogue[r->entry].length;
+    unsigned v;
+    if (r->lines)
+        return "a row of tiles is eight lines";
+    r->part = POOL_REST;
+    while (s < end && *s == ' ')
+        s++;
+    while (s < end) {
+        if (!decoded_number(&s, end, 16, 0xFF, &v))
+            return "the rest is bytes in hex";
+        if (r->at >= len)
+            return "more bytes than the pool has";
+        r->bytes[r->at++] = (uint8_t)v;
+        while (s < end && *s == ' ')
+            s++;
+    }
+    return NULL;
+}
+
+static const char *read_pool_line(Decoded *d, DecodedReading *r, const char *s, const char *end)
+{
+    uint32_t len = asset_catalogue[r->entry].length, across = 0;
+    if (r->made_len == 0) {   /* the cut, kept beside the bytes being made */
+        uint16_t hint = 0;
+        int descriptors = decoded_entry(POOL_DESCRIPTORS, sizeof POOL_DESCRIPTORS - 1, &hint);
+        uint8_t *cut = decoded_grow(r, len / POOL_STEP + 1);
+        if (!cut || descriptors < 0 ||
+            !pool_cut(decoded_beneath(d, descriptors), asset_catalogue[descriptors].length, cut, len / POOL_STEP))
+            return "the store under the text hasn't the descriptors to cut the pool";
+    }
+    const char *word = s;
+    if (decoded_word(&word, end, "rest"))
+        return read_rest(r, word, end);
+    if (r->part == POOL_REST)
+        return "nothing but the rest after the rest";
+    const char *wrong = count_tiles(s, end, &across);
+    if (wrong)
+        return wrong;
+    if (r->lines == 0) {
+        if (r->items > 0 && r->across < TILES_ACROSS)
+            return "only the last row of tiles has fewer than 16";
+        r->across = across;
+    } else if (across != r->across) {
+        return "each line of a row has the row's tiles";
+    }
+    uint32_t at = r->at;
+    for (uint32_t k = 0; k < across; k++) {
+        unsigned planes = pool_tile(r->made, len, at);
+        if (!planes)
+            return "more tiles than the descriptors cut the pool into";
+        while (*s == ' ' || *s == '\t')
+            s++;
+        for (unsigned x = 0; x < TILE_SIZE; x++, s++) {
+            const char *p = memchr(PIXEL, *s, (size_t)1 << planes);
+            if (!p)
+                return planes == 2 ? "a two-plane tile's pixel is '.' or '1'-'3'"
+                                   : "a three-plane tile's pixel is '.' or '1'-'7'";
+            set_pool_pixel(r->bytes + at, planes, x, r->lines, (unsigned)(p - PIXEL));
+        }
+        at += pool_size(planes);
+    }
+    if (++r->lines == TILE_SIZE) {
+        r->items += across;
+        r->at = at;
+        r->lines = 0;
+    }
+    return NULL;
 }
 
 static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const char *end)
 {
     Tiles tiles = { 0 };
     tiles_of(&asset_catalogue[r->entry], &tiles);
-    if (tiles.packed && r->form == FORM_UNSAID) {
-        const char *wrong = read_form(r, s, end);
-        return wrong ? wrong : unpacked_most(d, r);
-    }
+    if (tiles.pool)
+        return read_pool_line(d, r, s, end);
+    if (tiles.packed && r->form == PACKED_UNSAID)
+        return packed_read_form(d, r, s, end);
     uint32_t across = 0, size = tile_bytes(tiles);
     const char *wrong = count_tiles(s, end, &across);
     if (wrong)
@@ -213,24 +359,6 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
     return NULL;
 }
 
-/* Whether a packed resource's tiles are the store beneath's, unpacked: if
- * so its bytes are taken as they are, which is what packing them again
- * would make (lz_test), only sooner. */
-static bool unchanged(const Decoded *d, const DecodedReading *r)
-{
-    const AssetEntry *e = &asset_catalogue[r->entry];
-    const uint8_t *was = decoded_beneath(d, r->entry);
-    uint8_t *unpacked = was ? malloc(LZ_MOST) : NULL;
-    size_t len = 0;
-    bool long_runs = false;
-    bool same = unpacked && lz_unpack(was, e->length, unpacked, &len, &long_runs) && len == r->made_len &&
-                long_runs == (r->form == FORM_LONG_RUNS) && !memcmp(unpacked, r->made, len);
-    free(unpacked);
-    if (same)
-        memcpy(r->bytes, was, e->length);
-    return same;
-}
-
 static const char *read_end(Decoded *d, DecodedReading *r)
 {
     const AssetEntry *e = &asset_catalogue[r->entry];
@@ -238,13 +366,11 @@ static const char *read_end(Decoded *d, DecodedReading *r)
     tiles_of(e, &tiles);
     if (r->lines)
         return "a row of tiles is eight lines";
+    if (tiles.pool)
+        return r->at == e->length ? NULL : "fewer tiles and bytes than the pool has";
     if (!tiles.packed)
         return r->items == e->length / tile_bytes(tiles) ? NULL : "fewer tiles than the resource has";
-    if (r->form == FORM_UNSAID)
-        return "a packed resource starts `packed short` or `packed long`";
-    if (!unchanged(d, r) && !lz_pack(r->made, r->made_len, r->form == FORM_LONG_RUNS, r->bytes, e->length))
-        return "packed, these tiles take more room than the cartridge has for them";
-    return NULL;
+    return packed_end(d, r);
 }
 
 const DecodedKind tile_text = {

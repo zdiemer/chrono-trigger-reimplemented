@@ -79,7 +79,10 @@ PF_API uint8_t au_wait_music_start(Platform *pf, PfOrigin o);
 static inline uint8_t au_music_fade_left(Platform *pf, PfOrigin o) { return au_status(pf, o, 1); }
 static inline uint8_t au_music_playing(Platform *pf, PfOrigin o) { return au_status(pf, o, 3) & 0x0F; }
 
-/* Host side: up to max_frames stereo frames at 32000 Hz; returns how many. */
+/* The rate of everything the game's sound produces, in stereo frames a second. */
+enum { AU_SAMPLE_RATE = 32000 };
+
+/* Host side: up to max_frames stereo frames at AU_SAMPLE_RATE; returns how many. */
 PF_API size_t au_take_samples(Platform *pf, int16_t *out, size_t max_frames);
 
 /* Below the command interface: the ports, for the scene code that sends the

@@ -27,6 +27,8 @@
 #include "battle/screen.h"
 #include "battle/wait.h"
 #include "charge.h"
+#include "field/field.h"
+#include "field/streaming.h"
 #include "platform/video.h"
 #include "ram.h"
 #include "vars.h"
@@ -98,8 +100,14 @@ static BelowTheSplit the_start_screen(const GameState *g)
 }
 
 // $CD:0CF6
-/* The screen's settings below the split go back to the start's. */
-static void take_back_the_start_screen(GameState *g) { show_below_the_split(g, the_start_screen(g)); }
+/* The screen's settings below the split go back to the start's, and with
+ * them BG3's map: the field's layer, which a wider view shows past the
+ * original's screen again. */
+static void take_back_the_start_screen(GameState *g)
+{
+    show_below_the_split(g, the_start_screen(g));
+    field_battle_gives_the_layer_back(g, FIELD_BG3);
+}
 
 // $CD:0CA1
 /* As the battle's screen is set up: every layer's map as the field left it

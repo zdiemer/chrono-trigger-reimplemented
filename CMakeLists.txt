@@ -353,7 +353,8 @@ target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
-  frontend/lz.c frontend/tiles.c frontend/sound_native.c
+  frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/text.c
+  frontend/records.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_game ct_media)
@@ -432,22 +433,33 @@ if(BUILD_TESTING)
   target_include_directories(fonts_test PRIVATE frontend game)
   add_executable(lz_test tests/frontend/lz_test.c frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
   target_include_directories(lz_test PRIVATE frontend game)
-  add_executable(tiles_test tests/frontend/tiles_test.c frontend/decoded.c frontend/tiles.c frontend/lz.c
-    frontend/assets.c game/data/asset_catalogue.c)
+  add_executable(tiles_test tests/frontend/tiles_test.c frontend/decoded.c frontend/tiles.c frontend/packed.c
+    frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
   target_include_directories(tiles_test PRIVATE frontend game)
+  add_executable(maps_test tests/frontend/maps_test.c frontend/decoded.c frontend/maps.c frontend/packed.c
+    frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
+  target_include_directories(maps_test PRIVATE frontend game)
+  add_executable(text_test tests/frontend/text_test.c frontend/decoded.c frontend/text.c frontend/assets.c
+    game/data/asset_catalogue.c)
+  target_include_directories(text_test PRIVATE frontend game)
+  add_executable(records_test tests/frontend/records_test.c frontend/decoded.c frontend/records.c frontend/assets.c
+    game/data/asset_catalogue.c)
+  target_include_directories(records_test PRIVATE frontend game)
   add_executable(player_files_test tests/frontend/player_files_test.c frontend/storage.c)
   target_include_directories(player_files_test PRIVATE frontend)
   add_executable(recorder_test tests/frontend/recorder_test.c frontend/track.c)
   target_link_libraries(recorder_test PRIVATE ct_media)
   add_executable(sound_setting_test tests/port/sound_setting_test.c)
   target_link_libraries(sound_setting_test PRIVATE ct_game)
+  add_executable(object_talk_test tests/port/object_talk_test.c)
+  target_link_libraries(object_talk_test PRIVATE ct_game)
   add_executable(sound_native_test tests/frontend/sound_native_test.c frontend/sound_native.c)
   target_include_directories(sound_native_test PRIVATE frontend runtime)
   target_link_libraries(sound_native_test PRIVATE ct_game)
   add_executable(enemy_movement_test tests/port/enemy_movement_test.c)
   target_include_directories(enemy_movement_test PRIVATE game runtime)
   target_link_libraries(enemy_movement_test PRIVATE ct_game)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles sound_setting sound_native enemy_movement)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps text records sound_setting sound_native object_talk enemy_movement)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()

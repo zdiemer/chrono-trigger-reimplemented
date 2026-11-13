@@ -145,6 +145,27 @@ int main(void)
     const AssetEntry *slot = named("field_credits_letters_packed");
     memset(image, 0, 4096);
     CHECK(slot && lz_pack(image, 4096, true, made_up(slot), slot->length) != 0);
+    /* The battlefield's pool, cut by made-up descriptors into tiles of two
+     * and three planes by turns up to 64 bytes short of its end, each tile
+     * named twice (mirrored the second time); and a descriptor past it. */
+    const AssetEntry *pool = named("battlefield_tile_pool"), *descriptors = named("battle_tile_descriptors");
+    CHECK(pool && descriptors);
+    if (!pool || !descriptors)
+        return 1;
+    uint32_t pool_tiles = 0;
+    for (uint32_t k = 0; k < descriptors->length; k++)   /* the rest name the first tile */
+        made_up(descriptors)[k] = k % 2 ? 0x20 : 0x00;
+    for (uint32_t at = 0, k = 0; at + 24 <= pool->length - 64 && 4 * k + 6 <= descriptors->length; k++) {
+        bool two = k % 2 == 0;
+        uint16_t word = (uint16_t)(at / 8 | (two ? 0x2000 : 0));
+        made_up(descriptors)[4 * k] = made_up(descriptors)[4 * k + 2] = (uint8_t)word;
+        made_up(descriptors)[4 * k + 1] = (uint8_t)(word >> 8);
+        made_up(descriptors)[4 * k + 3] = (uint8_t)((word | 0x4000) >> 8);
+        at += two ? 16 : 24;
+        pool_tiles = k + 1;
+    }
+    made_up(descriptors)[descriptors->length - 2] = 0xFF;
+    made_up(descriptors)[descriptors->length - 1] = 0x1F;
     AssetStore made = { made_up_find, NULL };
     const AssetEntry *flat = named("battlefield_tiles"), *sprites = named("sprite_tiles_d3"),
                      *packed = named("setup_character_graphics.0"), *letters = named("field_credits_letters_packed");
@@ -155,8 +176,9 @@ int main(void)
     const char *why = "";
     CHECK(decoded_round_trip(&tile_text, &made, &why));
 
-    /* An edit: the battlefield's first tile's top left pixel color 3, and the
-     * first character's first tile's top right pixel color F. */
+    /* An edit: the battlefield's first tile's top left pixel color 3, the
+     * first character's first tile's top right pixel color F, and the pool's
+     * second tile's (three planes) top left pixel color 7. */
     size_t len = 0;
     char *text = decoded_export(&tile_text, &made, &len, &why);
     CHECK(text != NULL);
@@ -171,6 +193,11 @@ int main(void)
     first_packed = strstr(first_packed, "# 0000\n") + 7;
     first_flat[0] = '3';
     first_packed[7] = 'F';
+    char *first_pool = strstr(strstr(text, "[battlefield_tile_pool]"), "# 0000\n");
+    CHECK(first_pool != NULL);
+    if (!first_pool)
+        return 1;
+    first_pool[7 + 9] = '7';
     unsigned line = 0;
     Decoded *d = decoded_import(&tile_text, text, len, &made, &line, &why);
     CHECK(d != NULL);
@@ -189,6 +216,10 @@ int main(void)
         CHECK((unpacked[0] & 1) && (unpacked[1] & 1) && (unpacked[16] & 1) && (unpacked[17] & 1));
         CHECK(!memcmp(unpacked + 2, image + 2, 14) && !memcmp(unpacked + 18, image + 18, was_len - 18));
         CHECK(served(&over, sprites) && !memcmp(served(&over, sprites), made_up(sprites), sprites->length));
+        got = served(&over, pool);
+        was = made_up(pool);
+        CHECK(got && !memcmp(got, was, 16) && got[16] == (was[16] | 0x80) && got[17] == (was[17] | 0x80));
+        CHECK(got && got[32] == (was[32] | 0x80) && !memcmp(got + 33, was + 33, pool->length - 33));
     }
     decoded_close(d);
     free(text);
@@ -250,6 +281,23 @@ int main(void)
     refused(&made, big, 1);                                      /* doesn't fit: at its [name] */
     /* More tiles than the stream beneath unpacks to, at the row past them. */
     refused(&made, packed_text("field_credits_letters_packed", "packed long", 257, "........"), 2 + 16 * 8 + 1);
+    /* The pool: a two-plane tile's pixel past 3, more tiles than it is cut
+     * into, bytes after its rest, and the rest wanting. */
+    refused(&made, "[battlefield_tile_pool]\n4.......\n", 2);
+    char *pool_text = malloc(1 << 20);
+    snprintf(pool_text, 1 << 20, "[battlefield_tile_pool]\n");
+    for (uint32_t first = 0; first <= pool_tiles; first += 16) {
+        uint32_t across = pool_tiles + 1 - first < 16 ? pool_tiles + 1 - first : 16;
+        for (unsigned y = 0; y < 8; y++)
+            for (uint32_t k = 0; k < across; k++)
+                strcat(pool_text, k + 1 < across ? "........ " : "........\n");
+    }
+    refused(&made, pool_text, 2 + pool_tiles / 16 * 8);              /* a tile past the cut */
+    snprintf(pool_text, 1 << 20, "[battlefield_tile_pool]\nrest 00\n........\n");
+    refused(&made, pool_text, 3);
+    snprintf(pool_text, 1 << 20, "[battlefield_tile_pool]\nrest 00\n");
+    refused(&made, pool_text, 1);                                      /* too few: at its [name] */
+    free(pool_text);
     free(big);
 
     the_cartridge();

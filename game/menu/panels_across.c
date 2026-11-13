@@ -3,7 +3,11 @@
  * Every menu screen is drawn for the original's screen: three layers of tiles
  * 32 columns across -- the backdrop's pattern, the windows (a frame round a
  * patterned inside) and the text -- and sprites over them. On a wider view
- * (vid_view) each row of the screen is parted in two, at a column near its
+ * (vid_view) each screen takes the layout chosen for it (below). Most are
+ * framed: the windows at the screen's sides and the backdrop reach out to the
+ * view's sides, their insides' pattern repeated across the gap, while the
+ * lists, text and figures stay where the original drew them. The load screen
+ * is parted: each row of the screen is parted in two, at a column near its
  * middle where nothing is cut through, and the two sides move out to the
  * view's sides (core/panel_layout.h). Where a layer runs on in a pattern up to
  * the parting -- the backdrop, a window's inside, its top and bottom edges --
@@ -28,7 +32,6 @@
 #include "charge.h"
 #include "core/panel_layout.h"
 #include "core/sprite_table.h"
-#include "menu/item_screen.h"
 #include "menu/menu.h"
 #include "platform/video.h"
 #include "vars.h"
@@ -50,7 +53,8 @@ static uint16_t row_start(uint16_t map, uint8_t row)
 static void read_layer_row(const Platform *pf, unsigned layer, uint16_t line, LayerRow *r)
 {
     VidBg bg;
-    r->shown = vid_layer_last_shown(pf, (VidLayer)layer, line, &bg) && bg.map_w == PANEL_COLUMNS && bg.hofs == 0;
+    r->shown = vid_layer_last_shown(pf, (VidLayer)layer, line, &bg) && bg.map_w == PANEL_COLUMNS &&
+               (bg.hofs & (PANEL_COLUMNS * ROW_DOTS - 1)) == 0;
     if (!r->shown)
         return;
     r->map = bg.map_base;
@@ -163,6 +167,40 @@ static void part_the_row(PanelLayout *l, const LayerRow *r, uint8_t cut, int8_t 
     }
 }
 
+/* A framed row: the columns outside the frame's edges move out to the view's
+ * sides where the layer runs on in a four-column pattern across the edge (a
+ * window's inside, the backdrop -- never text), and the gap repeats that
+ * pattern. Where it doesn't, the row stays and its two outermost columns go
+ * on into the margin by turns (the backdrop's two-column pattern, or a
+ * blank). What lies between the edges stays where the original drew it. */
+enum { FRAME_EDGE = 4, OUTERMOST = 2 };
+
+static void frame_the_row(PanelLayout *l, const LayerRow *r, int8_t moves)
+{
+    PanelRows row = { r->row, 1 };
+    const uint16_t *cell = r->cell;
+    uint8_t left = FRAME_EDGE, right = PANEL_COLUMNS - FRAME_EDGE;
+    panel_show_nothing(l, row, 0, PANEL_COLUMNS);
+    panel_show_columns(l, row, 0, PANEL_COLUMNS, 0);
+    if (cell[left - 1] == cell[left + PATTERN - 1]) {
+        panel_show_columns(l, row, 0, left, (int8_t)-moves);
+        for (int s = left - moves; s < left; s++)
+            panel_show_columns(l, row, (uint8_t)(left + ((s - left) % PATTERN + PATTERN) % PATTERN), 1, (int8_t)s);
+    } else {
+        for (int s = -moves; s < 0; s++)
+            panel_show_columns_as_they_lie(l, row, (uint8_t)(s & (OUTERMOST - 1)), 1, (int8_t)s);
+    }
+    if (cell[right] == cell[right - PATTERN]) {
+        for (int s = right; s < right + moves; s++)
+            panel_show_columns(l, row, (uint8_t)(right - PATTERN + (s - right) % PATTERN), 1, (int8_t)s);
+        panel_show_columns(l, row, right, FRAME_EDGE, (int8_t)(right + moves));
+    } else {
+        for (int s = PANEL_COLUMNS; s < PANEL_COLUMNS + moves; s++)
+            panel_show_columns_as_they_lie(l, row, (uint8_t)(PANEL_COLUMNS - OUTERMOST + (s & (OUTERMOST - 1))), 1,
+                                           (int8_t)s);
+    }
+}
+
 /* The map a layer shows, laid out: every row of it the last picture showed
  * parted as the screen's row it showed on was (the first such), unless an
  * earlier layer showing the same map has laid it out. */
@@ -179,7 +217,7 @@ static bool shown_by_an_earlier_layer(const Platform *pf, unsigned layer, uint16
     return false;
 }
 
-static void lay_out_a_layers_map(GameState *g, Platform *pf, VidView view, unsigned layer)
+static void lay_out_a_layers_map(GameState *g, Platform *pf, VidView view, unsigned layer, bool framed)
 {
     const MenuPanels *p = menu_panels(g);
     LayerRow r;
@@ -202,47 +240,47 @@ static void lay_out_a_layers_map(GameState *g, Platform *pf, VidView view, unsig
             if (!r.shown || r.map != map || (done[r.row / 32] >> (r.row % 32) & 1))
                 continue;
             done[r.row / 32] |= 1u << (r.row % 32);
-            part_the_row(l, &r, p->cut[(line - 1) / ROW_DOTS], p->moves);
+            if (framed)
+                frame_the_row(l, &r, p->moves);
+            else
+                part_the_row(l, &r, p->cut[(line - 1) / ROW_DOTS], p->moves);
         }
     panel_layout_send(l, pf, map);
 }
 
-/* ---- Which screens take the rule ---------------------------------------------------------- */
+/* ---- Each screen's layout ---------------------------------------------------------------- */
 
-/* The screens and steps the parting lays out well, checked picture by picture
- * at 16:9: the screens a later change gives a layout of their own, or puts
- * on the parting, are switched here one at a time. Every other one -- the
- * main menu with its icon bar, the equipment (an equipped item's line parts
- * from the rest), an item picked up and the members an item is used on, the
- * techs (whose member rows part from their figures), the settings, the save screen and its prompts, the shops, naming, the save
- * point and the gate's exchange -- keeps the original's arrangement in the
- * middle of the view (issue #284). */
-static bool takes_the_parting(const GameState *g)
+/* How each screen is laid out across a wider view, checked picture by
+ * picture at 16:9, one screen at a time: parted near the middle (the rule
+ * above), framed (the windows at the screen's sides and the backdrop reach
+ * out to the view's sides, everything inside staying where the original drew
+ * it), or kept in the middle of the view as the original draws it -- naming
+ * and the gate's exchange, not yet checked (issue #284). */
+typedef enum { KEPT_IN_THE_MIDDLE, PARTED, FRAMED } ScreenLayout;
+
+static ScreenLayout layout_of_the_screen(const GameState *g)
 {
-    uint8_t step = menu_tasks_step(g, MENU_MAIN_TASK);   /* the screen's own step, whichever task runs */
     switch ((MenuScreen)menu_screen(g)) {
+    case MENU_SCREEN_LOAD: return PARTED;
+    case MENU_SCREEN_MAIN_MENU:
+    case MENU_SCREEN_EQUIPMENT:
+    case MENU_SCREEN_ITEMS:
     case MENU_SCREEN_EXCHANGE:
-    case MENU_SCREEN_LOAD: return true;
-    case MENU_SCREEN_ITEMS: return step != ITEMS_MOVING_ONE && step != ITEMS_SHOWING_USERS;
-    default: return false;
+    case MENU_SCREEN_SETTINGS:
+    case MENU_SCREEN_SHOP:
+    case MENU_SCREEN_TECHS:
+    case MENU_SCREEN_SAVE:
+    case MENU_SCREEN_SAVE_POINT: return FRAMED;
+    default: return KEPT_IN_THE_MIDDLE;
     }
 }
 
-void menu_lay_out_the_screen_across(GameState *g, Platform *pf)
+/* The rows' partings for the rule: each row's, narrowed to its neighbours'
+ * where they share any, so that a line of text two rows tall is parted as
+ * one, and shared by runs of rows that can share one. */
+static void part_the_rows(MenuPanels *p, Platform *pf)
 {
-    MenuPanels *p = menu_panels(g);
-    VidView view = vid_view(pf);
-    uint32_t mark = charge_uncounted_begin(g);
-    bool laid_out = vid_view_is_wider(view) && takes_the_parting(g);
-    charge_uncounted_end(g, mark);
-    if (p->laid_out && !laid_out)
-        sprite_table_forget_places(g);
-    p->laid_out = laid_out;
-    if (!laid_out)
-        return;
     LayerRow (*rows)[LAYERS] = p->rows;
-    /* Each row's partings, and a row's narrowed to its neighbours' where they
-     * share any, so that a line of text two rows tall is parted as one. */
     uint32_t own[MENU_PANEL_ROWS], allowed[MENU_PANEL_ROWS];
     for (unsigned y = 0; y < MENU_PANEL_ROWS; y++) {
         own[y] = ~1u;
@@ -260,7 +298,6 @@ void menu_lay_out_the_screen_across(GameState *g, Platform *pf)
             near &= own[y + 1];
         allowed[y] = near ? near : own[y];
     }
-    /* Runs of rows that can share a parting share it. */
     uint32_t together = allowed[0];
     unsigned run_start = 0;
     for (unsigned y = 1; y <= MENU_PANEL_ROWS; y++) {
@@ -273,17 +310,41 @@ void menu_lay_out_the_screen_across(GameState *g, Platform *pf)
         if (y < MENU_PANEL_ROWS)
             run_start = y, together = allowed[y];
     }
+}
 
-    /* Each side moves out an even number of columns, so a pattern four
-     * columns round runs on across the gap into the right side. */
+void menu_lay_out_the_screen_across(GameState *g, Platform *pf)
+{
+    MenuPanels *p = menu_panels(g);
+    VidView view = vid_view(pf);
+    uint32_t mark = charge_uncounted_begin(g);
+    ScreenLayout layout = vid_view_is_wider(view) ? layout_of_the_screen(g) : KEPT_IN_THE_MIDDLE;
+    charge_uncounted_end(g, mark);
+    bool parted = layout == PARTED;
+    if (p->laid_out && !parted)
+        sprite_table_forget_places(g);
+    p->laid_out = parted;
+    if (layout == KEPT_IN_THE_MIDDLE)
+        return;
     PanelLayout *l = panel_layout_begin(g, view);
-    p->moves = (int8_t)((l->margin + 1) & ~1);
-    VidWindowParting parting = { .moves = (int16_t)(p->moves * ROW_DOTS) };
-    for (unsigned y = 0; y < MENU_PANEL_ROWS && y < VID_PARTING_ROWS; y++)
-        parting.cut[y] = (uint16_t)(p->cut[y] * ROW_DOTS);
+    VidWindowParting parting = { 0 };
+    if (parted) {
+        part_the_rows(p, pf);
+        /* Each side moves out an even number of columns, so a pattern four
+         * columns round runs on across the gap into the right side. */
+        p->moves = (int8_t)((l->margin + 1) & ~1);
+        for (unsigned y = 0; y < MENU_PANEL_ROWS && y < VID_PARTING_ROWS; y++)
+            parting.left_side[y] = parting.right_side[y] = (uint16_t)(p->cut[y] * ROW_DOTS);
+    } else {
+        p->moves = l->margin;
+        for (unsigned y = 0; y < VID_PARTING_ROWS; y++) {
+            parting.left_side[y] = FRAME_EDGE * ROW_DOTS;
+            parting.right_side[y] = (PANEL_COLUMNS - FRAME_EDGE) * ROW_DOTS;
+        }
+    }
+    parting.moves = (int16_t)(p->moves * ROW_DOTS);
     vid_part_the_windows(pf, &parting);
     for (unsigned layer = 0; layer < LAYERS; layer++)
-        lay_out_a_layers_map(g, pf, view, layer);
+        lay_out_a_layers_map(g, pf, view, layer, !parted);
 }
 
 /* ---- The sprites -------------------------------------------------------------------------- */
