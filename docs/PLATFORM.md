@@ -139,11 +139,13 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank. Past the map's edges a column is built as
-  the edge's, so a room's void or a wall's dark goes on. Each frame
+  own and sends them in the vblank: the map's own columns, which its tables
+  hold whatever the screen's limits within it. Past the map's width a column
+  is built as the edge's, and shown only where the edge is one entry all the
+  way down (a room's void); elsewhere the layer stops at the map. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
-  streamed layer its built columns, a layer drawn whole its one copy of the
-  map within the map's edges. Objects show in the margins within the
+  streamed layer those columns, a layer drawn whole its one copy of the map
+  within the map's width. Objects show in the margins within the
   original's activation window (two map tiles past the screen) and not beyond.
 - **The battle** is fought over the field's layers and shows them as far as
   the field last built them, moved with its own scroll
