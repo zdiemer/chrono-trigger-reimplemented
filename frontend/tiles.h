@@ -29,7 +29,8 @@
  * and the runs its stream has, `short` or `long`. Each row of tiles is eight
  * lines; only the last row may have fewer than sixteen. A resource that
  * isn't packed has as many tiles as the cartridge's; a packed one has as
- * many as its text gives. */
+ * many as its text gives, no more than the stream beneath unpacks to (the
+ * game unpacks it into a buffer made for those). */
 #ifndef CT_FRONTEND_TILES_H
 #define CT_FRONTEND_TILES_H
 

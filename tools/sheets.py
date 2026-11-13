@@ -44,12 +44,16 @@ class Font:
 
 class Tiles:
     """A graphics resource: its bit planes (its text's comment says), and its
-    rows of tiles, each eight lines of the row's tiles' pixels."""
-    def __init__(self):
-        self.planes, self.rows, self.lines = 2, [], []
+    rows of tiles, each eight lines of the row's tiles' pixels; and the line
+    its pixels start at."""
+    def __init__(self, line: int):
+        self.planes, self.rows, self.lines, self.first_line = 2, [], [], line
 
 
 PLANES = re.compile(r"#\s*\d+ tiles, (\d) bit planes")
+# A resource's name, as the catalogue spells them (tools/assets.py): it names
+# the sheet's file, so it can't climb out of the directory or into another.
+NAME = re.compile(r"[a-z][a-z0-9_.]*")
 
 
 def parse(text: str):
@@ -59,17 +63,21 @@ def parse(text: str):
         line = raw.split("#", 1)[0].strip()
         planes = PLANES.match(raw.strip())
         if planes and name:
-            out[name] = out[name] or Tiles()
+            out[name] = out[name] or Tiles(n)
             out[name].planes = int(planes[1])
         if not line:
             continue
         if line.startswith("["):
             name = line[1:-1]
+            if not line.endswith("]") or not NAME.fullmatch(name) or ".." in name:
+                raise SystemExit(f"line {n}: a name is [name], lower case letters, digits, '_' and '.'")
             out[name] = None
         elif name is None:
             raise SystemExit(f"line {n}: a line before any [name]")
         elif line.startswith("glyph"):
-            font = out[name] = out[name] or Font()
+            if isinstance(out[name], Tiles) and out[name].rows + [out[name].lines] != [[]]:
+                raise SystemExit(f"line {out[name].first_line}: a line of pixels before any glyph")
+            font = out[name] = out[name] if isinstance(out[name], Font) else Font()
             words = line.split()
             width = int(words[3]) if len(words) >= 4 and words[2] == "width" else None
             font.glyphs.append((int(words[1], 16), width, []))
@@ -78,7 +86,9 @@ def parse(text: str):
         elif isinstance(out[name], Font):
             out[name].glyphs[-1][2].append(line)
         else:
-            tiles = out[name] = out[name] or Tiles()
+            tiles = out[name] = out[name] or Tiles(n)
+            if not tiles.rows and not tiles.lines:
+                tiles.first_line = n
             tiles.lines.append(line.split())
             if len(tiles.lines) == TILE:
                 tiles.rows.append(tiles.lines)

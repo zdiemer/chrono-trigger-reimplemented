@@ -140,6 +140,11 @@ int main(void)
         memset(made_up(e), 0, e->length);
         CHECK(lz_pack(image, len, i % 2, made_up(e), e->length) != 0);
     }
+    /* The credits' letters unpack to 256 two-plane tiles of 0, which pack
+     * small: room for an edit to outgrow. */
+    const AssetEntry *slot = named("field_credits_letters_packed");
+    memset(image, 0, 4096);
+    CHECK(slot && lz_pack(image, 4096, true, made_up(slot), slot->length) != 0);
     AssetStore made = { made_up_find, NULL };
     const AssetEntry *flat = named("battlefield_tiles"), *sprites = named("sprite_tiles_d3"),
                      *packed = named("setup_character_graphics.0"), *letters = named("field_credits_letters_packed");
@@ -218,9 +223,9 @@ int main(void)
     refused(&made, packed_text("sprite_tiles_d3", "packed short", 1, "........"), 2);    /* not packed */
     refused(&made, "[sprite_tiles_d3]\n........ ........\n........\n", 3);           /* a line short a tile */
     refused(&made, "[sprite_tiles_d3]\n.......G\n", 2);
-    refused(&made, "[sprite_tiles_d3]\n........\n", 2);                               /* a row cut short */
-    refused(&made, packed_text("sprite_tiles_d3", "# flat", 17, "........"), 18);       /* too few tiles */
-    char *rows = packed_text("field_credits_letters_packed", "packed short", 15, "1.2.3.1.");
+    refused(&made, "[sprite_tiles_d3]\n........\n", 1);                               /* a row cut short: at its [name] */
+    refused(&made, packed_text("sprite_tiles_d3", "# flat", 17, "........"), 1);        /* too few tiles */
+    char *rows = packed_text("sprite_tiles_d3", "# flat", 15, "1.2.3.1.");
     for (unsigned y = 0; y < 8; y++)
         strcat(rows, "1.2.3.1.\n");
     refused(&made, rows, 11);                                                           /* a short row not last */
@@ -228,7 +233,7 @@ int main(void)
     char *big = malloc(1 << 20);
     snprintf(big, 1 << 20, "[field_credits_letters_packed]\npacked short\n");
     uint32_t x = 1;
-    for (unsigned t = 0; t < 512; t += 16) {
+    for (unsigned t = 0; t < 256; t += 16) {
         for (unsigned y = 0; y < 8; y++) {
             for (unsigned k = 0; k < 16; k++) {
                 char tile[10];
@@ -242,7 +247,9 @@ int main(void)
             }
         }
     }
-    refused(&made, big, 2 + 512 / 16 * 8);
+    refused(&made, big, 1);                                      /* doesn't fit: at its [name] */
+    /* More tiles than the stream beneath unpacks to, at the row past them. */
+    refused(&made, packed_text("field_credits_letters_packed", "packed long", 257, "........"), 2 + 16 * 8 + 1);
     free(big);
 
     the_cartridge();

@@ -45,6 +45,15 @@ class Sheets(unittest.TestCase):
         self.assertEqual((two.planes, len(two.rows), len(two.rows[0][0]), len(two.rows[1][0])), (2, 2, 16, 1))
         self.assertEqual((four.planes, four.rows[0][0]), (4, ["F......."]))
 
+    def test_wrong_text_refused_at_its_line(self):
+        for text, line in (("[../x]\nglyph 00\n....\n", 1),           # out of OUT_DIR
+                           ("# a\n[a/b]\n", 2), ("[a\\\\b]\n", 1), ("[a..b]\n", 1), ("[Tiny]\n", 1),
+                           ("glyph 00\n", 1),                         # before any [name]
+                           ("[tiny]\n\n....\n....\nglyph 00\n", 3)):  # pixels before any glyph
+            with self.subTest(text=text), self.assertRaises(SystemExit) as refused:
+                sheets.parse(text)
+            self.assertTrue(str(refused.exception).startswith(f"line {line}: "), refused.exception)
+
     def test_sheets_written_where_told(self):
         with tempfile.TemporaryDirectory() as out:
             text = Path(out) / "made.text"

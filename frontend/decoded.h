@@ -36,7 +36,8 @@ typedef struct Decoded Decoded;
 /* The resource a kind is reading lines of: its row of the catalogue, its
  * bytes as they are being made, and what the kind keeps of its own as it
  * reads: counts (how many colors; how many glyphs and lines; how many tiles
- * and lines, and how many tiles a line has), how the resource is kept, and
+ * and lines, and how many tiles a line has), how the resource is kept, how
+ * much it may make, and
  * bytes it makes before it makes the resource's from them (a packed
  * resource's unpacked bytes: decoded_grow). */
 typedef struct {
@@ -44,6 +45,7 @@ typedef struct {
     uint8_t *bytes;
     uint32_t items, lines, across;
     unsigned form;
+    uint32_t most;   /* the most bytes the kind will make of it, once it knows */
     uint8_t *made;
     uint32_t made_len, made_room;
 } DecodedReading;
@@ -90,7 +92,8 @@ bool decoded_word(const char **s, const char *end, const char *word);
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why);
 
 /* Resources read from text, served over `base`: NULL with *why and the line
- * (from 1) where the text is wrong. `base` must outlive the result. */
+ * (from 1) where the text is wrong; what is wrong with a resource as a whole
+ * (too short, say) at its [name] line. `base` must outlive the result. */
 Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, const AssetStore *base,
                         unsigned *line, const char **why);
 void decoded_store(Decoded *d, AssetStore *store);

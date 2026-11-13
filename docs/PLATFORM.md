@@ -102,7 +102,8 @@ other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
 write leaves the pack's own bytes to play, after a warning; a text that is
-wrong stops the start, naming its line.
+wrong stops the start, naming its line (a resource that is wrong as a whole,
+too short or too big to pack, at its `[name]` line).
 
 ### Fonts
 
@@ -182,9 +183,12 @@ other kinds share with no image decoder in the host, and because the
 palettes and fonts are already edited this way. Read back, a packed
 resource whose tiles are the store's beneath, unpacked, is served as that
 store has it, which is what packing it again gives, only sooner; one that
-was edited is packed again and must fit the cartridge's room for it, or
-the text is refused at it. `tools/sheets.py` draws a graphics text's
-resources as it draws fonts, a grey ramp for four planes.
+was edited is packed again and must fit the cartridge's room for it, and
+have no more tiles than the stream beneath unpacks to, since the game
+unpacks it into a buffer made for those; otherwise the text is refused. `tools/sheets.py` draws a graphics text's
+resources as it draws fonts, a grey ramp for four planes, refusing a name
+that isn't the catalogue's kind (so no sheet lands outside its directory)
+and pixels before a font's first glyph, at their line.
 
 Measured: `lz_test` (ROM-free) packs and unpacks made-up bytes of every
 size and kind, short runs and long, and refuses streams that aren't one;
@@ -193,8 +197,8 @@ its bytes. `tiles_test` (ROM-free) writes and reads back made-up tiles,
 packed and not, serves an edited pixel of each (the packed one packed
 again) and only the resources a text names, and refuses wrong text at its
 line (a pixel that isn't one, a tile short a line or a pixel, a short row
-that isn't the last, how it packs unsaid, too few tiles, an edit that
-doesn't fit); with the ROM staged every graphics resource reads back as
+that isn't the last, how it packs unsaid, too few tiles, more tiles
+than the stream beneath, an edit that doesn't fit); with the ROM staged every graphics resource reads back as
 its bytes. The lean gate runs on the decoded graphics. Filling the first
 tile of the field's block 135 with color 15 darkens the walls and floor of
 Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed

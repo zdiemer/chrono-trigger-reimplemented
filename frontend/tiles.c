@@ -154,13 +154,29 @@ static const char *count_tiles(const char *s, const char *end, uint32_t *across)
     return NULL;
 }
 
+/* As many tiles as the store beneath unpacks the resource to, at most: the
+ * game unpacks it into a buffer made for those. */
+static const char *unpacked_most(const Decoded *d, DecodedReading *r)
+{
+    const AssetEntry *e = &asset_catalogue[r->entry];
+    const uint8_t *was = decoded_beneath(d, r->entry);
+    uint8_t *unpacked = was ? malloc(LZ_MOST) : NULL;
+    size_t len = 0;
+    bool long_runs;
+    bool known = unpacked && lz_unpack(was, e->length, unpacked, &len, &long_runs);
+    free(unpacked);
+    r->most = (uint32_t)len;
+    return known ? NULL : "the store under the text hasn't this packed resource to unpack";
+}
+
 static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const char *end)
 {
-    (void)d;
     Tiles tiles = { 0 };
     tiles_of(&asset_catalogue[r->entry], &tiles);
-    if (tiles.packed && r->form == FORM_UNSAID)
-        return read_form(r, s, end);
+    if (tiles.packed && r->form == FORM_UNSAID) {
+        const char *wrong = read_form(r, s, end);
+        return wrong ? wrong : unpacked_most(d, r);
+    }
     uint32_t across = 0, size = tile_bytes(tiles);
     const char *wrong = count_tiles(s, end, &across);
     if (wrong)
@@ -170,8 +186,10 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
             return "only the last row of tiles has fewer than 16";
         if (!tiles.packed && r->items + across > asset_catalogue[r->entry].length / size)
             return "more tiles than the resource has";
-        if (tiles.packed && ((r->items + across) * size > LZ_MOST || !decoded_grow(r, across * size)))
-            return "more tiles than a stream unpacks to";
+        if (tiles.packed && (r->items + across) * size > r->most)
+            return "more tiles than the cartridge's stream unpacks to";
+        if (tiles.packed && !decoded_grow(r, across * size))
+            return "out of memory";
         r->across = across;
     } else if (across != r->across) {
         return "each line of a row has the row's tiles";
