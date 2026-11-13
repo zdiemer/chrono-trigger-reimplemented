@@ -44,14 +44,13 @@ trips, asset loading, route protocol, audio replay, persistence and bindings.
 ## Validation receipt
 
 With the fight routes carried and their facts checked, and the plays stages
-side by side on the two ct_native slots, the sampled native gate finished in
-**321.4 seconds** at `-j 2` (447.2 with the stages in turn), on a machine other
-agents shared: 252 Python tests (104.4 s), 29 native C tests (20.3 s), 58 movies
-(288.5 s), 58 outcome ratchets (0.1 s), the fast pair and 19 fight routes
-(321.4 s), snapshots (82.7 s), portstyle (0.4 s), portsmell (88.5 s) and
-doc-names (0.9 s); the three plays stages overlap, so their times add to more
-than the wall. Every stage passed but one native C test, `map_pictures`, whose
-Heckran's Cave frame meets a battle since main's battle timing changed. All three native picture fingerprints passed.
+side by side on the two ct_native slots, the sampled native gate finished
+`suite OK` in **351.7 seconds** at `-j 2` (321.4 in a quieter run; 447.2 with the
+stages in turn), on a machine other agents shared: 252 Python tests (113.0 s),
+29 native C tests (19.8 s), 58 movies (329.0 s), 58 outcome ratchets (0.2 s),
+the fast pair and 19 fight routes (351.7 s), snapshots (231.5 s), portstyle
+(0.2 s), portsmell (96.7 s) and doc-names (1.3 s); the three plays stages
+overlap, so their times add to more than the wall. All three native picture fingerprints passed.
 
 Windows MinGW GCC and WSL GCC/Clang built with warnings as errors; both Linux
 builds passed all 15 C tests. Opening, menu and battle quick-load continuations
