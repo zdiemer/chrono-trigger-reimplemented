@@ -1676,12 +1676,6 @@ typedef struct {
         uint16_t bottom_left;
         uint16_t bottom_right;
     } field_tile_looks[512];
-    struct {
-        uint16_t top_left;
-        uint16_t top_right;
-        uint16_t bottom_left;
-        uint16_t bottom_right;
-    } field_bg3_tile_looks[256];
     uint16_t field_frame_tiles_left;
     uint8_t field_sprite_tile_bank;
     struct {
@@ -3899,8 +3893,8 @@ typedef struct {
     /* The reads that found another owner's bytes, by reader: how often, and
      * the owner that wrote them the first time (vars_host_crossings). A
      * diagnostic tally, kept with the state it describes. */
-    uint32_t crossed[3365];
-    uint16_t crossed_writer[3365];
+    uint32_t crossed[3361];
+    uint16_t crossed_writer[3361];
 } VarsHost;
 
 /* Byte views of battle_acting_for_itself's storage; no independent alias fields. */

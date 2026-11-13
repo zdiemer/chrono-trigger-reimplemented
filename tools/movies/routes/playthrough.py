@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends with the Guardian beaten in
-Arris Dome, 2300 A.D.
+on only past checkpoints that succeeded. It ends past the Guardian in Arris
+Dome, 2300 A.D., with the Day of Lavos on the information center's computer.
 """
 from .. import addresses as A
 from .. import policies
@@ -30,7 +30,9 @@ TANK = dragon_tank.PHASES[2:]
 # to Arris Dome, and the Guardian there (its piece, after its save's loading).
 FUTURE = ["castle_gate", "forest_chase", "forest_back", "future", "lab16", "lab16_east", "arris"]
 GUARDIAN = guardian.PHASES[1:]
-PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN
+# Past the Guardian, through its room's door to the information center.
+INFO = ["info_center", "lavos_day"]
+PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -67,7 +69,14 @@ LAB16_DOOR = (264, 368)     # on the 2300 A.D. map, north of Bangor Dome
 LAB16_WEST_EXIT = (504, 120)   # tile column 31, rows 5-9, to the east part
 LAB16_EAST_EXIT = (952, 536)   # tile columns 57-61, row 33, out by Arris Dome
 ARRIS_DOME = 0x0D6
-FIELD_PARTY_OBJECTS = 0x7E0197   # the members' object slots, times two
+INFO_CENTER = "5801"           # location $158, through the Guardian room's north door
+INFO_CENTER_DOOR = (128, 340)  # below it, in the Guardian's room
+COMPUTER = 8                   # an object of the information center
+ARRIS_FLAGS, COMPUTER_SEEN = 0x7F00EC, 0x10
+SEED = 0xD4
+SHADOW = 0x66                # an enemy number: Lab 16's, 1 HP, no harm from weapons
+RUN_FROM = {SHADOW}
+ENEMY_KIND_SLOTS = 4         # words at A.BATTLE_ENEMY_KINDS
 WAIT_MODE = 1              # the battle mode question's second row: Wait
 
 
@@ -78,10 +87,14 @@ def naming(run):
             and not machine.b(A.FIELD_PLAYER_CONTROL))
 
 
+def enemy_kinds(machine):
+    """The enemy numbers the open battle holds (battle_enemy_kinds)."""
+    words = [machine.w(A.BATTLE_ENEMY_KINDS + 2 * i) for i in range(ENEMY_KIND_SLOTS)]
+    return {word & 0xFF for word in words if word < 0x8000}
+
+
 def foes_with_hit_points(machine):
-    """Whether the open battle has an enemy the bot can wear down: Lab 16's
-    Shadows have 1 HP, as the battle's empty slots do, and take no harm from
-    a weapon, so policies.enemies counts none of them."""
+    """Whether the open battle has an enemy the bot can wear down."""
     for slot in range(3, 11):
         base = A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE
         if 1 < machine.w(base + 2) < 65000 and machine.w(base) > 0:
@@ -104,12 +117,16 @@ def flee(run, max_frames=3000):
 def win(run, seed=1):
     """Fight the battle that is open to its end: every enemy down, or the
     field given back (a fight a scene ends, as the prison's guards' does,
-    leaves its enemies standing). A fight with nothing the bot can hurt is
-    run from."""
+    leaves its enemies standing). Lab 16's Shadows, which have 1 HP and take
+    no harm from a weapon, are run from; any other fight with no enemy the
+    bot can wear down fails the route."""
     machine = run.machine
-    if not foes_with_hit_points(machine):
+    kinds = enemy_kinds(machine)
+    run.say("enemies", sorted(kinds))
+    if kinds and kinds <= RUN_FROM:
         flee(run)
         return
+    assert foes_with_hit_points(machine), ("no enemy the bot can wear down", sorted(kinds))
     seen, field_frames = [], [0]
 
     def over(r, state):
@@ -173,7 +190,7 @@ def walking(run, max_rounds=8):
         if run.find_player() is not None:
             return
         run.machine.run(30)
-    leader = run.machine.w(FIELD_PARTY_OBJECTS)
+    leader = run.machine.w(A.FIELD_PARTY_OBJECTS)
     assert leader < 0x80, "a leader on the field"
     run.player = leader // 2
     run.say("the leader is object", run.player)
@@ -594,6 +611,27 @@ def main():
         if later <= len(FUTURE) + len(GUARDIAN) - 1:
             walking(run)
             guardian.play(run, max(1, later - len(FUTURE) + 1), args.seed)
+        later -= len(FUTURE) + len(GUARDIAN)
+        if later <= 0:
+            # The door the Guardian kept opens to the information center,
+            # where the party finds a Seed as it comes in.
+            walking(run)
+            assert run.go(*INFO_CENTER_DOOR), "below the door"
+            machine.run(4, "UP")
+            machine.run(10)
+            machine.run(4, "A")
+            machine.run(60)
+            assert leave_fighting(run, INFO_CENTER), "the information center"
+            assert in_hand(run)
+            assert count_of(machine, SEED), "the Seed"
+            run.checkpoint("info_center")
+        if later <= 1:
+            # Its computer shows the Day of Lavos.
+            walking(run)
+            assert run.talk(COMPUTER), "the computer"
+            assert in_hand(run, 30000)
+            assert machine.b(ARRIS_FLAGS) & COMPUTER_SEEN, "the Day of Lavos seen"
+            run.checkpoint("lavos_day")
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
