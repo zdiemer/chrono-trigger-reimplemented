@@ -1,9 +1,28 @@
 #include "decoded.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 enum { NOT_HERE = 0xFFFFFFFFu };
+
+/* The comment a text's opening says its catalogue's version in. */
+static const char CATALOGUE_STAMP[] = "# catalogue ";
+
+bool decoded_of_this_catalogue(const char *text, size_t len)
+{
+    char stamp[64];
+    int n = snprintf(stamp, sizeof stamp, "%s%08X\n", CATALOGUE_STAMP, (unsigned)asset_catalogue_version);
+    for (const char *s = text, *end = text + len; s < end && *s == '#';) {
+        const char *newline = memchr(s, '\n', (size_t)(end - s));
+        if (!newline)
+            break;
+        if ((size_t)(newline + 1 - s) == (size_t)n && !memcmp(s, stamp, (size_t)n))
+            return true;
+        s = newline + 1;
+    }
+    return false;
+}
 
 int decoded_entry(const char *name, size_t len, uint16_t *hint)
 {
@@ -51,7 +70,10 @@ static const uint8_t *served(const AssetStore *store, const AssetEntry *e)
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why)
 {
     DecodedText t = { 0 };
+    char stamp[64];
+    snprintf(stamp, sizeof stamp, "%s%08X\n", CATALOGUE_STAMP, (unsigned)asset_catalogue_version);
     decoded_put(&t, kind->header);
+    decoded_put(&t, stamp);
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         const AssetEntry *e = &asset_catalogue[i];
         bool named;
@@ -67,11 +89,14 @@ char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *l
             return NULL;
         }
     }
+    char end[2] = { 'x', 0 };
+    decoded_put(&t, end);   /* room for the NUL after the text, which a caller may search it by */
     if (t.full) {
         free(t.text);
         *why = "out of memory";
         return NULL;
     }
+    t.text[--t.len] = 0;
     *len = t.len;
     return t.text;
 }
@@ -83,6 +108,7 @@ struct Decoded {
     uint8_t *bytes;   /* every decoded resource's, one after another */
     uint32_t *at;     /* where each row of the catalogue's are in `bytes`, or NOT_HERE */
     uint8_t *given;   /* whether the text gave the row */
+    const uint8_t **beneath;   /* what the store beneath serves for each row, once asked: NULL before */
     uint16_t hint;
 };
 
@@ -92,7 +118,12 @@ uint8_t *decoded_bytes(Decoded *d, int entry)
     return d->bytes + d->at[entry];
 }
 
-const uint8_t *decoded_beneath(const Decoded *d, int entry) { return served(d->base, &asset_catalogue[entry]); }
+const uint8_t *decoded_beneath(const Decoded *d, int entry)
+{
+    if (!d->beneath[entry])
+        d->beneath[entry] = served(d->base, &asset_catalogue[entry]);
+    return d->beneath[entry];
+}
 
 static bool space(char c) { return c == ' ' || c == '\t'; }
 
@@ -173,8 +204,9 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
     if (d) {
         d->at = malloc(sizeof *d->at * asset_catalogue_count);
         d->given = calloc(asset_catalogue_count, 1);
+        d->beneath = calloc(asset_catalogue_count, sizeof *d->beneath);
     }
-    if (!d || !d->at || !d->given)
+    if (!d || !d->at || !d->given || !d->beneath)
         return refuse(d, "out of memory", why);
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         bool named;
@@ -214,7 +246,8 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
             else if (d->given[entry])
                 wrong = "that name is given twice";
             else
-                r = (DecodedReading){ entry, decoded_bytes(d, entry), 0, 0, 0, 0, 0, r.made, 0, r.made_room };
+                r = (DecodedReading){ .entry = entry, .bytes = decoded_bytes(d, entry), .made = r.made,
+                                      .made_room = r.made_room };
         } else if (r.entry < 0) {
             wrong = "a line before any [name]";
         } else {
@@ -253,6 +286,7 @@ void decoded_close(Decoded *d)
         free(d->bytes);
         free(d->at);
         free(d->given);
+        free(d->beneath);
         free(d);
     }
 }

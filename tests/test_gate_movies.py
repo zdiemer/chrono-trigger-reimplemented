@@ -22,6 +22,16 @@ class GateMoviesTest(unittest.TestCase):
         self.assertTrue(names)
         self.assertEqual(len(names), len(set(names)), "a movie listed twice")
 
+    def test_each_carried_fight_is_a_gate_movie_made_by_its_route(self):
+        names, _ = suite.gate_movies()
+        library = {row[0]: row[1] for row in outcomes.movie_library(names, set())}
+        for movie, route in outcomes.fight_routes().items():
+            with self.subTest(movie=movie):
+                self.assertIn(movie, library)
+                header = " ".join(line[1:].strip() for line in library[movie].read_text().splitlines()
+                                  if line.startswith("#"))
+                self.assertRegex(header, r"\b[Rr]oute:? %s\b" % route)
+
     def test_the_sample_is_part_of_the_library(self):
         names, _ = suite.gate_movies()
         library = outcomes.movie_library([], set())

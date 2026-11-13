@@ -22,6 +22,9 @@ hash so a stale artifact or changed projection cannot silently pass. Missing
 movies, incomplete states and runtime diagnostics fail. Existing native
 baseline matches remain protected; a pinned exception accepts only the recorded
 difference, never a new state or missing visit. Subsets do not prune other rows.
+A movie whose fight a gate route carries (`tools/fight_routes.txt`, MOVIES.md
+"Fights carried by routes") keeps its protected matches but has no pinned
+exception: the route, run by the gate, is the fight's outcome.
 Pictures are checked for dark endings. Three native fingerprints in
 `tools/native_picture_baseline.txt` protect the accepted title BG1 clear in
 attract-demo and both Golem Twins movies. They pin native frame hashes after
