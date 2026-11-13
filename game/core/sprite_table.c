@@ -27,12 +27,25 @@ void sprite_table_set_byte(GameState *g, unsigned at, uint8_t v)
 
 void sprite_table_place(GameState *g, unsigned sprite, int16_t x, uint8_t y)
 {
-    sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_AT };
+    sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_AT, 0 };
+}
+
+/* The entry is read outside the game's time: the original never reads it. */
+void sprite_table_move_as_it_stands(GameState *g, unsigned sprite, int16_t moves)
+{
+    sprite %= OAM_BUFFER_COUNT;
+    uint32_t mark = charge_uncounted_begin(g);
+    uint8_t high = (uint8_t)(oam_high_table_byte(g, sprite / VID_OAM_SPRITES_A_HIGH_BYTE) >>
+                             (VID_OAM_HIGH_BITS * (sprite % VID_OAM_SPRITES_A_HIGH_BYTE)));
+    int16_t x = vid_oam_x(oam_buffer_x(g, sprite), high);
+    uint8_t y = oam_buffer_y(g, sprite);
+    charge_uncounted_end(g, mark);
+    sprite_places(g)->sprite[sprite] = (VidSpritePlace){ x, y, VID_PLACE_AT, moves };
 }
 
 void sprite_table_hide(GameState *g, unsigned sprite, int16_t x, uint8_t y)
 {
-    sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_HIDDEN };
+    sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_HIDDEN, 0 };
 }
 
 void sprite_table_forget_places(GameState *g) { *sprite_places(g) = (SpritePlaces){ 0 }; }

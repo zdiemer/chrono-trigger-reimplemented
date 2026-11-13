@@ -7,10 +7,13 @@
 
 #include "charge.h"
 #include "core/program.h"
+#include "battle/wide_window.h"
+#include "core/panel_layout.h"
 #include "core/sprite_table.h"
 #include "field/margin_objects.h"
 #include "field/streaming.h"
 #include "menu/menu.h"
+#include "menu/panels_across.h"
 #include "menu/sprites.h"
 #include "cpu_io.h"
 #include "platform/time_model.h"
@@ -24,6 +27,9 @@ struct GameState {
     MenuCoroutines menus;
     SpritePlaces sprite_places;
     FieldMargins field_margins;
+    PanelLayout panel_layout;
+    BattleWideWindow battle_wide_window;
+    MenuPanels menu_panels;
     FieldObjectsPast field_objects_past;
     MenuSpritesPast menu_sprites_past;
     uint8_t sram[STATE_HOST_SRAM_BYTES];
@@ -104,6 +110,9 @@ ProgramHandlers *program_handlers(GameState *g) { return &g->handlers; }
 MenuCoroutines *menu_coroutines(GameState *g) { return &g->menus; }
 SpritePlaces *sprite_places(GameState *g) { return &g->sprite_places; }
 FieldMargins *field_margins(GameState *g) { return &g->field_margins; }
+PanelLayout *panel_layout(GameState *g) { return &g->panel_layout; }
+BattleWideWindow *battle_wide_window(GameState *g) { return &g->battle_wide_window; }
+MenuPanels *menu_panels(GameState *g) { return &g->menu_panels; }
 FieldObjectsPast *field_objects_past(GameState *g) { return &g->field_objects_past; }
 MenuSpritesPast *menu_sprites_past(GameState *g) { return &g->menu_sprites_past; }
 

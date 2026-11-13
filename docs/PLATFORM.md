@@ -300,14 +300,50 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   time and noise are the game's, so it is left as it is: beside it,
   `menu_list_the_sprites_past_the_screen` lists the map's sprites it left
   out across, and they show as margin sprites from VRAM's tiles.
-- **Every other mode** (the menus, the scenes, the time warp's tunnel aside,
-  which is Mode 7) keeps its layers to the original's screen, the backdrop in
-  the margins, until it builds what lies past it.
+- **Panels** -- the battle window's and the menus' tilemaps, one screen (32
+  columns) across -- are laid out across the view rather than stretched
+  (`vid_lay_out_a_map_across`): each frame a mode says, row by row of a map,
+  which of its columns each 8-dot column of the view shows, or nothing. It
+  only moves the map's own columns along their row, so what a panel shows and
+  everything the game decides stay the original's. The windows' edges can be
+  parted with it (`vid_part_the_windows`: an edge left of a row's parting moves
+  left, any other right), and a sprite place can carry a move across
+  (`VidSpritePlace.moves`), so clipping windows, highlights and cursors keep to
+  what they framed. `game/core/panel_layout.h` builds layouts: columns shown
+  at a place, a window stretched with its inside's four-column pattern
+  repeated.
+- **The battle window** (`game/battle/wide_window.c`) keeps the windows at its
+  left (the command windows, the enemies' list) at the view's left side,
+  stretches the party's window to its right side and spreads each member's
+  name, numbers and gauge across it; the tech page's two windows each stretch
+  to their side, and the item list and the message window across the view.
+  What the window's rows and frames show is noted as the vblank sends them
+  (from the transfer's source, and the frames' window corners), so the layout
+  always fits what VRAM holds.
+- **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) part
+  each row of the screen in two near its middle, where no layer has two tiles
+  side by side that stand out (letters, a window's side), and move each side
+  out to the view's: the backdrop and every window across the middle stretch,
+  the windows beside them move out with their text, and a layer that runs on
+  in its pattern up to the parting repeats the pattern across the gap. Rows
+  that can share a parting share it. The layout is read back from what the
+  mode sent (`vid_read_vram`) and the rows the last picture showed
+  (`vid_layer_last_shown`); the sprites follow their row's side a frame later.
+  It applies only to the screens on an explicit list in that file (the
+  items but for an item picked up or being used, the party exchange and the
+  load screen); every other screen keeps the original's
+  arrangement in the middle of the view until it is put on the parting or
+  given a layout of its own (issue #284).
+- **Every other mode** (the scenes, the dialog window over the field, the
+  time warp's tunnel aside, which is Mode 7) keeps its layers to the
+  original's screen, the backdrop in the margins, until it builds what lies
+  past it.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
 its state (`SpritePlaces`, `FieldMargins`, `FieldObjectsPast`,
-`MenuSpritesPast`) is the program's, beside the game's
+`MenuSpritesPast`, `PanelLayout`, `BattleWideWindow`, `MenuPanels`) is the
+program's, beside the game's
 memory. Its columns go to VRAM through `vid_send_view_vram`, which shows them
 but keeps them out of what the game reads back (`vid_vram_word`: the palace
 rising copies the field's map out of VRAM) and leaves the VRAM port's step and
