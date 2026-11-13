@@ -742,6 +742,10 @@ def palace_floor(run, ahead, seed):
             if not machine.b(A.FIELD_PLAYER_CONTROL) or run.me()[1] > ELEVATOR_ROW * 16:
                 break
         assert in_hand(run, 30000, seed), "the first fight on the elevator"
+        # After that fight the elevator stands still until the orb on its
+        # left is confirmed. The original waits there too: checked with the
+        # frozen emulator-oracle from ctsave10 slot 2, where the platform
+        # stays put for 25000 frames after the first fight.
         x, y = ELEVATOR_DOWN
         assert run.walk(lambda m, px, py: abs(px - x) <= 3 and abs(py - y) <= 3) is not None, "beside the orb"
         machine.run(1, "LEFT")

@@ -175,7 +175,10 @@ Scouts drink the element they are hit with); Shelters at Algetty's, Mt. Woe's
 and the Ocean Palace's save points restore the party before Mud Imp, Giga
 Gaia, Dalton and the Twins. No level or purchase was needed. The Ocean
 Palace's platform statues take the field's control a moment at a time while
-the pad still walks the party, so that stretch walks by position.
+the pad still walks the party, so that stretch walks by position (measured in
+ct_native only). The palace's elevator stands still after its first fight
+until the orb on its left is confirmed, as the original does: checked with the
+frozen `emulator-oracle` oracle from ctsave10 slot 2.
 `playthrough_leg-d` starts from ctsave11 slot 1,
 the party held in the Blackbird after Crono is gone, with the save's party
 and items, and plays on through `play()` of `blackbird_save`, `dalton`,
