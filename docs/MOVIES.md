@@ -145,10 +145,15 @@ fair, 600 A.D.'s castle, shopping, the prison escape, the chase through
 Guardia Forest to the Gate, Lab 16); where a save-based route already plays a
 stretch, the route calls that route's `play(run, start)` from the state it
 reached instead of a save (`_trial_cathedral`, `cronos_trial`, `dragon_tank`,
-`guardian`). Its checkpoint names are unique across the pieces it composes. It
-ends in Arris Dome, 2300 A.D., with Doan's Bike Key (frame 434643): past the
-Guardian to the information center, the room below's rat caught for the
-password by waiting where its run passes, the sealed doors and the storeroom. Lab 16's Shadows,
+`guardian`, `proto_dome`, `r_series`). Its checkpoint names are unique across
+the pieces it composes. In Arris Dome it catches the room below's rat for the
+password by waiting where its run passes (a frame to spare, asserted;
+measured in ct_native only, unconfirmed against the original), opens the sealed doors and trades the Seed for the Bike Key;
+Lab 32's race is steered with `events-jetbike-race-won`'s input from the race's
+first frame, as `proto_dome`'s own approach is; a rest in Proto Dome's Enertron
+and Tonics before the R Series keep Crono and Lucca fit for it, the factory's
+fights before it leaving their MP alone. It ends at the End of Time after the
+R Series (frame 551350). Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
