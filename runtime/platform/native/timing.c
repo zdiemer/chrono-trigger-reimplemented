@@ -37,6 +37,8 @@ void tm_host_start(Platform *pf, const TmHostProgram *program, uint32_t seed)
     t->waiting = t->main;
 }
 
+static bool sits_this_frame_out(TmHost *t);
+
 void tm_host_frame(Platform *pf)
 {
     TmHost *t = &pf->timing;
@@ -51,12 +53,10 @@ void tm_host_frame(Platform *pf)
      * thread's: it is what the frame leaves the main thread less */
     t->handlers = sum(t->handler_charges, t->program.owed ? t->program.owed(t->program.ctx) : 0);
     t->handler_charges = 0;
-    if (t->lagging) {
-        t->lagging--;
+    if (sits_this_frame_out(t))
         t->lag_frames++;
-    } else if (t->waiting) {
+    else if (t->waiting)
         fiber_switch(t->waiting);
-    }
     if ((t->interrupts & TM_INT_LINE) && t->program.line) {
         t->part = TM_HOST_IN_LINE;
         t->program.line(pf, t->program.ctx);
@@ -85,10 +85,12 @@ void tm_host_charge(Platform *pf, uint32_t clocks)
         t->owed = sum(t->owed, clocks);
 }
 
+/* A transfer halts the processor for its bytes wherever it is made: the main
+ * thread's owes it, a handler's is the frame's own (tm_host_charge). */
 void tm_charge_transfer(Platform *pf, PfOrigin o, uint32_t bytes)
 {
     (void)o;
-    if (pf->timing.part == TM_HOST_IN_MAIN)
+    if (pf->timing.part != TM_HOST_IDLE)
         tm_host_charge(pf, time_of_transfer(bytes));
 }
 
@@ -110,29 +112,78 @@ static uint32_t main_threads_frame(const TmHost *t)
     return TIME_FRAME_CLOCKS - (t->handlers < TIME_FRAME_CLOCKS / 2 ? t->handlers : TIME_FRAME_CLOCKS / 2);
 }
 
-static uint32_t frames_filled(const TmHost *t) { return t->owed / main_threads_frame(t); }
-
 static void take_the_games_account(TmHost *t)
 {
     if (t->program.owed)
         t->owed = sum(t->owed, t->program.owed(t->program.ctx));
 }
 
-static void report_lag(TmHost *t, uint32_t frames)
+/* The lag log: a stretch of lag as it ends, from the frame it began in. */
+static void report_lag(TmHost *t)
 {
-    if (frames && t->program.lagged)
-        t->program.lagged(t->program.ctx, t->frame, frames, t->owed);
+    if (t->lag_count && t->program.lagged)
+        t->program.lagged(t->program.ctx, t->lag_start, t->lag_count, t->lag_owed);
+}
+
+static void begin_lag(TmHost *t, TmHostLag how, uint32_t debt)
+{
+    t->lag = how;
+    t->debt = debt;
+    t->lag_start = t->frame;
+    t->lag_owed = t->owed;
+    t->lag_count = 0;
+}
+
+static void end_lag(TmHost *t)
+{
+    report_lag(t);
+    t->lag = TM_HOST_RUNNING;
+    t->debt = 0;
+}
+
+/* Whether the main thread sits this frame out, its work still filling it.
+ * Each frame gives it what that frame's own handlers leave (main_threads_frame,
+ * taken as the frame starts): the handlers run in every lag frame, and a
+ * frame whose handlers did a load's heavy sends doesn't make the frames after
+ * it, whose handlers do little, as short. */
+static bool sits_this_frame_out(TmHost *t)
+{
+    uint32_t frame = main_threads_frame(t);
+    switch (t->lag) {
+    case TM_HOST_LAGGING_IN_WAIT:
+        /* the wait lasts through this frame; the next is the one its work
+         * no longer fills */
+        t->lag_count++;
+        if (t->debt < frame)
+            end_lag(t);
+        else
+            t->debt -= frame;
+        return true;
+    case TM_HOST_LAGGING_IN_WORK:
+        if (t->debt >= frame) {
+            t->debt -= frame;
+            t->lag_count++;
+            return true;
+        }
+        /* the work goes on in this frame, with what is left of it owed */
+        t->owed = t->debt;
+        end_lag(t);
+        return false;
+    case TM_HOST_RUNNING:
+        break;
+    }
+    return false;
 }
 
 /* The main thread's wait with time owed, its own charges and what the game's
- * state kept (TmHostProgram.owed): the whole frames its work fills are lag
- * frames, and the rest is the frame's own. */
+ * state kept (TmHostProgram.owed): the frames its work fills past the one it
+ * is in are lag frames, and the rest is the frame's own. */
 static void lag_for_what_is_owed(TmHost *t)
 {
     take_the_games_account(t);
-    uint32_t frames = frames_filled(t);
-    report_lag(t, frames);
-    t->lagging += frames;
+    uint32_t frame = main_threads_frame(t);
+    if (t->owed >= frame)
+        begin_lag(t, TM_HOST_LAGGING_IN_WAIT, t->owed - frame);
     t->owed = 0;
 }
 
@@ -142,14 +193,13 @@ void tm_host_sit_out_owed(Platform *pf)
     if (t->part != TM_HOST_IN_MAIN)
         return;
     take_the_games_account(t);
-    uint32_t frames = frames_filled(t);
-    if (!frames)
+    uint32_t frame = main_threads_frame(t);
+    if (t->owed < frame)
         return;
-    report_lag(t, frames);
-    /* the main thread goes on in the frame after the last it sits out, with
-     * what was left over still owed */
-    t->lagging += frames - 1;
-    t->owed %= main_threads_frame(t);
+    /* the main thread goes on in the first frame its work doesn't fill,
+     * with what is left over still owed */
+    begin_lag(t, TM_HOST_LAGGING_IN_WORK, t->owed - frame);
+    t->owed = 0;
     t->waiting = fiber_current();
     fiber_switch(t->driver);
 }
@@ -253,7 +303,33 @@ bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
     return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
 }
 
-void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line) { (void)pf; (void)o; (void)line; }
+/* Where the beam is in a handler: the line its part of the frame starts at,
+ * on by the handlers' work so far (the game's own accesses taken into the
+ * handlers' account, where they would go as the main thread starts). */
+static uint16_t handlers_line(TmHost *t)
+{
+    if (t->program.owed)
+        t->handler_charges = sum(t->handler_charges, t->program.owed(t->program.ctx));
+    uint16_t start = t->part == TM_HOST_IN_LINE ? (uint16_t)(t->line + 1) : TIME_VBLANK_LINE;
+    return (uint16_t)((start + t->handler_charges / TIME_LINE_CLOCKS) % TIME_FRAME_LINES);
+}
+
+/* A handler's wait for a line: nothing to wait for in a picture drawn whole,
+ * but the original's handler holds the processor until the beam gets there --
+ * the battle's frame work, while effects run, waits for line 64 ($CD:3B82),
+ * a third of the frame after the vblank -- and that time is the frame's, not
+ * the main thread's: it is charged to the handlers. A wait from the main
+ * thread charges nothing. */
+void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line)
+{
+    (void)o;
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_VBLANK && t->part != TM_HOST_IN_LINE)
+        return;
+    uint16_t at = handlers_line(t);
+    uint16_t lines = (uint16_t)((line % TIME_FRAME_LINES + TIME_FRAME_LINES - at) % TIME_FRAME_LINES);
+    t->handler_charges = sum(t->handler_charges, (uint32_t)lines * TIME_LINE_CLOCKS);
+}
 void tm_wait_line_drawn(Platform *pf, PfOrigin o) { (void)pf; (void)o; }
 void tm_wait_line_started(Platform *pf, PfOrigin o) { (void)pf; (void)o; }
 

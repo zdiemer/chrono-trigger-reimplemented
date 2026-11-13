@@ -96,7 +96,7 @@ void fight_load_enemy(GameState *g, uint8_t enemy)
 {
     uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy), id = battle_combatant_id(g, slot);
     EnemyStatsRecord record = enemy_stats_record(g, id);
-    fight_clear_enemy_block(g, enemy);
+    TIMED_AS(g, 0xFDB4D6, fight_clear_enemy_block(g, enemy));
     set_combatant_stat_byte(g, slot, STAT_ID, id);
     set_battle_stats_hp(g, slot, record.hp);
     set_battle_stats_max_hp(g, slot, record.hp);

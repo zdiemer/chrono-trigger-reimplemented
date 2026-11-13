@@ -42,7 +42,12 @@ The game advances in frames. Its main thread and menu tasks use the coroutine
 interface in `runtime/port/fiber.h`; the host resumes work at frame boundaries.
 Native work charges accumulate debt, with fractional carry and excluded reads
 handled by the state host. Existing rates in `runtime/port/time_rates.c` are
-frozen authored estimates. Changing a rate requires evidence from native play.
+authored estimates, changed only with evidence from native play (the battle's
+were calibrated against the original's clocks, REIMPLEMENTATION.md). Each lag
+frame gives the main thread the time that frame's own handlers leave it. A
+handler's transfers and its waits for a line (`tm_wait_line`) are the
+handlers' time, which the main thread then doesn't have; a wait for a line
+from the main thread charges nothing.
 The timing, native-time, task and unpack-time tests exercise this accounting
 without a ROM. Core owns typed mode callbacks in game state; the frame driver
 dispatches them in the established order. The program test checks callback
