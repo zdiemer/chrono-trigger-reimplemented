@@ -78,7 +78,7 @@ battle-tyrano-lair-walls/native game
 battle-tyrano-lair-walls/native places 0 1 2 3 4
 battle-tyrano-lair-walls/native sram end
 battle-unequipped-armor/native game
-battle-unequipped-armor/native places 0 1 2 3 4 5 6 7 8 9
+battle-unequipped-armor/native places 0 1 2 3 4 5 6  # places 7-9 come after Truce Canyon's fights, which route unequipped_armor carries (tools/fight_routes.txt); the battle setup's timing (issue #320) has the recorded presses lose the first one
 battle-unequipped-armor/native sram end
 battle-zombor/native game
 battle-zombor/native places 0 1 2 3 4

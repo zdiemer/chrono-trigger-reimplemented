@@ -1,4 +1,4 @@
-/* Frozen native work rates. Changes require native gameplay evidence. */
+/* Native work rates, master clocks x1000 per bus clock of a routine's accesses. Changes require native gameplay evidence; the battle's were calibrated against the original's clocks (docs/REIMPLEMENTATION.md, "Time without a machine"). */
 #include "port/time_rates.h"
 
 const TimeRate time_rates[] = {

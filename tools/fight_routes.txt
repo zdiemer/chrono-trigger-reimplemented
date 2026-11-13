@@ -4,7 +4,8 @@
 # where play ends up don't hang on the frames a recorded press meets. The gate
 # runs these routes (tools/suite.py); tools/outcomes.py then stops pinning the
 # movie's exact places, saved game and save RAM, and keeps its protected
-# matches. A movie's own route is named in its header. A carried route fails
+# matches. A movie's own route is named in its header, or, for a hand recording, the route
+# names the movie. A carried route fails
 # where one of its fights needs more retries than its bound (none unless the
 # line gives one, with its reason), or where it finishes with other facts than
 # the movie's reference end state (tools/fight_facts.txt): levels, experience,
@@ -23,6 +24,8 @@ battle-magus-north-cape north_cape retries=24  # Magus at North Cape, won; the f
 battle-mud-imp mud_imp  # the Mud Imp and the Beasts, won
 battle-rust-tyrano rust_tyrano  # Rust Tyrano, won; the field in hand
 battle-son-of-sun son_of_sun  # Son of Sun, won; the field in hand
+battle-unequipped-armor unequipped_armor  # the canyon's fights and Spekkio's, won with Marle's armor and helmet empty; the field in hand
+late-omen-terramutant terramutant  # the TerraMutant fought to where the movie ends, both parts hurt and up; the movie is a hand recording, so the route names it
 battle-zombor zombor  # Zombor, won; Zenan Bridge in hand
 events-cyrus cyrus  # the fights on the way to Cyrus's grave, won; Masamune restored
 events-death-peak death_peak_return  # the summit's last Lavos Spawn, won; Crono brought back

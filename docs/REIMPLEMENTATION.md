@@ -110,6 +110,52 @@ the stack guard is gone, but its counted work remains an explicit charge.
 The lean gate caught the missing charge through battle picture and outcome
 changes; restoring the work restored those checks without changing baselines.
 
+**The battle's time against the original's.** The frozen `emulator-oracle`
+tag's development build, with a scratch profiler added (not kept), charges
+every clock of the original's code to the innermost timing key on its call
+stack, main thread and interrupt handlers apart. Set beside ct_native's
+`--timing-report` over the same fights (Dalton's Golem Boss, the Golem Twins,
+Giga Gaia), it showed where native battle time fell short:
+
+- The machine's removal (cd01adc1) deleted the registry's 2,184 timed-only
+  routines, and 1,707 of them have had no timing scope since, their work charged
+  at their callers' rates. The battle setup's (`$FD:B22E`, `$FD:B438`,
+  `$FD:AE52`, `$FD:AD09`, `$C1:C96A`, `$C1:CA1A`, `$C1:CDFF`, `$FD:B0D5`,
+  `$FD:B4D6`, `$FD:AF80`) and the frame's input (`$C2:84EC`, `$C2:8545`,
+  `$C2:85AE`) have their scopes back; with them most rates match the original
+  within 10%. The long arithmetic (`$C1:C90B`, `$C1:C92A`), the name converter
+  (`$C1:01A9`) and the empty place's pass (`$FD:B01C`) are charged their
+  routines' time. The rest is issue-tracked.
+- The handlers took ~65k clocks a frame against the original's ~160k. A
+  handler's wait for a line (the frame work's wait for line 64 while effects
+  run, `$CD:3B82`) now holds the frame until the beam is there, and a
+  handler's transfers are charged; 40 handler routines' rates are recalibrated
+  by the ratio of the original's clocks a call to native's, which agreed
+  within ±15% across the three fights (1.2 to 2.8 times). The main thread's
+  aggregate already matched (~78k against ~70k) and is left alone.
+- Ten more rates are calibrated from the battle setup's profile
+  (`$CC:ED87` ×2.72, `$CD:088D` ×15, `$CD:09F1` ×46, `$C1:C90B` ×2.38,
+  `$C1:C92A` ×3.2, `$C2:84EC` ×2.27, `$FD:AF80` ×3.42, `$C1:C96A` ×0.49,
+  `$C1:CA1A` ×0.52, `$C1:1C55` ×1.2).
+- A lag frame gets the main thread time its own handlers leave (issue #321),
+  so a frame whose handlers made a load's sends no longer shortens every lag
+  frame after it.
+
+The turn timers' first tick, frames before the original's, before and after:
+
+| fight | before | after |
+|---|---|---|
+| Golem Twins | 12 | 3 |
+| Death Peak's Lavos Spawn | 9 | 2 |
+| Beyond Time's Lavos | 13 | 3 |
+| Spekkio | 9 | 1 |
+| Bucket's Lavos | 11 | 1 |
+| Lavos game over | 24 | 15 |
+
+The Lavos game over's 15 and the Golem Twins' last 3 are the field's before the
+fight: the field's main routines run 2 to 5 times under the original, about
+54k clocks a frame, which is its own follow-up.
+
 ### Warp as the subsystem pattern
 
 Warp is the pilot because its small mode includes setup, animation, frame

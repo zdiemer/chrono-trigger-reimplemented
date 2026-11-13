@@ -4,12 +4,16 @@ ctsave04 slot 2 has no spare armor or helmets. Switching member and slot
 together preserves the equipment list's member-plus-slot cache key. A stale
 accessory list lets Marle choose item zero for her armor; that returned armor
 then supplies the stale list for her helmet. See docs/movies-wanted.md, Target 14.
+
+The glitch and the walk to Truce Canyon are the movie's own presses
+(battle-unequipped-armor), which the field plays on time; from the canyon on,
+its fights and Spekkio's are the battle bot's.
 """
 import json
+from pathlib import Path
 
 from .. import policies
-from ..campaign import Run, route_arguments, run_route
-from . import menu_sweep as menu
+from ..campaign import REPO, Run, route_arguments, run_route
 from . import tech_sweep_spekkio as spekkio
 
 SAVE = "saves/fantasyanime/ctsave04-masamune.srm"
@@ -23,37 +27,9 @@ HEADER = """\
 # <start_frame> <frame_count> <buttons>"""
 
 MARLE_GEAR = 0x7E2677             # character 1's helmet, armor, weapon, accessory
+MOVIE = Path(REPO) / "movies/saves/battle-unequipped-armor.ctm"
+CANYON_ENTERED = 6510             # the movie's frame a few after Truce Canyon is entered (6502)
 MENU_MEMBER = 0x7E95D5
-
-
-def unequip_marle(machine):
-    menu.open_menu(machine)
-    # Visit an empty item row first. The save leaves item_operand at $F1;
-    # the original preserves it when the first equipment list has no items,
-    # while the existing port clears it. Normal cursor movement leaves zero
-    # on both sides, avoiding that unrelated scratch-byte mismatch.
-    menu.open_option(machine, menu.ITEMS)
-    for _ in range(40):
-        if menu.item_under_cursor(machine) == 0:
-            break
-        menu.press(machine, "DOWN")
-    assert menu.item_under_cursor(machine) == 0, "an empty inventory row"
-    menu.back_to_main_menu(machine)
-    menu.open_option(machine, menu.EQUIPMENT)
-    menu.press(machine, "A", 40)
-    for _ in range(3):
-        menu.press(machine, "DOWN")
-    menu.press(machine, "R+UP", 60)  # Crono/accessory -> Marle/armor, same sum
-    menu.press(machine, "A", 60)
-    menu.press(machine, "A", 60)
-    assert machine.b(MARLE_GEAR + 1) == 0, "Marle's armor emptied"
-    menu.press(machine, "L", 60)     # Crono/armor: Marle's returned armor fits
-    menu.press(machine, "R+UP", 60)  # -> Marle/helmet, same sum again
-    menu.press(machine, "A", 60)
-    menu.press(machine, "A", 60)
-    assert machine.peek(MARLE_GEAR, 2) == b"\0\0", "both slots emptied"
-    menu.back_to_main_menu(machine)
-    menu.press(machine, "B", 100)
 
 
 def small_fight(run):
@@ -148,42 +124,14 @@ def main():
               until=args.until)
     machine = run.machine
     try:
-        phases = ["loaded", "empty", "bridge", "north", "canyon", "lower", "upper", "gate", "spekkio", "won"]
-        start = run.start_at(phases)
-        if start <= 0:
-            machine.run(1620)
-            machine.run(5, "START")
-            machine.run(2420 - machine.frame)
-            assert run.select_slot(1)
-            machine.run(4, "A")
-            machine.run(240)
-            assert run.map_id() == "f101"
-            run.checkpoint("loaded")
-        if start <= 1:
-            unequip_marle(machine)
-            run.checkpoint("empty")
-        if start <= 2:
-            assert run.world_go(248, 512), "Zenan Bridge's southern entrance"
-            machine.run(3, "A")
-            machine.run(120)
-            assert run.wait_control() and run.map_id() == "8700"
-            run.checkpoint("bridge")
-        if start <= 3:
-            machine.run(600, "RIGHT+B")
-            machine.run(90)
-            machine.run(20, "DOWN")
-            machine.run(100, "RIGHT+B")
-            machine.run(90)
-            machine.run(35, "UP")
-            machine.run(100, "RIGHT+B")
-            machine.run(90)
-            assert run.map_id() == "f101" and run.world_pos()[1] == 448, "across the bridge"
-            run.checkpoint("north")
+        phases = ["canyon", "lower", "upper", "gate", "spekkio", "won"]
+        start = run.start_at(phases) + 4
         if start <= 4:
-            assert run.world_go(440, 208), "Truce Canyon's entrance"
-            machine.run(3, "A")
-            machine.run(120)
-            assert run.wait_control() and run.map_id() == "7000"
+            # The glitch and the walk to Truce Canyon are the movie's own presses, which the
+            # field plays on time; the world map's searches took most of the route's time.
+            machine.play_movie(str(MOVIE), CANYON_ENTERED)
+            assert run.wait_control() and run.map_id() == "7000", "Truce Canyon"
+            assert machine.peek(MARLE_GEAR, 2) == bytes(2), "Marle's armor and helmet empty"
             run.checkpoint("canyon")
         if start <= 5:
             machine.run(100, "UP+B")

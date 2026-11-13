@@ -3,6 +3,7 @@ tools/suite.py): every line names a movie in the library and says why it is
 there, so the default gate can't silently run fewer movies than it lists.
 Needs no ROM.
 """
+import re
 import unittest
 import pathlib
 import tempfile
@@ -30,7 +31,9 @@ class GateMoviesTest(unittest.TestCase):
                 self.assertIn(movie, library)
                 header = " ".join(line[1:].strip() for line in library[movie].read_text().splitlines()
                                   if line.startswith("#"))
-                self.assertRegex(header, r"\b[Rr]oute:? %s\b" % route)
+                own = re.search(r"\b[Rr]oute:? %s\b" % route, header)
+                names_it = movie in (outcomes.ROUTES / (route + ".py")).read_text()
+                self.assertTrue(own or names_it, "the movie's header names its route, or the route the movie")
 
     def test_the_sample_is_part_of_the_library(self):
         names, _ = suite.gate_movies()
