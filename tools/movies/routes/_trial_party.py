@@ -11,6 +11,19 @@ def battle_ready(run):
     return A.battle_menu_open(run.machine) and run.machine.w(0x7E5E32) > 0
 
 
+def approach_battle(run, direction):
+    """Keep walking past arrival scenes until a battle menu opens."""
+    for _ in range(8):
+        assert advance(run, direction, lambda: battle_ready(run)), ("the boss approach", run.map_id(), run.me())
+        if battle_ready(run):
+            return
+        assert run.dialogs_until(lambda: battle_ready(run) or run.machine.b(PLAYER_CONTROL), 12000)
+        if battle_ready(run):
+            return
+        assert run.wait_control()
+    raise AssertionError("too many scenes before the boss")
+
+
 def settle(run, seed=1, policy=None):
     """A script can briefly enable movement while still staging a battle."""
     machine = run.machine
@@ -169,6 +182,16 @@ def early_party(bot, state, rng, inventory):
     if character == 2 and state.mp(state.member) >= 1:
         return ("tech", 0, target)
     return ("attack", target)
+
+
+def battle_item(bot, item, target):
+    """Find a usable item in the battle list, which retains depleted slots."""
+    records = bot.machine.peek(0x7E1580, 256 * 5)
+    for index in range(256):
+        record = records[index * 5:index * 5 + 5]
+        if record[0] == item and record[3]:
+            return ("item", index, target)
+    return None
 
 
 def fight(run, seed=1, party=3, policy=early_party, after=True):

@@ -20,7 +20,7 @@ from .. import castle
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 from ._trial_walk import toward, world_enter
-from . import _early_bosses as early
+from . import _trial_party as early
 from . import castle_flea
 from . import castle_slash
 from . import magic_cave
