@@ -183,9 +183,14 @@ the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
 Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
 Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 `castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
-corridor and the inner rooms (a search that plays ladders and stairs through)
-to Magus's door (frame 385447). Ozzie waits there behind a barrier the
-party's blows barely touch; the leg stops before him, its MP spent.
+corridor and the inner rooms (a search that plays ladders and stairs through),
+a rest with a Shelter at the save point in the dark room off the tower
+(`$1D7`), Ozzie's last stand (the party strikes the levers beside him, not
+Ozzie), a second rest at the save point in his hall, and the stair down to
+Magus's chamber (`$0AC`, frame 403039). It stops before Magus: at levels 21-22
+the bot's best tries leave him 4042 of his 6666 HP (X-Strike about 120 a hit,
+Frog's blows about 100), while his spells take the party's 330-370 HP down
+in a few turns.
 
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
