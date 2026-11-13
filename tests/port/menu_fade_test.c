@@ -3,12 +3,14 @@
  * fade out started while the fade in is still under way -- a cancel pressed
  * as the gate's party exchange comes up -- turns the fade in round, so that
  * the two, each taking a step a frame, come down to black together rather
- * than undoing each other's step for ever. Exits non-zero on failure.
+ * than undoing each other's step for ever (as $C2:83E7's shared step does).
+ * Exits non-zero on failure.
  *
  *   menu_fade_test */
 #include <stdio.h>
 
 #include "menu/fades.h"
+#include "menu/menu.h"
 #include "port/state_host.h"
 #include "vars.h"
 
@@ -35,7 +37,7 @@ int main(void)
     }
 
     set_menu_brightness(g, OTHER_SETTINGS | 1);
-    set_menu_fade_step(g, (uint8_t)FADE_IN);
+    menu_coroutines(g)->fade_step = FADE_IN;
     unsigned steps = 0;
     while (menu_fade_a_step(g) == MENU_FADE_GOES_ON && steps < A_LONG_TIME)
         steps++;
@@ -45,15 +47,15 @@ int main(void)
 
     /* The fade in under way, at half brightness, when a fade out starts. */
     set_menu_brightness(g, 7);
-    set_menu_fade_step(g, (uint8_t)FADE_IN);
+    menu_coroutines(g)->fade_step = FADE_IN;
     CHECK(menu_fade_a_step(g) == MENU_FADE_GOES_ON, "the fade in under way");
-    set_menu_fade_step(g, (uint8_t)FADE_OUT);
+    menu_coroutines(g)->fade_step = FADE_OUT;   /* the fade out started, as start_fade sets it */
     MenuFadeEnd fade_in = MENU_FADE_GOES_ON, fade_out = MENU_FADE_GOES_ON;
     for (steps = 0; steps < A_LONG_TIME && (fade_in == MENU_FADE_GOES_ON || fade_out == MENU_FADE_GOES_ON); steps++) {
-        if (fade_in == MENU_FADE_GOES_ON)
-            fade_in = menu_fade_a_step(g);
         if (fade_out == MENU_FADE_GOES_ON)
             fade_out = menu_fade_a_step(g);
+        if (fade_in == MENU_FADE_GOES_ON)
+            fade_in = menu_fade_a_step(g);
     }
     CHECK(fade_out == MENU_FADE_AT_BLACK, "the fade out reaches black over the fade in");
     CHECK(fade_in == MENU_FADE_AT_BLACK, "the fade in, turned round, ends at black too");

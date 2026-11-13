@@ -30,22 +30,23 @@ static void set_brightness(GameState *g, uint8_t level)
     set_menu_brightness(g, (uint8_t)((menu_brightness(g) & ~BRIGHTNESS) | level));
 }
 
-/* The fade's direction and cadence, kept in the menus' cells. A fade reads
- * them again at every step, as the original does ($C2:83E7): a fade out
- * started while the screen's fade in is still under way (a cancel pressed as
- * a screen comes up) sets the one step both fades take, so the fade in turns
- * round and both come down to black together. */
+/* The fade's direction and cadence, kept in the menus' cells. The step is
+ * the one every fade under way takes: the original's fades read it again at
+ * each step ($C2:83E7), so a fade out started while the screen's fade in is
+ * still under way (a cancel pressed as the screen comes up) turns the fade in
+ * round, and the two come down to black together. The port reads it from
+ * the menus' own state, where start_fade keeps it beside the cell: the cell's
+ * reads aren't in the work the menus were measured at. */
 static void start_fade(GameState *g, int8_t step)
 {
     set_menu_fade_step(g, (uint8_t)step);
     set_menu_fade_frames(g, FRAMES_A_STEP);
+    menu_coroutines(g)->fade_step = step;
 }
 
-/* One step of the fade under way: the brightness moved by the fade's step,
- * held at full or black. */
 MenuFadeEnd menu_fade_a_step(GameState *g)
 {
-    int level = brightness(g) + (int8_t)menu_fade_step(g);
+    int level = brightness(g) + menu_coroutines(g)->fade_step;
     if (level <= BLACK) {
         set_brightness(g, BLACK);
         return MENU_FADE_AT_BLACK;
@@ -59,9 +60,8 @@ MenuFadeEnd menu_fade_a_step(GameState *g)
 }
 
 // $C2:83D0
-/* A fade's steps, in the task it runs in, each held for the fade's frames,
- * until full brightness, or black, which is held a last frame so that it is
- * shown. */
+/* A fade's steps, in the task it runs in, each held a frame, until full
+ * brightness, or black, which is held a last frame so that it is shown. */
 static void fade(GameState *g, int8_t step)
 {
     start_fade(g, step);
@@ -73,7 +73,7 @@ static void fade(GameState *g, int8_t step)
             menu_task_waits(g, 1);
             return;
         }
-        menu_task_waits(g, menu_fade_frames(g));
+        menu_task_waits(g, FRAMES_A_STEP);
     }
 }
 

@@ -277,14 +277,13 @@ def cave_out(run):
     world_toward(run, *CASTLE_DOOR, near=8)
 
 
-CHARACTER_RECORDS, CHARACTER_RECORD_BYTES = 0x7E2600, 0x50
-HP, MAX_HP, MP, MAX_MP = 3, 5, 7, 9          # words of a character's record
+HP, MAX_HP, MP, MAX_MP = 3, 5, 7, 9          # words of a character's record (playthrough.CHARACTER_RECORDS)
 ITEM_TARGET_ROW = 12                          # the items' member window: its cursor 12-14 on the active rows
 TONIC_HP, ETHER_MP, MID_ETHER_MP = 50, 10, 30
 
 
 def record_word(run, character, offset):
-    return run.machine.w(CHARACTER_RECORDS + character * CHARACTER_RECORD_BYTES + offset)
+    return run.machine.w(main_leg.CHARACTER_RECORDS + character * main_leg.CHARACTER_RECORD_BYTES + offset)
 
 
 def tend(run):
