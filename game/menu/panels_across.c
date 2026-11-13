@@ -260,6 +260,7 @@ static ScreenLayout layout_of_the_screen(const GameState *g)
     case MENU_SCREEN_LOAD: return PARTED;
     case MENU_SCREEN_MAIN_MENU:
     case MENU_SCREEN_EQUIPMENT:
+    case MENU_SCREEN_SETTINGS:
     case MENU_SCREEN_SHOP:
     case MENU_SCREEN_TECHS:
     case MENU_SCREEN_SAVE:
