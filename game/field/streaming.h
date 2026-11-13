@@ -40,6 +40,7 @@ typedef struct {
 typedef struct {
     uint8_t due;
     bool held[3];                  /* the layer holds the field's map (FIELD_LAYERS) */
+    bool taken[3];                 /* ... but a battle shows a picture of its own on it */
     FieldLayerSpan span[3];
     /* Whether the map's left and right edge columns are a void where the
      * margins were last built: judged there, while the map's looks are the
@@ -52,10 +53,13 @@ FieldMargins *field_margins(GameState *g);
 void field_margins_due(GameState *g);
 /* ... and how far across each layer holds the map, every frame. The battle,
  * fought over the field's layers, shows them as far at its own scroll
- * (FIELD_LAYERS of them), but for a layer it draws its own picture into. */
+ * (FIELD_LAYERS of them), but for a layer while it shows a picture of its own
+ * there: from a battlefield's change until the battle puts the field's layer
+ * back. */
 void field_show_the_layers_across(GameState *g, Platform *pf);
 void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint16_t scroll[3]);
 void field_battle_takes_its_own_layer(GameState *g, unsigned layer);
+void field_battle_gives_the_layer_back(GameState *g, unsigned layer);
 
 /* Whether each layer's map repeats within the map's tables, and whether a
  * layer's drawing at the map's load fits the staging buffers (what the port

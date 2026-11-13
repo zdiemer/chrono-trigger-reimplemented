@@ -279,7 +279,10 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   elsewhere the layer stops at the map. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
-  within the map's width. Objects within the original's activation window
+  within the map's width -- unless it is a veil, a layer drawn whole that the
+  color math lays over the picture at half strength or that lies on the sub
+  screen alone (Death Peak's drifting fog): a pattern the original repeats as
+  it drifts, which goes on across the map. Objects within the original's activation window
   (two map tiles past the screen) run and are drawn as on the original's
   screen. Past it, as each finished frame is sent, `field/margin_objects.c`
   lists the objects the field updates that can be seen but are out of view,
@@ -293,9 +296,14 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
 - **The battle** is fought over the field's layers and shows them as far as
   the field last built them, moved with its own scroll
   (`field_show_the_layers_under_a_battle`); a battlefield that brings its own
-  BG3 keeps that layer to the original's screen.
+  BG3 keeps that layer to the original's screen until the battle puts the
+  field's back (`field_battle_gives_the_layer_back`, as the start's screen
+  settings return), when the field's layer -- the Denadoro forest's shade --
+  shows across again.
 - **The world maps** fill their two scrolling planes' margins the same way
-  each frame (`menu_map_fill_the_views_margins`) and show them across the view.
+  each frame (`menu_map_fill_the_views_margins`) and show them across the view,
+  and the layer over them (the clouds the opening flies over) too: it is laid
+  out whole across its tilemap's two screens, which its drift wraps round.
   The sprite list's drawing culls to the original's screen, and its counts,
   time and noise are the game's, so it is left as it is: beside it,
   `menu_list_the_sprites_past_the_screen` lists the map's sprites it left
