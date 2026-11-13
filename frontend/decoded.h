@@ -37,14 +37,15 @@ typedef struct Decoded Decoded;
  * bytes as they are being made, and what the kind keeps of its own as it
  * reads: counts (how many colors; how many glyphs and lines; how many tiles
  * and lines, and how many tiles a line has), how the resource is kept, which
- * part of it is being read, how much it may make, and bytes it makes before
- * it makes the resource's from them (a packed resource's unpacked bytes:
- * decoded_grow). */
+ * part of it is being read and where in its bytes, how much it may make, and
+ * bytes it makes before it makes the resource's from them (a packed
+ * resource's unpacked bytes: decoded_grow), or keeps beside them. */
 typedef struct {
     int entry;
     uint8_t *bytes;
     uint32_t items, lines, across;
     unsigned form, part;
+    uint32_t at;
     uint32_t most;   /* the most bytes the kind will make of it, once it knows */
     uint8_t *made;
     uint32_t made_len, made_room;

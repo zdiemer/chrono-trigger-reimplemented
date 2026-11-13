@@ -13,6 +13,8 @@
  *                   tile set's looks, then a cell of attributes a tile
  *   lz:looks        a tile set's looks: a 16x16 tile's four 8x8 tilemap
  *                   entries, two by two, eight looks a row
+ *   lz:chunky       mode 7's tiles, a byte a pixel (a color in hex), eight
+ *                   by eight, four tiles a row
  *   lz:tilemap:N    tilemap entries, N a row
  *   lz:bytes:N      bytes in hex, N a row
  *   lz:nibbles:N    a hex digit a cell, N a row, two to a byte, the high first

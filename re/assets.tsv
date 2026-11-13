@@ -9,7 +9,9 @@
 # text; `lz:field-map`, `lz:looks`, `lz:tilemap:N`, `lz:bytes:N`, `lz:nibbles:N`, `lz:colors:N`:
 # packed maps, looks and grids, and `lz`, `lz:event` other packed streams, as frontend/maps.h's;
 # `text:dialog` a string, `text:names:N` names of N glyphs, `text:dialog-dictionary` the
-# dictionary's words, as frontend/text.h's).
+# dictionary's words, as frontend/text.h's; `tiles:plane-pool` the battlefield's tiles of two or
+# three bitplanes, cut by their descriptors, as frontend/tiles.h's; `struct:sprite-records:N`,
+# `struct:location-exits` tables of records, as frontend/records.h's).
 # name	type	at	end	codec	found by
 menu_scene_scroll_pattern	bytes	C0:0000	C0:01BF	raw	accessor menu_scene_scroll_pattern_byte
 built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor built_in_command_byte
@@ -676,7 +678,7 @@ battle_tile_descriptors	words	CF:A000	CF:DFFF	raw	accessor battle_tile_descripto
 battle_tile_row_palettes	words	CF:E000	CF:E1FF	raw	accessor battle_tile_row_palette_word
 battlefield_tile_palettes	bytes	CF:E200	CF:E2FF	raw	accessor battlefield_tile_palettes
 battle_animation_switch	bytes	CF:FE85	CF:FFFF	raw	accessor battle_animation_switch
-overworld_packed_planes	gfx	D0:0000	D0:DFFF	gfx:plane-pool	accessor battle_field_graphics_word
+battlefield_tile_pool	gfx	D0:0000	D0:DFFF	tiles:plane-pool	accessor battle_field_graphics_word
 effect_tilemap_graphics_address	ptr24	D0:E000	D0:E011	raw	accessor effect_tilemap_graphics_address
 effect_tilemap_graphics_address.0	lz	D0:E012	D0:E277	lz:tilemap:32	effect_tilemap_graphics_address entry
 effect_tilemap_graphics_address.1	lz	D0:E278	D0:E577	lz:tilemap:32	effect_tilemap_graphics_address entry
@@ -2309,8 +2311,8 @@ setup_delay_lists.189	bytes	E4:CB5F	E4:CB8A	raw	read
 setup_delay_lists.190	bytes	E4:CB8B	E4:CB96	raw	setup_delay_lists entry
 setup_delay_lists.191	bytes	E4:CB97	E4:CBA6	raw	read
 setup_delay_lists.192	bytes	E4:CBA7	E4:CC56	raw	setup_delay_lists entry
-field_sprite_records	struct	E4:F000	E4:F522	struct:sprite-records	accessor field_sprite_record
-battle_sprite_records	struct	E4:F600	E4:FFD7	struct:sprite-records	accessor setup_enemy_header
+field_sprite_records	struct	E4:F000	E4:F522	struct:sprite-records:5	accessor field_sprite_record
+battle_sprite_records	struct	E4:F600	E4:FFD7	struct:sprite-records:10	accessor setup_enemy_header
 sprite_resource_bases	ptr16	E4:FFE0	E4:FFED	raw	accessor field_sprite_data_table
 location_exit_lists	struct	E5:0000	E5:1A43	struct:location-exits	accessor field_exit
 graphics_block_address.0	lz	E5:2000	E5:2361	lz:2bpp	graphics_block_address entry

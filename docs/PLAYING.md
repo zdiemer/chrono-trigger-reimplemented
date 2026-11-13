@@ -14,8 +14,9 @@ program is headless. Use `.exe` on Windows. `--help` lists display options.
 The native frontend imports the user's cartridge into a local asset pack on
 first use. `--assets <pack>` chooses the pack; no game assets are distributed.
 Beside the pack, `<pack name>.palettes`, `<pack name>.fonts`,
-`<pack name>.graphics`, `<pack name>.maps` and `<pack name>.text` hold the
-game's palettes, fonts, tiles, maps and text as text, written from the pack
+`<pack name>.graphics`, `<pack name>.maps`, `<pack name>.text` and
+`<pack name>.records` hold the game's palettes, fonts, tiles, maps, text and
+tables of records as text, written from the pack
 the first time: edit a color, draw a glyph or a tile, change a map's tiles
 or a line of dialog there and it is what the game shows from the next start; delete a file to write it afresh.
 `tools/sheets.py <pack name>.fonts DIR` (or `.graphics`, with `--only

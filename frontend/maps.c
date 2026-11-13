@@ -67,6 +67,10 @@ static bool shape_of(const AssetEntry *e, Shape *s)
         *s = (Shape){ CELL_ENTRY, 8, 2, false };
         return true;
     }
+    if (!strcmp(c, "lz:chunky")) {   /* mode 7's tiles: 8x8 bytes, a byte a pixel */
+        *s = (Shape){ CELL_BYTE, 4, 8, false };
+        return true;
+    }
     if (counted(c, "lz:bytes:", &n))
         *s = (Shape){ CELL_BYTE, n, 1, false };
     else if (counted(c, "lz:nibbles:", &n) && n % 2 == 0)
@@ -231,7 +235,8 @@ static void write_grid(DecodedText *t, Shape s, const uint8_t *bytes, size_t len
     for (uint32_t first = 0, row = 0; first < blocks; first += s.across, row++) {
         uint32_t n = blocks - first < s.across ? blocks - first : s.across;
         if (s.block > 1)
-            snprintf(line, sizeof line, "# look %03X\n", (unsigned)first);
+            snprintf(line, sizeof line, s.cell == CELL_ENTRY ? "# look %03X\n" : "# tile %03X\n",
+                     (unsigned)first);
         else if (row % COMMENT_EVERY == 0)
             snprintf(line, sizeof line, "# row %u\n", (unsigned)row);
         if (s.block > 1 || row % COMMENT_EVERY == 0)
@@ -267,8 +272,8 @@ static const char *read_grid_line(DecodedReading *r, Shape s, uint32_t base, boo
         return "nothing goes after the rest";
     if (decoded_word(&at, end, "rest")) {
         if (r->lines)
-            return "a row of looks is two lines";
-        uint8_t left[8];
+            return "a row of looks or tiles is all its lines";
+        uint8_t left[64];
         int n = read_rest(at, end, left, size - 1);
         if (n <= 0)
             return "the rest is fewer bytes in hex than a cell has";
@@ -283,7 +288,7 @@ static const char *read_grid_line(DecodedReading *r, Shape s, uint32_t base, boo
     }
     uint32_t cells = cells_in(line, end, s.cell);
     if (cells % s.block)
-        return "a look is two cells across";
+        return s.cell == CELL_ENTRY ? "a look is two cells across" : "a tile is eight bytes across";
     uint32_t blocks = cells / s.block;
     if (r->lines == 0) {   /* a row starts */
         if (r->items > 0 && r->across < s.across)
@@ -296,7 +301,7 @@ static const char *read_grid_line(DecodedReading *r, Shape s, uint32_t base, boo
             return "more than the cartridge's stream unpacks to";
         r->across = blocks;
     } else if (blocks != r->across) {
-        return "each line of a row of looks has the row's looks";
+        return "each line of a row has the row's looks or tiles";
     }
     const char *c;
     size_t n;
@@ -641,7 +646,7 @@ static const char *read_end(Decoded *d, DecodedReading *r)
     if (r->form != PACKED_UNSAID && shape.field_map)
         return read_map_end(d, r);
     if (r->lines)
-        return "a row of looks is two lines";
+        return "a row of looks or tiles is all its lines";
     return packed_end(d, r);
 }
 

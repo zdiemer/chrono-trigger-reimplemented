@@ -34,12 +34,16 @@ TILE_BYTES = {"tiles:2bpp": 16, "tiles:4bpp": 32}
 # Other packed resources' codecs: a location's map, a tile set's looks, and
 # grids of tilemap entries, bytes, hex digits or colors N a row; and streams
 # without a text of their own yet (frontend/maps.h writes and reads them all).
-PACKED_CODEC = re.compile(r"lz(:event|:2bpp|:4bpp|:field-map|:looks|:(tilemap|bytes|colors):[1-9][0-9]*"
+PACKED_CODEC = re.compile(r"lz(:event|:2bpp|:4bpp|:field-map|:looks|:chunky|:(tilemap|bytes|colors):[1-9][0-9]*"
                           r"|:nibbles:([2468]|[1-9][0-9]*[02468]))?")
 
 # Text's codecs: a string, names of N glyphs each, the dictionary
 # (frontend/text.h writes and reads them as text).
 TEXT_CODEC = re.compile(r"text:(dialog|dialog-dictionary|names:[1-9][0-9]*)")
+
+# Tables of records: sprites' records of N bytes, the locations' exits
+# (frontend/records.h writes and reads them as text).
+STRUCT_CODEC = re.compile(r"struct:(sprite-records:(5|10)|location-exits)")
 
 class Row:
     __slots__ = ("name", "type", "at", "end", "codec", "found")
@@ -102,6 +106,13 @@ def problems_of(rows: list[Row]) -> list[str]:
                            f"of FONT's glyphs from $XX on and no more")
         if r.codec in TILE_BYTES and (r.type != "gfx" or size % TILE_BYTES[r.codec]):
             out.append(f"{r.name}: tiles are gfx, whole tiles of {TILE_BYTES[r.codec]} bytes")
+        if r.codec == "tiles:plane-pool" and r.type != "gfx":
+            out.append(f"{r.name}: a pool of tiles is gfx")
+        if r.codec.startswith("struct") and (not STRUCT_CODEC.fullmatch(r.codec) or r.type != "struct"
+                                             or (r.codec.startswith("struct:sprite-records")
+                                                 and size % int(r.codec.split(":")[2]))):
+            out.append(f"{r.name}: a table of records is struct, its codec struct:sprite-records:N (whole "
+                       f"records) or struct:location-exits")
         if (r.codec.startswith("lz") or r.type == "lz") and (not PACKED_CODEC.fullmatch(r.codec) or r.type != "lz"):
             out.append(f"{r.name}: a packed stream is lz, its codec lz or lz: and its kind (frontend/maps.h)")
         if (r.codec.startswith("text") or r.type == "text") and (not TEXT_CODEC.fullmatch(r.codec) or r.type != "text"

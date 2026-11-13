@@ -45,6 +45,11 @@ class Sheets(unittest.TestCase):
         self.assertEqual((two.planes, len(two.rows), len(two.rows[0][0]), len(two.rows[1][0])), (2, 2, 16, 1))
         self.assertEqual((four.planes, four.rows[0][0]), (4, ["F......."]))
 
+    def test_pool(self):
+        pool = sheets.parse("[pool]\n# tiles of two or three bit planes\n# 0000\n" + "7......3\n" * 8 + "rest 00 01\n")
+        self.assertEqual((pool["pool"].planes, len(pool["pool"].rows)), (3, 1))
+        self.assertEqual(sheets.tile_sheet(pool["pool"])[2][16 + sheets.GAP], sheets.RAMP8["7"])
+
     def test_wrong_text_refused_at_its_line(self):
         for text, line in (("[../x]\nglyph 00\n....\n", 1),           # out of OUT_DIR
                            ("# a\n[a/b]\n", 2), ("[a\\\\b]\n", 1), ("[a..b]\n", 1), ("[Tiny]\n", 1),

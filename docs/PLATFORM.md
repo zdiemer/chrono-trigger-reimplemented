@@ -96,7 +96,7 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.text`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.text`, `<pack>.records`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
@@ -204,10 +204,17 @@ tile of the field's block 135 with color 15 darkens the walls and floor of
 Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed
 again.
 
-Not decoded yet (issue #273): the attract sequence's packed resources
-(graphics, tilemaps and mode 7 pictures, which the scene program picks),
-and the battlefield's pool of two- and three-plane tiles at `$D0:0000`
-(`gfx:plane-pool`), which only its descriptors cut into tiles.
+The battlefield's pool (`battlefield_tile_pool`, `$D0:0000`,
+`tiles:plane-pool`) is tiles of two bit planes (16 bytes) or three (the
+third a byte a line after the first two, 24), each starting where one of
+the descriptors at `$CF:A000` says (`game/battle/tiles.c`). The cartridge's
+descriptors cut it exactly, 3203 tiles end to end with none overlapping and
+320 bytes after the last that no tile is cut from. `frontend/tiles.c` writes
+the pool's tiles sixteen a row as the other graphics, a three-plane tile's
+pixels `.` and `1`-`7`, and the bytes after them as `rest` lines in hex; it
+reads them back cut by the descriptors the store under the text has, so an
+edited tile keeps its planes and place. `tools/sheets.py` draws it in eight
+greys.
 
 ### Maps and tilemaps
 
@@ -296,6 +303,24 @@ isn't a glyph, a string too long, a short name, too few names, a word given
 twice or missing). With the ROM staged every text resource reads back as
 its bytes. Changing Crono's mother's first line in `<pack>.text` shows at
 frame 6500 of `movies/new-game.ctm`.
+
+### Records
+
+The sprites' records (`struct:sprite-records:5`, the field's; `:10`, the
+enemies', the same five fields and then the enemy's header) and the
+locations' exits (`struct:location-exits`) are the records kind,
+`frontend/records.c`, kept as `<pack>.records`. A sprite record is a line
+of its bytes in hex under a comment naming them; the exits are written a
+location at a time, `location NNN` and an exit a line (`x y reach location
+to_x to_y`), only the locations that have exits. The table's words that
+say where each location's exits start are made again from the lines, so a
+location can be given more exits or fewer, so long as the whole table fits
+its slot (the cartridge's 814 exits fill it).
+
+Measured: `records_test` (ROM-free) writes and reads back made-up records
+and exits, serves an edited record and a location given an exit (the
+locations after it moved on), and refuses wrong text at its line; with the
+ROM staged both tables read back as their bytes.
 
 ## Further targets
 

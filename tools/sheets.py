@@ -3,7 +3,8 @@ frontend/tiles.h) as sheets, a picture each, in a neutral palette and scaled
 up without smoothing: a font's glyphs on a grid under their numbers in hex,
 a glyph's width marked under it where the font has widths; a graphics
 resource's tiles sixteen a row as the text has them, each row's first tile's
-number beside it.
+number beside it (the battlefield's pool, its tiles of two and three
+planes, in eight greys).
 
 From a maps text (frontend/maps.h), draw a map assembled: a location's map
 as the field shows it, BG2 under BG1, each map tile the tile set's look and
@@ -40,6 +41,8 @@ COLUMNS, GAP, TILES_ACROSS, TILE = 16, 2, 16, 8
 # as a ramp from dark to light; color 0 is clear in both.
 COLORS = {".": CLEAR, "1": (255, 255, 255), "2": (176, 176, 176), "3": (16, 16, 16)}
 RAMP = {c: CLEAR if c == "." else (16 * i + 15,) * 3 for i, c in enumerate(".123456789ABCDEF")}
+# The battlefield's pool's tiles of two or three planes: eight colors, dark to light.
+RAMP8 = {c: CLEAR if c == "." else (36 * i + 3,) * 3 for i, c in enumerate(".1234567")}
 
 # Hex digits three pixels wide and five tall, for the labels.
 DIGITS = {
@@ -65,6 +68,7 @@ class Tiles:
 
 
 PLANES = re.compile(r"#\s*\d+ tiles, (\d) bit planes")
+POOL = re.compile(r"#\s*tiles of two or three bit planes")
 # A resource's name, as the catalogue spells them (tools/assets.py): it names
 # the sheet's file, so it can't climb out of the directory or into another.
 NAME = re.compile(r"[a-z][a-z0-9_.]*")
@@ -79,6 +83,9 @@ def parse(text: str):
         if planes and name:
             out[name] = out[name] or Tiles(n)
             out[name].planes = int(planes[1])
+        if POOL.match(raw.strip()) and name:
+            out[name] = out[name] or Tiles(n)
+            out[name].planes = 3
         if not line:
             continue
         if line.startswith("["):
@@ -95,7 +102,7 @@ def parse(text: str):
             words = line.split()
             width = int(words[3]) if len(words) >= 4 and words[2] == "width" else None
             font.glyphs.append((int(words[1], 16), width, []))
-        elif line.startswith("packed"):
+        elif line.startswith("packed") or line.startswith("rest"):
             continue
         elif isinstance(out[name], Font):
             out[name].glyphs[-1][2].append(line)
@@ -147,7 +154,7 @@ def font_sheet(glyphs):
 def tile_sheet(tiles: Tiles):
     """A graphics resource's picture: its tiles as the text lays them out,
     each row's first tile's number to its left."""
-    colors = RAMP if tiles.planes == 4 else COLORS
+    colors = RAMP if tiles.planes == 4 else RAMP8 if tiles.planes == 3 else COLORS
     margin = 4 * 4 + GAP                        # four digits and a gap
     w, h = margin + TILES_ACROSS * TILE + GAP, len(tiles.rows) * (TILE + 1) + GAP
     picture = [[PAPER] * w for _ in range(h)]
