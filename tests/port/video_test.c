@@ -345,6 +345,32 @@ static void wider_view(void)
     vid_render_frame(r, f, pixels, NULL);
     CHECK(row[0] == layer && row[279 - LEFT] == layer && row[280 - LEFT] == backdrop);
 
+    /* Sprites in the margins, in front of the layer: one of VRAM's tiles
+     * straddling the screen's left edge, shown only past it, and one of its
+     * own picture, under the table's sprite at 270, which is behind the
+     * layer; and every frame starts with none. */
+    VidSpritePicture picture = { 0 };
+    for (unsigned q = 0; q < VID_PICTURE_TILES; q++)
+        for (unsigned line = 0; line < 8; line++)
+            picture.tile[q][2 * line + 1] = 0xFF;   /* every dot colour 2 */
+    picture.colour[2] = 31;
+    vid_show_a_sprite_in_the_margins(&pf, &(VidMarginSprite){ .x = -4, .y = ROW, .priority = 3 }, NULL);
+    vid_show_a_sprite_in_the_margins(&pf, &(VidMarginSprite){ .x = 262, .y = ROW - 8, .priority = 3 }, &picture);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    CHECK(f->margin_count == 2 && !f->margin[0].own && f->margin[1].own);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t own = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    CHECK(row[-4 - LEFT] == sprite && row[-1 - LEFT] == sprite && row[-LEFT] == layer);
+    CHECK(row[262 - LEFT] == own && row[269 - LEFT] == own && row[270 - LEFT] == layer && row[278 - LEFT] == layer);
+    CHECK(pixels[(ROW - 8) * WIDTH + 262 - LEFT] == own && pixels[(ROW - 9) * WIDTH + 262 - LEFT] == layer);
+    vid_host_frame_begins(&pf);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    CHECK(f->margin_count == 0);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(row[-4 - LEFT] == layer && row[262 - LEFT] == layer);
+
     /* The original's screen draws from the table alone. */
     vid_host_set_view(&pf, (VidView){ 256, 224 });
     f = vid_host_picture(&pf);
