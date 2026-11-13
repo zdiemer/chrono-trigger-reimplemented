@@ -39,6 +39,7 @@
 #include "menu/vram.h"
 #include "menu/windows.h"
 #include "ram.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- Names --------------------------------------------------------------------------------------- */
@@ -719,7 +720,7 @@ static void ends(GameState *g, Platform *pf, NamingEnd end)
 
 static bool routine(GameState *g, Platform *pf, NamingRoutine routine)
 {
-    if (!menu_naming_is_whole(g)) {
+    if (!PORT_CHECK(menu_naming_is_whole(g))) {
         program_breaks_a_contract(g, routines[routine].routine, "a naming the port doesn't take");
         return false;
     }
@@ -731,7 +732,7 @@ static bool routine(GameState *g, Platform *pf, NamingRoutine routine)
 bool menu_naming_step(GameState *g, Platform *pf)
 {
     NamingStep step = (NamingStep)menu_screen_step(g);
-    if (!takes(g, steps[step].takes)) {
+    if (!PORT_CHECK(takes(g, steps[step].takes))) {
         program_breaks_a_contract(g, steps[step].routine, "a naming the port doesn't take");
         return false;
     }

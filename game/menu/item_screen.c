@@ -42,6 +42,7 @@
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -1349,7 +1350,7 @@ bool menu_sort_items_with(GameState *g, Platform *pf)
 /* The item on the cursor described, where the cursor is on the list. */
 static bool describe(GameState *g)
 {
-    if (!menu_items_can_point_along_the_list(g)) {
+    if (!PORT_CHECK(menu_items_can_point_along_the_list(g))) {
         program_breaks_a_contract(g, 0xC2AD2E, "an items list the port doesn't take");
         return false;
     }
@@ -1421,7 +1422,7 @@ static bool run(GameState *g, Platform *pf, ItemsRoutine r)
 static bool step(GameState *g, Platform *pf, uint32_t routine, bool (*takes)(const GameState *),
                  bool (*run)(GameState *, Platform *))
 {
-    if (!takes(g)) {
+    if (!PORT_CHECK(takes(g))) {
         program_breaks_a_contract(g, routine, "an items screen the port doesn't take");
         return false;
     }

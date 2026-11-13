@@ -41,6 +41,7 @@
 #include "overworld/overworld.h"
 #include "platform/audio.h"
 #include "sound/sound.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- Drawing ------------------------------------------------------------------------------------- */
@@ -414,7 +415,7 @@ static bool panel(GameState *g, Platform *pf)
 
 static bool lay_out(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_save_screen_can_lay_out(g), 0xC2D0E5, "a save screen the port doesn't lay out"))
+    if (!takes(g, PORT_CHECK(menu_save_screen_can_lay_out(g)), 0xC2D0E5, "a save screen the port doesn't lay out"))
         return false;
     TIMED_AS(g, 0xC2D0E5, menu_lay_out_save_screen(g, pf));
     return true;
@@ -435,7 +436,7 @@ static bool save(GameState *g, Platform *pf)
 
 static bool show_the_saved_slot(GameState *g)
 {
-    if (!takes(g, menu_slot_saved_can_show(g), 0xC2CF21, "a slot saved the port doesn't show"))
+    if (!takes(g, PORT_CHECK(menu_slot_saved_can_show(g)), 0xC2CF21, "a slot saved the port doesn't show"))
         return false;
     TIMED_AS(g, 0xC2CF21, menu_show_the_slot_saved(g));
     return true;
@@ -453,12 +454,12 @@ static bool ends(GameState *g, Platform *pf, SavingEnd end)
     case SAVING_BACK_TO_THE_MAIN_MENU: back = menu_back_to_the_main_menu(g, pf); break;
     case SAVING_SAVES_IN_THE_SLOT_JUMPED:
     case SAVING_SAVES_IN_THE_SLOT:
-        if (!takes(g, menu_slot_can_be_saved(g), 0xC2CF0A, "a slot the port doesn't save in"))
+        if (!takes(g, PORT_CHECK(menu_slot_can_be_saved(g)), 0xC2CF0A, "a slot the port doesn't save in"))
             return false;
         TIMED_AS(g, 0xC2CF0A, back = menu_save_in_the_slot_with(g, pf));
         break;
     case SAVING_MOVES_AMONG_THE_SLOTS:
-        if (!takes(g, menu_slot_under_the_cursor_shows(g), 0xC2CFA2, "a save slot the port doesn't show"))
+        if (!takes(g, PORT_CHECK(menu_slot_under_the_cursor_shows(g)), 0xC2CFA2, "a save slot the port doesn't show"))
             return false;
         TIMED_AS(g, 0xC2CFA2, back = menu_move_among_the_slots_with(g, pf));
         break;
@@ -470,7 +471,7 @@ static bool ends(GameState *g, Platform *pf, SavingEnd end)
 /* The panel, where the state is one it handles. */
 bool menu_show_save_panel(GameState *g, Platform *pf)
 {
-    if (!takes(g, menu_save_panel_can_show(g), 0xC2D065, "a save panel the port doesn't show"))
+    if (!takes(g, PORT_CHECK(menu_save_panel_can_show(g)), 0xC2D065, "a save panel the port doesn't show"))
         return false;
     return menu_show_save_panel_with(g, pf);
 }
