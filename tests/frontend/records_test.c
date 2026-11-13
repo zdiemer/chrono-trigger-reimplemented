@@ -65,19 +65,20 @@ static void refused(const AssetStore *base, const char *text, unsigned at)
     decoded_close(d);
 }
 
-/* Exits for every third location, one or two each, the table's end the
- * slot's or short of it. */
-static void made_up_exits(uint8_t *b, uint32_t len)
+/* Runs of `record` bytes for every third location, one or two each, the
+ * table's end the slot's or short of it; the table's words are places in
+ * the bank, which the resource starts `base` into. */
+static void made_up_runs(uint8_t *b, uint32_t len, unsigned record, uint16_t base)
 {
-    enum { LOCATIONS = 0x200, EXITS_AT = 2 * (LOCATIONS + 1) };
+    enum { LOCATIONS = 0x200, RUNS_AT = 2 * (LOCATIONS + 1) };
     memset(b, 0, len);
-    uint32_t at = EXITS_AT;
+    uint32_t at = RUNS_AT;
     for (unsigned l = 0; l <= LOCATIONS; l++) {
-        b[2 * l] = (uint8_t)at;
-        b[2 * l + 1] = (uint8_t)(at >> 8);
-        for (unsigned k = 0; l < LOCATIONS && l % 3 == 0 && k < 1 + l % 2 && at + 7 <= len - 7; k++, at += 7) {
+        b[2 * l] = (uint8_t)(at + base);
+        b[2 * l + 1] = (uint8_t)((at + base) >> 8);
+        for (unsigned k = 0; l < LOCATIONS && l % 3 == 0 && k < 1 + l % 2 && at + 2 * record <= len; k++, at += record) {
             uint8_t exit[7] = { (uint8_t)l, (uint8_t)k, 0x81, (uint8_t)l, (uint8_t)(0x80 | l >> 8), 5, 9 };
-            memcpy(b + at, exit, 7);
+            memcpy(b + at, exit, record);
         }
     }
 }
@@ -122,7 +123,12 @@ int main(void)
     CHECK(exits && sprites && enemies);
     if (!exits || !sprites || !enemies)
         return 1;
-    made_up_exits(made_up(exits), exits->length);
+    made_up_runs(made_up(exits), exits->length, 7, 0);
+    const AssetEntry *chests = named("field_location_chests");
+    CHECK(chests != NULL);
+    if (!chests)
+        return 1;
+    made_up_runs(made_up(chests), chests->length, 4, (uint16_t)chests->at);
     AssetStore made = { made_up_find, NULL };
     const char *why = "";
     CHECK(decoded_round_trip(&record_text, &made, &why));
@@ -170,6 +176,8 @@ int main(void)
     refused(&made, "[field_sprite_records]\n01 02 03 04\n", 2);
     refused(&made, "[field_sprite_records]\n01 02 03 04 05\n", 1);                /* too few records */
     refused(&made, "[battle_sprite_records]\n01 02 03 04 05\n", 2);
+    refused(&made, "[field_location_chests]\nlocation 001\n0102 03\n", 3);
+    refused(&made, "[tile_set_blocks]\n01 02 03 04 05 06 07\n", 2);
 
     the_cartridge();
     free(made_up_bytes);

@@ -67,10 +67,18 @@ A catalogue row whose codec is `palette:N` (or `palette:NxM`) is BGR555
 colors, N a row and M rows a palette: the field's location palettes
 (`palette:15x7`, 88 of them) and sprite palettes (`palette:12`), the battle
 sprites' three- and seven-color sets, the battle screen's effect, gradient and
-background colors, and the party's color cycles. Each was split out of the
-mixed or untyped region that held it, its extent where the accessor's indexing
-and the data agree (every word below `$8000`; the cycle's `$FFFF` tail is its
-own padding row). `tools/assets.py check` holds a palette row to whole words.
+background colors, and the party's color cycles; the menus' colors and the
+portraits' (`menu_colors`, `$FF:CB9C`), the windows' designs' (`$FF:B210`),
+the battle's cursor, number, flash, member and background-set colors
+(`$D1:38F0`, `$D1:4D80`, `$D1:4D90`, `$D1:4B00`, `$D1:6000`), the world map
+view's and its last sprite palette (`$C6:F540`, `$C6:F620`), the palette
+animations' frames (`palette_animation_frames`, `$F6:6CF0`, read through
+`palette_frame_color`; zero from `$F6:7B80` to the bank's end) and the
+attract sequence's colors copied as they are (`$FE:4B7A`, `$FE:8D15`,
+`$FE:F91E`). Each was split out of the mixed or untyped region that held it,
+its extent where the accessor's indexing and the data agree (every word
+below `$8000`; the cycle's `$FFFF` tail is its own padding row). `tools/assets.py
+check` holds a palette row to whole words.
 
 `frontend/palettes.c` writes every palette resource a store serves as text, a
 color a line (`red green blue`, 0-31, and `+` where the word's unused top bit
@@ -101,7 +109,9 @@ bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
-write leaves the pack's own bytes to play, after a warning; a text that is
+write leaves the pack's own bytes to play, after a warning, and so does a
+text written from another catalogue (its opening comment says which, `#
+catalogue XXXXXXXX`), whose names and forms may no longer be this one's; a text that is
 wrong stops the start, naming its line (a resource that is wrong as a whole,
 too short or too big to pack, at its `[name]` line).
 
@@ -203,6 +213,18 @@ its bytes. The lean gate runs on the decoded graphics. Filling the first
 tile of the field's block 135 with color 15 darkens the walls and floor of
 Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed
 again.
+
+The attract sequence's resources (`attract_resource_ptrs.N`, the table at
+`$FE:0000`) are typed by what the scene code does with each
+(`game/scene/`): sprite and layer tiles `lz:4bpp` and `lz:2bpp`, tilemaps
+`lz:tilemap:32`, palettes `lz:colors:16`, mode 7's byte-a-pixel tiles
+`lz:chunky` and its maps `lz:bytes:64`, and the race's, the Epoch's and the
+endings' byte-a-pixel pictures `lz:bytes:64` (64 a row, as the scaler reads
+them). Still bytes in hex where they have no form of their own yet: the
+two pictures of packed four-bit pixels (`.15`, `.46`), the planet's 8bpp
+planar tiles (`.54`), the dive panel's attribute bytes (`.34`) and the
+mosaic's tile list (`.45`); `.0`, the program (`.1`) and `.50` no port
+reads.
 
 The battlefield's pool (`battlefield_tile_pool`, `$D0:0000`,
 `tiles:plane-pool`) is tiles of two bit planes (16 bytes) or three (the
@@ -307,15 +329,18 @@ frame 6500 of `movies/new-game.ctm`.
 ### Records
 
 The sprites' records (`struct:sprite-records:5`, the field's; `:10`, the
-enemies', the same five fields and then the enemy's header) and the
-locations' exits (`struct:location-exits`) are the records kind,
+enemies', the same five fields and then the enemy's header), other tables
+of records of N bytes (`struct:records:N`: the tile sets' eight graphics
+blocks at `$F6:1C00`, the battles' rules at `$E1:DE00`), and the locations'
+exits and chests (`struct:location-exits`, `struct:location-chests` at
+`$F5:F000`, a chest its tile and contents, two words) are the records kind,
 `frontend/records.c`, kept as `<pack>.records`. A sprite record is a line
 of its bytes in hex under a comment naming them; the exits are written a
 location at a time, `location NNN` and an exit a line (`x y reach location
 to_x to_y`), only the locations that have exits. The table's words that
 say where each location's exits start are made again from the lines, so a
 location can be given more exits or fewer, so long as the whole table fits
-its slot (the cartridge's 814 exits fill it).
+its slot (the cartridge's 814 exits fill it; its 249 chests too).
 
 Measured: `records_test` (ROM-free) writes and reads back made-up records
 and exits, serves an edited record and a location given an exit (the

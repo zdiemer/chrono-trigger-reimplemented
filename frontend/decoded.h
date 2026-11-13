@@ -89,8 +89,13 @@ bool decoded_number(const char **s, const char *end, unsigned base, unsigned mos
 bool decoded_word(const char **s, const char *end, const char *word);
 
 /* Every resource of the kind `store` serves, as text: malloc'd, *len bytes
- * (not terminated); NULL with *why when the store lacks one. */
+ * (not terminated); NULL with *why when the store lacks one. Its opening
+ * comment says the catalogue it was written from. */
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why);
+
+/* Whether a text's opening comment says it was written from this catalogue:
+ * one of another (an older one's names, codecs and forms) isn't read. */
+bool decoded_of_this_catalogue(const char *text, size_t len);
 
 /* Resources read from text, served over `base`: NULL with *why and the line
  * (from 1) where the text is wrong; what is wrong with a resource as a whole

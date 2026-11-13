@@ -219,6 +219,12 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     const char *why = "";
     bool missing = false;
     char *text = (char *)files_read(path, len, true, &missing);
+    if (text && !decoded_of_this_catalogue(text, *len)) {
+        fprintf(stderr, "ct_native: %s is of another catalogue of resources; playing the pack's own %s "
+                        "(move it away to write it afresh)\n", path, kind->what);
+        free(text);
+        return NULL;
+    }
     if (text || !missing) {
         if (!text)
             fprintf(stderr, "ct_native: cannot read %s; playing the pack's own %s\n", path, kind->what);

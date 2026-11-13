@@ -43,7 +43,7 @@ TEXT_CODEC = re.compile(r"text:(dialog|dialog-dictionary|names:[1-9][0-9]*)")
 
 # Tables of records: sprites' records of N bytes, the locations' exits
 # (frontend/records.h writes and reads them as text).
-STRUCT_CODEC = re.compile(r"struct:(sprite-records:(5|10)|location-exits)")
+STRUCT_CODEC = re.compile(r"struct:(sprite-records:(5|10)|records:[1-9][0-9]*|location-(exits|chests))")
 
 class Row:
     __slots__ = ("name", "type", "at", "end", "codec", "found")
@@ -109,10 +109,10 @@ def problems_of(rows: list[Row]) -> list[str]:
         if r.codec == "tiles:plane-pool" and r.type != "gfx":
             out.append(f"{r.name}: a pool of tiles is gfx")
         if r.codec.startswith("struct") and (not STRUCT_CODEC.fullmatch(r.codec) or r.type != "struct"
-                                             or (r.codec.startswith("struct:sprite-records")
+                                             or (r.codec.startswith(("struct:sprite-records", "struct:records"))
                                                  and size % int(r.codec.split(":")[2]))):
-            out.append(f"{r.name}: a table of records is struct, its codec struct:sprite-records:N (whole "
-                       f"records) or struct:location-exits")
+            out.append(f"{r.name}: a table of records is struct, its codec struct:sprite-records:N or "
+                       f"struct:records:N (whole records), struct:location-exits or struct:location-chests")
         if (r.codec.startswith("lz") or r.type == "lz") and (not PACKED_CODEC.fullmatch(r.codec) or r.type != "lz"):
             out.append(f"{r.name}: a packed stream is lz, its codec lz or lz: and its kind (frontend/maps.h)")
         if (r.codec.startswith("text") or r.type == "text") and (not TEXT_CODEC.fullmatch(r.codec) or r.type != "text"

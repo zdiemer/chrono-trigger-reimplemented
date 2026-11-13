@@ -109,6 +109,16 @@ int main(void)
     CHECK(text != NULL && e != NULL);
     if (!text || !e)
         return 1;
+    /* The text says the catalogue it was written from; one of another isn't read. */
+    CHECK(decoded_of_this_catalogue(text, len));
+    char *stamp = strstr(text, "# catalogue ");
+    CHECK(stamp != NULL);
+    if (stamp) {
+        char kept = stamp[12];
+        stamp[12] = kept == '0' ? '1' : '0';
+        CHECK(!decoded_of_this_catalogue(text, len));
+        stamp[12] = kept;
+    }
     char header[96];
     snprintf(header, sizeof header, "[%s]\n", e->name);
     char *at = strstr(text, header);

@@ -342,7 +342,11 @@ overworld_place_names.109	text	C6:F336	C6:F343	text:dialog	overworld_place_names
 overworld_place_names.110	text	C6:F344	C6:F34E	text:dialog	overworld_place_names entry
 overworld_place_names.111	text	C6:F34F	C6:F355	text:dialog	overworld_place_names entry
 overworld_place_names	ptr16	C6:F400	C6:F4DF	raw	accessor overworld_place_names
-menu_map_view_tiles	mixed	C6:F4E0	C6:FDEF	raw	accessor menu_map_view_tiles
+menu_map_view_tiles	mixed	C6:F4E0	C6:F53F	raw	accessor menu_map_view_tiles
+menu_map_view_colors	words	C6:F540	C6:F55F	palette:16	accessor menu_map_view_colour_byte
+mixed_c6f560	mixed	C6:F560	C6:F61F	raw	read
+overworld_last_sprite_colors	words	C6:F620	C6:F63F	palette:16	accessor overworld_last_sprite_colours_byte
+mixed_c6f640	mixed	C6:F640	C6:FDEF	raw	read
 menu_scene_stream	ptr24	C6:FDF0	C6:FE19	raw	accessor menu_scene_stream
 overworld_map_graphics	ptr24	C6:FE20	C6:FE8E	raw	accessor overworld_map_graphics
 menu_scene_stream_c6fea0	ptr24	C6:FEA0	C6:FED8	raw	accessor menu_scene_stream
@@ -689,12 +693,18 @@ effect_tilemap_graphics_address.5	lz	D0:F198	D0:F98E	lz:tilemap:32	effect_tilema
 untyped_d0f98f	untyped	D0:F98F	D0:F9FF	raw	read
 battle_screen_colors	words	D0:FA00	D0:FD5F	palette:16	accessor effect_color
 untyped_d0fd60	untyped	D0:FD60	D0:FFFF	raw	read
-battle_animation_tiles_place	mixed	D1:0000	D1:40FF	raw	accessor battle_animation_tiles_place
+battle_animation_tiles_place	mixed	D1:0000	D1:38EF	raw	accessor battle_animation_tiles_place
+battle_cursor_colors	words	D1:38F0	D1:38FF	palette:4	accessor setup_cursor_color
+mixed_d13900	mixed	D1:3900	D1:40FF	raw	read
 battle_sprite_color_sets	words	D1:4100	D1:43FF	palette:3	accessor battle_palette_set_color
 battle_sprite_large_color_sets	words	D1:4400	D1:4AFF	palette:7	accessor battle_palette_set_color
-mixed_d14b00	mixed	D1:4B00	D1:4C7F	raw	read
+battle_member_colors	words	D1:4B00	D1:4C7F	palette:3	accessor setup_member_color
 battle_number_font	gfx	D1:4C80	D1:4D7F	font:8x8	accessor setup_two_plane_tiles
-mixed_d14d80	mixed	D1:4D80	D1:E709	raw	read
+battle_number_colors	words	D1:4D80	D1:4D8F	palette:8	accessor setup_number_color
+battle_flash_colors	words	D1:4D90	D1:4E4F	palette:12	accessor battle_flash_color
+mixed_d14e50	mixed	D1:4E50	D1:5FFF	raw	read
+battle_background_color_sets	words	D1:6000	D1:623F	palette:4	accessor background_set_color
+mixed_d16240	mixed	D1:6240	D1:E709	raw	read
 gradient_set_color	words	D1:E9EF	D1:EA00	raw	accessor gradient_set_color
 gradient_row_turn	bytes	D1:EA21	D1:EA4A	raw	accessor gradient_row_turn
 shape_model_point	words	D1:EC5F	D1:ECF2	raw	accessor shape_model_point
@@ -1846,7 +1856,11 @@ setup_character_graphics.212	lz	E1:C12F	E1:C4D8	lz:4bpp	setup_character_graphics
 setup_character_graphics.213	lz	E1:C4D9	E1:C711	lz:4bpp	setup_character_graphics entry
 setup_character_graphics.226	lz	E1:C712	E1:D320	lz:4bpp	setup_character_graphics entry
 setup_character_graphics.228	lz	E1:D321	E1:DDB1	lz:4bpp	setup_character_graphics entry
-setup_rule_enemy	untyped	E1:DDB2	E1:DFFF	raw	accessor setup_rule_enemy
+untyped_e1ddb2	untyped	E1:DDB2	E1:DDFF	raw	read
+setup_rules	struct	E1:DE00	E1:DE37	struct:records:4	accessor setup_rule_enemy, setup_rule
+setup_rules_padding	padding	E1:DE38	E1:DE7F	raw	zero after the rules' end mark
+battle_enemy_name_hidden	bytes	E1:DE80	E1:DF7F	raw	accessor battle_enemy_name_hidden
+battle_enemy_name_hidden_padding	padding	E1:DF80	E1:DFFF	raw	zero to the end of the bank
 setup_tile_lists.208	bytes	E1:E000	E1:F517	raw	read
 graphics_block_address.181	lz	E2:0000	E2:0C1D	lz:4bpp	graphics_block_address entry
 graphics_block_address.182	lz	E2:0C1E	E2:17E9	lz:4bpp	graphics_block_address entry
@@ -2780,16 +2794,20 @@ field_packed_map.197	lz	F5:E5CD	F5:E792	lz:field-map	field_packed_map entry
 field_packed_map.198	lz	F5:E793	F5:EA0C	lz:field-map	field_packed_map entry
 field_packed_map.199	lz	F5:EA0D	F5:EC7B	lz:field-map	field_packed_map entry
 field_packed_map.200	lz	F5:EC7C	F5:EE01	lz:field-map	field_packed_map entry
-field_games_chests_start	untyped	F5:EE02	F5:FFFF	raw	accessor field_games_chests_start
+untyped_f5ee02	untyped	F5:EE02	F5:EFFF	raw	read
+field_location_chests	struct	F5:F000	F5:F7E5	struct:location-chests	accessor field_location_chest_run, field_chest_at
+untyped_f5f7e6	untyped	F5:F7E6	F5:FE03	raw	read
+field_chests_padding	padding	F5:FE04	F5:FFFF	raw	zero to the end of the bank
 location_records	struct	F6:0000	F6:1BFF	raw	accessor palette_frame_color
-tile_set_blocks_place	untyped	F6:1C00	F6:1DFF	raw	accessor tile_set_blocks_place
+tile_set_blocks	struct	F6:1C00	F6:1DFF	struct:records:8	accessor tile_set_block
 field_packed_map	ptr24	F6:1E00	F6:205D	raw	accessor field_packed_map
 tile_looks_address	ptr24	F6:2100	F6:21BF	raw	accessor tile_looks_address
 bg3_tile_looks_address	ptr24	F6:21C0	F6:2204	raw	accessor bg3_tile_looks_address
 graphics_block_address	ptr24	F6:2220	F6:24B0	raw	accessor graphics_block_address
 untyped_f624b1	untyped	F6:24B1	F6:24BF	raw	read
 location_palettes	words	F6:24C0	F6:6CEF	palette:15x7	accessor location_palette_colour
-untyped_f66cf0	untyped	F6:6CF0	F6:7FFF	raw	read
+palette_animation_frames	words	F6:6CF0	F6:7B7F	palette:16	accessor palette_frame_color
+palette_animation_padding	padding	F6:7B80	F6:7FFF	raw	zero to the end of the bank
 field_packed_script.0	lz	F6:8000	F6:8D58	lz:event	field_packed_script entry
 field_packed_script.1	lz	F6:8D59	F6:9039	lz:event	field_packed_script entry
 field_packed_script.2	lz	F6:903A	F6:9089	lz:event	field_packed_script entry
@@ -6558,20 +6576,20 @@ strings_fcba00.396	text	FC:F8E0	FC:F94B	text:dialog	strings_fcba00 entry
 strings_fcba00.397	text	FC:F94C	FC:F9B1	text:dialog	strings_fcba00 entry
 field_packed_script	ptr24	FC:F9F0	FC:FFF2	raw	accessor field_packed_script
 field_credits_letters_packed	lz	FD:0000	FD:0235	lz:2bpp	accessor field_credits_letters_packed
-attract_resource_ptrs.44	lz	FD:0236	FD:042C	lz	attract_resource_ptrs entry
-attract_resource_ptrs.45	lz	FD:042D	FD:055B	lz	attract_resource_ptrs entry
-attract_resource_ptrs.46	lz	FD:055C	FD:0D83	lz	attract_resource_ptrs entry
-attract_resource_ptrs.47	lz	FD:0D84	FD:0FCD	lz	attract_resource_ptrs entry
-attract_resource_ptrs.48	lz	FD:0FCE	FD:241E	lz	attract_resource_ptrs entry
-attract_resource_ptrs.49	lz	FD:241F	FD:2454	lz	attract_resource_ptrs entry
+attract_resource_ptrs.44	lz	FD:0236	FD:042C	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.45	lz	FD:042D	FD:055B	lz:bytes:16	attract_resource_ptrs entry
+attract_resource_ptrs.46	lz	FD:055C	FD:0D83	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.47	lz	FD:0D84	FD:0FCD	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.48	lz	FD:0FCE	FD:241E	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.49	lz	FD:241F	FD:2454	lz:2bpp	attract_resource_ptrs entry
 attract_resource_ptrs.50	lz	FD:2455	FD:25D0	lz	attract_resource_ptrs entry
-attract_resource_ptrs.51	lz	FD:25D1	FD:2F37	lz	attract_resource_ptrs entry
-attract_resource_ptrs.52	lz	FD:2F38	FD:2FC7	lz	attract_resource_ptrs entry
-attract_resource_ptrs.53	lz	FD:2FC8	FD:302E	lz	attract_resource_ptrs entry
-attract_resource_ptrs.54	lz	FD:302F	FD:545D	lz	attract_resource_ptrs entry
-attract_resource_ptrs.55	lz	FD:545E	FD:57EF	lz	attract_resource_ptrs entry
-attract_resource_ptrs.56	lz	FD:57F0	FD:58E0	lz	attract_resource_ptrs entry
-attract_resource_ptrs.57	lz	FD:58E1	FD:6692	lz	attract_resource_ptrs entry
+attract_resource_ptrs.51	lz	FD:25D1	FD:2F37	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.52	lz	FD:2F38	FD:2FC7	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.53	lz	FD:2FC8	FD:302E	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.54	lz	FD:302F	FD:545D	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.55	lz	FD:545E	FD:57EF	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.56	lz	FD:57F0	FD:58E0	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.57	lz	FD:58E1	FD:6692	lz:bytes:64	attract_resource_ptrs entry
 graphics_block_address.200	lz	FD:6800	FD:7466	lz:4bpp	graphics_block_address entry
 graphics_block_address.201	lz	FD:7467	FD:7E5B	lz:4bpp	graphics_block_address entry
 graphics_block_address.202	lz	FD:7E5C	FD:804E	lz:4bpp	graphics_block_address entry
@@ -6595,50 +6613,52 @@ warp_tunnel_red	words	FD:F001	FD:F122	raw	accessor warp_tunnel_red
 warp_pulse_reach	bytes	FD:F181	FD:F1C0	raw	accessor warp_pulse_reach
 tile_animation_set_start	mixed	FD:F290	FD:FFE4	raw	accessor tile_animation_set_start
 attract_resource_ptrs	ptr24	FE:0000	FE:00DA	raw	accessor scene_resources
-attract_resource_ptrs.2	lz	FE:00E0	FE:0A4D	lz	attract_resource_ptrs entry
-attract_resource_ptrs.3	lz	FE:0A4E	FE:0B12	lz	attract_resource_ptrs entry
-attract_resource_ptrs.4	lz	FE:0B13	FE:1184	lz	attract_resource_ptrs entry
-attract_resource_ptrs.5	lz	FE:1185	FE:1370	lz	attract_resource_ptrs entry
-attract_resource_ptrs.6	lz	FE:1371	FE:1738	lz	attract_resource_ptrs entry
-attract_resource_ptrs.7	lz	FE:1739	FE:2C99	lz	read
-attract_resource_ptrs.8	lz	FE:2C9A	FE:326A	lz	attract_resource_ptrs entry
-attract_resource_ptrs.9	lz	FE:326B	FE:3867	lz	attract_resource_ptrs entry
-attract_resource_ptrs.10	lz	FE:3868	FE:38C3	lz	attract_resource_ptrs entry
-attract_resource_ptrs.11	lz	FE:38C4	FE:3A06	lz	attract_resource_ptrs entry
-attract_resource_ptrs.12	lz	FE:3A07	FE:3A47	lz	attract_resource_ptrs entry
-attract_resource_ptrs.13	lz	FE:3A48	FE:3B05	lz	attract_resource_ptrs entry
-attract_resource_ptrs.14	lz	FE:3B06	FE:4649	lz	attract_resource_ptrs entry
-attract_resource_ptrs.15	lz	FE:464A	FE:4ACB	lz	attract_resource_ptrs entry
-attract_resource_ptrs.16	lz	FE:4ACC	FE:4B1A	lz	attract_resource_ptrs entry
-attract_resource_ptrs.17	lz	FE:4B1B	FE:4B79	lz	attract_resource_ptrs entry
-untyped_fe4b7a	untyped	FE:4B7A	FE:4C39	raw	read
-attract_resource_ptrs.18	lz	FE:4C3A	FE:5306	lz	attract_resource_ptrs entry
-attract_resource_ptrs.19	lz	FE:5307	FE:6001	lz	attract_resource_ptrs entry
-attract_resource_ptrs.20	lz	FE:6002	FE:6C4E	lz	attract_resource_ptrs entry
-attract_resource_ptrs.21	lz	FE:6C4F	FE:6D6C	lz	attract_resource_ptrs entry
-attract_resource_ptrs.22	lz	FE:6D6D	FE:6E33	lz	attract_resource_ptrs entry
-attract_resource_ptrs.23	lz	FE:6E34	FE:6F31	lz	attract_resource_ptrs entry
-attract_resource_ptrs.24	lz	FE:6F32	FE:7110	lz	attract_resource_ptrs entry
-attract_resource_ptrs.25	lz	FE:7111	FE:7205	lz	attract_resource_ptrs entry
-attract_resource_ptrs.26	lz	FE:7206	FE:7379	lz	attract_resource_ptrs entry
-attract_resource_ptrs.27	lz	FE:737A	FE:73E5	lz	attract_resource_ptrs entry
-attract_resource_ptrs.28	lz	FE:73E6	FE:740E	lz	attract_resource_ptrs entry
-attract_resource_ptrs.29	lz	FE:740F	FE:77F5	lz	attract_resource_ptrs entry
-attract_resource_ptrs.30	lz	FE:77F6	FE:8617	lz	attract_resource_ptrs entry
-attract_resource_ptrs.31	lz	FE:8618	FE:8C09	lz	attract_resource_ptrs entry
-attract_resource_ptrs.32	lz	FE:8C0A	FE:8D14	lz	attract_resource_ptrs entry
-untyped_fe8d15	untyped	FE:8D15	FE:8D34	raw	read
-attract_resource_ptrs.33	lz	FE:8D35	FE:9EB0	lz	attract_resource_ptrs entry
-attract_resource_ptrs.34	lz	FE:9EB1	FE:9EF6	lz	attract_resource_ptrs entry
-attract_resource_ptrs.35	lz	FE:9EF7	FE:9FDA	lz	attract_resource_ptrs entry
-attract_resource_ptrs.36	lz	FE:9FDB	FE:A75B	lz	attract_resource_ptrs entry
-attract_resource_ptrs.37	lz	FE:A75C	FE:CEEE	lz	attract_resource_ptrs entry
-attract_resource_ptrs.38	lz	FE:CEEF	FE:D783	lz	attract_resource_ptrs entry
-attract_resource_ptrs.39	lz	FE:D784	FE:E2E0	lz	attract_resource_ptrs entry
-attract_resource_ptrs.40	lz	FE:E2E1	FE:F216	lz	attract_resource_ptrs entry
-attract_resource_ptrs.41	lz	FE:F217	FE:F272	lz	attract_resource_ptrs entry
-attract_resource_ptrs.42	lz	FE:F273	FE:F91D	lz	attract_resource_ptrs entry
-untyped_fef91e	untyped	FE:F91E	FE:FFFF	raw	read
+attract_resource_ptrs.2	lz	FE:00E0	FE:0A4D	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.3	lz	FE:0A4E	FE:0B12	lz:chunky	attract_resource_ptrs entry
+attract_resource_ptrs.4	lz	FE:0B13	FE:1184	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.5	lz	FE:1185	FE:1370	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.6	lz	FE:1371	FE:1738	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.7	lz	FE:1739	FE:2C99	lz:chunky	read
+attract_resource_ptrs.8	lz	FE:2C9A	FE:326A	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.9	lz	FE:326B	FE:3867	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.10	lz	FE:3868	FE:38C3	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.11	lz	FE:38C4	FE:3A06	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.12	lz	FE:3A07	FE:3A47	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.13	lz	FE:3A48	FE:3B05	lz:2bpp	attract_resource_ptrs entry
+attract_resource_ptrs.14	lz	FE:3B06	FE:4649	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.15	lz	FE:464A	FE:4ACB	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.16	lz	FE:4ACC	FE:4B1A	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.17	lz	FE:4B1B	FE:4B79	lz:4bpp	attract_resource_ptrs entry
+attract_colors_fe4b7a	words	FE:4B7A	FE:4BD9	palette:16	accessor scene_copy_resource_to
+attract_planet_tile_order	bytes	FE:4BDA	FE:4C39	raw	accessor scene_copy_resource_to
+attract_resource_ptrs.18	lz	FE:4C3A	FE:5306	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.19	lz	FE:5307	FE:6001	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.20	lz	FE:6002	FE:6C4E	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.21	lz	FE:6C4F	FE:6D6C	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.22	lz	FE:6D6D	FE:6E33	lz:tilemap:32	attract_resource_ptrs entry
+attract_resource_ptrs.23	lz	FE:6E34	FE:6F31	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.24	lz	FE:6F32	FE:7110	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.25	lz	FE:7111	FE:7205	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.26	lz	FE:7206	FE:7379	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.27	lz	FE:737A	FE:73E5	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.28	lz	FE:73E6	FE:740E	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.29	lz	FE:740F	FE:77F5	lz:2bpp	attract_resource_ptrs entry
+attract_resource_ptrs.30	lz	FE:77F6	FE:8617	lz:chunky	attract_resource_ptrs entry
+attract_resource_ptrs.31	lz	FE:8618	FE:8C09	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.32	lz	FE:8C0A	FE:8D14	lz:colors:16	attract_resource_ptrs entry
+attract_dive_sprite_colors	words	FE:8D15	FE:8D34	palette:16	accessor scene_copy_resource_to
+attract_resource_ptrs.33	lz	FE:8D35	FE:9EB0	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.34	lz	FE:9EB1	FE:9EF6	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.35	lz	FE:9EF7	FE:9FDA	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.36	lz	FE:9FDB	FE:A75B	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.37	lz	FE:A75C	FE:CEEE	lz:chunky	attract_resource_ptrs entry
+attract_resource_ptrs.38	lz	FE:CEEF	FE:D783	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.39	lz	FE:D784	FE:E2E0	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.40	lz	FE:E2E1	FE:F216	lz:4bpp	attract_resource_ptrs entry
+attract_resource_ptrs.41	lz	FE:F217	FE:F272	lz:colors:16	attract_resource_ptrs entry
+attract_resource_ptrs.42	lz	FE:F273	FE:F91D	lz:4bpp	attract_resource_ptrs entry
+attract_colors_fef91e	words	FE:F91E	FE:FE3D	palette:16	accessor scene_copy_resource_to
+attract_padding_fefe3e	padding	FE:FE3E	FE:FFFF	raw	zero to the end of the bank
 sound_song_byte	mixed	FF:0000	FF:205F	raw	accessor sound_song_byte
 dialog_font	gfx	FF:2060	FF:445F	font:12x12	accessor menu_font_byte
 strings_ff4460	ptr16	FF:4460	FF:4501	raw	read
@@ -7035,9 +7055,13 @@ strings_ff8400.36	text	FF:8B86	FF:8BB0	text:dialog	strings_ff8400 entry
 strings_ff8400.37	text	FF:8BB1	FF:8BE9	text:dialog	strings_ff8400 entry
 battle_message_layer_tiles	mixed	FF:8BEA	FF:8E5F	raw	accessor battle_message_layer_tiles
 small_font	gfx	FF:8E60	FF:9C5F	font:8x8	accessor menu_screen_graphics_data
-mixed_ff9c60	mixed	FF:9C60	FF:C9FB	raw	accessor battle_message_layer_tiles
+mixed_ff9c60	mixed	FF:9C60	FF:B20F	raw	accessor battle_message_layer_tiles
+window_design_colors	words	FF:B210	FF:B28F	palette:8	accessor menu_window_design_colour
+mixed_ffb290	mixed	FF:B290	FF:C9FB	raw	read
 small_font_replacements	gfx	FF:C9FC	FF:CAFB	font:8x8	accessor menu_screen_graphics_data
-mixed_ffcafc	mixed	FF:CAFC	FF:CF3A	raw	accessor battle_message_layer_tiles
+mixed_ffcafc	mixed	FF:CAFC	FF:CB9B	raw	accessor battle_message_layer_tiles
+menu_colors	words	FF:CB9C	FF:CE4F	palette:16	accessor menu_rom_colour, menu_portrait_colour
+mixed_ffce50	mixed	FF:CE50	FF:CF3A	raw	read
 menu_label_strings	ptr16	FF:CF3B	FF:CF48	raw	accessor menu_label_strings
 menu_label_strings.0	text	FF:CF49	FF:CF72	text:dialog	read
 menu_label_strings.1	text	FF:CF73	FF:CFA0	text:dialog	read

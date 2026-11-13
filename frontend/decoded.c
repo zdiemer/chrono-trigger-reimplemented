@@ -1,9 +1,28 @@
 #include "decoded.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 enum { NOT_HERE = 0xFFFFFFFFu };
+
+/* The comment a text's opening says its catalogue's version in. */
+static const char CATALOGUE_STAMP[] = "# catalogue ";
+
+bool decoded_of_this_catalogue(const char *text, size_t len)
+{
+    char stamp[64];
+    int n = snprintf(stamp, sizeof stamp, "%s%08X\n", CATALOGUE_STAMP, (unsigned)asset_catalogue_version);
+    for (const char *s = text, *end = text + len; s < end && *s == '#';) {
+        const char *newline = memchr(s, '\n', (size_t)(end - s));
+        if (!newline)
+            break;
+        if ((size_t)(newline + 1 - s) == (size_t)n && !memcmp(s, stamp, (size_t)n))
+            return true;
+        s = newline + 1;
+    }
+    return false;
+}
 
 int decoded_entry(const char *name, size_t len, uint16_t *hint)
 {
@@ -51,7 +70,10 @@ static const uint8_t *served(const AssetStore *store, const AssetEntry *e)
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why)
 {
     DecodedText t = { 0 };
+    char stamp[64];
+    snprintf(stamp, sizeof stamp, "%s%08X\n", CATALOGUE_STAMP, (unsigned)asset_catalogue_version);
     decoded_put(&t, kind->header);
+    decoded_put(&t, stamp);
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         const AssetEntry *e = &asset_catalogue[i];
         bool named;
