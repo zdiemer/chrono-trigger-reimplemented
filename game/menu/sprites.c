@@ -250,6 +250,9 @@ static NodeLink place_in_the_list(const GameState *g, uint8_t look, uint16_t til
     }
 }
 
+enum { INSERT_NODE = 0xC20B53 };   /* the original's routine for putting a node in the list */
+
+// $C2:0B53
 /* Show a sprite group this frame for the running object, at its place, with
  * its look: a node from the free list, put in the list where it is drawn. */
 static void show_sprite_group(GameState *g, uint32_t group)
@@ -603,7 +606,7 @@ static bool show(GameState *g, MenuObject o, uint32_t group, uint8_t frames)
 {
     if (!(menu_object_slots_look(g, o) & MENU_LOOK_HELD) && !counting(g, o, frames))
         return false;
-    show_sprite_group(g, group);
+    TIMED_AS(g, INSERT_NODE, show_sprite_group(g, group));
     return true;
 }
 
@@ -1326,7 +1329,7 @@ static bool opening_records_fit(GameState *g);
  * otherwise the program goes no further there. */
 bool menu_record_sprite_loaded(GameState *g, unsigned record)
 {
-    if (!record_sprite_loadable(g, record)) {
+    if (!PORT_CHECK(record_sprite_loadable(g, record))) {
         program_breaks_a_contract(g, 0xC2F422, "a record's sprite the port doesn't load");
         return false;
     }
@@ -1339,7 +1342,7 @@ bool menu_record_sprite_loaded(GameState *g, unsigned record)
  * animation started; the records past them emptied. */
 bool menu_record_sprites_loaded(GameState *g)
 {
-    if (!opening_records_fit(g)) {
+    if (!PORT_CHECK(opening_records_fit(g))) {
         program_breaks_a_contract(g, 0xC2F3CA, "records' sprites the port doesn't load");
         return false;
     }

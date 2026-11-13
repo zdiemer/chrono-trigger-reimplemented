@@ -344,7 +344,7 @@ bool menu_items_can_be_built(const GameState *g)
 
 bool menu_items_built(GameState *g)
 {
-    if (!menu_items_can_be_built(g)) {
+    if (!PORT_CHECK(menu_items_can_be_built(g))) {
         program_breaks_a_contract(g, 0xC29875, "item tables the port doesn't build");
         return false;
     }

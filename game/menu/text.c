@@ -97,12 +97,20 @@ static void put_tile_word(GameState *g, uint32_t at, uint8_t tile)
 
 /* Draw a tile at the pen, and a blank above a blank on two-row text. Returns
  * where the pen goes on. */
+enum { DRAW_TILE = 0xC2EF97 };
+
 // $C2:EF97
-static uint16_t draw_tile(GameState *g, uint16_t pen, uint8_t tile)
+static void put_the_tile(GameState *g, uint16_t pen, uint8_t tile)
 {
     if (tile == BLANK && !one_row(g))
         put_tile_word(g, in_tilemap(pen, -ROW_BYTES), BLANK);
     put_tile_word(g, in_tilemap(pen, 0), tile);
+}
+
+/* A tile drawn at the pen, which moves on past it. */
+static uint16_t draw_tile(GameState *g, uint16_t pen, uint8_t tile)
+{
+    TIMED_AS(g, DRAW_TILE, put_the_tile(g, pen, tile));
     return (uint16_t)(pen + TILE_BYTES);
 }
 

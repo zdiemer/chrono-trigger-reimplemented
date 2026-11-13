@@ -135,3 +135,48 @@ FDD27E 4846 6875 1.42  # events-ocean-palace-lavos 1.45 events-fair-rescue 1.35 
 # $C0:CAD9 (field_draw_next_frame) keeps its rate, 8219: its ratio is 0.94-0.99 in its busiest movies (attract-demo,
 # menus-end-of-time, events-fair-rescue), 0.86 in menus-shop-inn and 0.74 in events-epoch-lavos, which pull the pooled
 # figure to 0.86; the evidence doesn't say one rate.
+
+# The menus' routines (issue #349), from the same 25 movies' whole runs once the menus' checks of their own stopped counting as the game's time (each movie's ratio; the four with the most calls):
+C20B53 2629 2936 1.12  # menus-epoch 1.07 field 1.11 menus-shop-inn 1.06 attract-demo 1.12
+C21243 11571 14260 1.23  # menus-epoch 1.23 menus-shop-inn 1.22 attract-demo 1.25 field-65m-bc-dactyl-flight 1.21
+C21257 10000 11752 1.18  # menus-epoch 1.18
+C2126D 10375 12240 1.18  # menus-epoch 1.17 menus-shop-inn 1.18 field 1.18 events-fair-rescue 1.18
+C21296 6937 8161 1.18  # menus-epoch 1.18 field-65m-bc-dactyl-flight 1.17 menus-shop-inn 1.16 events-fair-rescue 1.16
+C2136A 3900 13415 3.44  # menus-epoch 3.43 menus-shop-inn 3.42 field 3.43 events-epoch-lavos 3.42
+C214F7 12262 9561 0.78  # menus-epoch 0.81 menus-shop-inn 0.76 field 0.76 attract-demo 0.77
+C2151C 14810 11112 0.75  # menus-epoch 0.74 menus-shop-inn 0.79 events-epoch-lavos 0.68 events-fair-rescue 0.79
+C21541 14339 11412 0.80  # menus-epoch 0.80 field-65m-bc-dactyl-flight 0.81 menus-shop-inn 0.78 menus-field-menu 0.71
+C2160F 8047 9982 1.24  # menus-epoch 1.23 attract-demo 1.26
+C21848 5250 10872 2.07  # menus-epoch 2.08 menus-shop-inn 2.09 field-65m-bc-dactyl-flight 2.09 attract-demo 2.07
+C2185F 2964 10907 3.68  # menus-epoch 3.73 menus-shop-inn 3.74 field-65m-bc-dactyl-flight 3.57 attract-demo 3.56
+C2186B 7992 11984 1.50  # menus-epoch 1.51 attract-demo 1.49 menus-shop-inn 1.50 field 1.47
+C2188E 3757 3254 0.87  # menus-epoch 0.85 menus-shop-inn 0.83 events-epoch-lavos 0.95 field 0.94
+C28385 4921 6030 1.23  # menus-field-menu 1.21 menus-save-point 1.21 menus-epoch 1.24 menus-new-game-plus 1.24
+C2838E 4440 9063 2.04  # menus-field-menu 2.05 menus-sweep 2.05 menus-shop-inn 2.06 menus-end-of-time 2.03
+C288AD 7740 5516 0.71  # menus-end-of-time 0.71 field-65m-bc-dactyl-flight 0.71 field-factory-switch 0.71 field-floor-switch 0.71
+C288D8 4019 6646 1.65  # menus-end-of-time 1.65 menus-sweep 1.65 menus-field-menu 1.65 field-65m-bc-dactyl-flight 1.65
+C293BF 2500 5093 2.04  # menus-field-menu 2.05 menus-sweep 2.04 menus-shop-inn 2.01
+C29EB0 11660 6490 0.56  # menus-sweep 0.56 menus-field-menu 0.56 menu 0.56
+C2C805 14685 19966 1.36  # menus-end-of-time 1.36 menus-field-menu 1.37
+C2D466 3742 4688 1.25  # menus-field-menu 1.25 menus-end-of-time 1.26 menus-save-point 1.25 menus-epoch 1.25
+C2E5D3 3663 11149 3.04  # field 3.05 menu 3.05 new-game 3.05
+C2E984 7110 8801 1.24  # menus-field-menu 1.24 menus-sweep 1.25 menus-shop-inn 1.24 menus-end-of-time 1.24
+C2EA53 3188 7982 2.50  # menus-field-menu 2.38 menus-sweep 2.60 menus-shop-inn 2.66
+C2ECAC 7061 8523 1.21  # menus-field-menu 1.20 menus-sweep 1.21 menu 1.34
+C2ED31 4704 24901 5.29  # menus-field-menu 5.31 menus-end-of-time 5.25 menus-save-point 5.25 menus-sweep 5.31
+C2EF48 2403 17707 7.37  # menus-field-menu 7.34 menus-end-of-time 7.29 menus-save-point 7.31 menus-sweep 7.34
+C2EF97 6065 10461 1.72  # menus-field-menu 1.60 menus-sweep 1.63 menus-end-of-time 1.75 menus-save-point 1.75
+C2F28D 13752 4720 0.34  # menus-field-menu 0.34 menus-end-of-time 0.36 menus-save-point 0.36 menus-sweep 0.34
+C2F332 300 6039 20.13  # menus-field-menu 20.27 menus-end-of-time 20.11 menus-sweep 20.24 menus-save-point 20.12
+C2F871 7694 11288 1.47  # menus-shop-inn 1.48 menus-field-menu 1.45 menus-end-of-time 1.47 menus-sweep 1.47
+C2F943 3125 4372 1.40  # menus-field-menu 1.39 menus-sweep 1.43
+C2FAE9 6414 8864 1.38  # menus-field-menu 1.39 menus-sweep 1.39
+C2FB97 5843 6716 1.15  # menus-field-menu 1.16 menus-end-of-time 1.14 menus-save-point 1.13 menus-epoch 1.16
+# The glyph drawer's line ($C2:5E89) has its scope back, so the glyph's own routine ($C2:5E36) keeps only its own work;
+# their calls differ by 11% (a line drawn only where a glyph shows), so the picker above left them out:
+C25E89 3477 13099 3.77  # events-end-of-time-gate 3.72 events-epoch-lavos 3.81 events-fair-rescue 3.76 events-jetbike-race 3.75
+C25E36 13580 177178 13.05  # events-end-of-time-gate 12.81 events-epoch-lavos 13.21 events-fair-rescue 13.09 events-jetbike-race 13.00
+# The objects' frame ($C2:051D) and its upload queue ($C2:0405) keep, once the checks stopped counting, only their own
+# work, under the original's by 2.7-4.3 in 9 of 11 movies (7.9 and 9.5 in two with few objects); they take the pooled ratio:
+C2051D 5435 20019 3.68  # attract-demo 3.75 events-epoch-lavos 3.50 events-fair-rescue 3.27 menus-epoch 4.13
+C20405 3545 12943 3.65  # attract-demo 3.60 events-epoch-lavos 4.03 events-fair-rescue 4.30 menus-epoch 4.03

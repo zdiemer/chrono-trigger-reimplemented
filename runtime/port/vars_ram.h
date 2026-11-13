@@ -11,6 +11,13 @@
 void vars_peek(bool on);
 bool vars_peeking(void);
 
+/* A check of the port's own -- whether it handles what it meets -- read as a
+ * guard's look: the check's value, and none of the game's time. The check is
+ * the program's question, not the game's work. Looks nest. */
+#define PORT_CHECK(check) ((void)vars_peek_enter(), vars_peek_leave(check))
+void vars_peek_enter(void);
+bool vars_peek_leave(bool value);
+
 /* Bounds diagnostics for CT_ACCESSOR_CHECKS builds. Indexed overruns retain
  * the legacy byte-layout behavior while recording the invalid access. */
 typedef struct {

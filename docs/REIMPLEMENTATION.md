@@ -189,6 +189,25 @@ Giga Gaia), it showed where native battle time fell short:
   stalls 8 frames at each redraw of the courtroom's layers, ct_native 1-3,
   with or without this change) and MotherBrain (its lag by thousands of
   frames through `$07E`).
+- The menus (issue #349). The menus' sprite objects took 2 to 9 times the
+  original's time in the vblank: the port's checks of what it handles (an
+  object's handler `takes`, a script routine's, the frame steps' and the
+  screens' guards) read the game's state as the game's own work, at the rate
+  of whatever routine ran them. They are now looks (`PORT_CHECK`,
+  port/vars_ram.h), as the event engine's already were, and the objects'
+  work comes to 0.4-1.0 of the original's. A script command's operands are
+  read in its own scope, as its handler reads them in the original. The
+  glyph line (`$C2:5E89`), the text's tile (`$C2:EF97`) and the sprite list's
+  insert (`$C2:0B53`) have their scopes back, and 39 menu rates take the
+  ratio of the original's clocks a call to native's (in
+  `tools/timing_ratios.txt`): a battle message's glyph now takes 26.4k clocks
+  against the original's 26.2k (22.0k before). The vblank uploads
+  (`$C2:85D6`, `$C2:86A9`) are 8-40 times under, varying with what they send:
+  the port's uploads don't charge their bytes, a follow-up. The field's
+  guards still count, and its rates were calibrated with them. Across the 84
+  movies, places on time stay 599 and in order go 694 to 695 (the gate's 58:
+  395 to 395, 476 to 478); one moves away, the Black Omen's Zeal fight, with
+  its evidence on its line.
 - A lag frame gets the main thread time its own handlers leave (issue #321),
   so a frame whose handlers made a load's sends no longer shortens every lag
   frame after it.
