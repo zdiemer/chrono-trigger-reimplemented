@@ -17,6 +17,9 @@ enum { FIELD_TILE_MIRRORED = 0x4000, FIELD_TILE_NUMBER = 0x07FF, FIELD_TILE_BYTE
 /* field/graphics.c: tile `tile` of the graphics set, drawn into bank
  * FIELD_BUILD_BANK at `to`, straight or mirrored as its name says. */
 void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to);
+/* The same tile read into `out` rather than drawn, as a wider view's own
+ * work (field/margin_objects.c). */
+void field_read_frame_tile(const GameState *g, ObjectGraphics set, uint16_t tile, uint8_t out[FIELD_TILE_BYTES]);
 
 /* Where a tile named `tile` starts in its graphics set: bytes from the set's
  * start, and from its bank's (past $FFFF where the tile runs into the next

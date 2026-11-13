@@ -219,8 +219,8 @@ with `vid_host_set_view` (a snapshot keeps the driver's choice). The gate runs
 at the original's (docs/PLAN.md, "Layering"). A port asks it where it decides
 how much to show or where to lay something out, never where a rule of the
 game's uses the screen's size: the field's object window at `$C0:A88D` decides
-which objects run, so a wider picture needs a draw-only test beside it rather
-than a wider window; the sprite-object mode's in-view test
+which objects run, so a wider picture draws the rest beside it rather than
+widening the window; the sprite-object mode's in-view test
 (`menu_scene_object_in_view`) is such a rule too, its scripts branching on it.
 
 ### The wider view, as built
@@ -258,6 +258,15 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   screen. Each mode takes the frame over with `program_hand_the_vblank_to`,
   which forgets the last mode's places, so none outlives its mode to place an
   entry the next writes with the same X and Y.
+- **Sprites in the margins** are what a mode leaves out of its table because
+  they are past the original's screen: each frame a mode may show some
+  beside the table (`vid_show_a_sprite_in_the_margins`), from VRAM's tiles in
+  a sprite palette as an entry does, or from a 16-dot picture of their own
+  with their own colours (`VidSpritePicture`). The renderer draws them only
+  past the original's screen, behind the table's sprites, the first shown
+  over the rest, and counts them toward no sprite limit; every frame starts
+  with none, and a mode that shows them lists them beside the game's memory
+  as its table is built, and shows that list every vblank until the next.
 - **The field** keeps its screen's edges, which decide which objects run
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
@@ -270,21 +279,35 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   elsewhere the layer stops at the map. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
-  within the map's width. Objects show in the margins within the
-  original's activation window (two map tiles past the screen) and not beyond.
+  within the map's width. Objects within the original's activation window
+  (two map tiles past the screen) run and are drawn as on the original's
+  screen. Past it, as each finished frame is sent, `field/margin_objects.c`
+  lists the objects the field updates that can be seen but are out of view,
+  and shows them as margin sprites every vblank, nearest first: each in the
+  frame its animation stands on (`object_frame_shown`; out of view it doesn't
+  tick, so it is the frame it was last placed in, or its animation's first),
+  laid out as the frame builder would (`object_frame_look`), its tiles read
+  from its graphics set and its colours from the ROM, or from its slot where
+  the slot still holds them, and at its place on the map. Nothing of it is
+  run: no timer, no frame queued, no VRAM, no palette slot.
 - **The battle** is fought over the field's layers and shows them as far as
   the field last built them, moved with its own scroll
   (`field_show_the_layers_under_a_battle`); a battlefield that brings its own
   BG3 keeps that layer to the original's screen.
 - **The world maps** fill their two scrolling planes' margins the same way
   each frame (`menu_map_fill_the_views_margins`) and show them across the view.
+  The sprite list's drawing culls to the original's screen, and its counts,
+  time and noise are the game's, so it is left as it is: beside it,
+  `menu_list_the_sprites_past_the_screen` lists the map's sprites it left
+  out across, and they show as margin sprites from VRAM's tiles.
 - **Every other mode** (the menus, the scenes, the time warp's tunnel aside,
   which is Mode 7) keeps its layers to the original's screen, the backdrop in
   the margins, until it builds what lies past it.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
-its state (`SpritePlaces`, `FieldMargins`) is the program's, beside the game's
+its state (`SpritePlaces`, `FieldMargins`, `FieldObjectsPast`,
+`MenuSpritesPast`) is the program's, beside the game's
 memory. Its columns go to VRAM through `vid_send_view_vram`, which shows them
 but keeps them out of what the game reads back (`vid_vram_word`: the palace
 rising copies the field's map out of VRAM) and leaves the VRAM port's step and
