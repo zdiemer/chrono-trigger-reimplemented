@@ -33,7 +33,13 @@ and palette, and `--tilemap NAME
 `--movie <input.ctm> --frames N` runs headlessly to the movie's declared end.
 `--locations` logs visited places; `--end-state <file>` writes the saved-game
 projection source for outcome checks. `--shot-every N --shot-dir <dir>` captures
-screens. These outputs are local, uncommitted artifacts. `--window` forces a
+screens. These outputs are local, uncommitted artifacts. A reporting option
+only looks: its reads of the game's state are a guard's look (`vars_peek`),
+which owes no time, so the run plays the same with or without it. The ctest
+`observers` (tests/frontend/observers.py) plays title-start with each of
+`--timing-report`, `--locations`, `--lag-log`, `--outcomes`, `--end-state`,
+`--screenshot` and `--shot-every` and holds the end state, the last picture
+and the time owed to the plain run's. `--window` forces a
 window even with a frame limit. `--drive` exposes the route protocol over
 stdin/stdout and cannot combine with a movie, scene fixture or window.
 
