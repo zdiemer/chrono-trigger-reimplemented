@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "battle/wide_window.h"
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/party.h"
@@ -460,8 +461,27 @@ static void cartridge_save(const char *path)
     state_host_destroy(g);
 }
 
+/* What a wider view's battle window last showed is the program's state beside
+ * the game's memory, and goes with a snapshot: a battle loaded from one lays
+ * its window out on the first frame as it was, before the window is sent
+ * again. */
+static void wide_window_in_snapshots(void)
+{
+    GameState *g = state_host_create(NULL);
+    *battle_wide_window(g) = (BattleWideWindow){ WINDOW_SHOWS_TECHS, 2, 18 };
+    uint8_t *snapshot = malloc(state_host_snapshot_bytes());
+    state_host_snapshot(g, snapshot);
+    *battle_wide_window(g) = (BattleWideWindow){ WINDOW_SHOWS_PARTY, 0, 12 };
+    state_host_restore(g, snapshot);
+    const BattleWideWindow *w = battle_wide_window(g);
+    CHECK(w->shows == WINDOW_SHOWS_TECHS && w->layout == 2 && w->divider == 18);
+    free(snapshot);
+    state_host_destroy(g);
+}
+
 int main(int argc, char **argv)
 {
+    wide_window_in_snapshots();
     address_view();
     alias_views();
     records_and_composed_views();

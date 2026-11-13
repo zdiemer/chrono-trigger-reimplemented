@@ -35,6 +35,15 @@ void panel_show_columns(PanelLayout *l, PanelRows rows, uint8_t from, uint8_t co
                 *cell(l, row, at + (int)i) = (uint8_t)(from + i);
 }
 
+void panel_show_columns_as_they_lie(PanelLayout *l, PanelRows rows, uint8_t from, uint8_t count, int8_t at)
+{
+    panel_show_columns(l, rows, from, count, at);
+    for (unsigned row = rows.first; row < (unsigned)rows.first + rows.count; row++)
+        for (unsigned i = 0; i < count; i++)
+            if (in_the_ring(at + (int)i))
+                *cell(l, row, at + (int)i) |= VID_LAYOUT_AS_IT_LIES;
+}
+
 void panel_show_nothing(PanelLayout *l, PanelRows rows, int8_t at, uint8_t count)
 {
     for (unsigned row = rows.first; row < (unsigned)rows.first + rows.count; row++)

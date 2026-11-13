@@ -44,6 +44,8 @@ PanelLayout *panel_layout_begin(GameState *g, VidView view);
 /* The map's columns from `from` on, `count` of them, shown on `rows` from
  * the screen's column `at` on. */
 void panel_show_columns(PanelLayout *l, PanelRows rows, uint8_t from, uint8_t count, int8_t at);
+/* The same, shown as the layer lies, without per-column offsets (VID_LAYOUT_AS_IT_LIES). */
+void panel_show_columns_as_they_lie(PanelLayout *l, PanelRows rows, uint8_t from, uint8_t count, int8_t at);
 /* Nothing shown on `rows` from the screen's column `at` on, `count` columns. */
 void panel_show_nothing(PanelLayout *l, PanelRows rows, int8_t at, uint8_t count);
 /* The window whose borders are the map's columns `left` and `right`, drawn
