@@ -189,7 +189,7 @@ enum { TILE_SET_BLOCKS = 8, TILE_SET_BLOCKS_IN_VRAM = 6 };
  * as a long address: in bank $E4, at the word $E4:FFE0 keeps for it. */
 static inline uint32_t field_sprite_data_table(const GameState *g, FieldSpriteTable table)
 {
-    return 0xE40000u | rom_read16(g, 0xE4FFE0u + 2u * table);
+    return 0xE40000u | asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 2u * table);
 }
 
 static inline FieldSpriteRecord field_sprite_record_at(const GameState *g, uint32_t at)
@@ -235,18 +235,27 @@ static inline uint16_t field_sprite_colour(const GameState *g, uint16_t colours,
  * a word each, at $C0:FF30. `at` is the original's byte index; the line
  * effects read 16 words 4 bytes apart from an even start of at most $3E, so
  * the table runs to $C0:FFAB. */
-static inline uint16_t field_wave_offset(const GameState *g, uint16_t at) { return rom_read16(g, 0xC0FF30u + at); }
+static inline uint16_t field_wave_offset(const GameState *g, uint16_t at)
+{
+    return asset_read16(g, ASSET_FIELD_WAVE_OFFSETS, at);
+}
 
 /* The bit-reversed value of every byte, at $C0:FD00: a sprite tile mirrored
  * left to right, a byte (8 pixels of one bit plane) at a time. */
-static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
+static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b)
+{
+    return asset_read8(g, ASSET_MIRRORED_BYTES, b);
+}
 
 /* The credits the endings roll on BG3 (field/script_layers.c): texts of
  * capital letters, one after another from $FD:A000, each line ended by '/'
  * and each text by a byte with its top bit set. `at` is an offset from the
  * first text's start, carried into the next bank as the original's indexed
  * reads carry. */
-static inline uint8_t field_credits_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDA000u + at); }
+static inline uint8_t field_credits_byte(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_FIELD_CREDITS, at);
+}
 
 static inline uint8_t field_blank_entries_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xD20000u + i); }
 
@@ -290,31 +299,37 @@ static inline uint8_t field_animation_frame_time(const GameState *g, uint16_t pl
 /* A direction's angle within its quadrant, at $C0:F300, looked up by the two
  * distances packed into an index (the across distance in the low five bits,
  * the along one above). */
-static inline uint8_t field_quadrant_angle(const GameState *g, uint16_t index) { return rom_read8(g, 0xC0F300u + index); }
+static inline uint8_t field_quadrant_angle(const GameState *g, uint16_t index)
+{
+    return asset_read8(g, ASSET_SLOPE_ANGLES, index);
+}
 
 /* The velocity factor of each of the 256 directions, at $C0:F800: the
  * magnitude on one axis, which the caller signs by the half circle. */
 static inline uint8_t field_direction_factor(const GameState *g, uint8_t direction)
 {
-    return rom_read8(g, 0xC0F800u + direction);
+    return asset_read8(g, ASSET_DIRECTION_FACTORS, direction);
 }
 
 /* The facing (0-3) an object moving in each of the 256 directions takes, at
  * $C0:F700. */
 static inline uint8_t field_facing_of_direction(const GameState *g, uint8_t direction)
 {
-    return rom_read8(g, 0xC0F700u + direction);
+    return asset_read8(g, ASSET_DIRECTION_FACINGS, direction);
 }
 
 /* The game's 256 random bytes, at $C0:FE00, which it steps through
  * (field_draw_random): a blocked object's new direction, a script's dice. */
-static inline uint8_t field_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
+static inline uint8_t field_random_byte(const GameState *g, uint8_t index)
+{
+    return asset_read8(g, ASSET_RANDOM_BYTES, index);
+}
 
 static inline FieldSlope field_slope(const GameState *g, uint8_t shape)
 {
-    uint8_t shift = rom_read8(g, 0xC09BF5u + shape);
-    uint8_t start = rom_read8(g, 0xC09C0Bu + shape);
-    uint8_t side = rom_read8(g, 0xC09C21u + shape);
+    uint8_t shift = asset_read8(g, ASSET_FIELD_SLOPE, shape);
+    uint8_t start = asset_read8(g, ASSET_FIELD_SLOPE, 0x16u + shape);
+    uint8_t side = asset_read8(g, ASSET_FIELD_SLOPE, 0x2Cu + shape);
     return (FieldSlope){ (uint8_t)(shift & 0x7F), (shift & 0x80) != 0, start, side };
 }
 
@@ -342,22 +357,26 @@ static inline FieldChest field_chest_at(const GameState *g, uint16_t place)
     return (FieldChest){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
 
-static inline uint16_t field_games_chests_start(const GameState *g) { return rom_read16(g, 0xF5F000u); }
+static inline uint16_t field_games_chests_start(const GameState *g)
+{
+    return asset_read16(g, ASSET_FIELD_LOCATION_CHESTS, 0);
+}
 
 static inline FieldChestRun field_location_chest_run(const GameState *g, uint16_t location_twice)
 {
-    uint32_t at = 0xF5F000u + location_twice;
-    return (FieldChestRun){ rom_read16(g, at), rom_read16(g, at + 2) };
+    uint32_t at = location_twice;
+    return (FieldChestRun){ asset_read16(g, ASSET_FIELD_LOCATION_CHESTS, at),
+                            asset_read16(g, ASSET_FIELD_LOCATION_CHESTS, at + 2) };
 }
 
 static inline uint32_t field_window_design_graphics(const GameState *g, uint8_t design)
 {
-    return 0xFF0000u | rom_read16(g, 0xC06EA0u + 2u * (design % WINDOW_DESIGNS));
+    return 0xFF0000u | asset_read16(g, ASSET_FIELD_WINDOW_DESIGN_GRAPHICS, 2u * (design % WINDOW_DESIGNS));
 }
 
 static inline uint16_t field_window_design_colour(const GameState *g, uint8_t design, unsigned n)
 {
-    return rom_read16(g, 0xFFB210u + 16u * (design % WINDOW_DESIGNS) + 2u * n);
+    return asset_read16(g, ASSET_WINDOW_DESIGN_COLORS, 16u * (design % WINDOW_DESIGNS) + 2u * n);
 }
 
 static inline uint16_t location_record_place(uint16_t location)
@@ -371,15 +390,22 @@ static inline LocationDescription location_description_at(const GameState *g, ui
     return (LocationDescription){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
 }
 
-static inline uint16_t location_map(const GameState *g, uint16_t place) { return rom_read16(g, 0xF60004u + place); }
+static inline uint16_t location_map(const GameState *g, uint16_t place)
+{
+    return asset_read16(g, ASSET_LOCATION_RECORDS, 0x4u + place);
+}
 
 static inline MapEdges location_map_edges(const GameState *g, uint16_t place)
 {
-    uint32_t at = 0xF6000Au + place;
-    return (MapEdges){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+    uint32_t at = 0xAu + place;
+    return (MapEdges){ asset_read8(g, ASSET_LOCATION_RECORDS, at), asset_read8(g, ASSET_LOCATION_RECORDS, at + 1),
+                       asset_read8(g, ASSET_LOCATION_RECORDS, at + 2), asset_read8(g, ASSET_LOCATION_RECORDS, at + 3) };
 }
 
-static inline uint8_t location_palette(const GameState *g, uint16_t place) { return rom_read8(g, 0xF60003u + place); }
+static inline uint8_t location_palette(const GameState *g, uint16_t place)
+{
+    return asset_read8(g, ASSET_LOCATION_RECORDS, 0x3u + place);
+}
 
 static inline uint16_t location_palette_colour(const GameState *g, uint8_t palette, unsigned row, unsigned colour)
 {
@@ -392,12 +418,16 @@ static inline uint16_t location_palette_colour(const GameState *g, uint8_t palet
  * pointer per script from $FC:F9F0 says where it is packed (the index tripled
  * in 16 bits as the original adds it, the doubling's carry going into the
  * third, as for the maps). */
-static inline uint16_t location_script(const GameState *g, uint16_t place) { return rom_read16(g, 0xF60008u + place); }
+static inline uint16_t location_script(const GameState *g, uint16_t place)
+{
+    return asset_read16(g, ASSET_LOCATION_RECORDS, 0x8u + place);
+}
 
 static inline uint32_t field_packed_script(const GameState *g, uint16_t script)
 {
-    uint32_t at = 0xFCF9F0u + (uint16_t)(3u * script + (script >> 15));
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = (uint16_t)(3u * script + (script >> 15));
+    return asset_read16(g, ASSET_FIELD_PACKED_SCRIPT, at) | (uint32_t)asset_read8(g, ASSET_FIELD_PACKED_SCRIPT, at + 2)
+                                                                << 16;
 }
 
 /* Where a map's packed data is: a long pointer per map from $F6:1E00. */
@@ -405,8 +435,8 @@ static inline uint32_t field_packed_map(const GameState *g, uint16_t map)
 {
     /* three bytes a map, the index tripled in 16 bits as the original adds
      * it, the doubling's carry going into the third (no map number reaches) */
-    uint32_t at = 0xF61E00u + (uint16_t)(3u * map + (map >> 15));
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = (uint16_t)(3u * map + (map >> 15));
+    return asset_read16(g, ASSET_FIELD_PACKED_MAP, at) | (uint32_t)asset_read8(g, ASSET_FIELD_PACKED_MAP, at + 2) << 16;
 }
 
 static inline FieldExitRun field_location_exit_run(const GameState *g, uint16_t location)
@@ -426,14 +456,16 @@ static inline uint8_t tile_set_block(const GameState *g, uint8_t set, unsigned n
  * per set, BG1's and BG2's sets from $F6:2100, BG3's from $F6:21C0. */
 static inline uint32_t tile_looks_address(const GameState *g, uint8_t set)
 {
-    uint32_t at = 0xF62100u + 3u * set;
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = 3u * set;
+    return asset_read16(g, ASSET_TILE_LOOKS_ADDRESS, at) | (uint32_t)asset_read8(g, ASSET_TILE_LOOKS_ADDRESS, at + 2)
+                                                               << 16;
 }
 
 static inline uint32_t bg3_tile_looks_address(const GameState *g, uint8_t set)
 {
-    uint32_t at = 0xF621C0u + 3u * set;
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = 3u * set;
+    return asset_read16(g, ASSET_BG3_TILE_LOOKS_ADDRESS, at) |
+           (uint32_t)asset_read8(g, ASSET_BG3_TILE_LOOKS_ADDRESS, at + 2) << 16;
 }
 
 /* A field transfer's tiles or tilemap, selected by its resource descriptor. */

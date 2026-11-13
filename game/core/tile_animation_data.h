@@ -16,18 +16,21 @@ enum { TILE_ANIMATION_SET_BITS = 0x3F };
 
 static inline uint8_t location_tile_animation_set(const GameState *g, uint16_t record)
 {
-    return rom_read8(g, 0xF60001u + record) & TILE_ANIMATION_SET_BITS;
+    return asset_read8(g, ASSET_LOCATION_RECORDS, 0x1u + record) & TILE_ANIMATION_SET_BITS;
 }
 
 /* Where set `set` starts in the stream of sets: a word per set at $FD:F290,
  * an offset into the stream at $FD:F310. */
 static inline uint16_t tile_animation_set_start(const GameState *g, uint8_t set)
 {
-    return rom_read16(g, 0xFDF290u + (uint8_t)((set & TILE_ANIMATION_SET_BITS) * 2));
+    return asset_read16(g, ASSET_TILE_ANIMATION_SET_STARTS, (uint8_t)((set & TILE_ANIMATION_SET_BITS) * 2));
 }
 
 /* A byte of the stream at offset `at`; the offset is added to the stream's
  * address as a long index, carrying into the next bank. */
-static inline uint8_t tile_animation_set_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDF310u + at); }
+static inline uint8_t tile_animation_set_byte(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_TILE_ANIMATION_SETS, at);
+}
 
 #endif

@@ -56,10 +56,24 @@ names; the frontend supplies files and handles errors. Cartridge saves retain
 their slot/checksum format, tested through the real game routines.
 
 `re/assets.tsv` is the resource catalogue and `re/asset_views.toml` defines typed
-views. `tools/assets.py generate` emits the committed lookup table. On first run,
-the frontend verifies the user's cartridge and imports a local pack. Game code
-loads named resources from that store, never an embedded ROM. Packs and decoded
-assets are not committed.
+views. `tools/assets.py generate` emits the committed lookup table and the
+resources' names (`game/data/asset_names.h`). On first run, the frontend
+verifies the user's cartridge and imports a local pack. Game code loads named
+resources from that store, never an embedded ROM. Packs and decoded assets are
+not committed.
+
+An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
+ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
+store finds by the resource's name, so a pack may keep it anywhere; an
+offset past the resource's end reads on by address, as the original's
+indexing does. 84 of the accessors' reads name their resource. What the
+data's own pointers lead to (a stream a table points to, a script's text,
+a bank and offset the data gives) is still read by the address the
+original keeps it at, 607 reads, the address a key the catalogue's rows
+are looked up by. A region the catalogue hasn't typed is cut where each
+accessor's table starts, the piece named for its accessor and still
+`mixed`, so a read names its own table rather than the region it shares
+(issue #127 types them).
 
 ### Palettes, the first decoded resource
 

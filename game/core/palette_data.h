@@ -19,7 +19,7 @@ static inline uint16_t palette_frame_color(const GameState *g, uint16_t at) { re
  * 14 bytes each at $F6:0000) is at byte offset `record`: its byte 3. */
 static inline uint8_t location_palette_animation_set(const GameState *g, uint16_t record)
 {
-    return rom_read8(g, 0xF60003u + record);
+    return asset_read8(g, ASSET_LOCATION_RECORDS, 0x3u + record);
 }
 
 /* Where set `set` starts in the stream of palette animation sets: the table
@@ -27,14 +27,17 @@ static inline uint8_t location_palette_animation_set(const GameState *g, uint16_
  * $7F wrap), each an offset into the stream at $FD:FA77. */
 static inline uint16_t palette_animation_set_start(const GameState *g, uint8_t set)
 {
-    return rom_read16(g, 0xFDF9C7u + (uint8_t)(set * 2));
+    return asset_read16(g, ASSET_PALETTE_ANIMATION_SET_STARTS, (uint8_t)(set * 2));
 }
 
 /* A byte of the stream at offset `at` (16-bit), and the long address of that
  * byte, which a slot keeps as its frame table. */
 static inline uint32_t palette_animation_set_address(uint16_t at) { return 0xFD0000u | (uint16_t)(0xFA77u + at); }
 
-static inline uint8_t palette_animation_set_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDFA77u + at); }
+static inline uint8_t palette_animation_set_byte(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_PALETTE_ANIMATION_SETS, at);
+}
 
 /* A frame number of a frame table: a byte of the cartridge at `at`, a slot's
  * table plus its current frame. */
