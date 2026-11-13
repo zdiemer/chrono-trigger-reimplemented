@@ -304,15 +304,17 @@ def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
     return done()
 
 
-def through(run, x, y, arrived, seed=1, rounds=10):
-    """Head for (x, y) by the biased search (_trial_walk.toward) until
-    `arrived()`, settling the fights and scenes that stop the walk."""
+def through(run, x, y, arrived, seed=1, rounds=10, limit=1800):
+    """Head for (x, y) by the biased search (_trial_walk.toward, searching up
+    to `limit` places) until `arrived()`, settling the fights and scenes that
+    stop the walk."""
     machine = run.machine
     for _ in range(rounds):
         assert in_hand(run), "the field in hand"
         if arrived():
             return
-        toward(run, x, y, lambda: arrived() or not machine.b(A.FIELD_PLAYER_CONTROL) or run.dialog())
+        toward(run, x, y, lambda: arrived() or not machine.b(A.FIELD_PLAYER_CONTROL) or run.dialog(),
+               limit=limit)
         if arrived():
             return
         assert in_hand(run, 30000, seed), "the scene or fight ends"
