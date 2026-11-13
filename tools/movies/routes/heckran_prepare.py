@@ -58,8 +58,15 @@ def play(run, start=1, seed=1, save=True):
         assert run.wait_control()
         assert run.walk(lambda machine, x, y: machine.b(0x7F0212) == 14
                         and machine.b(0x7F0214) == 8) is not None, "the Medina gate"
-        m.run(3, "A")
-        m.run(60)
+        # The light answers the confirm button only once the leader has
+        # stepped on the tile (a walk that stops on it as it arrives isn't).
+        for _ in range(4):
+            m.run(4, "UP")
+            m.run(3, "A")
+            m.run(40)
+            if run.dialog():
+                break
+        assert run.dialog(), "the Medina gate's question"
         m.run(3, "A")
         assert run.dialogs_until(lambda: run.map_id() == "2400", 8000), "Medina"
         assert run.wait_control()
