@@ -26,7 +26,8 @@ HEADER = """\
 
 SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
 SLOT = 0
-PHASES = ["loaded", "hall", "corridor", "throne", "battle", "won", "scene", "after"]
+PHASES = ["loaded", "lair_hall", "lair_corridor", "lair_throne", "tyrano_battle", "tyrano_won", "lavos_falls",
+          "tyrano_after"]
 
 SAVE_ROOM, HALL, CORRIDOR, THRONE_ROOM = "2f01", "2a01", "2c01", "2d01"
 SCENE_MODE = 0x7E0384           # the scene program's mode, as $C3:0000 stores the event's operand
@@ -34,6 +35,56 @@ LAVOS_FALLS = 0x24              # event $FF $24: mode 4
 CORRIDOR_SCENE_ROW = 20         # the corridor's scene starts past this tile row ($12C, object 0)
 THRONE_FOOT = 16                # the first of the objects at the throne's foot ($12D's object $10)
 BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
+
+
+def play(run, start=1, seed=1):
+    """From the save point's room to Lavos's fall watched and the field back;
+    `start` is the index in PHASES of the first phase to run."""
+    machine = run.machine
+    if start <= 1:
+        assert run.exit_to(HALL), "the lair's hall"
+        run.checkpoint("lair_hall")
+    if start <= 2:
+        assert run.exit_to(CORRIDOR), "the corridor before the throne room"
+        run.checkpoint("lair_corridor")
+    if start <= 3:
+        # Past the row the scene starts, which stops the leader within a pixel or two of it, wherever the
+        # frame's phase puts the step.
+        row = CORRIDOR_SCENE_ROW * 16
+        assert run.walk(lambda m, px, py: py < row) is not None, "up the corridor to Azala's look down"
+        assert run.wait_control(), "Azala gone up the stairs"
+        assert run.exit_to(THRONE_ROOM), "the throne room"
+        run.checkpoint("lair_throne")
+    if start <= 4:
+        # The scene starts from the throne's foot: objects $10-$14 stand along tile row 10 and, spoken
+        # to, call object $15's function 3 (Azala's challenge, then the battle).
+        tx, ty = run.object_pos(THRONE_FOOT)
+        assert run.walk(lambda m, px, py: abs(px - tx) <= 3 and abs(py - (ty + 18)) <= 3) is not None, \
+            "below the throne"
+        machine.run(2, "UP")
+        machine.run(8)
+        machine.run(3, "A")
+        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 8000), "the battle's first menu"
+        run.checkpoint("tyrano_battle")
+    if start <= 5:
+        seen = []
+
+        def won(r, state):
+            living = policies.enemies(state)
+            if living:
+                seen.append(True)
+            return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
+        run.fight("party_with_lapis", won, party=3, seed=seed)
+        run.checkpoint("tyrano_won")
+    if start <= 6:
+        assert run.dialogs_until(lambda: machine.b(SCENE_MODE) == LAVOS_FALLS, 12000), "Lavos's fall begins"
+        run.say("scene mode", hex(machine.b(SCENE_MODE)), "frame", machine.frame)
+        run.checkpoint("lavos_falls")
+    if start <= 7:
+        assert run.dialogs_until(lambda: run.map_id() != THRONE_ROOM or run.find_player() is not None, 20000), \
+            "the field back after the scene"
+        run.say("after the scene, map", run.map_id(), "frame", machine.frame)
+        run.checkpoint("tyrano_after")
 
 
 def main():
@@ -56,50 +107,7 @@ def main():
         run.say("loaded map", run.map_id(), "frame", machine.frame)
         assert run.map_id() == SAVE_ROOM, "Tyrano Lair's save point"
         run.checkpoint("loaded")
-    if start <= 1:
-        assert run.exit_to(HALL), "the lair's hall"
-        run.checkpoint("hall")
-    if start <= 2:
-        assert run.exit_to(CORRIDOR), "the corridor before the throne room"
-        run.checkpoint("corridor")
-    if start <= 3:
-        # Past the row the scene starts, which stops the leader within a pixel or two of it, wherever the
-        # frame's phase puts the step.
-        row = CORRIDOR_SCENE_ROW * 16
-        assert run.walk(lambda m, px, py: py < row) is not None, "up the corridor to Azala's look down"
-        assert run.wait_control(), "Azala gone up the stairs"
-        assert run.exit_to(THRONE_ROOM), "the throne room"
-        run.checkpoint("throne")
-    if start <= 4:
-        # The scene starts from the throne's foot: objects $10-$14 stand along tile row 10 and, spoken
-        # to, call object $15's function 3 (Azala's challenge, then the battle).
-        tx, ty = run.object_pos(THRONE_FOOT)
-        assert run.walk(lambda m, px, py: abs(px - tx) <= 3 and abs(py - (ty + 18)) <= 3) is not None, \
-            "below the throne"
-        machine.run(2, "UP")
-        machine.run(8)
-        machine.run(3, "A")
-        assert run.dialogs_until(lambda: A.battle_menu_open(machine), 8000), "the battle's first menu"
-        run.checkpoint("battle")
-    if start <= 5:
-        seen = []
-
-        def won(r, state):
-            living = policies.enemies(state)
-            if living:
-                seen.append(True)
-            return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
-        run.fight("party_with_lapis", won, party=3, seed=args.seed)
-        run.checkpoint("won")
-    if start <= 6:
-        assert run.dialogs_until(lambda: machine.b(SCENE_MODE) == LAVOS_FALLS, 12000), "Lavos's fall begins"
-        run.say("scene mode", hex(machine.b(SCENE_MODE)), "frame", machine.frame)
-        run.checkpoint("scene")
-    if start <= 7:
-        assert run.dialogs_until(lambda: run.map_id() != THRONE_ROOM or run.find_player() is not None, 20000), \
-            "the field back after the scene"
-        run.say("after the scene, map", run.map_id(), "frame", machine.frame)
-        run.checkpoint("after")
+    play(run, start, args.seed)
     machine.screenshot(run.prefix + "_end.png")
     run.finish("Lavos's fall after the Black Tyrano")
     if args.movie:
