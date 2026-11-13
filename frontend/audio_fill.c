@@ -67,13 +67,13 @@ bool audio_fill_frame(AudioFill *a, const AudioSource *source, bool paused)
     a->fill_avg += (fill - a->fill_avg) * 0.05;
     double err = (a->fill_avg - (double)a->target) / (double)a->target;
     err = err < -1 ? -1 : err > 1 ? 1 : err;
-    double step = (double)DSP_SAMPLE_RATE / a->rate * (1.0 + AUDIO_MAX_ADJUST * err);
+    double step = (double)AU_SAMPLE_RATE / a->rate * (1.0 + AUDIO_MAX_ADJUST * err);
 
     /* Cubic Hermite over in[i-1..i+2] at pos = i + f. */
-    int16_t out[4096 * 2];
+    int16_t out[AUDIO_TAKE_FRAMES * 2];
     size_t n = 0;
     size_t i;
-    while ((i = (size_t)a->pos) + 2 < a->in_count && n < 4096) {
+    while ((i = (size_t)a->pos) + 2 < a->in_count && n < AUDIO_TAKE_FRAMES) {
         double f = a->pos - (double)i;
         for (int ch = 0; ch < 2; ch++) {
             double y0 = a->in[(i - 1) * 2 + ch], y1 = a->in[i * 2 + ch];
