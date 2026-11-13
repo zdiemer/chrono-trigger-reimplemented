@@ -200,14 +200,12 @@ def fight_route_lines(path, route_dir):
 def ratchet(result, run, name, mode, baseline, exc, update=False, carried=False):
     """A kind's protected entries must hold. Where entries differ, an exception
     pins exactly what the run observed; a movie whose fight a route carries
-    (`carried`) needs none, and may have none. Its places' protected entries
-    still hold, but not its saved game's or save RAM's end: what the fight
-    leaves there is its route's facts (tools/fight_facts.txt) to answer for."""
+    (`carried`) needs none, and may have none."""
     failures = []
     for kind, items in result.items():
         key = (name + "/" + mode, kind)
         good = {i for i, how in items.items() if how != "differ"}
-        must = set(baseline.get(key, [])) if not (carried and kind in ("game", "sram")) else set()
+        must = set(baseline.get(key, []))
         if not must <= good:
             failures.append(kind + " regressed: " + ",".join(sorted(must - good)))
         if key not in baseline and not update:

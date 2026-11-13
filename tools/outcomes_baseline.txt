@@ -212,7 +212,7 @@ late-lavos/native sram
 late-omen-battles/native game
 late-omen-battles/native places 0 1 2 3 4 5
 late-omen-battles/native sram end
-late-omen-terramutant/native game end
+late-omen-terramutant/native game  # formerly end: the movie ends mid-fight, and the battle time of issues #320/#321 has the recorded presses lose the TerraMutant fight before its last frame (event memory $7F:01EC, the party defeated); route terramutant carries the fight to the movie's point with facts (tools/fight_facts.txt)
 late-omen-terramutant/native places 0 1 2 3
 late-omen-terramutant/native sram end
 late-omen-zeal/native game

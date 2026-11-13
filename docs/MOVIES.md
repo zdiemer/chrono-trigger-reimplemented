@@ -106,8 +106,9 @@ pair (`routes` in the gate's `times:` line). For those movies the outcome check
 `tools/outcomes_baseline.txt`, and `tools/places_baseline.txt` still counts
 their places on time, but a difference elsewhere in their places, saved game
 or save RAM needs no pinned exception, and may have none: the route is the
-fight's outcome, and so is their saved game's and save RAM's end. A
-picture fingerprint of such a movie (`tools/native_picture_baseline.txt`,
+fight's outcome. A protected saved-game or save-RAM end still holds; the
+TerraMutant's, which its movie no longer reaches, is lowered on its baseline
+line with the reason. A picture fingerprint of such a movie (`tools/native_picture_baseline.txt`,
 `until=FRAME`) keeps to the pictures before its fight. Nothing else moved:
 every other movie's exceptions still pin exactly what it observes.
 

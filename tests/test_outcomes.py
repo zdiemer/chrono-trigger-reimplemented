@@ -142,10 +142,9 @@ class OutcomesTest(unittest.TestCase):
                 ("test/native", "sram"): ["end"]}
         self.assertTrue(o.ratchet(result, self.run, "test", "native", base, {}))
         self.assertFalse(o.ratchet(result, self.run, "test", "native", base, {}, carried=True))
-        # a carried fight's saved-game end is its route's facts' to answer for
+        # a carried fight's protected saved-game end still holds
         ended = {("test/native", "game"): ["end"], ("test/native", "places"): ["0", "1"], ("test/native", "sram"): ["end"]}
-        self.assertFalse(o.ratchet(result, self.run, "test", "native", ended, {}, carried=True))
-        self.assertTrue(o.ratchet(result, self.run, "test", "native", ended, {}))
+        self.assertTrue(o.ratchet(result, self.run, "test", "native", ended, {}, carried=True))
         failures = o.ratchet(result, self.run, "test", "native", base, self.exception("game"), carried=True)
         self.assertTrue(any("delete it" in f for f in failures))
         self.run["test", "places"] = ["1:0", "520:1"]

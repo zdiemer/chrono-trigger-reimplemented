@@ -131,7 +131,13 @@ Giga Gaia), it showed where native battle time fell short:
   run, `$CD:3B82`) now holds the frame until the beam is there, and a
   handler's transfers are charged; 40 handler routines' rates are recalibrated
   by the ratio of the original's clocks a call to native's, which agreed
-  within ±15% across the three fights (1.2 to 2.8 times). The main thread's
+  within ±15% across the three fights. Most ratios are 1.2 to 2.8; seven fall
+  outside: `$CD:05B2` 3.38, `$CD:0ADE` 3.16, `$CD:0AEE` 4.28, `$CD:2DD6` 4.54
+  and `$CD:2EB5` 3.75 are small routines of a few hundred clocks a call whose
+  ports keep in locals what the original reads and writes in memory, so few
+  accesses carry their time, and `$CF:F68D` and `$CF:F7FC` at 0.89 count a
+  little more than the original. Every ratio, with its fights, is in
+  `tools/timing_ratios.txt`. The main thread's
   aggregate already matched (~78k against ~70k) and is left alone.
 - Ten more rates are calibrated from the battle setup's profile
   (`$CC:ED87` ×2.72, `$CD:088D` ×15, `$CD:09F1` ×46, `$C1:C90B` ×2.38,
