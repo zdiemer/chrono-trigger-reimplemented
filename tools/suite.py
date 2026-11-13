@@ -53,6 +53,7 @@ def long_batch(args, binary):
         ('outcomes', [py, 'tools/outcomes.py', '--check', '--runs', str(runs)]),
         ('routes', [py, '-m', 'tools.movies.route_check', '--drive', str(binary), '--rom', str(args.rom),
                     '--scratch', str(args.out / 'routes'), '--protocol-log', '-j', str(args.jobs), *all_routes()]),
+        ('wide', [py, 'tools/wide_check.py', '--ct-native', str(binary), '--rom', str(args.rom), '-j', str(args.jobs)]),
     ]
     started = time.monotonic()
     findings = []

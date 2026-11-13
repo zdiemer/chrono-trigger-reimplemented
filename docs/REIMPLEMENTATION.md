@@ -9,8 +9,8 @@ ct_native is the product. The last commit containing the emulator and oracle too
 portsmell, doc-names (no doc or RAM-map prose naming code that is gone), Python unit tests and the native CTest tests. Every sampled movie
 must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
-and must be below 600 seconds. The separate `--long` batch runs the whole library and every public route
-module at `-j 2`, with stage logs and `findings.json` under `build/suite-long`.
+and must be below 600 seconds. The separate `--long` batch runs the whole library, every public route
+module and the wide-view end-state check at `-j 2`, with stage logs and `findings.json` under `build/suite-long`.
 Gameplay failures remain findings, but a missing binary or a stage launch
 failure aborts the batch with nonzero status and a diagnostic. It reports
 findings without a gate time budget; fixes follow from those findings, and
