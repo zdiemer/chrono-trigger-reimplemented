@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    # Branches are checked by their pull request's run; a push run on main builds the player artifacts.
+    branches: [main]
     paths-ignore: ['**.md', 'docs/**', 'movies/**']
   pull_request:
     paths-ignore: ['**.md', 'docs/**', 'movies/**']
@@ -85,7 +87,8 @@ jobs:
 
   native-player:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    name: native-player-${{ matrix.name }}
+    # A skipped job is named before its matrix expands, so it falls back to the bare name.
+    name: native-player${{ matrix.name && format('-{0}', matrix.name) || '' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
