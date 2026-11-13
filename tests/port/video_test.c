@@ -44,6 +44,29 @@ static void resource_transfers(void)
     vid_host_stop(&pf);
 }
 
+/* A wider view's own columns are shown but never read back, and leave the
+ * game's port and address as they were: the game finds VRAM as at the
+ * original's view. */
+static void view_sends(void)
+{
+    Platform pf = {0};
+    const uint8_t game[] = { 0x11, 0x22, 0x33, 0x44 }, margin[] = { 0xAA, 0xBB, 0xCC, 0xDD }, more[] = { 0x55, 0x66 };
+    vid_host_start(&pf, unexpected_read, NULL);
+    vid_send_vram(&pf, PF_AT(0), 0x100, (PfData){ .ptr = game }, sizeof game, &(VidVramPort){ .step = 1, .after_high = true });
+    vid_send_view_vram(&pf, 0x100, (PfData){ .ptr = margin }, sizeof margin, &(VidVramPort){ .step = 32, .after_high = true });
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(f->vram[0x200] == 0xAA && f->vram[0x201] == 0xBB && f->vram[0x240] == 0xCC);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x100) == 0x2211 && vid_vram_word(&pf, PF_AT(0), 0x101) == 0x4433);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x120) == 0);
+    /* The game's next send goes on from its own address, a word at a time. */
+    vid_continue_vram(&pf, PF_AT(0), (PfData){ .ptr = more }, sizeof more);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x102) == 0x6655 && f->vram[0x204] == 0x55);
+    /* A game send over a view's column is the game's again. */
+    vid_send_vram(&pf, PF_AT(0), 0x100, (PfData){ .ptr = more }, sizeof more, NULL);
+    CHECK(vid_vram_word(&pf, PF_AT(0), 0x100) == 0x6655 && f->vram[0x200] == 0x55);
+    vid_host_stop(&pf);
+}
+
 static uint8_t effect_byte(void *ctx, uint32_t at)
 {
     (void)ctx;
@@ -323,6 +346,32 @@ static void wider_view(void)
     vid_render_frame(r, f, pixels, NULL);
     CHECK(row[0] == layer && row[279 - LEFT] == layer && row[280 - LEFT] == backdrop);
 
+    /* Sprites in the margins, in front of the layer: one of VRAM's tiles
+     * straddling the screen's left edge, shown only past it, and one of its
+     * own picture, under the table's sprite at 270, which is behind the
+     * layer; and every frame starts with none. */
+    VidSpritePicture picture = { 0 };
+    for (unsigned q = 0; q < VID_PICTURE_TILES; q++)
+        for (unsigned line = 0; line < 8; line++)
+            picture.tile[q][2 * line + 1] = 0xFF;   /* every dot colour 2 */
+    picture.colour[2] = 31;
+    vid_show_a_sprite_in_the_margins(&pf, &(VidMarginSprite){ .x = -4, .y = ROW, .priority = 3 }, NULL);
+    vid_show_a_sprite_in_the_margins(&pf, &(VidMarginSprite){ .x = 262, .y = ROW - 8, .priority = 3 }, &picture);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    CHECK(f->margin_count == 2 && !f->margin[0].own && f->margin[1].own);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t own = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    CHECK(row[-4 - LEFT] == sprite && row[-1 - LEFT] == sprite && row[-LEFT] == layer);
+    CHECK(row[262 - LEFT] == own && row[269 - LEFT] == own && row[270 - LEFT] == layer && row[278 - LEFT] == layer);
+    CHECK(pixels[(ROW - 8) * WIDTH + 262 - LEFT] == own && pixels[(ROW - 9) * WIDTH + 262 - LEFT] == layer);
+    vid_host_frame_begins(&pf);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    CHECK(f->margin_count == 0);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(row[-4 - LEFT] == layer && row[262 - LEFT] == layer);
+
     /* The original's screen draws from the table alone. */
     vid_host_set_view(&pf, (VidView){ 256, 224 });
     f = vid_host_picture(&pf);
@@ -426,6 +475,7 @@ int main(void)
     wider_view();
     laid_out_panel();
     resource_transfers();
+    view_sends();
     fill_half_from_cursor();
     changing_picture();
     raster_changes();

@@ -53,6 +53,28 @@ static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t 
     }
 }
 
+/* A frame's tile as the two copies would draw it, read into `out` instead:
+ * for a wider view to show an object the field doesn't run
+ * (field/margin_objects.c). */
+void field_read_frame_tile(const GameState *g, ObjectGraphics set, uint16_t tile, uint8_t out[FIELD_TILE_BYTES])
+{
+    if (tile & FIELD_TILE_MIRRORED) {
+        uint16_t at = field_tile_offset(tile);
+        uint32_t graphics = (uint32_t)set.bank << 16 | set.address;
+        for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++)
+            out[k] = field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics + (uint16_t)(at + k)));
+        return;
+    }
+    uint16_t from = (uint16_t)(field_tile_offset(tile) + set.address);
+    uint32_t source = (uint32_t)source_bank(set.bank) << 16;
+    for (uint16_t k = 0; k < FIELD_TILE_BYTES; k += 2) {
+        uint32_t at = source + k + from;
+        uint16_t word = (source >> 16) == FIELD_BUILD_BANK ? wram_read16(g, at) : field_sprite_graphics_word(g, at);
+        out[k] = (uint8_t)word;
+        out[k + 1] = (uint8_t)(word >> 8);
+    }
+}
+
 /* A frame's tile drawn in bank $7F, timed as the copy that draws it. */
 void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
 {

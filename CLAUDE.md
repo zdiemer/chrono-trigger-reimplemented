@@ -26,7 +26,8 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   include unit tests; the gate fails at 600 seconds. Use `.exe` on Windows.
   `--movies <name>...` narrows iteration without pruning unseen outcome rows.
 - Non-blocking batch: `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long`
-  runs the whole movie library and every native route, outside the gate budget.
+  runs the whole movie library, every native route and the gate movies at 480x224
+  against 256x224 (`tools/wide_check.py`), outside the gate budget.
   Logs and `findings.json` go in `build/suite-long` (or `--out`). Findings become
   fixes; this batch never blocks a commit, merge or push and is not required CI.
   It reports findings with exit status 0, never `suite OK`; setup errors still fail.

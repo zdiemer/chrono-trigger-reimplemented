@@ -19,6 +19,23 @@ void field_queued_frames_drawn(GameState *g, Platform *pf);
 
 /* The frame an object's tiles show put straight onto its records (after a
  * battle, field/battle_return.c), and whether the port can for the object. */
+/* One of a frame's sprites as the frame builder would lay it out: its
+ * offset from the object's point, the graphics set's tile in each quarter
+ * (top left, top right, bottom left, bottom right; field/graphics.c), and
+ * its attributes. */
+enum { FIELD_FRAME_MOST_SPRITES = 12, FIELD_SPRITE_QUARTERS = 4 };
+typedef struct {
+    int8_t x, y;
+    uint16_t tile[FIELD_SPRITE_QUARTERS];
+    bool has_tile[FIELD_SPRITE_QUARTERS];
+    uint8_t attributes;
+} FrameSpriteLook;
+/* The sprites of the object's frame `frame`, worked out without drawing
+ * anything: for a wider view to show an object the field doesn't run
+ * (field/margin_objects.c). None for the 24-sprite figure, whose one frame
+ * is drawn where it is loaded. */
+unsigned object_frame_look(const GameState *g, FieldObject obj, uint8_t frame, FrameSpriteLook out[FIELD_FRAME_MOST_SPRITES]);
+
 void object_put_drawn_frame_back(GameState *g, FieldObject obj);
 bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj);
 

@@ -109,6 +109,7 @@ add_library(ct_game STATIC
   game/field/objects_start.c
   game/field/party_trail.c
   game/field/streaming.c
+  game/field/margin_objects.c
   game/field/switches.c
   game/field/dialog_window.c
   game/field/map.c
@@ -352,7 +353,7 @@ target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
-  frontend/sound_native.c
+  frontend/lz.c frontend/tiles.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_game ct_media)
@@ -408,7 +409,7 @@ if(BUILD_TESTING)
   add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c
   runtime/port/arena.c)
   target_include_directories(native_time_test PRIVATE game runtime)
-  add_executable(program_test tests/port/program_test.c game/core/program.c)
+  add_executable(program_test tests/port/program_test.c game/core/program.c game/core/sprite_table.c)
   target_link_libraries(program_test PRIVATE ct_state_host)
   add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c)
   # Preserve bounds diagnostics when an indexed variable moves into a struct.
@@ -429,13 +430,18 @@ if(BUILD_TESTING)
   add_executable(fonts_test tests/frontend/fonts_test.c frontend/decoded.c frontend/fonts.c frontend/assets.c
     game/data/asset_catalogue.c)
   target_include_directories(fonts_test PRIVATE frontend game)
+  add_executable(lz_test tests/frontend/lz_test.c frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
+  target_include_directories(lz_test PRIVATE frontend game)
+  add_executable(tiles_test tests/frontend/tiles_test.c frontend/decoded.c frontend/tiles.c frontend/lz.c
+    frontend/assets.c game/data/asset_catalogue.c)
+  target_include_directories(tiles_test PRIVATE frontend game)
   add_executable(player_files_test tests/frontend/player_files_test.c frontend/storage.c)
   target_include_directories(player_files_test PRIVATE frontend)
   add_executable(recorder_test tests/frontend/recorder_test.c frontend/track.c)
   target_link_libraries(recorder_test PRIVATE ct_media)
   add_executable(sound_setting_test tests/port/sound_setting_test.c)
   target_link_libraries(sound_setting_test PRIVATE ct_game)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts sound_setting)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles sound_setting)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()

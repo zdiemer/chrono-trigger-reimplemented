@@ -96,13 +96,14 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
 write leaves the pack's own bytes to play, after a warning; a text that is
-wrong stops the start, naming its line.
+wrong stops the start, naming its line (a resource that is wrong as a whole,
+too short or too big to pack, at its `[name]` line).
 
 ### Fonts
 
@@ -130,11 +131,10 @@ them, each where its accessor's indexing and the data agree:
 lines, `.` for color 0 and `1`-`3` for the rest, so a person edits a glyph by
 drawing it. A font is read back whole, its glyphs in order, and its widths
 with it. `tools/assets.py check` holds a font row to whole glyphs and a
-widths row to its font's glyphs. `tools/font_sheets.py` draws each font of a
+widths row to its font's glyphs. `tools/sheets.py` draws each font of a
 text as a picture of its glyphs under their numbers, written where it is
 told, never into the repository. The credits' letters (`$FD:0000`) are glyphs
-too but are packed (`lz`); decoding them waits on a packer that gives back the
-cartridge's bytes (an issue labelled kind: target).
+too but packed, so they are graphics (below).
 
 Measured: `fonts_test` (ROM-free) writes and reads back made-up glyphs of
 every font and their widths, serves an edited pixel and width and only the
@@ -146,6 +146,71 @@ over the dialog font's `e` and a checkerboard over the small font's `A` shows
 both in the Battle Mode screen of a new game (frame 2000 of
 `movies/new-game.ctm`).
 
+### Graphics
+
+A catalogue row whose codec is `tiles:2bpp` or `tiles:4bpp` is 8x8 tiles of
+two or four bitplanes as the SNES keeps them, and `lz:2bpp` or `lz:4bpp` the
+same packed, which the game unpacks as it loads them
+(`game/data/decompress.c`). The packed graphics are the field's tile blocks
+(`graphics_block_address.N`, from `$F6:2220`: blocks 0-18 two planes, since
+the locations' records load them into BG3, the rest four), the characters'
+sprites (`setup_character_graphics.N`), the world maps' tiles
+(`overworld_map_graphics.N`, the top layer's two planes), the menus' scenes'
+(`menu_scene_stream.N`) and the credits' letters
+(`field_credits_letters_packed`). The tiles kept as they are are the
+battlefield's two-plane sheet (`battlefield_tiles`, `$CF:0000`, split from
+the descriptors and palettes after it) and the sprites' four banks
+(`sprite_tiles_d2` to `_d5`). `tools/assets.py check` holds a tiles row to
+whole tiles and a packed row to the `lz` type.
+
+`frontend/lz.c` unpacks a stream and packs one. Okumura's LZSS (1989) with
+its binary-tree search, a 4096-byte ring and runs of 3-18 bytes, or 2048
+and 3-34 for a stream with long runs, is what packed the cartridge: with
+two of its packer's habits kept (a control byte's unused bits set; the
+bytes ahead of the last items 0 in a stream exactly a ring long) every one
+of the cartridge's 1371 packed streams, scripts and maps as well as
+graphics, packs again to its own bytes. So no packed resource needs its
+original bytes kept beside the text.
+
+`frontend/tiles.c` writes a resource's tiles sixteen a row, a character a
+pixel (`.` for color 0, then `1`-`3`, or `1`-`9` and `A`-`F`), a space
+between tiles and each row's first tile's number in a comment, so a sprite
+or a block reads as the picture it is; a packed resource says `packed
+short` or `packed long` first. Text was chosen over an indexed PNG because
+a tile has no palette of its own (the tilemap or the sprite picks one as
+the game draws it), because it round-trips exactly through the reader the
+other kinds share with no image decoder in the host, and because the
+palettes and fonts are already edited this way. Read back, a packed
+resource whose tiles are the store's beneath, unpacked, is served as that
+store has it, which is what packing it again gives, only sooner; one that
+was edited is packed again and must fit the cartridge's room for it, and
+have no more tiles than the stream beneath unpacks to, since the game
+unpacks it into a buffer made for those; otherwise the text is refused. `tools/sheets.py` draws a graphics text's
+resources as it draws fonts, a grey ramp for four planes, refusing a name
+that isn't the catalogue's kind (so no sheet lands outside its directory)
+and pixels before a font's first glyph, at their line.
+
+Measured: `lz_test` (ROM-free) packs and unpacks made-up bytes of every
+size and kind, short runs and long, and refuses streams that aren't one;
+with the ROM staged it packs every packed stream of the catalogue again to
+its bytes. `tiles_test` (ROM-free) writes and reads back made-up tiles,
+packed and not, serves an edited pixel of each (the packed one packed
+again) and only the resources a text names, and refuses wrong text at its
+line (a pixel that isn't one, a tile short a line or a pixel, a short row
+that isn't the last, how it packs unsaid, too few tiles, more tiles
+than the stream beneath, an edit that doesn't fit); with the ROM staged every graphics resource reads back as
+its bytes. The lean gate runs on the decoded graphics. Filling the first
+tile of the field's block 135 with color 15 darkens the walls and floor of
+Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed
+again.
+
+Not decoded yet (issue #273): the attract sequence's packed resources
+(graphics, tilemaps and mode 7 pictures, which the scene program picks),
+and the battlefield's pool of two- and three-plane tiles at `$D0:0000`
+(`gfx:plane-pool`), which only its descriptors cut into tiles. The packed
+tilemaps, maps and scripts (`lz`, `lz:event`) pack again but have no text
+(issue #130).
+
 ## Further targets
 
 Widescreen reaches the game as the video service's view, `vid_view`: how much
@@ -154,8 +219,8 @@ with `vid_host_set_view` (a snapshot keeps the driver's choice). The gate runs
 at the original's (docs/PLAN.md, "Layering"). A port asks it where it decides
 how much to show or where to lay something out, never where a rule of the
 game's uses the screen's size: the field's object window at `$C0:A88D` decides
-which objects run, so a wider picture needs a draw-only test beside it rather
-than a wider window; the sprite-object mode's in-view test
+which objects run, so a wider picture draws the rest beside it rather than
+widening the window; the sprite-object mode's in-view test
 (`menu_scene_object_in_view`) is such a rule too, its scripts branching on it.
 
 ### The wider view, as built
@@ -190,25 +255,51 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   it), the battle's combatants theirs, hiding what leaves the screen up or
   down; the battle's cursors, the scenes' leftover group entries and the time
   warp's spare sprites are hidden. The sprite limits count the original's
-  screen.
+  screen. Each mode takes the frame over with `program_hand_the_vblank_to`,
+  which forgets the last mode's places, so none outlives its mode to place an
+  entry the next writes with the same X and Y.
+- **Sprites in the margins** are what a mode leaves out of its table because
+  they are past the original's screen: each frame a mode may show some
+  beside the table (`vid_show_a_sprite_in_the_margins`), from VRAM's tiles in
+  a sprite palette as an entry does, or from a 16-dot picture of their own
+  with their own colours (`VidSpritePicture`). The renderer draws them only
+  past the original's screen, behind the table's sprites, the first shown
+  over the rest, and counts them toward no sprite limit; every frame starts
+  with none, and a mode that shows them lists them beside the game's memory
+  as its table is built, and shows that list every vblank until the next.
 - **The field** keeps its screen's edges, which decide which objects run
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank: the map's own columns, which its tables
+  own and sends them in the vblank (`vid_send_view_vram`, below): the map's own columns, which its tables
   hold whatever the screen's limits within it. Past the map's width a column
   is built as the edge's, and shown only where the edge is one entry all the
-  way down (a room's void); elsewhere the layer stops at the map. Each frame
+  way down (a room's void), which is judged as the margins are built and kept
+  for the frames between, when a battle's data may lie over the map's looks;
+  elsewhere the layer stops at the map. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
-  within the map's width. Objects show in the margins within the
-  original's activation window (two map tiles past the screen) and not beyond.
+  within the map's width. Objects within the original's activation window
+  (two map tiles past the screen) run and are drawn as on the original's
+  screen. Past it, as each finished frame is sent, `field/margin_objects.c`
+  lists the objects the field updates that can be seen but are out of view,
+  and shows them as margin sprites every vblank, nearest first: each in the
+  frame its animation stands on (`object_frame_shown`; out of view it doesn't
+  tick, so it is the frame it was last placed in, or its animation's first),
+  laid out as the frame builder would (`object_frame_look`), its tiles read
+  from its graphics set and its colours from the ROM, or from its slot where
+  the slot still holds them, and at its place on the map. Nothing of it is
+  run: no timer, no frame queued, no VRAM, no palette slot.
 - **The battle** is fought over the field's layers and shows them as far as
   the field last built them, moved with its own scroll
   (`field_show_the_layers_under_a_battle`); a battlefield that brings its own
   BG3 keeps that layer to the original's screen.
 - **The world maps** fill their two scrolling planes' margins the same way
   each frame (`menu_map_fill_the_views_margins`) and show them across the view.
+  The sprite list's drawing culls to the original's screen, and its counts,
+  time and noise are the game's, so it is left as it is: beside it,
+  `menu_list_the_sprites_past_the_screen` lists the map's sprites it left
+  out across, and they show as margin sprites from VRAM's tiles.
 - **Panels** -- the battle window's and the menus' tilemaps, one screen (32
   columns) across -- are laid out across the view rather than stretched
   (`vid_lay_out_a_map_across`): each frame a mode says, row by row of a map,
@@ -250,14 +341,19 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
-its state (`SpritePlaces`, `FieldMargins`, `PanelLayout`, `BattleWideWindow`,
-`MenuPanels`) is the program's, beside the game's
-memory. So a movie played at a wider view ends in the same work RAM and save
-RAM as at the original's: `field.ctm`, `gato-battle.ctm`,
-`attract-demo.ctm`, `battle-menu-buttons.ctm` and the menus' movies
-(`menus-field-menu`, `menus-shop-equip`, `menus-shop-inn`,
-`menus-save-point`, `menus-sweep`) were checked so with `--end-state` at
-398x224.
+its state (`SpritePlaces`, `FieldMargins`, `FieldObjectsPast`,
+`MenuSpritesPast`, `PanelLayout`, `BattleWideWindow`, `MenuPanels`) is the
+program's, beside the game's
+memory. Its columns go to VRAM through `vid_send_view_vram`, which shows them
+but keeps them out of what the game reads back (`vid_vram_word`: the palace
+rising copies the field's map out of VRAM) and leaves the VRAM port's step and
+address where the game's own sends left them. So a movie played at a wider
+view ends in the same work RAM and save RAM as at the original's.
+`tools/wide_check.py` plays each gate movie at 256x224 and 480x224 and
+compares the whole end state, work RAM and save RAM: all 58 end the same,
+`attract-demo` through the palace's rise among them. It plays the gate's
+movies twice over, about six minutes at `-j 2` beside the gate's own four and a half, so
+it runs in the non-blocking `suite.py --long` batch rather than the gate.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
@@ -293,7 +389,8 @@ sound driver's register write, is under Audio). Each is now one of four things:
   decodes its cells' mode and port into one or the other. The race's plane
   halves and column use the half forms, the battle's described transfer
   `vid_send_vram_in_mode`.
-- **VRAM read back.** `vid_vram_word` answers a word as the uploads left it.
+- **VRAM read back.** `vid_vram_word` answers a word as the game's uploads
+  left it, never a wider view's own (`vid_send_view_vram`).
   The race copies its plane's column and the palace its map out of VRAM with
   it, keeping what the original's port reads give: the first read after the
   address is set hands back the prefetched word, which the next read fetches

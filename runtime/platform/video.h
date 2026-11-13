@@ -301,6 +301,46 @@ static inline bool vid_place_holds(const VidSpritePlace *p, uint16_t x9, uint8_t
     return p->kind != VID_PLACE_NONE && ((uint16_t)p->x & 0x1FF) == (x9 & 0x1FF) && p->y == y;
 }
 
+/* A sprite a wider view (vid_view) shows in its margins, past the original's
+ * screen, that the game's sprite table doesn't hold: one a mode leaves out
+ * because it is off the original's screen, or that belongs to something the
+ * game doesn't run there. It shows VRAM's tiles in a sprite palette as a
+ * table entry does, or a picture of its own (VidSpritePicture), for something
+ * whose tiles and colours the game has let go of. */
+typedef struct {
+    int16_t x, y;           /* the top left's screen coordinates */
+    uint16_t tile;          /* 9-bit name, as a table entry's (VRAM's tiles) */
+    uint8_t palette;        /* 0-7: its sprite palette, or for a picture the one whose colour math it takes */
+    uint8_t priority;       /* 0-3 */
+    bool hflip, vflip, large;
+} VidMarginSprite;
+
+/* A sprite's own picture: 16 dots square, four tiles in VRAM's 4bpp form
+ * (top left, top right, bottom left, bottom right), in its own colours. */
+enum { VID_PICTURE_TILES = 4, VID_PICTURE_TILE_BYTES = 32, VID_PICTURE_DOTS = 16, VID_PICTURE_COLOURS = 16 };
+typedef struct {
+    uint8_t tile[VID_PICTURE_TILES][VID_PICTURE_TILE_BYTES];
+    uint16_t colour[VID_PICTURE_COLOURS];   /* BGR555; colour 0 is clear */
+} VidSpritePicture;
+
+/* A margin sprite showing what a table entry's tile and attributes would:
+ * the name's ninth bit, the palette, the priority and the flips are the
+ * attributes'. */
+static inline VidMarginSprite vid_margin_sprite_as_entry(int16_t x, int16_t y, uint8_t tile, uint8_t attributes,
+                                                         bool large)
+{
+    return (VidMarginSprite){ x, y, (uint16_t)(tile | (attributes & 0x01) << 8), (uint8_t)(attributes >> 1 & 7),
+                              (uint8_t)(attributes >> 4 & 3), (attributes & 0x40) != 0, (attributes & 0x80) != 0, large };
+}
+
+/* A margin sprite as the frame carries it. */
+typedef struct {
+    VidMarginSprite sprite;
+    bool own;               /* drawn from `picture` rather than VRAM and the palettes */
+    VidSpritePicture picture;
+} VidMarginEntry;
+enum { VID_MARGIN_SPRITES = 128 };
+
 typedef struct {
     uint8_t size_select;    /* which pair of sprite sizes (0-7) */
     uint16_t base;          /* VRAM word address of sprite tile 0 */
@@ -457,6 +497,8 @@ typedef struct {
     uint16_t layout_map[VID_MAP_LAYOUTS];
     const VidMapLayout *layouts;
     const VidWindowParting *parting;   /* NULL: the windows are whole (vid_part_the_windows) */
+    uint16_t margin_count;  /* the sprites in the view's margins (vid_show_a_sprite_in_the_margins), first on top */
+    const VidMarginEntry *margin;
     uint16_t span_count;
     VidSpan spans[VID_MAX_SPANS];   /* spans[0].line == 1 */
     const uint8_t *vram;    /* 64 KiB, SNES layout */
@@ -618,6 +660,15 @@ PF_API void vid_part_the_windows(Platform *pf, const VidWindowParting *parting);
  * them. */
 PF_API void vid_read_vram(const Platform *pf, uint16_t vram, uint16_t *words, uint16_t count);
 PF_API bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg *out);
+/* A sprite in a wider view's margins this frame (VidMarginSprite), from a
+ * mode's own work rather than the game's: it takes none of the game's time and
+ * changes nothing the game reads. It is drawn only past the original's
+ * screen, behind the table's sprites, a sprite shown earlier over one shown
+ * later, and counts toward no sprite limit. `picture` is its own picture, or
+ * NULL for VRAM's tiles. Each frame starts with none, so a mode that shows
+ * them shows them every frame; past VID_MARGIN_SPRITES, and on the
+ * original's view, they are left out. */
+PF_API void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -675,6 +726,13 @@ PF_API void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *
  * (NULL: as vid_start_vram_uploads left it). A `len` of 0 uploads nothing. */
 PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                           const VidVramPort *port);
+/* The same for a view wider than the original's screen (vid_view), from its
+ * own work rather than the game's: the margins' columns a mode builds. It is
+ * shown, but takes none of the game's time, leaves the port and the address
+ * where the game's sends left them, and is never read back (vid_vram_word),
+ * so the game finds VRAM as at the original's view. */
+PF_API void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len,
+                               const VidVramPort *port);
 /* From the game's main thread rather than a handler: `len` bytes (1-65536)
  * from `src` into VRAM at word address `vram_addr`, there before the next
  * picture, the call returning once they are. A machine that can reach VRAM
@@ -728,10 +786,10 @@ PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *screen);
 PF_API void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len);
 PF_API void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, VidVramHalf half);
 
-/* The word VRAM holds at word address `vram_addr`, as the uploads left it: a
- * setup that builds a map out of one already sent reads it back so. A read
- * takes no time of its own; the caller charges what its copy takes
- * (tm_charge_transfer). */
+/* The word VRAM holds at word address `vram_addr`, as the game's uploads left
+ * it (never a wider view's, vid_send_view_vram): a setup that builds a map
+ * out of one already sent reads it back so. A read takes no time of its own;
+ * the caller charges what its copy takes (tm_charge_transfer). */
 PF_API uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr);
 
 /* The picture's settings that the game's own data names by the SNES address
@@ -803,10 +861,13 @@ void vid_obs_fill_vram_half(VidObserver *ob, PfData value, uint32_t len, VidVram
 void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
                          const VidVramPort *port);
 void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half);   /* half as vid_obs_write_vram's */
+void vid_obs_upload_view_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len,
+                              const VidVramPort *port);
 uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
-void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4]);
+void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
+                  const VidMarginEntry *margin, uint16_t margin_count);
 void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
                      const VidWindowParting *parting);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);

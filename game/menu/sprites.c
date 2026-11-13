@@ -43,6 +43,8 @@
 #include "menu/objects.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
+#include "overworld/setup.h"
+#include "platform/video.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -195,6 +197,7 @@ static NodeLink node_link(unsigned n) { return (NodeLink)(FIRST_NODE + n * NODE_
  * to the free list's head. */
 void menu_lay_out_the_sprite_nodes(GameState *g)
 {
+    menu_forget_the_sprites_past_the_screen(g);
     for (unsigned n = 0; n < NODES; n++) {
         set_menu_sprite_node_links_prev(g, n, n == 0 ? (NodeLink)FREE_LIST : node_link(n - 1));
         set_menu_sprite_node_links_next(g, n, n == NODES - 1 ? (NodeLink)FREE_LIST : node_link(n + 1));
@@ -341,6 +344,38 @@ static void charge_node(GameState *g, bool on_the_map, unsigned sprites, unsigne
                   + tested_down * TESTED_DOWN_ACCESSES + shown * SHOWN_ACCESSES);
 }
 
+/* A node's group as it is drawn: where it stands on the screen (on the map,
+ * where the map's scroll puts it), its sprites' first tile and look, whether
+ * they are the other size, and where its sprites' bytes start. */
+typedef struct {
+    int16_t x, y;
+    uint16_t first_tile, attributes;
+    bool other_size;
+    uint16_t sprites;
+    GroupPlace first_sprite;
+} GroupDrawn;
+
+static GroupDrawn group_drawn(const GameState *g, NodeGroup n)
+{
+    GroupPlace p = { (uint8_t)(n.group >> 16), (uint16_t)n.group };
+    GroupDrawn d = { (int16_t)n.x, (int16_t)n.y, (uint16_t)(n.tiles & TILE_AND_ATTRIBUTES),
+                     (uint16_t)((n.look & MENU_LOOK_ATTRIBUTES) << 8), (n.tiles & OTHER_SIZE) != 0,
+                     group_byte(g, p, 0), { p.bank, (uint16_t)(p.at + 1) } };
+    if (n.look & ON_THE_MAP) {
+        d.x = on_screen((uint16_t)d.x, menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
+        d.y = on_screen((uint16_t)d.y, menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
+    }
+    return d;
+}
+
+/* A sprite's tile word: its tile from the group's, with the node's first
+ * tile and look added. */
+static uint16_t sprite_word(const GameState *g, const GroupDrawn *d, GroupPlace p)
+{
+    uint16_t tile = (uint16_t)(group_byte(g, p, 2) | group_byte(g, p, 3) << 8);
+    return (uint16_t)((tile + d->first_tile) | d->attributes);
+}
+
 // $C2:0D08
 /* Draw one node's group into the sprite table. */
 typedef struct {
@@ -351,22 +386,11 @@ typedef struct {
 static DrawnSprites draw_node(GameState *g, NodeLink node)
 {
     NodeGroup drawn_group = group_of(g, node);
-    uint32_t group = drawn_group.group;
-    GroupPlace p = { (uint8_t)(group >> 16), (uint16_t)group };
-    uint16_t left = group_byte(g, p, 0);
-    uint16_t tiles = drawn_group.tiles;
+    GroupDrawn d = group_drawn(g, drawn_group);
     uint8_t look = drawn_group.look;
-    bool other_size = (tiles & OTHER_SIZE) != 0;
-    uint16_t attributes = (uint16_t)((look & MENU_LOOK_ATTRIBUTES) << 8);
-    uint16_t first_tile = tiles & TILE_AND_ATTRIBUTES;
-    int16_t x = (int16_t)drawn_group.x;
-    int16_t y = (int16_t)drawn_group.y;
-    if (look & ON_THE_MAP) {
-        x = on_screen((uint16_t)x, menu_object_shadows_bg2_scroll_x(g), MENU_MAP_WIDTH);
-        y = on_screen((uint16_t)y, menu_object_shadows_bg2_scroll_y(g), MENU_MAP_HEIGHT);
-    }
-    (void)0;
-    p.at = (uint16_t)(p.at + 1);
+    int16_t x = d.x, y = d.y;
+    GroupPlace p = d.first_sprite;
+    uint16_t left = d.sprites;
     unsigned sprites = 0, tested_down = 0, shown_sprites = 0;
     uint16_t noise = 0;
     do {
@@ -381,15 +405,14 @@ static DrawnSprites draw_node(GameState *g, NodeLink node)
             shown = (uint16_t)(sy + SPRITE_REACH) < SCREEN_HEIGHT + SPRITE_REACH;
         }
         if (shown) {
-            uint16_t tile = (uint16_t)(group_byte(g, p, 2) | group_byte(g, p, 3) << 8);
             uint8_t i = menu_object_sprite_index(g);
             unsigned entry = i % SPRITES;
-            uint16_t word = (uint16_t)((tile + first_tile) | attributes);
+            uint16_t word = sprite_word(g, &d, p);
             set_oam_buffer_x(g, entry, (uint8_t)sx);
             set_oam_buffer_y(g, entry, (uint8_t)sy);
             set_oam_buffer_tile(g, entry, (uint8_t)word);
             set_oam_buffer_attributes(g, entry, (uint8_t)(word >> 8));
-            or_high_bits(g, i, high_bits(i, ((uint16_t)sx & 0x100) != 0, other_size));
+            or_high_bits(g, i, high_bits(i, ((uint16_t)sx & 0x100) != 0, d.other_size));
             count_a_sprite(g);
             shown_sprites++;
         }
@@ -414,6 +437,67 @@ static void draw_the_list(GameState *g)
     if (menu_sprite_draw_list_first(g) != DRAW_LIST) {
         menu_note_effect_noise(g, noise);
     }
+}
+
+/* ---- The sprites past the screen, for a wider view -------------------------------------------- */
+
+/* The world map's sprites a wider view shows past the original's screen,
+ * which the drawing leaves out: it keeps to the original's screen, and what
+ * it counts, the time it takes and the noise it leaves are the game's. As
+ * the list is drawn they are listed, in its order, from the groups on the
+ * map; and every vblank until the next drawing they are shown in the view's
+ * margins, as the sprite table drawn with them is sent the vblank after. The
+ * list is the program's own state, beside the game's memory, read and kept
+ * outside the game's time. */
+enum { SPRITE_DOTS = SPRITE_REACH + 1 };
+
+static void list_past_the_screen(const GameState *g, VidView view, NodeGroup n, MenuSpritesPast *past)
+{
+    if (!(n.look & ON_THE_MAP))
+        return;
+    GroupDrawn d = group_drawn(g, n);
+    GroupPlace p = d.first_sprite;
+    uint16_t left = d.sprites;
+    do {
+        int16_t sx = (int16_t)(d.x + (int8_t)group_byte(g, p, 0));
+        int16_t sy = (int16_t)(d.y + (int8_t)group_byte(g, p, 1));
+        bool drawn = (uint16_t)(sx + SPRITE_REACH) < SCREEN_WIDTH + SPRITE_REACH;
+        bool y_on = (uint16_t)(sy + SPRITE_REACH) < SCREEN_HEIGHT + SPRITE_REACH;
+        if (!drawn && y_on && sx + SPRITE_DOTS > vid_view_left(view) && sx < vid_view_right(view) &&
+            past->count < VID_MARGIN_SPRITES) {
+            uint16_t word = sprite_word(g, &d, p);
+            past->sprite[past->count++] = vid_margin_sprite_as_entry(sx, sy, (uint8_t)word, (uint8_t)(word >> 8),
+                                                                     d.other_size);
+        }
+        p.at = (uint16_t)(p.at + 4);
+    } while (--left != 0);
+}
+
+void menu_list_the_sprites_past_the_screen(GameState *g, Platform *pf)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_wider(view))
+        return;
+    MenuSpritesPast *past = menu_sprites_past(g);
+    uint32_t mark = charge_uncounted_begin(g);
+    past->count = 0;
+    unsigned nodes = 0;
+    if (overworld_on_a_world_map(g))
+        for (NodeLink l = menu_sprite_draw_list_first(g); l != DRAW_LIST && is_link(l) && nodes++ < NODES;
+             l = next_of(g, l))
+            list_past_the_screen(g, view, group_of(g, l), past);
+    charge_uncounted_end(g, mark);
+}
+
+void menu_forget_the_sprites_past_the_screen(GameState *g) { menu_sprites_past(g)->count = 0; }
+
+void menu_show_the_sprites_past_the_screen(GameState *g, Platform *pf)
+{
+    const MenuSpritesPast *past = menu_sprites_past(g);
+    if (!vid_view_is_wider(vid_view(pf)))
+        return;
+    for (unsigned k = 0; k < past->count; k++)
+        vid_show_a_sprite_in_the_margins(pf, &past->sprite[k], NULL);
 }
 
 /* ---- Sprite scripts --------------------------------------------------------------------------- */

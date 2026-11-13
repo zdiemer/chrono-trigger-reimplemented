@@ -97,6 +97,8 @@ typedef struct {
     VidMapLayout layouts[VID_MAP_LAYOUTS];
     bool parted;                             /* vid_part_the_windows's this frame */
     VidWindowParting parting;
+    uint16_t margin_count;                   /* vid_show_a_sprite_in_the_margins's this frame */
+    VidMarginEntry margin[VID_MARGIN_SPRITES];
 } VidHost;
 
 /* The sound: the C sound driver (game/sound/) played in the SPC700's place,

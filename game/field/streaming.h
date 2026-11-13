@@ -41,6 +41,11 @@ typedef struct {
     uint8_t due;
     bool held[3];                  /* the layer holds the field's map (FIELD_LAYERS) */
     FieldLayerSpan span[3];
+    /* Whether the map's left and right edge columns are a void where the
+     * margins were last built: judged there, while the map's looks are the
+     * map's, and kept for the frames between, when a battle may have put its
+     * own data over them. */
+    bool void_left[3], void_right[3];
 } FieldMargins;
 /* Module storage supplied by the state owner, independent of mapped RAM. */
 FieldMargins *field_margins(GameState *g);

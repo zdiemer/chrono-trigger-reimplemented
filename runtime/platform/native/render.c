@@ -55,6 +55,8 @@ typedef struct {
     const uint8_t *vram;
     const VidSprite *sprites;      /* the span's sprites, in OAM order */
     uint8_t first_sprite;          /* OAM priority rotation */
+    const VidMarginEntry *margin;  /* the frame's sprites in the view's margins */
+    uint16_t margin_count;
     const uint16_t *pal;           /* CGRAM as RGB565, scaled by brightness */
     uint8_t brightness;
     uint8_t depth[L_OBJ + 1][4];   /* layer, priority -> depth; 0: not in this mode's order */
@@ -149,6 +151,8 @@ struct VidRenderer {
     VidMapLayout layouts[VID_MAP_LAYOUTS];
     bool parted;                             /* and its windows parted */
     VidWindowParting parting;
+    uint16_t margin_count;                   /* and the sprites in its margins */
+    VidMarginEntry margin[VID_MARGIN_SPRITES];
     VidRenderStats stats;
     bool range_over, time_over;
 };
@@ -861,6 +865,62 @@ static void sprites_update(VidRenderer *r, const VidSprite *sprites, uint8_t siz
     }
 }
 
+/* The sprites in the view's margins on this line (VidMarginEntry): behind the
+ * table's, the first over the rest, and only past the original's screen,
+ * which the table alone draws. */
+static void draw_margin_sprites(LayerBuf *lb, LineCtx *c)
+{
+    const SpanCtx *sp = c->sp;
+    const VidObjConfig *obj = &sp->st->obj;
+    uint32_t base = (uint32_t)obj->base << 1;
+    uint32_t name_select = (uint32_t)obj->name_select << 1;
+    int row = c->line - 1;
+    for (int k = (int)sp->margin_count - 1; k >= 0; k--) {
+        const VidMarginEntry *e = &sp->margin[k];
+        const VidMarginSprite *s = &e->sprite;
+        int large = s->large ? 1 : 0;
+        int w = e->own ? VID_PICTURE_DOTS : obj_width[sp->st->obj.size_select][large];
+        int h = e->own ? VID_PICTURE_DOTS : obj_height[sp->st->obj.size_select][large];
+        int dy = row - s->y;
+        if (dy < 0 || dy >= h || s->x >= sp->left + sp->width || s->x + w <= sp->left)
+            continue;
+        if (s->vflip)
+            dy = h - 1 - dy;
+        uint8_t zt = sp->depth[L_OBJ][s->priority & 3], math = (s->palette & 7) >= 4;
+        const uint16_t *pals = sp->pal + 128 + (s->palette & 7) * 16;
+        for (int t = 0; t < w; t += 8) {
+            int dxt = s->hflip ? w - 8 - t : t;
+            uint64_t pixels;
+            if (e->own) {
+                pixels = tile_row(e->picture.tile[(dy >> 3) * 2 + (dxt >> 3)], 0, 4, dy & 7);
+            } else {
+                uint32_t tile = (uint32_t)s->tile + (uint32_t)((dy >> 3) * 16 + (dxt >> 3));
+                uint32_t addr = base + ((tile & 0x3FF) << 5);
+                if (tile & 0x100)
+                    addr += name_select;
+                pixels = tile_row(sp->vram, addr & 0xFFFF, 4, dy & 7);
+                mark_vram_span(c->vram_pages, addr, 32);
+            }
+            for (int j = 0; pixels && j < 8; j++) {
+                int x = s->x + t + j, i = x - sp->left;
+                if ((x >= 0 && x < SCREEN_W) || i < 0 || i >= sp->width)
+                    continue;
+                uint8_t v = (uint8_t)(pixels >> (8 * (s->hflip ? 7 - j : j)));
+                if (!v)
+                    continue;
+                lb->z[i] = zt;
+                lb->math[i] = math;
+                if (e->own) {
+                    lb->color[i] = color565(e->picture.colour[v], sp->brightness);
+                } else {
+                    lb->color[i] = pals[v];
+                    mark_entry(c->palette_entries, 128u + (s->palette & 7) * 16u + v, true);
+                }
+            }
+        }
+    }
+}
+
 /* Sprites on this line; sprites_update must be current. */
 static void draw_obj(VidRenderer *r, LayerBuf *lb, LineCtx *c)
 {
@@ -913,6 +973,8 @@ listed:;
     }
 
     memset(lb->z, 0, sizeof lb->z);
+    if (sp->margin_count)
+        draw_margin_sprites(lb, c);
     const uint8_t *depth = sp->depth[L_OBJ];
     /* Back to front, so earlier sprites overwrite later ones. */
     for (int k = keep - 1; k >= 0; k--) {
@@ -1063,6 +1125,8 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     sp->vram = span->vram ? span->vram : f->vram;
     sp->sprites = span->sprites ? span->sprites->sprites : f->sprites;
     sp->first_sprite = span->sprites ? span->sprites->first_sprite : f->first_sprite;
+    sp->margin = f->margin;
+    sp->margin_count = f->margin_count;
     sp->brightness = (uint8_t)(st->display.brightness & 15);
     if (recheck_vram)
         vram_update(r, sp->vram);
@@ -1322,7 +1386,8 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
                           !memcmp(f->layout_map, r->layout_map, sizeof *f->layout_map * f->layout_count) &&
                           (!f->layout_count || !memcmp(f->layouts, r->layouts, sizeof *f->layouts * f->layout_count));
     if (out != r->last_out || width != r->width || memcmp(f->layer_left, r->layer_left, sizeof r->layer_left) ||
-        memcmp(f->layer_right, r->layer_right, sizeof r->layer_right) || !laid_out_alike) {
+        memcmp(f->layer_right, r->layer_right, sizeof r->layer_right) || f->margin_count != r->margin_count ||
+        (f->margin_count && memcmp(f->margin, r->margin, sizeof *f->margin * f->margin_count)) || !laid_out_alike) {
         for (int line = 1; line <= H; line++)
             r->lines[line].valid = false;
         r->last_out = out;
@@ -1339,6 +1404,9 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
             memcpy(r->layout_map, f->layout_map, sizeof *f->layout_map * f->layout_count);
             memcpy(r->layouts, f->layouts, sizeof *f->layouts * f->layout_count);
         }
+        r->margin_count = f->margin_count < VID_MARGIN_SPRITES ? f->margin_count : VID_MARGIN_SPRITES;
+        if (r->margin_count)
+            memcpy(r->margin, f->margin, sizeof *f->margin * r->margin_count);
     }
     if (f->span_count == 0) {
         memset(out, 0, sizeof *out * (size_t)width * H);

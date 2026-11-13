@@ -8,6 +8,8 @@
 
 #include "menu/object.h"
 #include <stdbool.h>
+#include "platform/platform.h"
+#include "platform/video.h"
 #include "state.h"
 
 /* Give an object one of the sprite scripts by its number, from its start. */
@@ -39,6 +41,21 @@ bool menu_sprite_list_is_sound(const GameState *g);
 void menu_empty_the_sprite_list(GameState *g);
 void menu_hide_the_sprites(GameState *g);
 void menu_draw_the_sprite_list(GameState *g);
+
+/* For a view wider than the original's screen (vid_view): the world map's
+ * sprites past the original's screen, which the drawing leaves out, listed
+ * as it draws (menu/sprites.c) and shown in the view's margins every vblank
+ * until the next; and none, as the mode starts. The list is the program's
+ * own state, beside the game's memory. */
+typedef struct {
+    uint8_t count;
+    VidMarginSprite sprite[VID_MARGIN_SPRITES];
+} MenuSpritesPast;
+/* Module storage supplied by the state owner, independent of mapped RAM. */
+MenuSpritesPast *menu_sprites_past(GameState *g);
+void menu_list_the_sprites_past_the_screen(GameState *g, Platform *pf);
+void menu_show_the_sprites_past_the_screen(GameState *g, Platform *pf);
+void menu_forget_the_sprites_past_the_screen(GameState *g);
 bool menu_sprite_list_can_be_emptied(const GameState *g);
 bool menu_sprite_list_can_be_drawn(const GameState *g);
 

@@ -43,16 +43,12 @@ void sprite_table_move_as_it_stands(GameState *g, unsigned sprite, int16_t moves
     sprite_places(g)->sprite[sprite] = (VidSpritePlace){ x, y, VID_PLACE_AT, moves };
 }
 
-void sprite_table_forget_places(GameState *g)
-{
-    for (unsigned sprite = 0; sprite < OAM_BUFFER_COUNT; sprite++)
-        sprite_places(g)->sprite[sprite] = (VidSpritePlace){ 0, 0, VID_PLACE_NONE, 0 };
-}
-
 void sprite_table_hide(GameState *g, unsigned sprite, int16_t x, uint8_t y)
 {
     sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_HIDDEN, 0 };
 }
+
+void sprite_table_forget_places(GameState *g) { *sprite_places(g) = (SpritePlaces){ 0 }; }
 
 const VidSpritePlace *sprite_table_places(GameState *g) { return sprite_places(g)->sprite; }
 

@@ -580,7 +580,7 @@ void menu_object_reset_the_mode(GameState *g)
 
 void menu_object_take_the_interrupts(GameState *g)
 {
-    program_install_vblank_handler(g, menu_object_vblank);
+    program_hand_the_vblank_to(g, menu_object_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, menu_object_line);
     charge_accesses(g, 4);
@@ -715,6 +715,7 @@ static bool object_mode_vblank(GameState *g, Platform *pf)
 {
     (void)tm_ack_vblank(pf, PF_AT(0xC2016D));
     menu_map_show_the_planes_across(g, pf);
+    menu_show_the_sprites_past_the_screen(g, pf);
     set_menu_object_frame_counter(g, (uint8_t)(menu_object_frame_counter(g) + 1));
     if (!(menu_object_frame_state(g) & FRAME_TO_SHOW))
         return true;
@@ -776,6 +777,7 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step)
             return false;
         }
         TIMED_AS(g, 0xC20CEA, menu_draw_the_sprite_list(g));
+        menu_list_the_sprites_past_the_screen(g, pf);
         return true;
     default:
         return false;

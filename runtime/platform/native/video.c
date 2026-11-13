@@ -45,7 +45,7 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_display(ob, &v->display);
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
-    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right);
+    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->margin, v->margin_count);
     vid_obs_layouts(ob, v->layout_count, v->layout_map, v->layouts, v->parted ? &v->parting : NULL);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
@@ -78,6 +78,7 @@ void vid_host_frame_begins(Platform *pf)
     }
     v->layout_count = 0;
     v->parted = false;
+    v->margin_count = 0;
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -141,6 +142,18 @@ bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg 
         return false;
     *out = st->bg[bg];
     return (st->main_layers & VID_LAYER_BIT(bg)) != 0;
+}
+
+void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture)
+{
+    VidHost *v = &pf->video;
+    if (!vid_view_is_wider(vid_view(pf)) || v->margin_count >= VID_MARGIN_SPRITES)
+        return;
+    VidMarginEntry *e = &v->margin[v->margin_count++];
+    e->sprite = *s;
+    e->own = picture != NULL;
+    if (picture)
+        e->picture = *picture;
 }
 
 /* The driver's choice, or the original's screen where it made none. */
@@ -295,6 +308,11 @@ void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uin
     (void)o;
     charge_send(pf, len);
     vid_obs_upload_vram(ob(pf), vram_addr, src, len, false, port);
+}
+
+void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len, const VidVramPort *port)
+{
+    vid_obs_upload_view_vram(ob(pf), vram_addr, src, len, port);
 }
 
 void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len)

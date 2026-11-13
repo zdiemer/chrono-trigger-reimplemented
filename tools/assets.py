@@ -28,6 +28,11 @@ PALETTE_CODEC = re.compile(r"palette:[1-9][0-9]*(x[1-9][0-9]*)?")
 FONT_BYTES = {"font:8x8": 16, "font:12x12": 36}
 WIDTHS_CODEC = re.compile(r"font-widths:([a-z][a-z0-9_.]*):([0-9A-F]{2})")
 
+# Tiles' codecs: 8x8 tiles of two or four bitplanes, 16 or 32 bytes a tile,
+# and the same packed (frontend/tiles.h writes and reads them as text).
+TILE_BYTES = {"tiles:2bpp": 16, "tiles:4bpp": 32}
+PACKED_CODECS = ("lz", "lz:event", "lz:2bpp", "lz:4bpp")
+
 
 
 class Row:
@@ -61,7 +66,8 @@ def data_views():
 def problems_of(rows: list[Row]) -> list[str]:
     """What makes a catalogue unusable: names twice, rows overlapping or out of
     order, a range in no bank, a type game/data/assets.h doesn't know, a
-    palette that isn't whole colors, a font that isn't whole glyphs."""
+    palette that isn't whole colors, a font that isn't whole glyphs, tiles
+    that aren't whole tiles, a packed stream of a codec that isn't one."""
     out, names = [], set()
     for i, r in enumerate(rows):
         if not re.fullmatch(r"[a-z][a-z0-9_.]*", r.name):
@@ -88,6 +94,10 @@ def problems_of(rows: list[Row]) -> list[str]:
             if not m or r.type != "bytes" or not glyphs or int(m[2], 16) + size > glyphs:
                 out.append(f"{r.name}: widths are bytes, their codec font-widths:FONT:XX, a width for each "
                            f"of FONT's glyphs from $XX on and no more")
+        if r.codec in TILE_BYTES and (r.type != "gfx" or size % TILE_BYTES[r.codec]):
+            out.append(f"{r.name}: tiles are gfx, whole tiles of {TILE_BYTES[r.codec]} bytes")
+        if (r.codec.startswith("lz") or r.type == "lz") and (r.codec not in PACKED_CODECS or r.type != "lz"):
+            out.append(f"{r.name}: a packed stream is lz, its codec one of {', '.join(PACKED_CODECS)}")
         if i and rows[i - 1].end >= r.at:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out

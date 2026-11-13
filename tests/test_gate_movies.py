@@ -144,21 +144,22 @@ class LongBatchTest(unittest.TestCase):
                     patch.object(suite.shutil, 'which', side_effect=AssertionError('no CTest')), \
                     patch.object(suite, 'all_routes', return_value=['first', 'last']), \
                     patch.object(suite.subprocess, 'run', side_effect=finding) as run, \
-                    patch.object(suite.time, 'monotonic', side_effect=[0, 0, 1, 2, 3, 4, 5, 6, 7200]), \
+                    patch.object(suite.time, 'monotonic', side_effect=[0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 7200]), \
                     contextlib.redirect_stdout(output):
                 rc = suite.main(['--ct-native', str(binary), '--out', str(out), '--long'])
             self.assertEqual(rc, 0)
-            self.assertEqual(run.call_count, 3)
+            self.assertEqual(run.call_count, 4)
             commands = [call.args[0] for call in run.call_args_list]
             self.assertNotIn('--movies', commands[0])
             self.assertNotIn('--movies', commands[1])
             self.assertEqual(commands[2][-2:], ['first', 'last'])
             self.assertNotIn('--timeout', commands[2])  # Keep the batch route timeout, not the fast gate's.
+            self.assertIn('tools/wide_check.py', commands[3])  # the gate's sample at a wider view
             report = json.loads((out / 'findings.json').read_text())
-            self.assertEqual([r['status'] for r in report], [1, 1, 1])
+            self.assertEqual([r['status'] for r in report], [1, 1, 1, 1])
             self.assertTrue(all((out / r['log']).exists() for r in report))
             self.assertIn('7200.0s', output.getvalue())
-            self.assertIn('batch complete: 3 stage(s) with findings', output.getvalue())
+            self.assertIn('batch complete: 4 stage(s) with findings', output.getvalue())
             self.assertNotIn('suite OK', output.getvalue())
 
     def test_long_cannot_silently_narrow_the_library(self):
