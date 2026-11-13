@@ -172,7 +172,7 @@ view ends in the same work RAM and save RAM as at the original's.
 `tools/wide_check.py` plays each gate movie at 256x224 and 480x224 and
 compares the whole end state, work RAM and save RAM: all 58 end the same,
 `attract-demo` through the palace's rise among them. It plays the gate's
-movies twice over, about six minutes at `-j 2` beside the gate's own five, so
+movies twice over, about six minutes at `-j 2` beside the gate's own four and a half, so
 it runs in the non-blocking `suite.py --long` batch rather than the gate.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
