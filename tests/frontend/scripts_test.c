@@ -6,14 +6,19 @@
  * store under it; and text that is wrong is refused at its line. Where the
  * ROM is staged (roms/ct-usa.sfc, from the source directory), every script
  * of the cartridge reads back as its bytes too, and with a path the text is
- * written there to look at. */
+ * written there to look at. The language's table and the places' layout the
+ * text is written from hold what the text relies on. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "assets.h"
+#include "event/script.h"
 #include "lz.h"
+#include "overworld/places.h"
 #include "scripts.h"
+
+#undef CHECK   /* the event table's row macro; the test's own below */
 
 static int failures;
 
@@ -144,8 +149,36 @@ static void the_cartridge(const char *out)
     free(file);
 }
 
+/* Every jump's distance lies inside its command, at every length the command
+ * can take: a row that jumps has no measure, and its jump byte is one of its
+ * own. */
+static void jumps_lie_inside_their_commands(void)
+{
+    for (unsigned op = 0; op < 256; op++) {
+        const EventOpcode *e = event_opcode((uint8_t)op);
+        if (e && e->jump)
+            CHECK(e->measure == NULL && e->jump < e->length);
+    }
+}
+
+/* The places' records are fields of a byte or a word, in order, filling the
+ * record. */
+static void place_records_are_bytes_and_words(void)
+{
+    for (unsigned list = 0; list < PLACE_STREAMS; list++) {
+        const PlaceStream *l = &overworld_place_streams[list];
+        CHECK(l->fields >= 1 && l->fields <= MOST_PLACE_FIELDS && l->field_at[0] == 0);
+        for (unsigned f = 0; f < l->fields; f++) {
+            unsigned next = f + 1 < l->fields ? l->field_at[f + 1] : l->record_bytes;
+            CHECK(next > l->field_at[f] && next - l->field_at[f] <= 2);
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
+    jumps_lie_inside_their_commands();
+    place_records_are_bytes_and_words();
     size_t total = 0;
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         made_up_at[i] = (uint32_t)total;

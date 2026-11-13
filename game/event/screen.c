@@ -89,10 +89,12 @@ static void take_target_channels(GameState *g)
  * has no rate, and is a byte shorter. */
 enum { NO_TINT_LENGTH = 2, TINT_LENGTH = 3 };
 
+#if CT_EVENT_SCRIPT_TEXT
 static uint16_t measure_tint(const uint8_t *command, uint16_t available)
 {
     return available < 2 ? 0 : command[1] == 0 ? NO_TINT_LENGTH : TINT_LENGTH;
 }
+#endif
 
 static EventFlow tint(GameState *g, uint8_t colour, TintMix mix, uint8_t rate)
 {
@@ -482,6 +484,7 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
     return true;
 }
 
+#if CT_EVENT_SCRIPT_TEXT
 /* A screen command's length, by its table; the field's end for a scene, and
  * a command past the table, the command's own two bytes. */
 static uint16_t measure_screen_command(const uint8_t *command, uint16_t available)
@@ -492,6 +495,7 @@ static uint16_t measure_screen_command(const uint8_t *command, uint16_t availabl
     return c >= FIRST_SCREEN_COMMAND && c < FIRST_SCREEN_COMMAND + SCREEN_COMMANDS
                ? screen_commands[screen_command_index(c)].length : SCREEN_COMMAND_LENGTH;
 }
+#endif
 
 /* The port runs only a command the original's table has (past it the table
  * runs on into code). */

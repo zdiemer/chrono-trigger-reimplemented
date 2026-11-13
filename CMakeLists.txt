@@ -350,6 +350,13 @@ add_library(ct_game STATIC
   game/battle/wait.c
   game/battle/window.c)
 target_link_libraries(ct_game PUBLIC ct_state_host)
+# The event language as a build without the script text compiles it (the
+# 65816's): the commands' names and measures left out (game/event/script.h).
+get_target_property(CT_GAME_SOURCES ct_game SOURCES)
+list(FILTER CT_GAME_SOURCES INCLUDE REGEX "^game/event/")
+add_library(ct_event_without_text OBJECT ${CT_GAME_SOURCES})
+target_compile_definitions(ct_event_without_text PRIVATE CT_EVENT_SCRIPT_TEXT=0)
+target_link_libraries(ct_event_without_text PRIVATE ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c

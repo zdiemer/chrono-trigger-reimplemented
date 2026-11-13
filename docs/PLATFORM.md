@@ -359,6 +359,9 @@ it names (`var:`, `var16:`, `obj:`, `member:`, `story:`, `bit:`; `self`,
 A command whose length its operands decide (the colour effects, the tint's
 short form, the screen commands, the data a copy carries) has its row's
 `MEASURED` length, the same function the engine's operations take it from.
+The names and measures are the text's alone: a build without it (the
+65816's) leaves them out of the table with `CT_EVENT_SCRIPT_TEXT 0`, which
+`ct_event_without_text` compiles every build.
 Bits of an operand byte no parameter reads would be kept as byteN=XX (N
 its operand) and a command's own data after its operands as
 `data=XX.XX...`; the places a
@@ -373,14 +376,19 @@ cartridge's scripts is read as a command; 6,800 of their 190,000 lines carry
 an opcode, and one jump lands where no command starts (`to=+06`).
 
 A world map's places are its lists, each a record a line in the game's
-order (`game/overworld/setup.c`): `exit` (column, row, name, location, x,
-y), `event`, `halt`, `script`, then the bytes after the lists as `rest`;
+order and layout (`overworld_place_streams`, `game/overworld/places.h`, from
+the work-RAM map's fields, which the map's load and the places' lookups go
+by too): `exit` (column, row, name, location, x, y), `event`, `halt`,
+`script`, then the bytes after the lists as `rest`;
 each list's count is its records', and a list with none is refused, since
 the game reads a count of 0 as 65,536.
 
 An edited resource is packed again and must fit its slot, as the other
 packed kinds; a script may unpack to as much as the game's buffer for it
-(`$1700` bytes). Packed slots are exact, so an edit that packs no smaller
+(`$1700` bytes), which is as long as a command made from its line may be:
+its bytes are made in a scratch the reading allocates, not on the stack.
+A jump's distance is a byte inside its command; the table has no row whose
+jump a measure could move outside it, and the text reads none there. Packed slots are exact, so an edit that packs no smaller
 rarely fits until a pack can give a resource more room (issue #128).
 
 Measured: `scripts_test` (ROM-free) writes and reads back a made-up script
@@ -390,7 +398,9 @@ edited places, only what a text names, and refuses wrong text at its line
 (a parameter no form of the command has, a command that isn't one, a place
 not named or named twice, a jump out of reach, an opcode not the command's,
 a short table, an empty list, lists out of order); with the ROM staged every
-script and list of places of the cartridge reads back as its bytes. The
+script and list of places of the cartridge reads back as its bytes. It also
+checks the table's jumps lie inside their commands and the places' fields
+are bytes and words filling their records. The
 lean gate runs every movie on the decoded scripts.
 
 ### Text

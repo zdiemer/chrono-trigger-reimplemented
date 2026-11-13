@@ -215,7 +215,18 @@ typedef EventFlow (*EventOperation)(GameState *g, const EventCommand *command);
         (void)command;                                                                             \
         return op(g);                                                                              \
     }
+/* A script's text (frontend/scripts.c) calls each command by its operation's
+ * name and measures the commands whose operands decide their length; the
+ * game needs neither, so a build without the text -- the 65816's, where the
+ * table is ROM -- leaves both out with CT_EVENT_SCRIPT_TEXT 0. */
+#ifndef CT_EVENT_SCRIPT_TEXT
+#define CT_EVENT_SCRIPT_TEXT 1
+#endif
+#if CT_EVENT_SCRIPT_TEXT
 #define OPERATION(op) .run = op##_command, .name = #op
+#else
+#define OPERATION(op) .run = op##_command
+#endif
 
 /* What the port needs of the game's state before it runs a command, beyond
  * what its operands' kinds imply (event/engine.c): EVENT_CHECK(check,
@@ -306,12 +317,18 @@ typedef struct {
  * colours or data, a short form), from its bytes: `available` of them are
  * there to read, and 0 where that isn't enough to tell. */
 typedef uint16_t (*EventMeasure)(const uint8_t *command, uint16_t available);
+#if CT_EVENT_SCRIPT_TEXT
 #define MEASURED(measure_) .measure = measure_
+#else
+#define MEASURED(measure_)
+#endif
 
 typedef struct {
     uint8_t opcode;
     EventOperation run;    /* the operation, or NULL for a command that reads its own operands (event/engine.h) */
+#if CT_EVENT_SCRIPT_TEXT
     const char *name;      /* the operation's name (OPERATION), what a script's text calls the command */
+#endif
     struct {               /* how each parameter the operation reads is decoded; the rest are ARG_NONE */
 #define EVENT_PARAMETER_SPEC(type, name) EventArg name;
         EVENT_PARAMETERS(EVENT_PARAMETER_SPEC)
@@ -323,7 +340,9 @@ typedef struct {
     bool back;             /* the jump goes back */
     bool member_may_be_absent;   /* a party member operand may name an empty place */
     EventCheck accepts;    /* NULL, or what else the port needs of the game's state */
+#if CT_EVENT_SCRIPT_TEXT
     EventMeasure measure;  /* NULL where the command is always `length` bytes (MEASURED) */
+#endif
 } EventOpcode;
 
 typedef struct {
@@ -345,6 +364,7 @@ extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_ch
 /* The row of an opcode, or NULL for one with no port (event/engine.c). */
 const EventOpcode *event_opcode(uint8_t opcode);
 
+#if CT_EVENT_SCRIPT_TEXT
 /* What a command is called: its operation's name, or for a row that reads
  * its own operands its command's (event/engine.h), without the `event_`. */
 const char *event_command_name(const EventOpcode *row);
@@ -353,6 +373,7 @@ const char *event_command_name(const EventOpcode *row);
  * read: its row's length, or what its operands make it; 0 where it can't
  * be told from those. */
 uint16_t event_command_length(const EventOpcode *row, const uint8_t *command, uint16_t available);
+#endif
 
 /* The colour effects' commands' lengths, which the engine decodes them by
  * (ARG_OBJECT_COLOUR_EFFECT, ARG_SCREEN_COLOUR_EFFECT). */

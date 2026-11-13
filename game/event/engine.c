@@ -54,6 +54,7 @@ const EventOpcode *event_opcode(uint8_t opcode)
     return by_opcode[opcode];
 }
 
+#if CT_EVENT_SCRIPT_TEXT
 /* The commands that read their own operands, by name, for a script's text. */
 static const struct {
     uint8_t opcode;
@@ -80,6 +81,7 @@ uint16_t event_command_length(const EventOpcode *row, const uint8_t *command, ui
     uint16_t length = row->measure ? row->measure(command, available) : row->length;
     return length <= available ? length : 0;
 }
+#endif
 
 /* ---- What a command may reach -----------------------------------------------------------
  *
