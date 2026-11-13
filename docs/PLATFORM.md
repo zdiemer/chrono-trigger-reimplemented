@@ -375,6 +375,15 @@ rather than `$BA`), the line keeps it as `@AD`. Every byte of the
 cartridge's scripts is read as a command; 6,800 of their 190,000 lines carry
 an opcode, and one jump lands where no command starts (`to=+06`).
 
+A command that says a line (`say`, `ask`) shows it beside the command as a
+comment, which reading leaves alone: the line of the table of strings the
+script last chose (`use_text`, followed in the script's order), as the
+pack's text spells it, cut at 95 bytes:
+
+    say window=00 line=13   # "LARA: Oh no…! Help!!"
+
+5,257 of the cartridge's commands show their line.
+
 A world map's places are its lists, each a record a line in the game's
 order and layout (`overworld_place_streams`, `game/overworld/places.h`, from
 the work-RAM map's fields, which the map's load and the places' lookups go
@@ -409,19 +418,29 @@ The dialog's and the menus' strings (`text:dialog`, 4695 of them), the
 battle's names and the equipment screen's slot labels (`text:names:11`,
 `text:names:10`) and the dictionary the strings share words from
 (`text:dialog-dictionary`) are the text kind, `frontend/text.c`, kept as
-`<pack>.text`. A string is written as the typesetter reads it
-(`game/menu/typeset.c`): a glyph its letter, digit or sign (the dialog
-font's `“ ” ♪ ♥ … ∞` in UTF-8), a word of the dictionary its glyphs in angle
-brackets, and a control code its name in braces (`{line indent}`, `{page
-read}`, `{wait 0A}`, `{Crono}`, `{member 2}`, `{tech}`), each break ending
-a line of the text; anything else, and a space at a line's ends, in braces
-too (`{F3}`, `{01 7F}`, `{space}`), so every byte has a spelling. A name is
+`<pack>.text`. A string is written as it reads (`game/menu/typeset.c`): a
+glyph its letter, digit or sign (the dialog font's `“ ” ♪ ♥ … ∞` in UTF-8),
+a word of the dictionary its glyphs, and a control code its name in braces
+(`{line indent}`, `{page read}`, `{wait 0A}`, `{Crono}`, `{member 2}`,
+`{tech}`), each break ending a line of the text; anything else in hex in
+braces (`{F3}`, `{01 7F}`), and a space at a line's ends `{space}`, so every
+byte has a spelling. Read back, a string's glyphs are packed with the
+dictionary's words: from the left, at each glyph the longest word starting
+there, the first kept of those. Where the cartridge packed a string
+otherwise, the text says so where it must, so an unedited string reads
+back as its bytes: a word in angle brackets is that word (`<you>r`), `|`
+ends a run that is packed on its own, a glyph in hex is that glyph, and
+`{unpacked}` keeps the run after it as its glyphs (the menus' strings,
+which the cartridge doesn't pack). The writer reads each string back as it
+writes it and, should that ever differ, writes the string's bytes in hex.
+Of the cartridge's 20,700 lines, 172 carry a word and 47 runs are
+`{unpacked}`; none falls back to hex. A name is
 its glyphs in quotes, in the small font, whose signs past `%` differ from
 the dialog font's and are written in hex. The dictionary is its 128 words a
-line, `XX "glyphs"`, in the order they are kept. A word in a string is the
-word the store under the text has with those glyphs (the pack's), so an
-edited dictionary changes every string that uses the word, as in the game;
-two words alike would be ambiguous and are written in hex.
+line, `XX "glyphs"`, in the order they are kept. A string is packed with
+the words the store under the text has (the pack's), so an edited
+dictionary changes every string that uses the word, as in the game; two
+words alike would be ambiguous and are written in hex.
 
 Read back, a string may be no longer than the cartridge's slot for it, its
 end included; a shorter one is ended there and the rest of its slot is
@@ -435,7 +454,8 @@ words from the dictionary quick.
 
 Measured: `text_test` (ROM-free) writes and reads back made-up strings of
 every code, words, signs and bytes no glyph spells, names and a dictionary
-with two words alike; serves a string written afresh (a word, a name, a
+with two words alike; packs plain text (the longest word, a run ended by
+`|`, one `{unpacked}`); serves a string written afresh (a word, a name, a
 wait, a two-byte glyph, a tech) and an edited name, and only what a text
 names; and refuses wrong text at its line (a code that isn't one, braces
 not closed, a word that isn't the dictionary's or is ambiguous, a sign that

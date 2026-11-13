@@ -205,6 +205,26 @@ int main(void)
     free(text);
     free(whole);
 
+    /* Plain text packed with the dictionary's words as it is read: the
+     * longest word at each glyph, a run ended by `|` packed on its own, one
+     * marked {unpacked} kept as its glyphs. */
+    {
+        char plain[256];
+        snprintf(plain, sizeof plain, "[%s]\nAa Ba x|Aa {unpacked}Aa{space}\n", string->name);
+        unsigned line = 0;
+        const char *why = "";
+        Decoded *packed = decoded_import(&game_text, plain, strlen(plain), &made, &line, &why);
+        CHECK(packed != NULL);
+        if (packed) {
+            AssetStore over;
+            decoded_store(packed, &over);
+            static const uint8_t want[] = { 0x21, 0x22, 0xD1, 0x21, 0xA0, 0xBA, 0xEF, 0x00 };
+            const uint8_t *got = served(&over, string);
+            CHECK(got && !memcmp(got, want, sizeof want));
+        }
+        decoded_close(packed);
+    }
+
     /* Wrong text, refused where it is wrong. */
     char wrong[512];
     snprintf(wrong, sizeof wrong, "[%s]\nHi\nHo{lime}\n", string->name);

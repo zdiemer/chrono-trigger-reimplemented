@@ -6,7 +6,8 @@
  * store under it; and text that is wrong is refused at its line. Where the
  * ROM is staged (roms/ct-usa.sfc, from the source directory), every script
  * of the cartridge reads back as its bytes too, and with a path the text is
- * written there to look at. The language's table and the places' layout the
+ * written there to look at. A command that says a line shows it beside it.
+ * The language's table and the places' layout the
  * text is written from hold what the text relies on. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,6 +84,10 @@ static const uint8_t SCRIPT[] = {
     0x09,                                                /* $25: take calls */
     0x00,                                                /* return */
 };
+
+/* A made-up script that speaks: no objects, a table of strings chosen
+ * (strings_f70000, use_text) and its first line said. */
+static const uint8_t SAYING[] = { 0, 0xB8, 0x00, 0x00, 0xF7, 0xBB, 0x00, 0x00 };
 
 /* Made-up places: two exits, an event, a halt, two scripts, and a byte after. */
 static const uint8_t PLACES[] = {
@@ -199,6 +204,16 @@ int main(int argc, char **argv)
         else
             CHECK(pack_into(&asset_catalogue[i], SCRIPT, sizeof SCRIPT));
     }
+    /* ... but one, which says the first line of a table: "Hi", a break, "b" */
+    const AssetEntry *saying = named("field_packed_script.2"), *strings = named("strings_f70000"),
+                     *first = named("strings_f70000.0");
+    CHECK(saying && strings && first);
+    if (!saying || !strings || !first)
+        return 1;
+    CHECK(pack_into(saying, SAYING, sizeof SAYING));
+    made_up(strings)[0] = (uint8_t)first->at, made_up(strings)[1] = (uint8_t)(first->at >> 8);
+    static const uint8_t HI[] = { 0xA7, 0xC2, 0x05, 0xBB, 0x00 };
+    memcpy(made_up(first), HI, sizeof HI);
     AssetStore made = { made_up_find, NULL };
     const AssetEntry *script = named("field_packed_script.0");
     CHECK(script != NULL);
@@ -215,6 +230,7 @@ int main(int argc, char **argv)
     CHECK(strstr(text, "functions 00 L0020 L0022 L0020") != NULL);
     CHECK(strstr(text, "L0022:\nif_answer answer=01 to=L0025\nL0025:\ntake_calls takes=01\n") != NULL);
     CHECK(strstr(text, "face object=self facing=") != NULL);
+    CHECK(strstr(text, "use_text text=F70000\nsay window=00 line=00   # \"Hi b\"\n") != NULL);
     CHECK(strstr(text, "exit 85 10 01 0005 08 1E\nexit 86 11 02 01FF 00 00\nevent 90 20 00\nhalt 91 21 07\n"
                        "script 3000\nscript 3010\nrest AB\n") != NULL);
     free(text);

@@ -7,6 +7,7 @@
 #include "event/script.h"
 #include "overworld/places.h"
 #include "packed.h"
+#include "text.h"
 
 /* ---- The language, from its table ------------------------------------------------------------- */
 
@@ -260,7 +261,7 @@ static int read_as(const char *text, size_t len, bool back, Scratch *sc);
  * jump's place, and its opcode where its name and parameters would be
  * another's. */
 static void write_command(DecodedText *out, const Row *row, const uint8_t *c, uint16_t length, uint32_t at,
-                          const uint8_t *mark, uint32_t len, Scratch *sc)
+                          const uint8_t *mark, uint32_t len, Scratch *sc, const char *said)
 {
     char s[48];
     DecodedText line = { 0 }, *t = &line;
@@ -313,6 +314,11 @@ static void write_command(DecodedText *out, const Row *row, const uint8_t *c, ui
     if (!line.full && read_as(line.text, line.len, row->back, sc) != row->opcode) {
         snprintf(s, sizeof s, " @%02X", row->opcode);
         decoded_put(t, s);
+    }
+    if (said) {   /* the line it says, which reading leaves alone */
+        decoded_put(t, "   # \"");
+        decoded_put(t, said);
+        decoded_put(t, "\"");
     }
     decoded_put(t, "\n");
     decoded_put(t, "x");   /* room for a NUL */
@@ -367,7 +373,39 @@ static void mark_jumps(const uint8_t *u, uint32_t len, uint8_t *mark)
     }
 }
 
-static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
+/* A parameter of a row, by its name, inside a command of `length` bytes. */
+static const Param *param_named(const Row *row, const char *name, uint16_t length)
+{
+    for (unsigned i = 0; i < row->params; i++)
+        if (!strcmp(row->param[i].name, name) && param_in(&row->param[i], length))
+            return &row->param[i];
+    return NULL;
+}
+
+/* The line a command says from the table of strings the script last chose
+ * (use_text), as the dialog's text spells it: the table's word for the line
+ * is where in the table's bank the string starts. Followed in the script's
+ * order, which is how its objects choose a table before they speak. */
+enum { TABLE_ENTRY_BYTES = 2 };
+
+static bool line_said(const AssetStore *store, uint32_t table, uint32_t line, char *out, size_t n)
+{
+    uint32_t entry = table + TABLE_ENTRY_BYTES * line;
+    for (uint16_t i = 0; i < asset_catalogue_count; i++) {
+        const AssetEntry *e = &asset_catalogue[i];
+        if (entry < e->at || entry + TABLE_ENTRY_BYTES > e->at + e->length)
+            continue;
+        uint32_t got = 0;
+        const uint8_t *bytes = store->find(store->ctx, e->name, asset_type_names[e->type], &got);
+        if (!bytes || got != e->length)
+            return false;
+        uint32_t at = entry - e->at;
+        return text_said_at(store, (table & 0xFF0000) | bytes[at] | (uint32_t)bytes[at + 1] << 8, out, n);
+    }
+    return false;
+}
+
+static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len, const AssetStore *store)
 {
     char s[48];
     uint32_t objects = len ? u[0] : 0, code = TABLE_AT + objects * FUNCTIONS * 2;
@@ -399,6 +437,8 @@ static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
         }
         decoded_put(t, "\n");
     }
+    uint32_t table = 0;   /* the table of strings chosen, or none yet */
+    char said[96];
     for (uint32_t at = code; at < len;) {
         if (mark[at] & LABEL) {
             snprintf(s, sizeof s, "L%04X:\n", offset_of(at));
@@ -407,7 +447,11 @@ static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
         if ((mark[at] & ~LABEL) == COMMAND) {
             const Row *row = row_of(u[at]);
             uint16_t length = length_of(row, u + at, len - at);
-            write_command(t, row, u + at, length, at, mark, len, sc);
+            const Param *text = param_named(row, "text", length), *line = param_named(row, "line", length);
+            if (text)
+                table = operand_value(u + at, text);
+            bool says = line && table && line_said(store, table, operand_value(u + at, line), said, sizeof said);
+            write_command(t, row, u + at, length, at, mark, len, sc, says ? said : NULL);
             at += length;
             continue;
         }
@@ -503,7 +547,6 @@ static bool decodes(const AssetEntry *e, bool *named)
 
 static bool write_resource(DecodedText *t, const AssetStore *store, const AssetEntry *e, const uint8_t *bytes)
 {
-    (void)store;
     size_t len = 0;
     bool long_runs = false;
     uint8_t *unpacked = packed_unpack(bytes, e->length, &len, &long_runs);
@@ -515,7 +558,7 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     packed_write_form(t, long_runs);
     Form f = FORM_SCRIPT;
     form_of(e, &f);
-    bool written = f == FORM_PLACES ? write_places(t, unpacked, (uint32_t)len) : write_script(t, unpacked, (uint32_t)len);
+    bool written = f == FORM_PLACES ? write_places(t, unpacked, (uint32_t)len) : write_script(t, unpacked, (uint32_t)len, store);
     free(unpacked);
     return written;
 }

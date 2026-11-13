@@ -446,7 +446,7 @@ if(BUILD_TESTING)
   add_executable(maps_test tests/frontend/maps_test.c frontend/decoded.c frontend/maps.c frontend/packed.c
     frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
   target_include_directories(maps_test PRIVATE frontend game)
-  add_executable(scripts_test tests/frontend/scripts_test.c frontend/decoded.c frontend/scripts.c frontend/packed.c
+  add_executable(scripts_test tests/frontend/scripts_test.c frontend/decoded.c frontend/scripts.c frontend/text.c frontend/packed.c
     frontend/lz.c frontend/assets.c)
   target_include_directories(scripts_test PRIVATE frontend game)
   target_link_libraries(scripts_test PRIVATE ct_game)
