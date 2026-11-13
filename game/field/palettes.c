@@ -45,6 +45,24 @@ static void set_sharer_after(GameState *g, FieldObject obj, FieldLink link)
     set_field_object_palette_newer(g, obj, field_link_byte(link));
 }
 
+/* The sharer links of the object a link names, written as the original
+ * writes them: at the link's byte in the two tables, which lie interleaved
+ * a byte apart, the older first. An odd link (the newer sharer a disabled
+ * object in Truce Canyon keeps, 600 A.D.) names no object, and its writes
+ * land a byte along: its "older" is the newer of the object below it, its
+ * "newer" the older of the object above. */
+enum { OLDER_THEN_NEWER = 2 };
+
+static void set_sharer_field(GameState *g, FieldLink at, bool newer, FieldLink link)
+{
+    unsigned offset = (unsigned)field_link_byte(at) + (newer ? 1u : 0u);
+    FieldObject obj = (FieldObject)(offset / OLDER_THEN_NEWER);
+    if (offset % OLDER_THEN_NEWER)
+        set_sharer_after(g, obj, link);
+    else
+        set_sharer_before(g, obj, link);
+}
+
 // $C0:734C
 void object_give_up_palette(GameState *g, FieldObject obj)
 {
@@ -56,15 +74,14 @@ void object_give_up_palette(GameState *g, FieldObject obj)
         /* The newest sharer: the one before it is the newest now, or no
          * object has the slot. */
         set_field_palette_slot_newest(g, palette_slot(g, obj), field_link_byte(first ? field_no_link() : before));
-        if (!first) {
-            set_sharer_after(g, field_linked_object(before), field_no_link());
-        }
+        if (!first)
+            set_sharer_field(g, before, true, field_no_link());
         return;
     }
     /* Otherwise the sharers either side of it close up round it. */
-    set_sharer_before(g, field_linked_object(after), first ? field_no_link() : before);
+    set_sharer_field(g, after, false, first ? field_no_link() : before);
     if (!first)
-        set_sharer_after(g, field_linked_object(before), after);
+        set_sharer_field(g, before, true, after);
 }
 
 /* ---- The object's colours ---------------------------------------------------------------- */
@@ -294,11 +311,17 @@ bool object_palette_slot_is_one(const GameState *g, FieldObject obj)
     return !(stored & 1) && palette_slot(g, obj) < PALETTE_SLOTS;
 }
 
+/* A sharer link whose fields the give-up writes lie in the tables: none, an
+ * object, or an odd link short of the tables' end. */
+static bool sharer_link_in_the_tables(FieldLink link)
+{
+    return !field_link_is_object(link) || field_link_byte(link) + 1u < OLDER_THEN_NEWER * FIELD_OBJECTS;
+}
+
 bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj)
 {
     FieldLink before = sharer_before(g, obj), after = sharer_after(g, obj);
-    return palette_slot(g, obj) < PALETTE_SLOTS && (!field_link_is_object(before) || field_link_names_object(before)) &&
-           (!field_link_is_object(after) || field_link_names_object(after));
+    return palette_slot(g, obj) < PALETTE_SLOTS && sharer_link_in_the_tables(before) && sharer_link_in_the_tables(after);
 }
 
 /* While a script has set the palettes itself the object gives nothing up and
