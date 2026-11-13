@@ -35,9 +35,10 @@ def twins(bot, state, rng, inventory):
     return ("tech", (4, 5, 5)[member], None)
 
 
-def play(run, start=1, seed=1):
+def play(run, start=1, seed=1, policy=twins):
     """From the save point before them to the Golem Twins beaten and the field
-    back in hand; `start` is the index in PHASES of the first phase to run."""
+    back in hand; `start` is the index in PHASES of the first phase to run,
+    `policy` the fight's (this save's Crono, Marle and Lucca by default)."""
     machine = run.machine
     if start <= 1:
         machine.run(40, "RIGHT")
@@ -53,7 +54,7 @@ def play(run, start=1, seed=1):
                 seen.append(True)
             return bool(seen) and not living and any(state.hp(i) for i in range(3))
 
-        run.fight(twins, won, seed=seed, max_frames=24000, max_tries=30)
+        run.fight(policy, won, seed=seed, max_frames=24000, max_tries=30)
         run.checkpoint("twins_won")
     if start <= 3:
         assert run.wait_control(12000), "the field after the Twins"

@@ -14,7 +14,8 @@ from .. import bfs
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 from ._trial_walk import world_enter
-from ._epoch import DIAL_PERIOD, land_by
+from ._epoch import DIAL_PERIOD, entrance, land_by
+from . import ozzies_fort
 from .playthrough import naming
 from . import playthrough
 from . import _trial_party as early
@@ -30,7 +31,7 @@ from . import zeal_palace
 SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
 SLOT = 0
 STORY = 0x7F0000
-MARLE = 1                   # a character id
+CRONO, MARLE, AYLA = 0, 1, 5   # character ids
 LAIR_RUINS = 0x133          # the crater Lavos left, 65,000,000 B.C.
 WORLD_65M, LAIR_RUINS_MAP = "f301", "3301"
 LAIR_RUINS_GATE = 8         # an object of the Lair Ruins
@@ -189,6 +190,49 @@ def party_policy(bot, state, rng, inventory):
         if ether and rng.random() < 0.5:
             return ether
     return ("attack", min(living, key=lambda slot: state.hp(slot)) if living else None)
+
+
+def dalton_policy(bot, state, rng, inventory):
+    """Dalton halves a member's HP with each blow, and leaving he belches
+    fire over the whole party: a Lapis whenever anyone is down to half,
+    techs otherwise, to have him gone before the party is worn thin."""
+    members = [slot for slot in range(bot.party) if state.max_hp(slot)]
+    if all(state.hp(slot) for slot in members) and any(policies.fraction(state, slot) < 0.6 for slot in members):
+        action = policies.use(inventory, policies.LAPIS, None)
+        if action:
+            return action
+    return policies.party(bot, state, rng, inventory)
+
+
+def twins_policy(bot, state, rng, inventory):
+    """The Golem Twins with Crono, Ayla and Marle: alternate Lightning 2 and
+    Ice 2 over both so neither element is theirs to copy for long, Ayla's
+    fists, Marle's Life 2 and Cure 2 between, and the Ethers for the MP."""
+    member = state.member
+    character = policies.party_ids(bot)[member]
+    members = [slot for slot in range(bot.party) if state.max_hp(slot)]
+    dead = [slot for slot in members if not state.hp(slot)]
+    if dead:
+        if character == MARLE and state.mp(member) >= 15:
+            return ("tech", 7, dead[0])
+        action = policies.use(inventory, policies.REVIVE, dead[0])
+        if action:
+            return action
+    low = [slot for slot in members if state.hp(slot) and policies.fraction(state, slot) < 0.45]
+    if len(low) >= 2:
+        action = policies.use(inventory, policies.LAPIS, None)
+        if action:
+            return action
+    if low and character == MARLE and state.mp(member) >= 5:
+        return ("tech", 6, min(low, key=lambda slot: policies.fraction(state, slot)))
+    if character != AYLA and state.mp(member) < 20:
+        action = policies.use(inventory, policies.FULL_ETHER, member) or policies.use(inventory, policies.MID_ETHER, member)
+        if action:
+            return action
+    living = policies.enemies(state)
+    if character == AYLA or not living:
+        return ("attack", min(living, key=lambda slot: state.hp(slot)) if living else None)
+    return ("tech", 4 if character == CRONO else 5, None)
 
 
 def in_hand(run, max_frames=12000, seed=1):
@@ -478,6 +522,9 @@ def to_the_epoch(run, ahead, seed):
                                  and machine.b(A.OVERWORLD_TRAVEL) != TRAVEL_ON_FOOT, 8000), "12000 B.C."
         run.checkpoint("epoch_12kbc")
     if ahead("algetty"):
+        # Without its wings the Epoch keeps to open ground, which the
+        # straight line to Terra Cave crosses; across, then down, does not.
+        ozzies_fort.fly_to(run, *entrance(run, TERRA_CAVE))
         land_by(run, TERRA_CAVE)
         assert leave_fighting(run, ALGETTY), "Algetty"
         run.checkpoint("algetty")
@@ -590,7 +637,7 @@ def to_dalton(run, ahead, seed):
         assert A.battle_menu_open(machine), "Dalton's battle"
         run.checkpoint("dalton")
     if ahead("dalton_won"):
-        win(run, seed)
+        playthrough.win(run, seed, dalton_policy)
         run.checkpoint("dalton_won")
 
 
@@ -640,9 +687,12 @@ def ocean_palace(run, ahead, seed):
                         break
                     machine.run(1)
                 run.find_player()
-                run.walk_here(lambda m, px, py: py > depth or not m.b(A.FIELD_PLAYER_CONTROL), max_nodes=3000)
-                # A monster's touch opens a battle a moment later; a
-                # statue's moment only pauses the walk.
+                moves = run.walk_here(lambda m, px, py: py > depth or A.battle_menu_open(m), max_nodes=3000)
+                if moves is None:           # a monster in the way: walk into it
+                    moves = run.walk_here(lambda m, px, py: py > depth or not m.b(A.FIELD_PLAYER_CONTROL),
+                                          max_nodes=3000)
+                run.say("stairs", depth, "steps", moves and len(moves), "at", run.me())
+                # A monster's touch opens a battle a moment later.
                 for _ in range(9):
                     if early.battle_ready(run):
                         win(run, seed)
@@ -790,7 +840,7 @@ def main():
         ocean_palace(run, ahead, args.seed)
         palace_floor(run, ahead, args.seed)
         if within(TWINS):
-            golem_twins.play(run, within(TWINS), args.seed)
+            golem_twins.play(run, within(TWINS), args.seed, twins_policy)
         if within(LAVOS):
             # From the Twins' room on: the Mammon Machine and Lavos rising.
             ocean_palace_lavos.play(run, within(LAVOS) + 1, len(LAVOS) + 1)
