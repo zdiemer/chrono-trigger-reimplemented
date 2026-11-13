@@ -23,7 +23,7 @@ import random
 import time
 
 from . import addresses as A
-from . import bfs, mkmovie, policies
+from . import bfs, fight_facts, mkmovie, policies
 from .bot import Bot
 from .driver import Driver
 
@@ -81,6 +81,7 @@ class Run:
         self.machine = Driver(rom=rom, sram=sram, drive=drive)
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
+        self.fight_tries = []   # each fight's retries this session (fight_facts)
 
     def close(self):
         self.logfile.close()
@@ -121,7 +122,9 @@ class Run:
             raise RouteDone("%s frame %d" % (name, frame))
 
     def finish(self, what):
-        """The route reached its goal: say so, with the frame, for route_check."""
+        """The route reached its goal: say so, with the frame, its fights'
+        retries and the facts they left (fight_facts), for route_check."""
+        fight_facts.report(self, self.fight_tries)
         self.say("outcome reached", what, "frame", self.machine.frame)
 
     def resume(self, name):
@@ -504,6 +507,7 @@ class Run:
             if until(self, state):
                 for point in checkpoints:
                     machine.free(point["slot"])
+                self.fight_tries.append(tries)
                 self.say("fight done frame", machine.frame, "tries", tries,
                          "elapsed %.0fs" % (time.time() - started))
                 return True

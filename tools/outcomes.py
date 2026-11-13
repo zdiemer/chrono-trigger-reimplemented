@@ -171,6 +171,16 @@ def exceptions(path):
 def fight_routes(path=FIGHT_ROUTES, route_dir=ROUTES):
     """{movie: route} from tools/fight_routes.txt; each route a public module of
     tools/movies/routes, each line with its reason."""
+    return {movie: route for movie, (route, _) in fight_route_lines(path, route_dir).items()}
+
+
+def fight_retries(path=FIGHT_ROUTES, route_dir=ROUTES):
+    """{route: the retries any one of its fights may take}, 0 unless its line
+    gives `retries=N`."""
+    return {route: retries for route, retries in fight_route_lines(path, route_dir).values()}
+
+
+def fight_route_lines(path, route_dir):
     routes = {p.stem for p in route_dir.glob("*.py") if not p.stem.startswith("_")}
     out = {}
     for number, line in enumerate(path.read_text().splitlines(), 1):
@@ -178,9 +188,12 @@ def fight_routes(path=FIGHT_ROUTES, route_dir=ROUTES):
         fields = body.split()
         if not fields:
             continue
-        if len(fields) != 2 or fields[1] not in routes or not reason.strip() or fields[0] in out:
-            raise ValueError("%s:%d: expected movie route # reason, a known route, once" % (path.name, number))
-        out[fields[0]] = fields[1]
+        retries = re.fullmatch(r"retries=([0-9]+)", fields[2]) if len(fields) == 3 else None
+        if (len(fields) not in (2, 3) or (len(fields) == 3 and not retries) or fields[1] not in routes
+                or not reason.strip() or fields[0] in out):
+            raise ValueError("%s:%d: expected movie route [retries=N] # reason, a known route, once"
+                             % (path.name, number))
+        out[fields[0]] = (fields[1], int(retries.group(1)) if retries else 0)
     return out
 
 

@@ -157,8 +157,12 @@ class OutcomesTest(unittest.TestCase):
         path = self.root / "fights"
         path.write_text("# header\nbattle-duel duel  # won, field in hand\n")
         self.assertEqual(o.fight_routes(path, routes), {"battle-duel": "duel"})
+        self.assertEqual(o.fight_retries(path, routes), {"duel": 0})
+        path.write_text("battle-duel duel retries=3  # a coin-flip boss\n")
+        self.assertEqual(o.fight_retries(path, routes), {"duel": 3})
         for text in ("battle-duel duel\n", "battle-duel _helper  # a helper\n",
-                     "battle-duel nowhere  # missing\n", "a duel  # x\na duel  # twice\n"):
+                     "battle-duel nowhere  # missing\n", "a duel  # x\na duel  # twice\n",
+                     "battle-duel duel retries=many  # bad\n", "battle-duel duel 3  # bad\n"):
             path.write_text(text)
             with self.subTest(text=text), self.assertRaises(ValueError):
                 o.fight_routes(path, routes)
