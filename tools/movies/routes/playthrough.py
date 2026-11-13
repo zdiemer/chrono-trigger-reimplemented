@@ -193,13 +193,13 @@ def flee(run, max_frames=3000):
     raise AssertionError("the party could not run")
 
 
-def win(run, seed=1, policy=early.early_party, max_frames=35000):
+def win(run, seed=1, policy=early.early_party, max_frames=35000, max_tries=300):
     """Fight the battle that is open to its end: every enemy down, or the
     field given back (a fight a scene ends, as the prison's guards' does,
     leaves its enemies standing). Lab 16's Shadows, which have 1 HP and take
     no harm from a weapon, are run from; any other fight with no enemy the
     bot can wear down fails the route. `policy` chooses the party's actions; a fight
-    still going after `max_frames` fails the route."""
+    still going after `max_frames`, or lost after `max_tries` tries back, fails the route."""
     machine = run.machine
     kinds = enemy_kinds(machine)
     run.say("enemies", sorted(kinds))
@@ -218,7 +218,7 @@ def win(run, seed=1, policy=early.early_party, max_frames=35000):
         field_frames[0] = field_frames[0] + 1 if machine.b(A.FIELD_PLAYER_CONTROL) else 0
         return field_frames[0] >= 60
 
-    run.fight(policy, over, party=party_size(run), seed=seed, max_frames=max_frames, max_tries=300)
+    run.fight(policy, over, party=party_size(run), seed=seed, max_frames=max_frames, max_tries=max_tries)
 
 
 def catch_the_rat(run, max_nodes=2500):
