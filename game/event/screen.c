@@ -432,6 +432,14 @@ static bool restart_the_game(GameState *g, Platform *pf)
     return false;
 }
 
+/* The commands opening a circle say where and how wide in three bytes after
+ * the command's number; the others are the opcode and the number alone, and
+ * nothing reads on past them (the last command of a script is often one,
+ * and past the script lie whatever bytes were there before it). */
+static const EventOpcode circle_opening = {
+    0xFF, .screen_command = OPERAND(1), .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 5
+};
+
 bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0xFF), at);
@@ -445,6 +453,8 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
         *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
         return true;
     }
+    if (screen_commands[i].kind == OPENS_A_CIRCLE)
+        c = event_decode(g, pf, &circle_opening, at);
     bool done;
     TIMED_AS(g, screen_entries[i].entry,
              done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius));
@@ -485,5 +495,4 @@ EVENT_OPCODES(event_screen_opcodes,
     { 0x29, .credits_text = OPERAND_BITS(1, 0, 0x7F), .two_screens_tall = OPERAND_BITS(1, 7, 0x01), .length = 2 },
     { 0xFE, OPERATION(move_searchlight), .frames = OPERAND(1), .searchlight = SEARCHLIGHT_MOVE(2), .length = 18,
       CHECK(searchlight_moves_over_frames) },
-    { 0xFF, .screen_command = OPERAND(1), .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 2,
-      CHECK(a_screen_command) });
+    { 0xFF, .screen_command = OPERAND(1), .length = 2, CHECK(a_screen_command) });
