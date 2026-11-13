@@ -1756,18 +1756,40 @@ enum { FIELD_OBJECT_FRAME_DELAY_COUNT = 64 };   /* by object slot (X = slot * 2)
 /* Frames left before the object's next animation frame; cleared to restart an animation */
 uint8_t field_object_frame_delay(const GameState *g, unsigned slot);
 void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v);
+/* Frames left before the object's next animation frame; cleared to restart an animation
+ * Unchecked, reaching past the variable into what follows it: a member waiting in a place of the
+ * party emptied under it shows its pose on the slot the empty place's marker names, the first
+ * past the tables (game/field/party_trail.c wait_on_the_trail, $C0:9F6F; the Prophet's ending,
+ * frame 133126): logic, the delay table running into the animation frames' */
+uint8_t field_object_frame_delay_unchecked(const GameState *g, unsigned slot);
+void set_field_object_frame_delay_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_LOOPED_ANIMATION_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The animation the object loops, or animates its movement with ($FF while a one-off or a held
  * frame has nothing to go back to) */
 uint8_t field_object_looped_animation(const GameState *g, unsigned slot);
 void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v);
+/* The animation the object loops, or animates its movement with ($FF while a one-off or a held
+ * frame has nothing to go back to) Unchecked, reaching past the variable into what follows it: a
+ * member waiting in a place of the party emptied under it shows its pose on the slot the empty
+ * place's marker names, the first past the tables (game/field/party_trail.c wait_on_the_trail,
+ * $C0:9F6F; the Prophet's ending, frame 133126): logic, the table running into the sprite
+ * records' */
+uint8_t field_object_looped_animation_unchecked(const GameState *g, unsigned slot);
+void set_field_object_looped_animation_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_ANIMATION_FRAME_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Where the object is in its animation: a frame number ($FF, a frame before the first, where it
  * starts over) */
 uint8_t field_object_animation_frame(const GameState *g, unsigned slot);
 void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v);
+/* Where the object is in its animation: a frame number ($FF, a frame before the first, where it
+ * starts over) Unchecked, reaching past the variable into what follows it: a member waiting in a
+ * place of the party emptied under it shows its pose on the slot the empty place's marker names,
+ * the first past the tables (game/field/party_trail.c wait_on_the_trail, $C0:9F6F; the Prophet's
+ * ending, frame 133126): logic, the table running into the sprite records' */
+uint8_t field_object_animation_frame_unchecked(const GameState *g, unsigned slot);
+void set_field_object_animation_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_RECORDS_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Offset of the object's 8-byte sprite records at $7F:4BC0 (and its frame data at $7F:4800) */

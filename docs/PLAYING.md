@@ -33,7 +33,13 @@ and palette, and `--tilemap NAME
 `--movie <input.ctm> --frames N` runs headlessly to the movie's declared end.
 `--locations` logs visited places; `--end-state <file>` writes the saved-game
 projection source for outcome checks. `--shot-every N --shot-dir <dir>` captures
-screens. These outputs are local, uncommitted artifacts. `--window` forces a
+screens. These outputs are local, uncommitted artifacts. A reporting option
+only looks: its reads of the game's state are a guard's look (`vars_peek`),
+which owes no time, so the run plays the same with or without it. The ctest
+`observers` (tests/frontend/observers.py) plays title-start with each of
+`--timing-report`, `--locations`, `--lag-log`, `--outcomes`, `--end-state`,
+`--screenshot` and `--shot-every` and holds the end state, the last picture
+and the time owed to the plain run's. `--window` forces a
 window even with a frame limit. `--drive` exposes the route protocol over
 stdin/stdout and cannot combine with a movie, scene fixture or window.
 
@@ -97,7 +103,7 @@ input history, while the frontend owns names and atomic writes.
 `python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc` checks
 opening, menu and battle continuations from a state file loaded by another
 process (state, picture and PCM), route slot/file restores, recording playback
-and `--check-snapshots` over a field, menu, battle and scene movie, one process
+and `--check-snapshots` over a field, menu, battle and scene movie, two processes
 at a time; the gate runs it. Outputs stay under the ignored
 `build/player-check` directory.
 

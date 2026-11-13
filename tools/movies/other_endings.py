@@ -91,6 +91,30 @@ def watch_ending(run, *, selected, done, max_frames=48000, settle_frames=120):
     raise AssertionError("ending did not finish: maps %s, selection seen %s" % (seen, selection_seen))
 
 
+MEGA_ELIXIR = 0xC5
+CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP = 0x7E2600, 0x50, 3
+
+
+def restore_the_party(run):
+    """A Mega Elixir from the items screen where the shell's fight left the
+    party short: the inner Lavos opens with its laser beams before anyone's
+    first turn, which a party below its full HP doesn't stand."""
+    from .routes import menu_sweep as menus
+    machine = run.machine
+    party = [c for c in machine.peek(A.PARTY_MEMBERS, 3) if c < 0x80]
+    at = lambda c: CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + RECORD_HP
+    if all(machine.w(at(c)) == machine.w(at(c) + 2) for c in party) or not menus.count_of(machine, MEGA_ELIXIR):
+        return
+    menus.open_menu(machine)
+    menus.open_option(machine, menus.ITEMS)
+    machine.run(20)
+    menus.use_item(run, MEGA_ELIXIR, choose_member=True)
+    menus.back_to_main_menu(machine)
+    menus.press(machine, "B", 60)
+    assert run.wait_control(), "the field after the Mega Elixir"
+    run.say("restored", [machine.w(at(c)) for c in party])
+
+
 def walking_into_lavos(run, between=None):
     """The fight's idle step between the shell's imitations: the party walks
     into Lavos again, readied first by `between(run)` where given."""
@@ -113,6 +137,7 @@ def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None, poli
         run.checkpoint("cavern")
     if start <= 4:
         assert run.wait_control(), "control inside Lavos"
+        restore_the_party(run)
         assert run.exit_to("db01"), "the inner cavern's second chamber"
         run.checkpoint("inner")
     if start <= 5:

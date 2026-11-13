@@ -387,6 +387,12 @@ void object_stand(GameState *g, FieldObject obj);
 /* Show one of the movement animations, from its first frame, unless the
  * object is already showing it: the party picks its own (field/party.h). */
 void object_show_movement(GameState *g, FieldObject obj, uint8_t animation);
+/* The same on the slot an empty place of the party names, past the tables
+ * (object_past_the_tables): a member waiting in a place emptied under it
+ * shows its pose there (field/party_trail.c), on the bytes after the
+ * animation tables' -- object 0's sprite record and animation frame. */
+void object_show_movement_past_the_tables(GameState *g, FieldObject slot, uint8_t animation);
+void object_restart_animation_past_the_tables(GameState *g, FieldObject slot);
 
 /* Every frame, for an object in view: count down to its next frame, and when
  * it is due, queue the object for the frame builder and move to the frame. */

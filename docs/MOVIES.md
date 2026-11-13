@@ -83,6 +83,10 @@ The default fast set is `new_game_plus` and `menu_sweep:items`: the first checks
 New Game+ and erasure, the second loads cartridge progress and uses an item.
 A route whose ct_native printed a runtime fault (tools/outcomes.py's: an
 overlay crossing, an accessor out of range) fails, as a movie does.
+A route writes only to its scratch directory (`--prefix`): one that changes a
+file under `saves/`, or leaves git's account of the working tree otherwise
+changed, fails (`tree_state`), so a long batch can't replace the saves the
+movies start from.
 
 ### Fights carried by routes
 
@@ -95,10 +99,15 @@ movies whose fight such a route carries, each movie's own route, the one its
 header names (or, for a hand recording, the route that names the movie): 19
 movies, from Dalton, Giga Gaia, the Golem Twins, the Black Tyrano, Son of
 Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's forest,
-Death Peak's summit, the unequipped armor's fights and the TerraMutant. Two
+Death Peak's summit, the unequipped armor's fights and the TerraMutant. Six
 routes take the movie's own presses for the field before their fights, which
 the field plays on time: `unequipped_armor` to Truce Canyon (16 s where the
-world map's searches took 41) and `terramutant` to the boss; the TerraMutant's
+world map's searches took 41), `terramutant` to the boss, and `black_tyrano`,
+`giga_gaia`, `rust_tyrano` and `north_cape` (the fight) to their battles' first
+command menus, where walking there took 40-80% of each route's time (black_tyrano
+23 s to 7, north_cape 23 to 4). Their `play` functions still walk the way for the
+playthrough legs and `magus_joins`; from the movie's start, Magus's fight is
+checked with seed 2, the first that wins without the party falling. The TerraMutant's
 movie ends partway through the fight, so its route stops there too, the head
 hurt as far as the movie's, both parts up. The gate runs those routes beside the fast
 pair (`routes` in the gate's `times:` line). For those movies the outcome check
@@ -160,8 +169,14 @@ measured in ct_native only, unconfirmed against the original), opens the sealed 
 Lab 32's race is steered with `events-jetbike-race-won`'s input from the race's
 first frame, as `proto_dome`'s own approach is; a rest in Proto Dome's Enertron
 and Tonics before the R Series keep Crono and Lucca fit for it, the factory's
-fights before it leaving their MP alone. It ends at the End of Time after the
-R Series (frame 551350). Lab 16's Shadows,
+fights before it leaving their MP alone. At the End of Time Spekkio's three
+laps pass each post once (a post counts again each time its count runs while
+the leader is still against it, so the walk ends on the touch and the party
+then stands still); `heckran_prepare` and `heckran` then play the Medina gate,
+the cave, a Shelter at its save point and Heckran. Heckran's whirlpool,
+Leene Square's Gate (which shows Truce Canyon's pillar at the End of Time) and
+that pillar lead to 600 A.D.; Guardia's kitchen gives Zenan Bridge's jerky,
+and `zombor` plays the bridge. It ends with Zombor beaten (frame 698042). Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
@@ -208,18 +223,21 @@ winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest
 Maze, 65,000,000 B.C.) with the save's party and items: the maze and the
 Reptite Lair (`nizbel`'s piece), the Mystic Mountains' Gate, Melchior forging
-the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
-Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
+the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, 50 Mid Tonics
+and 2 Revives from Dorino (the save has no Mid Tonics), the Cursed Woods, where Frog joins, the Magic
 Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 `castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
 corridor and the inner rooms (a search that plays ladders and stairs through),
 a rest with a Shelter at the save point in the dark room off the tower
 (`$1D7`), Ozzie's last stand (the party strikes the levers beside him, not
-Ozzie), a second rest at the save point in his hall, and the stair down to
-Magus's chamber (`$0AC`, frame 403039). It stops before Magus: at levels 21-22
-the bot's best tries leave him 4042 of his 6666 HP (X-Strike about 120 a hit,
-Frog's blows about 100), while his spells take the party's 330-370 HP down
-in a few turns.
+Ozzie), a second rest at the save point in his hall, and Magus at levels
+21-22: the policy reads his barrier's open element from his elemental
+affinities and casts Lightning or Ice to match, and uses X-Strike only when
+Frog is ready and Aura Whirl only when Marle is. After the Gate to
+65,000,000 B.C. it plays Laruba's hut, Dactyl's Nest and Ayla's dactyls, the
+flight to Tyrano Lair, `nizbel_ii`'s piece with a frugal policy and rests at
+the lair's save points (its Shelters), the switch room's west part, and
+`black_tyrano`'s piece to Lavos's fall (`tyrano_after`, frame 738065).
 
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check

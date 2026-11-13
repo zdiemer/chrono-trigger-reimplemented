@@ -71,6 +71,7 @@
 #include "port/arena.h"
 #include "port/state_host.h"
 #include "port/vars_host.h"
+#include "port/vars_ram.h"
 #ifdef CT_HAVE_SDL
 #define SDL_MAIN_HANDLED
 #include "window.h"
@@ -510,6 +511,17 @@ static int native_flush(void *ctx)
     return 0;
 }
 
+/* The location the run is in, read as an observer: a look the game's time
+ * doesn't count, so reporting the places never changes the run. */
+static uint16_t observed_location(GameState *g)
+{
+    bool was = vars_peeking();
+    vars_peek(true);
+    uint16_t location = location_id(g);
+    vars_peek(was);
+    return location;
+}
+
 /* One frame of the program, with the pads it reads. */
 static bool native_frame(void *ctx, uint32_t pads)
 {
@@ -523,8 +535,8 @@ static bool native_frame(void *ctx, uint32_t pads)
         picture_frame(d->picture, d->pf, d->frame);
     if (d->outcomes && outcome_picture_due(d->frame, d->frames))
         outcome_picture(d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT, d->frame);
-    if (d->locations && location_id(d->game) != d->location) {
-        d->location = location_id(d->game);
+    if (d->locations && observed_location(d->game) != d->location) {
+        d->location = observed_location(d->game);
         fprintf(stderr, "location: frame %lu $%03X\n", d->frame, d->location & LOCATION_BITS);
     }
     if (d->shot_every && d->frame % d->shot_every == 0) {

@@ -482,7 +482,10 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   each at frames 119033-119035 in `$190`: `step_with_the_party` (`$C0:3002`)
   and the second member's following (`$C0:A2CE`). The second party link is `$80`,
   empty; their `gap` allowlist entries and RAM evidence were recorded with the
-  refusals in real play. Coverage adds 377 instruction bytes over the 48-movie library,
+  refusals in real play. A later moment, frame 133126, empties the place again
+  with its member waiting on the trail: that member's pose goes on the slot past
+  the tables as well (`$C0:9F6F`), and the route reaches its end (issue #341).
+  Coverage adds 377 instruction bytes over the 48-movie library,
   **no new `$7E` scene-program code**; none of modes 5, 6, 10/11/14/15 or 12 starts.
   The first check also exposed a missing dialog resource: `$D8:D000` entry 77,
   `$D8:DD14`-`$DD25`, is a real final line, not a sentinel. Correcting the table's

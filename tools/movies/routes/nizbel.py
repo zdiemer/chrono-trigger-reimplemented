@@ -1,12 +1,12 @@
 """Recover the Gate Key after defeating Nizbel in the Reptite Lair."""
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
-from . import _early_bosses as early
+from . import _trial_party as early
 
 SAVE = "saves/fantasyanime/ctsave05-prehistoric.srm"
 SLOT = 1
 FOREST_MAZE = "1a01"
-PHASES = ["loaded", "settings", "entrance", "top", "middle", "lower", "bottom", "lair_hall", "chamber", "battle", "won", "after"]
+PHASES = ["loaded", "settings", "entrance", "top", "middle", "lower", "bottom", "reptite_hall", "chamber", "battle", "won", "after"]
 HEADER = """# Reptite Lair: defeat Nizbel, recover the Gate Key, regain field control.
 # Save: ctsave05 slot 2 (saves/fantasyanime/ctsave05-prehistoric.srm).
 # Route: nizbel
@@ -104,7 +104,7 @@ def play(run, start=2, seed=1):
                              inside=lambda x, y: run.map_id() != "1f01" or y < 800, policy=nizbel_party)
         early.settle(run, seed, nizbel_party)
         assert run.wait_control(), "the hall after its entrance encounter"
-        run.checkpoint("lair_hall")
+        run.checkpoint("reptite_hall")
     if start <= 8:
         early.search_through(run, lambda m, x, y: run.map_id() == "2101", seed=seed, policy=nizbel_party)
         early.settle(run, seed, nizbel_party)

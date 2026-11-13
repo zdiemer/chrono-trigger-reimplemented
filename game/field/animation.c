@@ -223,6 +223,20 @@ void object_show_movement(GameState *g, FieldObject obj, uint8_t animation)
     object_restart_animation(g, obj);
 }
 
+void object_restart_animation_past_the_tables(GameState *g, FieldObject slot)
+{
+    set_field_object_animation_frame_unchecked(g, slot, 0);
+    set_field_object_frame_delay_unchecked(g, slot, 0);
+}
+
+void object_show_movement_past_the_tables(GameState *g, FieldObject slot, uint8_t animation)
+{
+    if (field_object_looped_animation_unchecked(g, slot) == animation)
+        return;
+    set_field_object_looped_animation_unchecked(g, slot, animation);
+    object_restart_animation_past_the_tables(g, slot);
+}
+
 static uint8_t magnitude(int8_t step) { return step < 0 ? (uint8_t)-step : (uint8_t)step; }
 
 /* How fast it moves, the two axes' steps added (a byte, as the original). */
@@ -230,11 +244,13 @@ static uint8_t movement_speed(Velocity v) { return (uint8_t)(magnitude(v.y) + ma
 
 enum { RUNNING_SPEED = 0x20 };
 
+enum { ANIMATE_MOVEMENT = 0xC05614 };
+
 // $C0:5614
 /* Every step of a move: a held frame gives way to the loop the object had,
  * or to its movement; a loop or a one-off keeps its animation. Otherwise the
  * object stands, walks, or where it may run and goes fast enough, runs. */
-MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
+static MovementAnimation animate_movement(GameState *g, FieldObject obj)
 {
     ObjectAnimationMode mode = object_animation_mode(g, obj);
     if (mode == ANIMATE_SHOW_FRAME) {
@@ -258,12 +274,26 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
     return choice;
 }
 
+MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
+{
+    MovementAnimation result;
+    TIMED_AS(g, ANIMATE_MOVEMENT, result = animate_movement(g, obj));
+    return result;
+}
+
+enum { STAND = 0xC0568B };
+
 // $C0:568B
 /* A move is over: an object animating with its movement stands. */
-void object_stand(GameState *g, FieldObject obj)
+static void stand(GameState *g, FieldObject obj)
 {
     if (object_animation_mode(g, obj) == ANIMATE_WITH_MOVEMENT)
         object_show_movement(g, obj, ANIMATION_STAND);
+}
+
+void object_stand(GameState *g, FieldObject obj)
+{
+    TIMED_AS(g, STAND, stand(g, obj));
 }
 
 /* ---- The frame, every frame -------------------------------------------------------------- */

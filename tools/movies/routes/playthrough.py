@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends at the End of Time, after
-the R Series.
+on only past checkpoints that succeeded. It ends with Zombor beaten on Zenan
+Bridge, 600 A.D.
 """
 import os
 
@@ -22,6 +22,9 @@ from . import dragon_tank
 from . import guardian
 from . import proto_dome
 from . import r_series
+from . import heckran
+from . import heckran_prepare
+from . import zombor
 
 OPENING = ["named", "home", "fair", "collided", "joined", "exhibit", "gate", "truce_canyon", "guardia",
            "upstairs", "chamber", "kidnapped"]
@@ -43,8 +46,18 @@ KEY = ["rat", "sealed_door", "storeroom", "bike_key"]
 LAB32 = ["lab32", "johnny", "raced"]
 PROTO = proto_dome.PHASES[1:]
 FACTORY = ["factory_hall"] + r_series.PHASES[2:]
+# The End of Time: Gaspar, Spekkio's laps and magic; then Heckran's Cave by
+# the Medina gate (its piece, without its save) and Heckran.
+END_OF_TIME = ["gaspar", "spekkio_door", "spekkio", "laps", "magic"]
+CAVE = heckran_prepare.PHASES[1:-1] + ["cave_rest"]
+HECKRAN = heckran.PHASES[1:]
+# Out by the whirlpool, Leene Square's Gate to the End of Time and the pillar
+# to 600 A.D.; Zenan Bridge's supplies from Guardia's kitchen, and Zombor
+# (its piece, from the bridge).
+ZENAN = (["whirlpool", "leene_gate", "truce_600", "zenan_captain", "chef", "jerky", "zenan_bridge"]
+         + zombor.PHASES[3:])
 PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
-          + LAB32 + PROTO + FACTORY)
+          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -77,6 +90,7 @@ CRONOS_ROOM = "0200"
 GUARDIA_CASTLE_1000, GUARDIA_FOREST_1000, FOREST_GATE = "1500", "1300", "1400"
 GATE_IN_THE_FOREST = 9      # an object of the forest's back, where the Gate opens
 BANGOR_DOME, WORLD_2300 = "d000", "f201"
+WORLD_1000 = "f001"
 LAB16_WEST, LAB16_EAST = "d400", "d500"
 LAB16_DOOR = (264, 368)     # on the 2300 A.D. map, north of Bangor Dome
 LAB16_WEST_EXIT = (504, 120)   # tile column 31, rows 5-9, to the east part
@@ -106,6 +120,31 @@ BIKE_APPROACH = (683, 112)
 RACE_MOVIE, RACE_STARTS, RACE_ENDS = "movies/saves/events-jetbike-race-won.ctm", 3971, 8083
 DOORS_OPEN = 0x7F00A4
 ROBO = 3
+END_OF_TIME_HALL, SPEKKIO_ROOM = "d001", "d101"
+GASPAR, GATE_KEEPER = 28, 9       # the End of Time's: Gaspar by the lamp, and the one by the door
+SPEKKIO = 8                       # in his room
+EXCHANGE_SCREEN = 7               # the menus' screen that asks who stays at the End of Time
+LAP_POSTS = (16, 17, 18, 19, 20)  # Spekkio's room: the posts along the wall, clockwise from the door
+DOOR_POST = 16
+LAP_COUNTS = (9, 10, 11, 12, 13)  # event variables: laps past each post
+LAPS_DONE, CHEATED = 14, 4        # event variable: laps finished, or 4 for a post missed or doubled
+SPEKKIO_SPOT = (120, 178)         # below him, facing up
+EVENT_VARIABLES = 0x7F0200        # a word each
+TOUCHING = 2                      # an object's call level while its touch runs
+SAVE_POINT_FLAGS, ON_A_SAVE_POINT = 0x7F01CF, 0x80
+STORY_SPEKKIO_DOOR, STORY_SPEKKIO_MET, STORY_MAGIC = 0x4B, 0x4C, 0x4D
+HECKRANS_CHAMBER, WHIRLPOOL = "2f00", 3      # the object Heckran's chamber leaves by, into the water
+LEENE_EXHIBIT, LEENE_GATE = "0800", (140, 90)  # the Gate between the telepods, 1000 A.D.
+GATE_PLATFORM_DOOR = 0x7F020E                 # the End of Time: the platform reached
+LEADER_TILE_X, LEADER_TILE_Y = 0x7F0212, 0x7F0214
+TRUCE_PILLAR = (12, 7)                        # the pillar of light to Truce Canyon, 600 A.D.
+STORY_600_AGAIN = 0x54
+ZENAN_BRIDGE_600, ZENAN_CAPTAIN = 0x087, 13
+GUARDIA_KITCHEN, CASTLE_HALL, CHEF = "7b00", "7800", 10
+KITCHEN_DOOR = (48 * 16 + 8, 34 * 16 + 8)     # the hall's right-hand exit
+ZENAN_FLAGS = 0x7F00A9
+SUPPLIES_ASKED, CHEF_TOLD, JERKY_GIVEN = 0x04, 0x08, 0x10
+JERKY = 0xDB
 CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP = 0x7E2600, 0x50, 3
 ENERTRON = 14                   # Proto Dome's: a rest that restores HP and MP
 ARRIS_MERCHANT = 11
@@ -154,13 +193,13 @@ def flee(run, max_frames=3000):
     raise AssertionError("the party could not run")
 
 
-def win(run, seed=1, policy=early.early_party, max_frames=35000):
+def win(run, seed=1, policy=early.early_party, max_frames=35000, max_tries=300):
     """Fight the battle that is open to its end: every enemy down, or the
     field given back (a fight a scene ends, as the prison's guards' does,
     leaves its enemies standing). Lab 16's Shadows, which have 1 HP and take
     no harm from a weapon, are run from; any other fight with no enemy the
     bot can wear down fails the route. `policy` chooses the party's actions; a fight
-    still going after `max_frames` fails the route."""
+    still going after `max_frames`, or lost after `max_tries` tries back, fails the route."""
     machine = run.machine
     kinds = enemy_kinds(machine)
     run.say("enemies", sorted(kinds))
@@ -179,7 +218,7 @@ def win(run, seed=1, policy=early.early_party, max_frames=35000):
         field_frames[0] = field_frames[0] + 1 if machine.b(A.FIELD_PLAYER_CONTROL) else 0
         return field_frames[0] >= 60
 
-    run.fight(policy, over, party=party_size(run), seed=seed, max_frames=max_frames, max_tries=300)
+    run.fight(policy, over, party=party_size(run), seed=seed, max_frames=max_frames, max_tries=max_tries)
 
 
 def catch_the_rat(run, max_nodes=2500):
@@ -283,6 +322,91 @@ def character_hp(machine, character):
     """A character's HP and max HP from their record."""
     at = CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * character + RECORD_HP
     return machine.w(at), machine.w(at + 2)
+
+
+def event_variable(machine, index):
+    return machine.b(EVENT_VARIABLES + 2 * index)
+
+
+def settle_the_scene(run, story, max_rounds=200):
+    """Confirm the scene's windows, and leave the End of Time's exchange
+    screen as it is, until the story has reached `story` and the pad walks
+    the party again."""
+    machine = run.machine
+    for _ in range(max_rounds):
+        if machine.b(MENU_SCREEN) == EXCHANGE_SCREEN and not run.dialog():
+            machine.run(3, "B")
+            machine.run(40)
+        elif run.dialog():
+            machine.run(3, "A")
+            machine.run(40)
+        else:
+            machine.run(30)
+        if machine.b(A.EVENT_MEMORY) >= story and machine.b(A.FIELD_PLAYER_CONTROL) and not run.dialog():
+            return in_hand(run)
+    return False
+
+
+def talk_through(run, obj, story):
+    """Speak to `obj` and play the scene out until the story reaches `story`."""
+    run.talk(obj, done=lambda: run.dialog() or run.machine.b(A.EVENT_MEMORY) >= story)
+    return settle_the_scene(run, story)
+
+
+def pass_a_post(run, post):
+    """Walk the leader into one of Spekkio's lap posts so that it counts once.
+    A post counts again each time its count runs while the leader is still up
+    against it, which ends the lap as missed; so the walk ends on the touch
+    (or just after its count, before a second), the door's post from above,
+    and the party then stands still until the post's count has run."""
+    machine = run.machine
+    level = 0x7E1C00 + 2 * post
+    counts = LAP_COUNTS + (LAPS_DONE,)
+    now = lambda m: [m.b(EVENT_VARIABLES + 2 * i) for i in counts]
+    before = now(machine)
+    from_above = (lambda py: py <= 214) if post == DOOR_POST else (lambda py: True)
+    moves = run.walk_here(lambda m, px, py: from_above(py) and (
+        (m.b(level) == TOUCHING and now(m) == before)
+        or (now(m) != before and m.b(level) != TOUCHING and m.b(EVENT_VARIABLES + 2 * LAPS_DONE) != CHEATED)),
+        max_nodes=8000)
+    assert moves is not None, ("past the lap post", post)
+    machine.run(40)
+    run.say("lap post", post, before, "->", now(machine))
+    assert event_variable(machine, LAPS_DONE) != CHEATED, ("the lap post counted twice", post)
+
+
+def rest_with_a_shelter(run):
+    """On a save point: a Shelter from the items screen restores everyone."""
+    from .menu_sweep import ITEMS, back_to_main_menu, open_menu, open_option, press, to_item
+    machine = run.machine
+    had = count_of(machine, SHELTER)
+    assert had, "a Shelter"
+    open_menu(machine)
+    open_option(machine, ITEMS)
+    machine.run(20)
+    to_item(run, SHELTER)
+    for _ in range(6):
+        press(machine, "A", 60)
+        if count_of(machine, SHELTER) < had:
+            break
+    back_to_main_menu(machine)
+    press(machine, "B", 60)
+    assert count_of(machine, SHELTER) < had, "a Shelter used"
+    assert run.wait_control(), "the field after the rest"
+
+
+def dialogs_until_in_hand(run, where, max_rounds=200):
+    """Confirm windows until the party stands in hand on map `where`."""
+    machine = run.machine
+    for _ in range(max_rounds):
+        if run.map_id() == where and machine.b(A.FIELD_PLAYER_CONTROL) and not run.dialog():
+            return in_hand(run)
+        if run.dialog():
+            machine.run(3, "A")
+            machine.run(30)
+        else:
+            machine.run(30)
+    return False
 
 
 def rest_in_the_enertron(run):
@@ -950,6 +1074,161 @@ def main():
         if later <= len(FACTORY) - 1:
             walking(run)
             r_series.play(run, max(2, later + 1), args.seed, policy=keep_the_mp, before_the_r_series=drink_tonics)
+        later -= len(FACTORY)
+        if later <= 0:
+            # Gaspar tells of the pillars of light, and that one of the four
+            # must stay; the other keeper says what comes next.
+            walking(run)
+            assert talk_through(run, GASPAR, 0x49), "Gaspar"
+            assert talk_through(run, GATE_KEEPER, 0x4A), "the End of Time's other keeper"
+            run.checkpoint("gaspar")
+        if later <= 1:
+            # Gaspar again: Spekkio's door opens.
+            walking(run)
+            assert talk_through(run, GASPAR, STORY_SPEKKIO_DOOR), "Spekkio's door"
+            assert run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == SPEKKIO_ROOM) is not None, "Spekkio's room"
+            run.checkpoint("spekkio_door")
+        if later <= 2:
+            walking(run)
+            assert talk_through(run, SPEKKIO, STORY_SPEKKIO_MET), "Spekkio"
+            run.checkpoint("spekkio")
+        if later <= 3:
+            # Three laps of his room, clockwise along the wall from the
+            # door, past each post once a lap.
+            walking(run)
+            for _ in range(3):
+                for post in LAP_POSTS:
+                    pass_a_post(run, post)
+            pass_a_post(run, DOOR_POST)
+            assert event_variable(machine, LAPS_DONE) == 3, "three laps"
+            run.checkpoint("laps")
+        if later <= 4:
+            # Spoken to after the laps, he teaches the three their magic.
+            assert run.walk_here(lambda m, px, py: abs(px - SPEKKIO_SPOT[0]) <= 4 and abs(py - SPEKKIO_SPOT[1]) <= 4
+                                 and event_variable(m, LAPS_DONE) == 3) is not None, "before Spekkio"
+            machine.run(2, "UP")
+            machine.run(8)
+            machine.run(3, "A")
+            machine.run(40)
+            assert settle_the_scene(run, STORY_MAGIC), "magic"
+            assert leave_fighting(run, END_OF_TIME_HALL), "back to the End of Time"
+            run.checkpoint("magic")
+        later -= len(END_OF_TIME)
+        if later <= len(CAVE) - 2:
+            walking(run)
+            heckran_prepare.play(run, max(1, later + 1), args.seed, save=False)
+        if later <= len(CAVE) - 1:
+            # The cave's save point: a Shelter restores everyone's HP and MP
+            # before Heckran.
+            walking(run)
+            assert run.walk(lambda m, x, y: m.b(SAVE_POINT_FLAGS) & ON_A_SAVE_POINT) is not None, "the cave's save point"
+            machine.run(30)
+            rest_with_a_shelter(run)
+            run.checkpoint("cave_rest")
+        later -= len(CAVE)
+        if later <= len(HECKRAN) - 1:
+            walking(run)
+            heckran.play(run, max(1, later + 1), args.seed, max_tries=600)
+        later -= len(HECKRAN)
+        if later <= 0:
+            # The whirlpool in Heckran's chamber carries the party out to
+            # the sea by Lucca's house.
+            walking(run)
+            assert run.map_id() == HECKRANS_CHAMBER
+            run.talk(WHIRLPOOL, done=lambda: run.dialog())
+            for _ in range(80):
+                if run.map_id() == WORLD_1000 and machine.b(A.FIELD_PLAYER_CONTROL) and not run.dialog():
+                    break
+                machine.run(3, "A") if run.dialog() else machine.run(30)
+            assert run.map_id() == WORLD_1000, "the 1000 A.D. world map"
+            run.checkpoint("whirlpool")
+        if later <= 1:
+            # Leene Square's Gate, between Lucca's telepods, goes to the End
+            # of Time now; going through it shows Truce Canyon's pillar there.
+            run.wait_world_control()
+            world_enter(run, LEENE_SQUARE)
+            assert in_hand(run)
+            assert run.exit_to("b701"), "the bell's plaza"
+            assert run.exit_to(LEENE_EXHIBIT), "Lucca's exhibit"
+            walking(run)
+            assert run.walk(lambda m, px, py: abs(px - LEENE_GATE[0]) <= 6 and abs(py - LEENE_GATE[1]) <= 8) is not None
+            for _ in range(10):
+                if run.dialog() or run.map_id() != LEENE_EXHIBIT:
+                    break
+                machine.run(4, "UP")
+                machine.run(3, "A")
+                machine.run(30)
+            assert dialogs_until_in_hand(run, END_OF_TIME_HALL), "the End of Time"
+            run.checkpoint("leene_gate")
+        if later <= 2:
+            # Truce Canyon's pillar, stepped onto and confirmed.
+            walking(run)
+            assert run.walk(lambda m, px, py: (m.b(LEADER_TILE_X), m.b(LEADER_TILE_Y)) == TRUCE_PILLAR) is not None
+            machine.run(4, "DOWN")
+            machine.run(3, "A")
+            machine.run(40)
+            assert run.dialog(), "the pillar's question"
+            machine.run(3, "A")
+            assert dialogs_until_in_hand(run, TRUCE_CANYON_600), "Truce Canyon"
+            assert machine.b(A.EVENT_MEMORY) == STORY_600_AGAIN
+            run.checkpoint("truce_600")
+        if later <= 3:
+            # Tonics, Revives and Shelters from the village's shop by the
+            # canyon (the cave and the R Series spent them); then Zenan
+            # Bridge's captain asks for supplies.
+            assert leave_fighting(run, "7000"), "the canyon's lower part"
+            assert leave_fighting(run, "f101"), "the 600 A.D. world map"
+            assert run.world_go(*TRUCE_600), "the village"
+            world_enter(run, TRUCE_600_SHOP)
+            buy(run, SHOP_COUNTER, [(TONIC_ROW, 60, 10), (REVIVE_ROW, 3, 200), (SHELTER_ROW, 3, 150)])
+            run.say("supplies", "tonics", count_of(machine, policies.TONIC), "revives", count_of(machine, policies.REVIVE),
+                    "shelters", count_of(machine, SHELTER))
+            assert leave_fighting(run, "f101"), "out of the shop"
+            run.wait_world_control()
+            world_enter(run, ZENAN_BRIDGE_600)
+            walking(run)
+            assert run.talk(ZENAN_CAPTAIN), "the captain"
+            assert in_hand(run)
+            assert machine.b(ZENAN_FLAGS) & SUPPLIES_ASKED, "supplies asked for"
+            run.checkpoint("zenan_captain")
+        if later <= 4:
+            # North through Guardia Forest to the castle's kitchen, where the
+            # chef hears of it.
+            assert leave_fighting(run, "f101"), "off the bridge"
+            run.wait_world_control()
+            world_enter(run, GUARDIA_FOREST_600)
+            through(run, 296, 24, lambda: run.map_id() == "f101" and run.world_pos()[1] < 260)
+            run.wait_world_control()
+            world_enter(run, GUARDIA_CASTLE_600)
+            walking(run)
+            through(run, *KITCHEN_DOOR, lambda: run.map_id() == GUARDIA_KITCHEN, rounds=10)
+            walking(run)
+            assert run.talk(CHEF, done=lambda: machine.b(ZENAN_FLAGS) & CHEF_TOLD), "the chef"
+            assert in_hand(run)
+            run.checkpoint("chef")
+        if later <= 5:
+            # Back in the hall, the soldier by the door hands over the
+            # kitchen's jerky.
+            assert leave_fighting(run, CASTLE_HALL), "the castle's hall"
+            walking(run)
+            assert run.walk(lambda m, px, py: m.b(ZENAN_FLAGS) & JERKY_GIVEN or not m.b(A.FIELD_PLAYER_CONTROL)
+                            or m.b(A.DIALOG_OPEN)) is not None, "the soldier with the jerky"
+            assert in_hand(run, 20000)
+            assert count_of(machine, JERKY), "the jerky"
+            run.checkpoint("jerky")
+        if later <= 6:
+            # South through the forest again, and to the bridge.
+            assert leave_fighting(run, "f101"), "out of the castle"
+            run.wait_world_control()
+            world_enter(run, GUARDIA_FOREST_600, row=15)
+            through(run, 296, 760, lambda: run.map_id() == "f101" and run.world_pos()[1] > 260)
+            run.wait_world_control()
+            world_enter(run, ZENAN_BRIDGE_600)
+            walking(run)
+            run.checkpoint("zenan_bridge")
+        if later <= len(ZENAN) - 1:
+            walking(run)
+            zombor.play(run, max(3, later - 7 + 3), args.seed, before_zombor=drink_tonics)
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

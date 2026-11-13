@@ -11,9 +11,13 @@ fields are the ones the game reads: the half of a tile set's looks a tile's
 properties pick, the tiles' numbers, flips, palettes and priority, BG2 under
 BG1, and a world map's two planes and their groups.
 
-The places are frames of the gate's movies where nothing has changed the
+The places are points of the gate's movies where nothing has changed the
 map since it loaded (an event's copied tiles, an animated tile, a dialog
-window drawn into BG1 would differ, as the game means them to).
+window drawn into BG1 or a battle's own layers would differ, as the game
+means them to). Most are fixed frames of scenes; a place a battle follows
+closely is found by the game's state instead, so a change of timing can't
+move it into the battle: from a movie's frame on, the first look at which
+the pad has walked the party in the location for WALKED looks running.
 
 Run by ctest with ct_native's path; without a staged ROM
 (roms/ct-usa.sfc) it says so and passes.
@@ -31,6 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from tools import native_slots  # noqa: E402
 from tools.sheets import FIRST_WORLD_MAP, place_at, png  # noqa: E402
 
 ROM = ROOT / "roms" / "ct-usa.sfc"
@@ -43,15 +48,19 @@ PLANE_ROW = 0x7E00E7       # top left 8-pixel tile on a world map
 TILE = 8
 # The picture's first row is the screen's line 1: a layer's row one past its scroll.
 FIRST_LINE = 1
+FIELD_PLAYER_CONTROL = 0x7E011F  # nonzero while the pad walks the party (tools/movies/addresses.py)
+# Frames between looks, how far a place is looked for, and how many looks the pad must
+# have walked the party there: the field hands the pad over while the map still loads.
+STEP, SEARCH, WALKED = 10, 3000, 6
 
-# (movie, frame, location)
+# (movie, frame, location, whether the place is looked for from the frame on)
 PLACES = [
-    ("movies/fair.ctm", 6110, 0x002),                   # Crono's room
-    ("movies/fair.ctm", 7760, 0x001),                   # Crono's house, downstairs
-    ("movies/fair.ctm", 11000, 0x1F0),                  # the world map, 1000 A.D.
-    ("movies/fair.ctm", 11810, 0x005),                  # Leene Square
-    ("movies/saves/battle-heckran.ctm", 2850, 0x031),   # Heckran's Cave
-    ("movies/saves/battle-heckran.ctm", 10050, 0x02F),  # and further in
+    ("movies/fair.ctm", 6110, 0x002, False),                   # Crono's room
+    ("movies/fair.ctm", 7760, 0x001, False),                   # Crono's house, downstairs
+    ("movies/fair.ctm", 11000, 0x1F0, False),                  # the world map, 1000 A.D.
+    ("movies/fair.ctm", 11810, 0x005, False),                  # Leene Square
+    ("movies/saves/battle-heckran.ctm", 2850, 0x031, False),   # Heckran's Cave
+    ("movies/saves/battle-heckran.ctm", 2850, 0x02F, True),    # and further in, before its fights
 ]
 
 
@@ -94,9 +103,13 @@ def sram_for(movie: Path):
 
 
 class Drive:
-    """ct_native --drive, the route protocol (frontend/route_driver.h)."""
+    """ct_native --drive, the route protocol (frontend/route_driver.h). In the
+    gate it holds one of the gate's ct_native slots while it runs
+    (tools/native_slots.py)."""
 
     def __init__(self, binary: str, pack: Path, sram):
+        self.slot = native_slots.slot()
+        self.slot.__enter__()
         args = [str(Path(binary).resolve()), "--rom", str(ROM), "--assets", str(pack), "--drive"]
         if sram:
             args += ["--sram", str(sram)]
@@ -118,6 +131,7 @@ class Drive:
     def close(self):
         self.cmd("quit")
         self.p.wait(timeout=60)
+        self.slot.__exit__(None, None, None)
 
 
 def origins(drive: Drive, location: int, scroll):
@@ -147,6 +161,24 @@ def compare(place, layers, shot, colors):
              for y in range(HEIGHT) for x in range(WIDTH)
              if shot[y][x] != (backdrop if drawn[y][x] is None else shown(drawn[y][x]))]
     return wrong, drawn, backdrop
+
+
+def find_place(drive: Drive, movie: Path, frame: int, location: int, look: bool):
+    """Play the movie to the place: to `frame`, or with `look` on from it to
+    where the pad has walked the party in `location` for WALKED looks. The
+    location it ends in, or None where a looked-for place isn't within SEARCH."""
+    if not look:
+        drive.cmd(f"movie {movie} {frame}")
+        return drive.words(LOCATION_ID, 1)[0] & 0x1FF
+    walked = 0
+    for at in range(frame, frame + SEARCH, STEP):
+        drive.cmd(f"movie {movie} {at}")
+        there = drive.words(LOCATION_ID, 1)[0] & 0x1FF
+        walking = bytes.fromhex(drive.cmd(f"peek {FIELD_PLAYER_CONTROL:06x} 1"))[0]
+        walked = walked + 1 if there == location and walking else 0
+        if walked == WALKED:
+            return there
+    return None
 
 
 def check_place(drive: Drive, pack: Path, location: int, out: Path, keep: bool) -> int:
@@ -186,19 +218,19 @@ def main(argv=None):
     try:
         pack = work / "pack.assets"
         movies = {}
-        for movie, frame, location in PLACES:
-            movies.setdefault(movie, []).append((frame, location))
+        for movie, frame, location, look in PLACES:
+            movies.setdefault(movie, []).append((frame, location, look))
         for movie, places in movies.items():
             sram = sram_for(ROOT / movie)
             if sram:
                 shutil.copy(sram, work / "start.srm")
             drive = Drive(args.ct_native, pack, work / "start.srm" if sram else None)
             try:
-                for frame, location in places:
-                    drive.cmd(f"movie {ROOT / movie} {frame}")
-                    there = drive.words(LOCATION_ID, 1)[0] & 0x1FF
+                for frame, location, look in places:
+                    there = find_place(drive, ROOT / movie, frame, location, look)
                     if there != location:
-                        print(f"map_pictures: {movie} at frame {frame} is in location ${there:03X}, not ${location:03X}")
+                        print(f"map_pictures: {movie} from frame {frame} is in location "
+                              f"{'nowhere walked' if there is None else f'${there:03X}'}, not ${location:03X}")
                         failures += 1
                     else:
                         failures += check_place(drive, pack, location, out, args.keep is not None)
