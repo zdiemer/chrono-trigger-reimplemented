@@ -141,7 +141,7 @@ Giga Gaia), it showed where native battle time fell short:
   by the ratio of the original's clocks a call to native's, which agreed
   within ±15% across the three fights for all but `$FD:FFFD` (2.72 in
   Dalton's and the Golem Twins' fights, 2.07 in Giga Gaia's; its rate takes
-  the mean, 2.59). Most ratios are 1.2 to 2.8; seven fall
+  the ratio of the three fights' clocks pooled, 2.59). Most ratios are 1.2 to 2.8; seven fall
   outside: `$CD:05B2` 3.38, `$CD:0ADE` 3.16, `$CD:0AEE` 4.28, `$CD:2DD6` 4.54
   and `$CD:2EB5` 3.75 are small routines of a few hundred clocks a call whose
   ports keep in locals what the original reads and writes in memory, so few
@@ -159,23 +159,27 @@ Giga Gaia), it showed where native battle time fell short:
   its milli clocks, which already hold them; rechecked with the sum
   corrected, the handlers' 40 rates stay within 0.89-1.10 of the original,
   and only the name converter's figure moves (0.90 to 1.01).
-- The field (issue #349). The scopes of 25 field routines the original calls
+- The field (issue #349). The scopes of 26 field routines the original calls
   every frame are back: the line effects' builders for each table set
   (`$FD:C2EB`-`$FD:D27E`, the scroll sends, BG2's and window 2's tables, the
   wave), the party's steps (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`), the step's
   start and look ahead (`$C0:ACFD`, `$C0:5B95`), the walk animations
-  (`$C0:5614`, `$C0:568B`), the freed sprite areas and the dialog shading.
+  (`$C0:5614`, `$C0:568B`), the freed sprite areas, the dialog shading and
+  the leader's touch (`$C0:3154`).
   Over whole runs of the 25 gate movies whose field follows the reference
-  (each routine's calls within 10% of the original's), 62 field and event
+  (each routine's calls within 10% of the original's), 61 field and event
   rates take the ratio of the original's clocks a call to native's, each
   steady across the movies (no movie's ratio more than 1.35 times another's);
-  the ratios are in `tools/timing_ratios.txt`. Most are 1.2 to 2.4; the line
+  the ratios are in `tools/timing_ratios.txt`. The dialog window's four
+  builders take theirs too (1.39-1.42), though the window opens on other
+  frames in ct_native, so their calls differ by more. Most are 1.2 to 2.4; the line
   effects' setup in the vblank (`$FD:C1EE`) is 21.7, its register writes
   being a service call in the port. Left as they are: the frame's wait
   (`$C0:EC60`), the layer streaming (`$C0:93E1` with `$C0:7F9A`, 1.07 together;
   the original reaches `$C0:7F9A` without a call), routines whose ratio
   differs from movie to movie (`$C0:AA07`, `$C0:A810`, `$C0:B1B2`,
-  `$C0:1F87`) and the song changes, where the original waits 1-10 frames on
+  `$C0:1F87`, and `$C0:CAD9`, 0.94-0.99 in its busiest movies and 0.74 in
+  another) and the song changes, where the original waits 1-10 frames on
   the sound processor. Across the 84 movies native_check runs, places on time
   go from 589 to 598 and in the reference's order from 689 to 696 (the gate's
   58: 394 to 394, 476 to 478); four move away, each with its measured lag in
