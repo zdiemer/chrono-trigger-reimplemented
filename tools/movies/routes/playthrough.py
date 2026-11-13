@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends past the Guardian in Arris
-Dome, 2300 A.D., with the Day of Lavos on the information center's computer.
+on only past checkpoints that succeeded. It ends in Arris Dome, 2300 A.D.,
+with Doan's Bike Key.
 """
 from .. import addresses as A
 from .. import policies
@@ -32,7 +32,9 @@ FUTURE = ["castle_gate", "forest_chase", "forest_back", "future", "lab16", "lab1
 GUARDIAN = guardian.PHASES[1:]
 # Past the Guardian, through its room's door to the information center.
 INFO = ["info_center", "lavos_day"]
-PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO
+# The rat's password, the sealed doors, the storeroom and Doan's Bike Key.
+KEY = ["rat", "sealed_door", "storeroom", "bike_key"]
+PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -74,6 +76,18 @@ INFO_CENTER_DOOR = (128, 340)  # below it, in the Guardian's room
 COMPUTER = 8                   # an object of the information center
 ARRIS_FLAGS, COMPUTER_SEEN = 0x7F00EC, 0x10
 SEED = 0xD4
+BIKE_KEY = 0xD5
+DOME_HALL, DOME_INNER, DOME_LOWER, GUARDIAN_ROOM = "d600", "d800", "dd00", "db00"
+PASSAGE, STORE_HALL, STOREROOM = "d700", "d900", "da00"
+RAT = 13                       # the room below's rat at its foot; another waits at its head
+RAT_TOLD = 0x40                # ARRIS_FLAGS: the password heard
+RAT_TRIGGER_STEPS = 6          # up from the room below's foot onto the tile that sets the rat running
+RAT_INTERCEPT = (96, 330)      # beside its run, west along the pipe, before it turns north
+INNER_DOOR = 9                 # of the inner room's two sealed doors, the one to the storeroom's way
+STORE_DOOR = 8                 # the sealed door on the way, in the store hall
+STORY_STORE_SEEN = 0x36        # the storeroom's scene: the party sees the food is gone
+STORY_BIKE_KEY = 0x37
+DOORS_OPEN = 0x7F00A4           # Arris Dome's sealed doors, a bit each
 SHADOW = 0x66                # an enemy number: Lab 16's, 1 HP, no harm from weapons
 RUN_FROM = {SHADOW}
 ENEMY_KIND_SLOTS = 4         # words at A.BATTLE_ENEMY_KINDS
@@ -88,7 +102,10 @@ def naming(run):
 
 
 def enemy_kinds(machine):
-    """The enemy numbers the open battle holds (battle_enemy_kinds)."""
+    """The enemy numbers the open battle holds (battle_enemy_kinds). The
+    battle counts only the enemies shown at its start, so a fight that opened
+    with nothing but hidden Shadows would name none and fail the route's
+    check below; none of the playthrough's fights does."""
     words = [machine.w(A.BATTLE_ENEMY_KINDS + 2 * i) for i in range(ENEMY_KIND_SLOTS)]
     return {word & 0xFF for word in words if word < 0x8000}
 
@@ -139,6 +156,72 @@ def win(run, seed=1):
         return field_frames[0] >= 60
 
     run.fight(early.early_party, over, party=party_size(run), seed=seed, max_frames=35000, max_tries=300)
+
+
+def catch_the_rat(run, max_nodes=2500):
+    """Set the room below's rat running from its foot, dash to RAT_INTERCEPT by
+    the shortest way (a search on copies), and talk to it as its run passes."""
+    import collections
+    machine = run.machine
+    for _ in range(RAT_TRIGGER_STEPS):
+        machine.run(4, "UP")
+    root = 3901
+    machine.mark(root)
+    queue, seen, used, found = collections.deque([(root, ())]), set(), [], None
+    try:
+        while queue and len(used) < max_nodes and found is None:
+            slot, path = queue.popleft()
+            for way in ("UP", "RIGHT", "DOWN", "LEFT"):
+                machine.restore(slot)
+                machine.probe(2, "B+" + way)
+                if run.dialog():
+                    continue
+                px, py = run.me()
+                key = (int(px) // 4, int(py) // 4)
+                if key in seen:
+                    continue
+                seen.add(key)
+                if abs(px - RAT_INTERCEPT[0]) <= 6 and abs(py - RAT_INTERCEPT[1]) <= 6:
+                    found = path + (way,)
+                    break
+                child = len(used) + 10
+                machine.mark(child)
+                used.append(child)
+                queue.append((child, path + (way,)))
+    finally:
+        machine.restore(root)
+        machine.free(root)
+        for slot in used:
+            machine.free(slot)
+    assert found is not None, "a way to where the rat's run passes"
+    for way in found:
+        machine.run(2, "B+" + way)
+    machine.run(1, "LEFT")
+    for _ in range(60):
+        machine.run(1, "A")
+        machine.run(1)
+        if run.dialog():
+            break
+    run.say("rat", "caught" if run.dialog() else "missed", "at", run.me(), "rat", run.object_pos(RAT))
+    assert in_hand(run)
+
+
+def password(run, door):
+    """Hold L and R and confirm beside a sealed door, from below it. True once
+    the door has answered (its flag in $7F:00A4 raised)."""
+    machine = run.machine
+    before = machine.b(DOORS_OPEN)
+    tx, ty = run.object_pos(door)
+    if run.walk(lambda m, px, py: abs(px - tx) <= 3 and abs(py - ty - 18) <= 3) is None:
+        return False
+    machine.run(2, "UP")
+    machine.run(6)
+    machine.run(10, "L+R")
+    machine.run(4, "L+R+A")
+    machine.run(10, "L+R")
+    machine.run(60)
+    assert in_hand(run, 20000)
+    return machine.b(DOORS_OPEN) != before
 
 
 def in_hand(run, max_frames=12000, seed=1):
@@ -632,6 +715,55 @@ def main():
             assert in_hand(run, 30000)
             assert machine.b(ARRIS_FLAGS) & COMPUTER_SEEN, "the Day of Lavos seen"
             run.checkpoint("lavos_day")
+        later -= len(INFO)
+        if later <= 0:
+            # The rat in the room below knows the password. Each of its two
+            # rats runs the length of the room from one end to the other
+            # when the party steps near, through pipes the party can't
+            # follow; the party catches it by waiting where its run passes
+            # and talking to it as it comes. From the room's foot (in by the
+            # inner room) the run turns north along the west pipe, which the
+            # party reaches by a dash a few frames before the rat.
+            walking(run)
+            for want in (GUARDIAN_ROOM, DOME_LOWER, DOME_INNER, DOME_LOWER):
+                assert leave_fighting(run, want), want
+            walking(run)
+            catch_the_rat(run)
+            assert machine.b(ARRIS_FLAGS) & RAT_TOLD, "the password"
+            run.checkpoint("rat")
+        if later <= 1:
+            # Hold L and R and confirm at the inner room's sealed door.
+            assert leave_fighting(run, DOME_INNER), "the inner room"
+            walking(run)
+            assert password(run, INNER_DOOR), "the inner room's door open"
+            run.checkpoint("sealed_door")
+        if later <= 2:
+            # Beyond it, the passage and the store hall, its own sealed door,
+            # and the storeroom: walking in, the party finds the food gone.
+            assert leave_fighting(run, PASSAGE), "the passage"
+            through(run, 408, 36, lambda: run.map_id() == STORE_HALL, rounds=20)
+            walking(run)
+            assert password(run, STORE_DOOR), "the store hall's door open"
+            assert leave_fighting(run, STOREROOM), "the storeroom"
+            for _ in range(60):
+                if machine.b(A.EVENT_MEMORY) >= STORY_STORE_SEEN or not machine.b(A.FIELD_PLAYER_CONTROL):
+                    break
+                machine.run(4, "UP")
+            assert in_hand(run, 30000)
+            assert machine.b(A.EVENT_MEMORY) == STORY_STORE_SEEN, "the storeroom's scene"
+            run.checkpoint("storeroom")
+        if later <= 3:
+            # Back to the hall, where Doan waits by the ladder: the Seed for
+            # the Bike Key as the party steps off it.
+            for want in (STORE_HALL, PASSAGE, DOME_INNER, DOME_HALL):
+                assert leave_fighting(run, want), want
+            for _ in range(8):
+                if machine.b(A.EVENT_MEMORY) >= STORY_BIKE_KEY:
+                    break
+                machine.run(16, "UP")
+                assert in_hand(run, 30000)
+            assert machine.b(A.EVENT_MEMORY) == STORY_BIKE_KEY and count_of(machine, BIKE_KEY), "the Bike Key"
+            run.checkpoint("bike_key")
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

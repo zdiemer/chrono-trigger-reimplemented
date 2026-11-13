@@ -16,10 +16,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "apu/dsp.h"
+#include "platform/audio.h"
 
 #define AUDIO_RING_FRAMES 16384
 #define AUDIO_HISTORY 4096   /* input frames kept for the resampler (> one video frame) */
+#define AUDIO_TAKE_FRAMES 4096   /* the most frames taken from the source, or resampled, at once */
 
 typedef struct AudioFill {
     int rate;        /* the device's sample rate */
@@ -31,7 +32,7 @@ typedef struct AudioFill {
     size_t head, count;
 
     /* Resampler input: source frames not yet passed, and the read position. */
-    int16_t in[(AUDIO_HISTORY + DSP_OUT_FRAMES) * 2];
+    int16_t in[(AUDIO_HISTORY + AUDIO_TAKE_FRAMES) * 2];
     size_t in_count;
     double pos;
     double fill_avg;
