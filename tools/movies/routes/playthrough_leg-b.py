@@ -416,9 +416,9 @@ def search_through(run, want, aim, max_places=3000, wait=False):
     run.say("search_through", want, "moves", len(found), "places", len(seen), "now", run.map_id(), run.me())
 
 
-def settle_fight(run):
+def settle_fight(run, policy=castle_fights):
     """A fight on the way: run from it, the party holding L and R, and only where that fails
-    (a fight the game won't let it leave) fight it with castle_fights. The Magic Cave's and the castle's inner
+    (a fight the game won't let it leave) fight it with `policy`. The Magic Cave's and the castle's inner
     rooms are full of foes the party's blows hardly touch, and nothing on the way needs them
     beaten."""
     if not early.battle_ready(run):
@@ -429,19 +429,20 @@ def settle_fight(run):
         main_leg.flee(run)
     except AssertionError:
         machine.restore(FLEE_SLOT)
-        main_leg.win(run, policy=castle_fights, max_frames=LONG_FIGHT)
+        main_leg.win(run, policy=policy, max_frames=LONG_FIGHT)
     finally:
         machine.free(FLEE_SLOT)
 
 
-def search_walk(run, want, aim, rounds=20):
-    """search_through to map `want`, the fights on the way run from (settle_fight)."""
+def search_walk(run, want, aim, rounds=20, policy=castle_fights):
+    """search_through to map `want`, the fights on the way run from (settle_fight, which
+    fights with `policy` those the party can't leave)."""
     for _ in range(rounds):
         if run.map_id() == want:
             return
         run.dialogs_until(lambda: early.battle_ready(run) or run.machine.b(A.FIELD_PLAYER_CONTROL), 3000)
-        settle_fight(run)
-        assert main_leg.in_hand(run, 30000, policy=castle_fights), "the field in hand"
+        settle_fight(run, policy)
+        assert main_leg.in_hand(run, 30000, policy=policy), "the field in hand"
         if run.map_id() == want:
             return
         main_leg.walking(run)

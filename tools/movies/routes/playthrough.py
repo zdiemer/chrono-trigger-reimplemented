@@ -5,9 +5,10 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends with Zombor beaten on Zenan
-Bridge, 600 A.D.
+on only past checkpoints that succeeded. It ends with Masa and Mune beaten
+in the Denadoro Mountains, 600 A.D., and the Masamune's blade found.
 """
+import importlib
 import os
 
 from .. import addresses as A
@@ -56,8 +57,12 @@ HECKRAN = heckran.PHASES[1:]
 # (its piece, from the bridge).
 ZENAN = (["whirlpool", "leene_gate", "truce_600", "zenan_captain", "chef", "jerky", "zenan_bridge"]
          + zombor.PHASES[3:])
+# South over the bridge: Dorino's supplies, the Denadoro Mountains' foot (where
+# ctsave04 slot 1 stands), up the mountains to the save point below their top,
+# and Masa and Mune, who keep the Masamune's blade.
+DENADORO = ["dorino_supplies", "denadoro_foot", "denadoro", "denadoro_falls", "denadoro_save", "masa_mune"]
 PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
-          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN)
+          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -90,7 +95,7 @@ CRONOS_ROOM = "0200"
 GUARDIA_CASTLE_1000, GUARDIA_FOREST_1000, FOREST_GATE = "1500", "1300", "1400"
 GATE_IN_THE_FOREST = 9      # an object of the forest's back, where the Gate opens
 BANGOR_DOME, WORLD_2300 = "d000", "f201"
-WORLD_1000 = "f001"
+WORLD_1000, WORLD_600 = "f001", "f101"
 LAB16_WEST, LAB16_EAST = "d400", "d500"
 LAB16_DOOR = (264, 368)     # on the 2300 A.D. map, north of Bangor Dome
 LAB16_WEST_EXIT = (504, 120)   # tile column 31, rows 5-9, to the east part
@@ -145,6 +150,7 @@ KITCHEN_DOOR = (48 * 16 + 8, 34 * 16 + 8)     # the hall's right-hand exit
 ZENAN_FLAGS = 0x7F00A9
 SUPPLIES_ASKED, CHEF_TOLD, JERKY_GIVEN = 0x04, 0x08, 0x10
 JERKY = 0xDB
+BENT_SWORD = 0x50
 CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP = 0x7E2600, 0x50, 3
 ENERTRON = 14                   # Proto Dome's: a rest that restores HP and MP
 ARRIS_MERCHANT = 11
@@ -152,6 +158,24 @@ ARRIS_TONIC_ROW, ARRIS_REVIVE_ROW = 3, 5     # of its list: Auto Gun, Iron Suit,
 ARRIS_COUNTER_BELOW = 24           # Arris Dome's sealed doors, a bit each
 SHADOW = 0x66                # an enemy number: Lab 16's, 1 HP, no harm from weapons
 RUN_FROM = {SHADOW}
+DORINO_SHOP, DORINO_COUNTER = 0x08B, (896, 424)   # below the merchant
+DORINO_TONIC_ROW, DORINO_MID_TONIC_ROW = 0, 1      # of its list: Tonic, Mid Tonic, Heal, Revive, Shelter
+DENADORO_FOOT = (424, 576)       # on the 600 A.D. map, before the mountains' entrance
+DENADORO_MTS, DENADORO_ENTRANCE, DENADORO_WAY_UP = 0x091, "9100", "8e00"
+STORY_ZOMBOR, STORY_DENADORO, STORY_BLADE = 0x5A, 0x5D, 0x60
+# The entrance's three ways up lead to three parts of the next map ($08E); the
+# west one (tile 11, row 1) goes on up its ladders.
+DENADORO_WEST_WAY = (11 * 16 + 8, 64)
+# Then map by map, each the next map and where its way in is (the exits' tiles,
+# from the locations' exit records): the climbs and the falls to the save point
+# below the top ($095), and from there the top ($08F's west part) and the cave
+# where Masa and Mune wait ($097).
+DENADORO_CLIMB = (("9200", (504, 24)), ("8f00", (8, 72)), ("9300", (504, 56)), ("9600", (568, 24)),
+                  ("9000", (8, 168)), ("9400", (520, 264)), ("9500", (56, 504)))
+DENADORO_TOP = (("8f00", (1016, 456)), ("9700", (264, 56)))
+MARLE, LUCCA = 1, 2
+ICE, FIRE, AURA = 2, 2, 0        # their places in Marle's and Lucca's tech lists
+ICE_MP = FIRE_MP = 2
 ENEMY_KIND_SLOTS = 4         # words at A.BATTLE_ENEMY_KINDS
 WAIT_MODE = 1              # the battle mode question's second row: Wait
 
@@ -493,6 +517,73 @@ def in_hand(run, max_frames=12000, seed=1, policy=early.early_party):
             found = held = 0
         machine.run(30)
     return False
+
+
+def leg_b():
+    """The leg from 65,000,000 B.C. (route playthrough_leg-b), whose walks this one shares."""
+    return importlib.import_module(".playthrough_leg-b", __package__)
+
+
+def without(item, policy):
+    """`policy` with `item` kept back in the bag."""
+    def held_back(bot, state, rng, inventory):
+        items, counts = inventory
+        counts = [0 if kind == item else count for kind, count in zip(items, counts)]
+        return policy(bot, state, rng, (items, counts))
+    return held_back
+
+
+# The mountains' fights heal with Tonics, keeping the Mid Tonics for Masa and Mune.
+MOUNTAIN_FIGHTS = without(policies.MID_TONIC, early.early_party)
+
+
+def climb(run, want, aim):
+    """To map `want` in the Denadoro Mountains: the shortest walk where there is
+    one, or else the search that plays ladders and falls through, aimed at `aim`
+    (leg B's search_walk); fights on the way are run from or won with Tonics."""
+    for _ in range(4):
+        if run.map_id() == want:
+            break
+        assert in_hand(run, policy=MOUNTAIN_FIGHTS), "the field in hand"
+        walking(run)
+        if run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == want, max_nodes=6000) is None:
+            leg_b().search_walk(run, want, aim, policy=MOUNTAIN_FIGHTS)
+    assert in_hand(run, policy=MOUNTAIN_FIGHTS), "the field in hand"
+    run.say("climbed", want, run.me(), "story", hex(run.machine.b(A.EVENT_MEMORY)))
+    assert run.map_id() == want, want
+
+
+def masa_and_mune(bot, state, rng, inventory):
+    """Masa and Mune, and the two as one: Marle's Ice and Lucca's Fire, which hurt
+    them far more than blows; Crono keeps the party up with Mid Tonics, Marle
+    with Aura for one not yet low, and the fallen are raised with Revives."""
+    member = state.member
+    character = policies.party_ids(bot)[member]
+    members = [slot for slot in range(bot.party) if state.max_hp(slot)]
+    for slot in members:
+        if not state.hp(slot):
+            action = policies.use(inventory, policies.REVIVE, slot)
+            if action:
+                return action
+    living = [slot for slot in members if state.hp(slot)]
+    lowest = min(living, key=lambda slot: policies.fraction(state, slot))
+    if policies.fraction(state, lowest) < 0.5:
+        if (character == MARLE and policies.fraction(state, lowest) > 0.25 and state.mp(member) >= 1
+                and policies.tech_known(bot, member, AURA)):
+            return "tech", AURA, lowest
+        for item in (policies.MID_TONIC, policies.TONIC):
+            action = policies.use(inventory, item, lowest)
+            if action:
+                return action
+    foes = policies.enemies(state)
+    if not foes:
+        return "attack", None
+    target = min(foes, key=state.hp)
+    if character == MARLE and state.mp(member) >= ICE_MP:
+        return "tech", ICE, target
+    if character == LUCCA and state.mp(member) >= FIRE_MP:
+        return "tech", FIRE, target
+    return "attack", target
 
 
 def walking(run, max_rounds=8):
@@ -1229,6 +1320,81 @@ def main():
         if later <= len(ZENAN) - 1:
             walking(run)
             zombor.play(run, max(3, later - 7 + 3), args.seed, before_zombor=drink_tonics)
+        later -= len(ZENAN)
+        if later <= 0:
+            # Off the bridge, south to Dorino's shop: Tonics for the mountains'
+            # fights and Mid Tonics for Masa and Mune.
+            assert leave_fighting(run, "f101"), "off the bridge"
+            run.wait_world_control()
+            world_enter(run, DORINO_SHOP)
+            buy(run, DORINO_COUNTER, [(DORINO_TONIC_ROW, 60, 10), (DORINO_MID_TONIC_ROW, 40, 100)])
+            run.say("supplies", "tonics", count_of(machine, policies.TONIC),
+                    "mid tonics", count_of(machine, policies.MID_TONIC), "gold", gold(machine))
+            assert leave_fighting(run, "f101"), "out of the shop"
+            run.checkpoint("dorino_supplies")
+        if later <= 1:
+            run.wait_world_control()
+            toward(run, *DENADORO_FOOT, lambda: run.world_pos() == DENADORO_FOOT, step=8, limit=2000, world=True)
+            assert machine.b(A.EVENT_MEMORY) == STORY_ZOMBOR, "the story as Zombor left it"
+            run.checkpoint("denadoro_foot")
+        if later <= 2:
+            # Into the mountains and up the entrance's west way; on the way
+            # Ozzie's monsters set on the party (story $5D).
+            world_enter(run, DENADORO_MTS)
+            walking(run)
+            wx, wy = DENADORO_WEST_WAY
+            for _ in range(10):
+                assert in_hand(run, policy=MOUNTAIN_FIGHTS), "the field in hand"
+                if abs(run.me()[0] - wx) <= 6 and run.me()[1] < wy:
+                    break
+                run.walk_here(lambda m, px, py: (abs(px - wx) <= 6 and py < wy) or not m.b(A.FIELD_PLAYER_CONTROL)
+                              or m.b(A.DIALOG_OPEN))
+                machine.run(30)
+            for _ in range(10):
+                if run.map_id() != DENADORO_ENTRANCE:
+                    break
+                machine.run(8, "UP")
+            assert run.map_id() == DENADORO_WAY_UP, "the way up"
+            assert machine.b(A.EVENT_MEMORY) == STORY_DENADORO, "Ozzie's monsters"
+            run.checkpoint("denadoro")
+        if later <= 3:
+            for want, aim in DENADORO_CLIMB[:-2]:
+                climb(run, want, aim)
+            run.checkpoint("denadoro_falls")
+        if later <= 4:
+            # Down to the save point below the top: a Shelter there restores
+            # everyone before Masa and Mune.
+            for want, aim in DENADORO_CLIMB[-2:]:
+                climb(run, want, aim)
+            walking(run)
+            assert run.walk_here(lambda m, x, y: m.b(SAVE_POINT_FLAGS) & ON_A_SAVE_POINT) is not None, "the save point"
+            machine.run(30)
+            rest_with_a_shelter(run)
+            run.checkpoint("denadoro_save")
+        if later <= 5:
+            # Up to the top and into the cave, where Masa and Mune stop the
+            # party and fight, first apart and then as one; beaten, they give
+            # up the blade.
+            for want, aim in DENADORO_TOP:
+                climb(run, want, aim)
+            walking(run)
+            assert run.walk_here(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN)) is not None
+            assert run.dialogs_until(lambda: early.battle_ready(run), 20000), "Masa and Mune"
+            assert in_hand(run, 30000, args.seed, masa_and_mune), "Masa and Mune beaten"
+            # Up the cave's stair to where the blade lies, which they give up;
+            # the scene ends with the party leaping down the mountainside on
+            # the world map, to land below the entrance.
+            walking(run)
+            assert run.walk_here(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN)) is not None
+            assert run.dialogs_until(lambda: run.map_id() == WORLD_600, 20000), "out of the mountains"
+            machine.run(120)                # the leap starts a moment after the map shows
+            landed = None
+            while landed != run.world_pos():
+                landed = run.world_pos()
+                machine.run(30)
+            assert run.wait_world_control(), "the world map in hand"
+            assert machine.b(A.EVENT_MEMORY) == STORY_BLADE and count_of(machine, BENT_SWORD), "the blade"
+            run.checkpoint("masa_mune")
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
