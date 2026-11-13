@@ -517,7 +517,12 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank (`vid_send_view_vram`, below): the columns
+  own and sends them in the vblank (`vid_send_view_vram`, below) -- in the
+  same vblank where a map transition's send of a whole tile map ends the
+  frame's work, since that send fills the columns past the screen from the
+  map round from its other side (Crono's mother opening the blinds showed the
+  next room for two frames), and with the screen's own last column where it
+  lies past the room unscrolled into: the columns
   of the room the screen is held to, the map's edges it doesn't scroll past
   (`field_map_edges`) -- an interior lays several rooms side by side in one
   map (Truce's houses are one), and the original never shows a room's

@@ -1,11 +1,15 @@
 """The wider view changes only the picture: play each movie at the original's
 256x224 and at a wider view, and fail where the two end in different work RAM
-or save RAM (docs/PLATFORM.md, "The wider view, as built")."""
+or save RAM (docs/PLATFORM.md, "The wider view, as built"). Then look at the
+margins of moments where they once showed what the original's screen never
+does (MARGINS), and fail where they hold more than the room's backdrop."""
 import argparse
 import concurrent.futures
 import pathlib
+import struct
 import sys
 import tempfile
+import zlib
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -15,6 +19,43 @@ from tools.native_state import ROOT, WRAM_BYTES
 from tools.suite import gate_movies
 
 ORIGINAL_VIEW, WIDEST_VIEW = '256x224', '480x224'
+ORIGINAL_WIDTH = 256
+
+# Moments whose margins are the backdrop alone (and the black of the lines
+# below the picture): (movie, frame, what it is). Crono's mother opens the
+# blinds with a send of BG1's whole tile map, whose columns past the screen
+# are the next room's (#331).
+MARGINS = [('new-game', 6164, "Crono's mother opens the blinds"),
+           ('new-game', 6165, "Crono's mother opens the blinds")]
+MOST_MARGIN_COLOURS = 2
+
+
+def png_pixels(path):
+    """(width, height, rows of RGB bytes) of a picture ct_native wrote: 8-bit
+    RGB, each row unfiltered (frontend/media.c)."""
+    data = pathlib.Path(path).read_bytes()
+    at, idat, width, height = 8, b'', 0, 0
+    while at < len(data):
+        length, kind = struct.unpack('>I4s', data[at:at + 8])
+        body = data[at + 8:at + 8 + length]
+        if kind == b'IHDR':
+            width, height = struct.unpack('>II', body[:8])
+        elif kind == b'IDAT':
+            idat += body
+        at += 12 + length
+    raw, row = zlib.decompress(idat), 1 + width * 3
+    return width, height, [raw[y * row + 1:(y + 1) * row] for y in range(height)]
+
+
+def margin_colours(path):
+    """The distinct colours either side of the original's screen."""
+    width, _, rows = png_pixels(path)
+    side = (width - ORIGINAL_WIDTH) // 2
+    seen = set()
+    for line in rows:
+        for x in list(range(side)) + list(range(width - side, width)):
+            seen.add(line[x * 3:x * 3 + 3])
+    return seen
 
 
 def differences(narrow, wide, shown=4):
@@ -81,12 +122,29 @@ def main(argv=None):
                 found = differences(narrow[2], wide[2])
                 return row[0], not found, ', '.join(found) or 'same work RAM and save RAM'
 
+            def margins(moment):
+                name, frame, what = moment
+                movie = ROOT / 'movies' / (name + '.ctm')
+                shot = work / ('%s-%d.png' % (name, frame))
+                text, rc = run_native(binary, args.rom, movie, frame, None,
+                                      ['--assets', str(pack), '--view', args.view, '--screenshot', str(shot)])
+                if rc != 0 or not shot.exists():
+                    return '%s at %d' % (name, frame), False, 'no picture (exit status %s)' % rc
+                found = len(margin_colours(shot))
+                return ('%s at %d' % (name, frame), found <= MOST_MARGIN_COLOURS,
+                        '%s: %d colour(s) in the margins' % (what, found))
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(args.jobs, 2))) as pool:
                 results = list(pool.map(one, rows))
+                pictures = list(pool.map(margins, MARGINS))
         for name, ok, detail in results:
             print('%s: %s%s' % (name, detail, '' if ok else ' <-- DIFFERS'))
-        print('wide: %d/%d movies end the same at %s as at %s' % (
-            sum(ok for _, ok, _ in results), len(results), args.view, ORIGINAL_VIEW))
+        for name, ok, detail in pictures:
+            print('%s: %s%s' % (name, detail, '' if ok else ' <-- MORE THAN THE BACKDROP'))
+        results += pictures
+        print('wide: %d/%d movies end the same at %s as at %s, and %d/%d moments show the backdrop in the margins' % (
+            sum(ok for _, ok, _ in results[:len(rows)]), len(rows), args.view, ORIGINAL_VIEW,
+            sum(ok for _, ok, _ in pictures), len(pictures)))
         return int(any(not ok for _, ok, _ in results))
     except (OSError, ValueError) as error:
         print('wide: FAILED: %s' % error, file=sys.stderr)

@@ -580,6 +580,20 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
  * both are left alone. */
 enum { RING_ROWS = FIELD_TILE_MAP_ROWS, MOST_MARGIN_COLUMNS = (FIELD_TILE_MAP_COLUMNS - FIELD_SCREEN_COLUMNS - 1) / 2 };
 
+enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS };
+
+static int around_the_ring(int pixels)
+{
+    pixels &= RING_PIXELS - 1;
+    return pixels >= RING_PIXELS / 2 ? pixels - RING_PIXELS : pixels;
+}
+
+/* How far a layer's scroll is into the screen's first column, in pixels. */
+static int fine_scroll(const GameState *g, unsigned layer)
+{
+    return around_the_ring(field_layer_scroll_h(g, layer) - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
+}
+
 /* The map's own columns, which its tables hold (past them they repeat it). */
 static int map_columns_of(const GameState *g, unsigned layer)
 {
@@ -688,6 +702,14 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
         RoomColumns room = room_of(g, layer);
         m->void_left[layer] = edge_is_a_void(g, layer, room.first);
         m->void_right[layer] = edge_is_a_void(g, layer, room.past - 1);
+        /* The screen's last column, which the original's screen shows only
+         * while it is scrolled partway into its first: held at the room's
+         * right edge, the screen has it past the room, where the game draws
+         * the map round from its other side -- in an interior, a neighbouring
+         * room (Crono's when his mother opens the blinds). A margin shows it
+         * whole, so it is built as the margin's columns are. */
+        if (e.right >= room.past && fine_scroll(g, layer) == 0)
+            send_a_margin_column(g, pf, layer, e.right, (uint8_t)((x + FIELD_SCREEN_COLUMNS) & (FIELD_TILE_MAP_COLUMNS - 1)));
         for (int k = 1; k <= margin; k++) {
             send_a_margin_column(g, pf, layer, e.left - k, (uint8_t)((x - k) & (FIELD_TILE_MAP_COLUMNS - 1)));
             send_a_margin_column(g, pf, layer, e.right + k,
@@ -708,7 +730,7 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
  * a pattern the original repeats as it drifts, so it goes on across the map
  * as the picture under it does, rather than ending in an edge. Kept for the
  * battle, which is fought over the field's layers. */
-enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS, ONE_SCREEN_TILES = 16 };
+enum { ONE_SCREEN_TILES = 16 };
 
 static bool veils_the_picture(const GameState *g, unsigned layer)
 {
@@ -718,12 +740,6 @@ static bool veils_the_picture(const GameState *g, unsigned layer)
     bool blended = math.half && (math.layers & bit);
     bool beneath = (field_sub_screen(g) & bit) && !(field_main_screen(g) & bit);
     return blended || beneath;
-}
-
-static int around_the_ring(int pixels)
-{
-    pixels &= RING_PIXELS - 1;
-    return pixels >= RING_PIXELS / 2 ? pixels - RING_PIXELS : pixels;
 }
 
 static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int margin)
@@ -739,7 +755,7 @@ static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int
     }
     bool own = keeps_own_edges(g, layer);
     ScreenEdges e = screen_edges(g, own);
-    int fine = around_the_ring(scroll - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
+    int fine = fine_scroll(g, layer);
     int first = e.left - margin, last = e.right + margin + 1;   /* the columns built, the last one past */
     RoomColumns room = room_of(g, layer);
     if (first < room.first && !m->void_left[layer])
