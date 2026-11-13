@@ -56,7 +56,7 @@ static bool shape_of(const AssetEntry *e, Shape *s)
     const char *c = asset_codec_names[e->codec];
     unsigned n = 0;
     *s = (Shape){ CELL_BYTE, 16, 1, false };
-    if (!strcmp(c, "lz") || !strcmp(c, "lz:event"))
+    if (!strcmp(c, "lz"))
         return true;
     if (!strcmp(c, "lz:field-map")) {
         s->field_map = true;
@@ -661,5 +661,5 @@ const DecodedKind map_text = {
     "# and bit 1 BG2's, take its look from the tile set's second 256.\n"
     "# Edited, a resource is packed again as it is read, and must fit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end,
+    decodes, write_resource, read_line, read_end, NULL,
 };

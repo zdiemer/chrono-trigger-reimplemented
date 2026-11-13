@@ -32,10 +32,12 @@ WIDTHS_CODEC = re.compile(r"font-widths:([a-z][a-z0-9_.]*):([0-9A-F]{2})")
 # and the same packed (frontend/tiles.h writes and reads them as text).
 TILE_BYTES = {"tiles:2bpp": 16, "tiles:4bpp": 32}
 # Other packed resources' codecs: a location's map, a tile set's looks, and
-# grids of tilemap entries, bytes, hex digits or colors N a row; and streams
-# without a text of their own yet (frontend/maps.h writes and reads them all).
-PACKED_CODEC = re.compile(r"lz(:event|:2bpp|:4bpp|:field-map|:looks|:chunky|:(tilemap|bytes|colors):[1-9][0-9]*"
-                          r"|:nibbles:([2468]|[1-9][0-9]*[02468]))?")
+# grids of tilemap entries, bytes, hex digits or colors N a row, and streams
+# without a text of their own yet (frontend/maps.h writes and reads them); a
+# location's event script and a world map's lists of places
+# (frontend/scripts.h).
+PACKED_CODEC = re.compile(r"lz(:event|:place-lists|:2bpp|:4bpp|:8bpp|:4bpp-chunky|:field-map|:looks|:chunky"
+                          r"|:(tilemap|bytes|colors):[1-9][0-9]*|:nibbles:([2468]|[1-9][0-9]*[02468]))?")
 
 # Text's codecs: a string, names of N glyphs each, the dictionary
 # (frontend/text.h writes and reads them as text).

@@ -541,7 +541,7 @@ static const char *read_end(Decoded *d, DecodedReading *r)
     const uint8_t *was = decoded_beneath(d, r->entry);
     bool as_it_was = was && !memcmp(was, r->made, r->made_len) && was[r->made_len] == CODE_END;
     if (!as_it_was && ends_wanting_an_operand(r->made, r->made_len)) {
-        r->wrong_at_its_last_line = true;
+        r->wrong_at = r->last_line;
         return "the string ends in a code that takes the byte after it ({01}, {02}, {03} or {12}): give it one";
     }
     memcpy(r->bytes, r->made, r->made_len);   /* then its end, and nothing after it */
@@ -555,5 +555,5 @@ const DecodedKind game_text = {
     "# in braces ({line}, {page read}, {Crono}, {wait 0A}, or any bytes in hex: {F3});\n"
     "# names in quotes; the dictionary a word a line. An edited string must fit its\n"
     "# slot. Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end,
+    decodes, write_resource, read_line, read_end, NULL,
 };

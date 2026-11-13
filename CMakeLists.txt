@@ -353,7 +353,7 @@ target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
-  frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/text.c
+  frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/scripts.c frontend/text.c
   frontend/records.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
@@ -439,6 +439,10 @@ if(BUILD_TESTING)
   add_executable(maps_test tests/frontend/maps_test.c frontend/decoded.c frontend/maps.c frontend/packed.c
     frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
   target_include_directories(maps_test PRIVATE frontend game)
+  add_executable(scripts_test tests/frontend/scripts_test.c frontend/decoded.c frontend/scripts.c frontend/packed.c
+    frontend/lz.c frontend/assets.c)
+  target_include_directories(scripts_test PRIVATE frontend game)
+  target_link_libraries(scripts_test PRIVATE ct_game)
   add_executable(text_test tests/frontend/text_test.c frontend/decoded.c frontend/text.c frontend/assets.c
     game/data/asset_catalogue.c)
   target_include_directories(text_test PRIVATE frontend game)
@@ -456,7 +460,7 @@ if(BUILD_TESTING)
   add_executable(sound_native_test tests/frontend/sound_native_test.c frontend/sound_native.c)
   target_include_directories(sound_native_test PRIVATE frontend runtime)
   target_link_libraries(sound_native_test PRIVATE ct_game)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps text records sound_setting sound_native object_talk)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps scripts text records sound_setting sound_native object_talk)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()

@@ -49,8 +49,11 @@ typedef struct {
     uint32_t most;   /* the most bytes the kind will make of it, once it knows */
     uint8_t *made;
     uint32_t made_len, made_room;
-    /* set by read_end: what is wrong is on the resource's last line, not its [name] line */
-    bool wrong_at_its_last_line;
+    /* the line being read (from 1), and its last line so far; read_end may
+     * set wrong_at to the line what is wrong is on, or leave it 0 for the
+     * resource's [name] line */
+    unsigned line, last_line, wrong_at;
+    void *own;   /* what the kind keeps of its own as it reads, kept from resource to resource (forget) */
 } DecodedReading;
 
 /* `more` bytes, 0, added to the reading's own bytes: where they start, or NULL
@@ -70,6 +73,8 @@ typedef struct {
      * end: NULL, or what is wrong. */
     const char *(*read_line)(Decoded *d, DecodedReading *r, const char *s, const char *end);
     const char *(*read_end)(Decoded *d, DecodedReading *r);
+    /* NULL, or let go of r->own once the text is read */
+    void (*forget)(DecodedReading *r);
 } DecodedKind;
 
 /* The catalogue's row of a name (`len` bytes of it), looked for from *hint on:

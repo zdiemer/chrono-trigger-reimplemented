@@ -172,5 +172,5 @@ const DecodedKind font_text = {
     "# A glyph a block: `glyph` and its number in hex, its width where the font has\n"
     "# widths, then a line of pixels for each of its lines: '.' clear, '1'-'3' colors.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_font, read_line, read_end,
+    decodes, write_font, read_line, read_end, NULL,
 };

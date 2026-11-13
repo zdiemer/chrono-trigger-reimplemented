@@ -71,7 +71,7 @@ class Tiles:
         self.planes, self.rows, self.lines, self.first_line = 2, [], [], line
 
 
-PLANES = re.compile(r"#\s*\d+ tiles, (\d) bit planes")
+PLANES = re.compile(r"#\s*\d+ tiles, (\d) bit(?:s a pixel| planes)")
 POOL = re.compile(r"#\s*tiles of two or three bit planes")
 # A resource's name, as the catalogue spells them (tools/assets.py): it names
 # the sheet's file, so it can't climb out of the directory or into another.
@@ -155,10 +155,22 @@ def font_sheet(glyphs):
     return picture
 
 
+def pixel_values(tile: str):
+    """A tile's line's pixels: a character each, or two in hex for eight
+    bit planes ('..' color 0)."""
+    if len(tile) == 2 * TILE:
+        return [0 if tile[x:x + 2] == ".." else int(tile[x:x + 2], 16) for x in range(0, 2 * TILE, 2)]
+    return [PIXELS.index(c.upper()) if c.upper() in PIXELS else -1 for c in tile]
+
+
 def tile_sheet(tiles: Tiles):
     """A graphics resource's picture: its tiles as the text lays them out,
     each row's first tile's number to its left."""
-    colors = RAMP if tiles.planes == 4 else RAMP8 if tiles.planes == 3 else COLORS
+    if tiles.planes == 8:
+        colors = {v: CLEAR if v == 0 else (v,) * 3 for v in range(256)}
+    else:
+        ramp = RAMP if tiles.planes == 4 else RAMP8 if tiles.planes == 3 else COLORS
+        colors = {PIXELS.index(c): v for c, v in ramp.items()}
     margin = 4 * 4 + GAP                        # four digits and a gap
     w, h = margin + TILES_ACROSS * TILE + GAP, len(tiles.rows) * (TILE + 1) + GAP
     picture = [[PAPER] * w for _ in range(h)]
@@ -168,8 +180,8 @@ def tile_sheet(tiles: Tiles):
         label(picture, GAP, y0 + 1, first, 4)
         for y, line in enumerate(row):
             for k, tile in enumerate(line):
-                for x, ch in enumerate(tile):
-                    picture[y0 + y][margin + k * TILE + x] = colors.get(ch.upper(), (255, 0, 255))
+                for x, v in enumerate(pixel_values(tile)):
+                    picture[y0 + y][margin + k * TILE + x] = colors.get(v, (255, 0, 255))
         first += len(row[0])
     return picture
 
@@ -245,7 +257,7 @@ def tile_pixels(tiles, k: int):
     r, i = divmod(k, TILES_ACROSS)
     if tiles is None or r >= len(tiles.rows) or i >= len(tiles.rows[r][0]):
         return None
-    return [[PIXELS.index(c.upper()) for c in tiles.rows[r][y][i]] for y in range(TILE)]
+    return [pixel_values(tiles.rows[r][y][i]) for y in range(TILE)]
 
 
 def read_pack(path: Path):

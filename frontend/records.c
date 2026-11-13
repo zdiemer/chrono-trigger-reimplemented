@@ -250,5 +250,5 @@ const DecodedKind record_text = {
     "# A record a line in hex; the locations' exits and chests, each location's\n"
     "# under `location NNN`. Edit and start the game again; delete the file to\n"
     "# write it afresh.\n",
-    decodes, write_resource, read_line, read_end,
+    decodes, write_resource, read_line, read_end, NULL,
 };

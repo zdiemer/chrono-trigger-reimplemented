@@ -87,6 +87,12 @@ bool event_copy_data(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     return true;
 }
 
+/* The command's length: its six bytes and the data after them. */
+static uint16_t measure_copy_data(const uint8_t *command, uint16_t available)
+{
+    return available < COPY_DATA_LENGTH ? 0 : (uint16_t)(COPY_DATA_LENGTH + (uint16_t)(command[4] | command[5] << 8) - 2);
+}
+
 /* What the port checks: the data lies in the script, and there is some (the
  * original's block move takes no length as the whole bank, and past the
  * script's end reads on round the bank; no script does either). */
@@ -105,5 +111,5 @@ EVENT_OPCODES(event_memory_opcodes,
     { 0x4B, OPERATION(poke), .address = OPERAND_ADDRESS(1), .value = OPERAND_WORD(4), .width = WORDS, .length = 6 },
     { 0x4C, OPERATION(poke), .address = OPERAND_ADDRESS(1), .value = VARIABLE_WORD(4), .width = BYTES, .length = 5 },
     { 0x4D, OPERATION(poke), .address = OPERAND_ADDRESS(1), .value = VARIABLE_WORD(4), .width = WORDS, .length = 5 },
-    { 0x4E, .destination = OPERAND_WORD(1), .bank = OPERAND(3), .size = OPERAND_WORD(4), .length = 6,
-      CHECK(data_in_the_script) });
+    { 0x4E, .destination = OPERAND_WORD(1), .bank = OPERAND(3), .size = OPERAND_WORD(4), .length = COPY_DATA_LENGTH,
+      CHECK(data_in_the_script), MEASURED(measure_copy_data) });

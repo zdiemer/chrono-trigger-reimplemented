@@ -7,7 +7,8 @@
 # FONT's glyphs from $XX on, as frontend/fonts.h's text; `tiles:2bpp`, `tiles:4bpp`: 8x8 tiles
 # of two or four bitplanes, and `lz:2bpp`, `lz:4bpp` the same packed, as frontend/tiles.h's
 # text; `lz:field-map`, `lz:looks`, `lz:tilemap:N`, `lz:bytes:N`, `lz:nibbles:N`, `lz:colors:N`:
-# packed maps, looks and grids, and `lz`, `lz:event` other packed streams, as frontend/maps.h's;
+# packed maps, looks and grids, and `lz` other packed streams, as frontend/maps.h's; `lz:event`
+# a location's event script and `lz:place-lists` a world map's places, as frontend/scripts.h's;
 # `text:dialog` a string, `text:names:N` names of N glyphs, `text:dialog-dictionary` the
 # dictionary's words, as frontend/text.h's; `tiles:plane-pool` the battlefield's tiles of two or
 # three bitplanes, cut by their descriptors, as frontend/tiles.h's; `struct:sprite-records:N`,
@@ -190,14 +191,14 @@ menu_scene_stream.11	lz	C6:0000	C6:07B5	lz:4bpp	menu_scene_stream entry
 menu_scene_stream.12	lz	C6:07B6	C6:0E99	lz:4bpp	menu_scene_stream entry
 menu_scene_stream.13	lz	C6:0E9A	C6:1E70	lz:4bpp	menu_scene_stream entry
 mixed_c61e71	mixed	C6:1E71	C6:2410	raw	read
-overworld_place_lists.0	lz	C6:2411	C6:25DE	lz	overworld_place_lists entry
-overworld_place_lists.1	lz	C6:25DF	C6:2798	lz	overworld_place_lists entry
-overworld_place_lists.2	lz	C6:2799	C6:2833	lz	overworld_place_lists entry
-overworld_place_lists.3	lz	C6:2834	C6:28E3	lz	overworld_place_lists entry
-overworld_place_lists.4	lz	C6:28E4	C6:2921	lz	overworld_place_lists entry
-overworld_place_lists.5	lz	C6:2922	C6:2990	lz	overworld_place_lists entry
-overworld_place_lists.6	lz	C6:2991	C6:29D9	lz	overworld_place_lists entry
-overworld_place_lists.7	lz	C6:29DA	C6:29EB	lz	overworld_place_lists entry
+overworld_place_lists.0	lz	C6:2411	C6:25DE	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.1	lz	C6:25DF	C6:2798	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.2	lz	C6:2799	C6:2833	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.3	lz	C6:2834	C6:28E3	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.4	lz	C6:28E4	C6:2921	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.5	lz	C6:2922	C6:2990	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.6	lz	C6:2991	C6:29D9	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.7	lz	C6:29DA	C6:29EB	lz:place-lists	overworld_place_lists entry
 overworld_tile_groups.0	lz	C6:29EC	C6:3725	lz:looks	overworld_tile_groups entry
 overworld_tile_groups.1	lz	C6:3726	C6:4111	lz:looks	overworld_tile_groups entry
 overworld_tile_groups.2	lz	C6:4112	C6:4B7C	lz:looks	overworld_tile_groups entry
@@ -6578,7 +6579,7 @@ field_packed_script	ptr24	FC:F9F0	FC:FFF2	raw	accessor field_packed_script
 field_credits_letters_packed	lz	FD:0000	FD:0235	lz:2bpp	accessor field_credits_letters_packed
 attract_resource_ptrs.44	lz	FD:0236	FD:042C	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.45	lz	FD:042D	FD:055B	lz:bytes:16	attract_resource_ptrs entry
-attract_resource_ptrs.46	lz	FD:055C	FD:0D83	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.46	lz	FD:055C	FD:0D83	lz:4bpp-chunky	attract_resource_ptrs entry
 attract_resource_ptrs.47	lz	FD:0D84	FD:0FCD	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.48	lz	FD:0FCE	FD:241E	lz:4bpp	attract_resource_ptrs entry
 attract_resource_ptrs.49	lz	FD:241F	FD:2454	lz:2bpp	attract_resource_ptrs entry
@@ -6586,7 +6587,7 @@ attract_resource_ptrs.50	lz	FD:2455	FD:25D0	lz	attract_resource_ptrs entry
 attract_resource_ptrs.51	lz	FD:25D1	FD:2F37	lz:4bpp	attract_resource_ptrs entry
 attract_resource_ptrs.52	lz	FD:2F38	FD:2FC7	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.53	lz	FD:2FC8	FD:302E	lz:tilemap:32	attract_resource_ptrs entry
-attract_resource_ptrs.54	lz	FD:302F	FD:545D	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.54	lz	FD:302F	FD:545D	lz:8bpp	attract_resource_ptrs entry
 attract_resource_ptrs.55	lz	FD:545E	FD:57EF	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.56	lz	FD:57F0	FD:58E0	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.57	lz	FD:58E1	FD:6692	lz:bytes:64	attract_resource_ptrs entry
@@ -6626,7 +6627,7 @@ attract_resource_ptrs.11	lz	FE:38C4	FE:3A06	lz:tilemap:32	attract_resource_ptrs 
 attract_resource_ptrs.12	lz	FE:3A07	FE:3A47	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.13	lz	FE:3A48	FE:3B05	lz:2bpp	attract_resource_ptrs entry
 attract_resource_ptrs.14	lz	FE:3B06	FE:4649	lz:4bpp	attract_resource_ptrs entry
-attract_resource_ptrs.15	lz	FE:464A	FE:4ACB	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.15	lz	FE:464A	FE:4ACB	lz:4bpp-chunky	attract_resource_ptrs entry
 attract_resource_ptrs.16	lz	FE:4ACC	FE:4B1A	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.17	lz	FE:4B1B	FE:4B79	lz:4bpp	attract_resource_ptrs entry
 attract_colors_fe4b7a	words	FE:4B7A	FE:4BD9	palette:16	accessor scene_copy_resource_to

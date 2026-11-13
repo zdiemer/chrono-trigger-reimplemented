@@ -80,5 +80,5 @@ const DecodedKind palette_text = {
     "# Chrono Trigger's palettes, from your cartridge: not for sharing.\n"
     "# A color a line: red green blue, 0-31 each; '+' keeps the word's top bit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_palette, read_color, read_end,
+    decodes, write_palette, read_color, read_end, NULL,
 };

@@ -28,7 +28,7 @@ static bool not_a_palette(const AssetEntry *e, bool *named)
     *named = true;
     return !palette_text.decodes(e, &palette_named);
 }
-static const DecodedKind not_palettes = { "others", "", not_a_palette, NULL, NULL, NULL };
+static const DecodedKind not_palettes = { "others", "", not_a_palette, NULL, NULL, NULL, NULL };
 
 static uint8_t *made_up_bytes;
 static uint32_t made_up_at[0x10000];

@@ -260,7 +260,6 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
     DecodedReading r = { .entry = -1 };
     const char *wrong = NULL;
     unsigned header = 0;   /* the [name] line of the resource being read: where its end is found wrong */
-    unsigned last = 0;     /* its last line, where read_end may say instead */
     for (const char *s = text, *stop = text + len; s < stop && !wrong;) {
         const char *newline = memchr(s, '\n', (size_t)(stop - s));
         const char *end = newline ? newline : stop, *next = newline ? newline + 1 : stop;
@@ -275,10 +274,10 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
             bool named = false;
             int entry = close && close + 1 == end ? decoded_entry(s + 1, (size_t)(close - s - 1), &d->hint) : -1;
             if (r.entry >= 0 && (wrong = kind->read_end(d, &r)) != NULL) {
-                *line = r.wrong_at_its_last_line ? last : header;
+                *line = r.wrong_at ? r.wrong_at : header;
                 break;
             }
-            header = last = *line;
+            header = *line;
             if (!close || close + 1 != end)
                 wrong = "a resource's name is [name]";
             else if (entry < 0 || !kind->decodes(&asset_catalogue[entry], &named) || !named)
@@ -287,18 +286,20 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
                 wrong = "that name is given twice";
             else
                 r = (DecodedReading){ .entry = entry, .bytes = decoded_bytes(d, entry), .made = r.made,
-                                      .made_room = r.made_room };
+                                      .made_room = r.made_room, .own = r.own };
         } else if (r.entry < 0) {
             wrong = "a line before any [name]";
         } else {
+            r.line = r.last_line = *line;
             wrong = kind->read_line(d, &r, s, end);
-            last = *line;
         }
         s = next;
     }
     if (!wrong && r.entry >= 0 && (wrong = kind->read_end(d, &r)) != NULL)
-        *line = r.wrong_at_its_last_line ? last : header;
+        *line = r.wrong_at ? r.wrong_at : header;
     free(r.made);
+    if (kind->forget)
+        kind->forget(&r);
     if (wrong)
         return refuse(d, wrong, why);
     return d;
