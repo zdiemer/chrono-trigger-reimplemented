@@ -114,12 +114,13 @@ def flee(run, max_frames=3000):
     raise AssertionError("the party could not run")
 
 
-def win(run, seed=1):
+def win(run, seed=1, policy=early.early_party):
     """Fight the battle that is open to its end: every enemy down, or the
     field given back (a fight a scene ends, as the prison's guards' does,
     leaves its enemies standing). Lab 16's Shadows, which have 1 HP and take
     no harm from a weapon, are run from; any other fight with no enemy the
-    bot can wear down fails the route."""
+    bot can wear down fails the route. `policy` chooses the party's actions
+    (the early game's Tonics by default)."""
     machine = run.machine
     kinds = enemy_kinds(machine)
     run.say("enemies", sorted(kinds))
@@ -138,10 +139,10 @@ def win(run, seed=1):
         field_frames[0] = field_frames[0] + 1 if machine.b(A.FIELD_PLAYER_CONTROL) else 0
         return field_frames[0] >= 60
 
-    run.fight(early.early_party, over, party=party_size(run), seed=seed, max_frames=35000, max_tries=300)
+    run.fight(policy, over, party=party_size(run), seed=seed, max_frames=35000, max_tries=300)
 
 
-def in_hand(run, max_frames=12000, seed=1):
+def in_hand(run, max_frames=12000, seed=1, policy=early.early_party):
     """Play on until the pad walks the party again: windows closed with
     confirm, each name the game asks for accepted as offered (Start), and any
     fight that starts on the way won. True once it is."""
@@ -150,7 +151,7 @@ def in_hand(run, max_frames=12000, seed=1):
     found = held = 0
     while machine.frame - start < max_frames:
         if early.battle_ready(run):
-            win(run, seed)
+            win(run, seed, policy)
             found = held = 0
             continue
         if naming(run):
@@ -196,7 +197,7 @@ def walking(run, max_rounds=8):
     run.say("the leader is object", run.player)
 
 
-def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
+def leave_fighting(run, want, max_rounds=12, seed=1, ends=(), policy=early.early_party):
     """Walk until the screen is map `want`, winning the fights on the way (the
     field's encounters take control from the walk) and closing windows. A
     scene that carries the party on to one of the maps in `ends` ends the
@@ -204,7 +205,7 @@ def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
     machine = run.machine
     done = lambda: run.map_id() == want or run.map_id() in ends
     for _ in range(max_rounds):
-        assert in_hand(run), "the field in hand"
+        assert in_hand(run, policy=policy), "the field in hand"
         if done():
             return True
         moves = run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == want
@@ -217,22 +218,22 @@ def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
         machine.run(30)
         if early.battle_ready(run) or run.dialogs_until(lambda: early.battle_ready(run) or bool(
                 machine.b(A.FIELD_PLAYER_CONTROL)), 3000) and early.battle_ready(run):
-            win(run, seed)
+            win(run, seed, policy)
     return done()
 
 
-def through(run, x, y, arrived, seed=1, rounds=10):
+def through(run, x, y, arrived, seed=1, rounds=10, policy=early.early_party):
     """Head for (x, y) by the biased search (_trial_walk.toward) until
     `arrived()`, settling the fights and scenes that stop the walk."""
     machine = run.machine
     for _ in range(rounds):
-        assert in_hand(run), "the field in hand"
+        assert in_hand(run, policy=policy), "the field in hand"
         if arrived():
             return
         toward(run, x, y, lambda: arrived() or not machine.b(A.FIELD_PLAYER_CONTROL) or run.dialog())
         if arrived():
             return
-        assert in_hand(run, 30000, seed), "the scene or fight ends"
+        assert in_hand(run, 30000, seed, policy), "the scene or fight ends"
     raise AssertionError(("too many stops on the way to", (x, y)))
 
 

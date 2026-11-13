@@ -11,10 +11,12 @@ the state it reached. The party and items are the save's.
 """
 from .. import addresses as A
 from .. import bfs
+from .. import policies
 from ..campaign import Run, route_arguments, run_route
 from ._trial_walk import world_enter
 from .ozzies_fort import fly_to, land
-from .playthrough import in_hand, leave_fighting, naming, through, win
+from .playthrough import naming
+from . import playthrough
 from ._zeal_navigation import approach
 from . import black_tyrano
 from . import menu_sweep as menus
@@ -25,11 +27,12 @@ from . import zeal_palace
 SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
 SLOT = 0
 STORY = 0x7F0000
+MARLE = 1                   # a character id
 LAIR_RUINS = 0x133          # the crater Lavos left, 65,000,000 B.C.
 WORLD_65M, LAIR_RUINS_MAP = "f301", "3301"
 LAIR_RUINS_GATE = 8         # an object of the Lair Ruins
 CAVE_12KBC, SNOWFIELD = "5f01", "f401"
-ZEAL_HALL, MAMMON_PASSAGE, SEALED_DOOR_HALL, QUEENS_ROOM = "9101", "4a01", "4901", "4c01"
+ZEAL_HALL, MAMMON_PASSAGE, SEALED_DOOR_HALL, QUEENS_ROOM, QUEENS_HALL = "9101", "4a01", "4901", "4c01", "4e01"
 SEALED_DOOR = (328, 144)    # in Zeal Palace's hall, up to the Queen's door
 EXILED = 0xAB               # the story once Schala has sent the party back
 TRAVEL_ON_FOOT, TRAVEL_ON_A_DACTYL = 0, 3
@@ -57,9 +60,28 @@ EPOCH_DIAL = 0x7E0C52       # the era the Epoch's dial points at
 DIAL_12KBC = 5
 TERRA_CAVE, TERRA_CAVE_DOOR = 0x182, (424, 472)
 ALGETTY = "7c01"
+ALGETTY_SAVE_SPOT = (680, 700)  # below Algetty's save point
+MELCHIOR = 10                   # an object of Terra Cave's inner room
+TERRA_CAVE_MAP = "8201"
+# The Skyways from Terra Cave's snowfield to Zeal Palace: a world-map door
+# into each Skyway, how long to hold up on its beam, and the maps on the way.
+SKYWAYS = [((864, 688), "5101", 90, "6101", "f501"), ((936, 600), "5001", 180, "6201", "f401"),
+           ((992, 192), "6401", 130, "6001", "f501"), ((728, 496), "8501", 140, "8501", "f501"),
+           ((816, 456), "8501", 140, "8501", "f501")]
+ZEAL_PALACE_DOOR = (808, 400)
+OCEAN_GATE = 8                  # the Gate Dalton opened in the Queen's hall
+PALACE_ENTRY, PALACE_HALL, PALACE_EAST, PALACE_SOUTH_EAST = "9401", "9501", "9601", "9701"
+PALACE_DOWN, PALACE_STAIRS, PALACE_LANDING = "9801", "9901", "9a01"
+HALL_EAST_DOOR, HALL_SOUTH_EAST_DOOR, HALL_DOWN = (47, 24, "RIGHT"), (35, 42, "DOWN"), (23, 47, "DOWN")
+EAST_WING_DOOR = (546, 161)     # its first room's way on to the button's
+PALACE_BUTTONS = 0x7F0162       # bit 2 the east wing's, bit 0 the south-east bridge's
+PLATFORMS_TOP = 1700            # the stairs' lowest platform, before the clogged stairs
+CLOGGED_STAIRS = (376, 1790)    # where Masa and Mune's scene begins below it
+PALACE_SAVE_SPOT = (56, 190)    # below the landing's save point
+PALACE_LANDED = 0xC6            # the story once Masa and Mune have spoken
 BEAST_NEST, WOE_FOOT, WOE_MIDDLE, WOE_SAVE_POINT = "8401", "8a01", "8801", "8901"
 WOE_FOOT_EXIT = (576, 544)      # $18A's way on to $188
-WOE_SAVE_SPOT = (440, 118)      # on $189's save point
+WOE_SAVE_SPOT = (440, 128)      # below $189's save point
 ON_A_SAVE_POINT = (0x7F01CF, 0x80)
 TYRANO = black_tyrano.PHASES[1:]
 # Out of the scene onto the 65,000,000 B.C. map, into the Lair Ruins and
@@ -75,13 +97,21 @@ EXILE = ["queen_door", "golem", "golem_won", "exiled"]
 # first flight to 12000 B.C.: Algetty, under Terra Cave.
 EPOCH = ["dactyl", "mystic_mts", "mystic_gate", "end_of_time", "proto_dome", "lab32", "sewer", "sewer_lower",
          "sewer_switch", "sewer_out", "keepers_dome", "hangar", "belthasar", "epoch_dial", "epoch_12kbc",
-         "algetty"]
+         "algetty", "algetty_rested"]
 MUD_IMP = mud_imp.PHASES[1:]
 # Up the chain from the nest onto Mt. Woe and across its islands to the
 # last save point, where a Shelter restores the party the climb wore down.
 WOE = ["woe_chain", "woe_ambush", "woe_middle", "woe_save_point", "woe_rested"]
 GIGA_GAIA = giga_gaia.PHASES[1:]
-PHASES = ["loaded"] + TYRANO + GATE + ZEAL + EXILE + EPOCH + MUD_IMP + WOE + GIGA_GAIA
+# Melchior's word in Terra Cave, a rest in Algetty, the Skyways back to Zeal
+# Palace and Dalton in the Queen's room.
+DALTON = ["melchior", "algetty_again", "terra_cave_out", "skyways", "queens_hall", "dalton", "dalton_won"]
+# Through the Queen's gate after him into the Ocean Palace: the two buttons
+# that open its way down, the stairs and platforms to Masa and Mune, and a
+# rest at the save point there.
+OCEAN_PALACE = ["ocean_palace", "first_button", "second_button", "palace_stairs", "platforms", "masa_and_mune",
+                "palace_rested"]
+PHASES = ["loaded"] + TYRANO + GATE + ZEAL + EXILE + EPOCH + MUD_IMP + WOE + GIGA_GAIA + DALTON + OCEAN_PALACE
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg C of the playthrough (route playthrough_leg-c): from Tyrano Lair to the Ocean Palace's Lavos.
@@ -123,6 +153,46 @@ def world_in_hand(run, world, max_frames=20000):
     return False
 
 
+def party_policy(bot, state, rng, inventory):
+    """policies.party's reviving and healing with this save's bag, which by
+    Zeal has no Tonics left: a Lapis when the party is worn down, Marle's
+    Cure 2 and the Revives, a Mid Ether for a healer out of MP. Otherwise
+    weapons: the Ocean Palace's Scouts drink the element they are hit with."""
+    members = [slot for slot in range(bot.party) if state.max_hp(slot)]
+    if all(state.hp(slot) for slot in members):
+        low = sorted((slot for slot in members if policies.fraction(state, slot) < 0.5),
+                     key=lambda slot: policies.fraction(state, slot))
+        if len(low) >= 2 or low and policies.fraction(state, low[0]) < 0.3:
+            action = policies.use(inventory, policies.LAPIS, None)
+            if action and rng.random() < 0.9:
+                return action
+    action = policies.party(bot, state, rng, inventory)
+    if action[0] == "item" or action[0] == "tech" and action[2] is not None and action[2] < 3:
+        return action
+    living = policies.enemies(state)
+    if state.mp(state.member) < 10 and policies.party_ids(bot)[state.member] == MARLE:
+        ether = policies.use(inventory, policies.MID_ETHER, state.member)
+        if ether and rng.random() < 0.5:
+            return ether
+    return ("attack", min(living, key=lambda slot: state.hp(slot)) if living else None)
+
+
+def in_hand(run, max_frames=12000, seed=1):
+    return playthrough.in_hand(run, max_frames, seed, party_policy)
+
+
+def win(run, seed=1):
+    playthrough.win(run, seed, party_policy)
+
+
+def leave_fighting(run, want, max_rounds=12, seed=1):
+    return playthrough.leave_fighting(run, want, max_rounds, seed, policy=party_policy)
+
+
+def through(run, x, y, arrived, seed=1, rounds=10):
+    playthrough.through(run, x, y, arrived, seed, rounds, party_policy)
+
+
 def stuck_in_hand(run, max_frames=30000, seed=1):
     """in_hand, for a scene that also waits on a press with no window open:
     Belthasar's, before he has the party name the Epoch."""
@@ -159,7 +229,7 @@ def onward(run, avoid=frozenset(), rounds=20, seed=1):
     return away()
 
 
-def walk_fighting(run, goal, seed=1, rounds=12):
+def walk_fighting(run, goal, seed=1, rounds=12, max_nodes=6000):
     """Walk this map until `goal(x, y)`, winning the fights that stop the walk."""
     machine = run.machine
     for _ in range(rounds):
@@ -167,7 +237,7 @@ def walk_fighting(run, goal, seed=1, rounds=12):
         if goal(*run.me()):
             return True
         moves = run.walk_here(lambda m, px, py: goal(px, py) or not m.b(A.FIELD_PLAYER_CONTROL)
-                              or m.b(A.DIALOG_OPEN))
+                              or m.b(A.DIALOG_OPEN), max_nodes=max_nodes)
         if moves is None:
             return False
         if goal(*run.me()):
@@ -175,6 +245,37 @@ def walk_fighting(run, goal, seed=1, rounds=12):
         machine.run(30)
         assert in_hand(run, 30000, seed), "the fight or scene on the way ends"
     return False
+
+
+def head_for(run, x, y, seed=1, rounds=12):
+    """approach (x, y) on this map, winning the fights that jump the party on
+    the way and searching again from where each one leaves it."""
+    machine = run.machine
+    here = run.map_id()
+    ambushed = lambda m: not m.b(A.FIELD_PLAYER_CONTROL) and m.peek(A.MAP_ID, 2).hex() == here
+    for _ in range(rounds):
+        assert in_hand(run, 30000, seed), "the field in hand"
+        px, py = run.me()
+        if abs(px - x) < 6 and abs(py - y) < 6:
+            return True
+        approach(run, x, y, stop=ambushed)
+        machine.run(30)
+    return False
+
+
+def take_exit(run, column, row, direction, seed=1):
+    """Through the exit on tile (column, row) of this map: to the tile before
+    it, then on in `direction` until the next map is up."""
+    machine = run.machine
+    here = run.map_id()
+    dx, dy = {"UP": (0, 1), "DOWN": (0, -1), "LEFT": (1, 0), "RIGHT": (-1, 0)}[direction]
+    assert head_for(run, (column + dx) * 16 + 8, (row + dy) * 16 + 8, seed), "before the exit"
+    for _ in range(20):
+        machine.run(8, direction)
+        if run.map_id() != here:
+            break
+    assert run.map_id() != here, "through the exit"
+    assert in_hand(run, 30000, seed), "the next map in hand"
 
 
 def exile(run, ahead, seed):
@@ -369,12 +470,22 @@ def to_the_epoch(run, ahead, seed):
         world_enter(run, TERRA_CAVE)
         assert leave_fighting(run, ALGETTY), "Algetty"
         run.checkpoint("algetty")
+    if ahead("algetty_rested"):
+        assert run.wait_control()
+        approach(run, *ALGETTY_SAVE_SPOT)
+        rest(run)
+        run.checkpoint("algetty_rested")
 
 
 def rest(run):
-    """On a save point: a Shelter from the items screen restores the party."""
+    """Just below a save point: step onto it, and a Shelter from the items
+    screen restores the party."""
     machine = run.machine
     flag, bit = ON_A_SAVE_POINT
+    for _ in range(40):                 # the last step up onto it
+        if machine.b(flag) & bit:
+            break
+        machine.run(1, "UP")
     assert machine.b(flag) & bit, "standing on the save point"
     count = menus.count_of(machine, menus.SHELTER)
     assert count, "a Shelter for the party"
@@ -424,6 +535,135 @@ def mt_woe(run, ahead, seed):
         run.checkpoint("woe_rested")
 
 
+def to_dalton(run, ahead, seed):
+    """From Melchior in Terra Cave back to Zeal Palace, where Dalton waits in
+    the Queen's room."""
+    machine = run.machine
+    if ahead("melchior"):
+        assert run.talk(MELCHIOR), "Melchior"
+        run.checkpoint("melchior")
+    if ahead("algetty_again"):
+        assert leave_fighting(run, ALGETTY, seed=seed), "Algetty"
+        assert run.wait_control()
+        approach(run, *ALGETTY_SAVE_SPOT)
+        rest(run)
+        run.checkpoint("algetty_again")
+    if ahead("terra_cave_out"):
+        assert leave_fighting(run, TERRA_CAVE_MAP, seed=seed), "Terra Cave"
+        assert leave_fighting(run, SNOWFIELD, seed=seed), "the snowfield"
+        assert run.wait_world_control(), "the snowfield in hand"
+        run.checkpoint("terra_cave_out")
+    if ahead("skyways"):
+        for door, skyway, hold, landing, world in SKYWAYS:
+            zeal_palace.enter(run, *door, skyway)
+            zeal_palace.beam(run, hold, landing)
+            zeal_palace.outside(run, world)
+        zeal_palace.enter(run, *ZEAL_PALACE_DOOR, ZEAL_HALL)
+        run.checkpoint("skyways")
+    if ahead("queens_hall"):
+        zeal_palace.doorway(run, *SEALED_DOOR, "UP", SEALED_DOOR_HALL)
+        assert leave_fighting(run, QUEENS_HALL, seed=seed), "the Queen's hall"
+        run.checkpoint("queens_hall")
+    if ahead("dalton"):
+        # Up the hall to the throne; his scene, like Belthasar's, waits on a
+        # press with no window open.
+        for _ in range(60):
+            machine.run(8, "UP")
+            if run.dialog() or not machine.b(A.FIELD_PLAYER_CONTROL):
+                break
+        for _ in range(200):
+            if A.battle_menu_open(machine):
+                break
+            machine.run(3, "A")
+            machine.run(37)
+        assert A.battle_menu_open(machine), "Dalton's battle"
+        run.checkpoint("dalton")
+    if ahead("dalton_won"):
+        win(run, seed)
+        run.checkpoint("dalton_won")
+
+
+def ocean_palace(run, ahead, seed):
+    """Into the Ocean Palace after Dalton, down to Masa and Mune's landing."""
+    machine = run.machine
+    if ahead("ocean_palace"):
+        # His scene ends at the throne with the Gate he opened above it.
+        assert stuck_in_hand(run, seed=seed), "the Queen's hall in hand"
+        assert run.talk(OCEAN_GATE, done=lambda: run.map_id() != QUEENS_HALL), "the Gate to the Ocean Palace"
+        assert in_hand(run), "the palace's entrance"
+        assert leave_fighting(run, PALACE_HALL, seed=seed), "its main hall"
+        run.checkpoint("ocean_palace")
+    if ahead("first_button"):
+        # The east wing's button, past its first fight, calls out the guards.
+        take_exit(run, *HALL_EAST_DOOR, seed)
+        x, y = EAST_WING_DOOR
+        assert walk_fighting(run, lambda px, py: abs(px - x) < 12 and abs(py - y) < 12, seed), "the wing's inner door"
+        machine.run(20, "UP")
+        machine.run(20, "LEFT")
+        assert walk_fighting(run, lambda px, py: machine.b(PALACE_BUTTONS) & 0x04, seed), "the east wing's button"
+        run.checkpoint("first_button")
+    if ahead("second_button"):
+        assert leave_fighting(run, PALACE_HALL, seed=seed), "back to the main hall"
+        take_exit(run, *HALL_SOUTH_EAST_DOOR, seed)
+        assert walk_fighting(run, lambda px, py: machine.b(PALACE_BUTTONS) & 0x01, seed), "the bridge's button"
+        run.checkpoint("second_button")
+    if ahead("palace_stairs"):
+        # The two buttons opened the hall's way down.
+        assert leave_fighting(run, PALACE_HALL, max_rounds=20, seed=seed), "back to the main hall"
+        take_exit(run, *HALL_DOWN, seed)
+        assert run.map_id() == PALACE_DOWN
+        assert leave_fighting(run, PALACE_STAIRS, seed=seed), "the stairs"
+        run.checkpoint("palace_stairs")
+    if ahead("platforms"):
+        # The statues on the platforms keep taking the field's control a
+        # moment at a time (field_player_control) while the pad still walks
+        # the party, so this stretch walks by position and fights what
+        # opens a battle, without waiting for the control to settle.
+        assert in_hand(run), "the stairs' top in hand"
+        for depth in range(200, PLATFORMS_TOP + 1, 100):
+            for _ in range(8):
+                if run.me()[1] > depth:
+                    break
+                if A.battle_menu_open(machine):
+                    win(run, seed)
+                    continue
+                for _ in range(60):         # the next moment the pad has the party
+                    if machine.b(A.FIELD_PLAYER_CONTROL):
+                        break
+                    machine.run(1)
+                run.find_player()
+                if run.walk_here(lambda m, px, py: py > depth or A.battle_menu_open(m), max_nodes=3000) is None:
+                    machine.run(60)         # a monster's touch, its battle still opening
+        assert run.me()[1] > PLATFORMS_TOP, "down the stairs"
+        run.checkpoint("platforms")
+    if ahead("masa_and_mune"):
+        x, y = CLOGGED_STAIRS
+        run.find_player()
+        assert run.walk_here(lambda m, px, py: py > y - 6 and abs(px - x) < 16) is not None, "the clogged stairs"
+        for _ in range(30):
+            machine.run(10, "DOWN")
+            if not machine.b(A.FIELD_PLAYER_CONTROL) and run.me()[1] > y:
+                break
+        # The statues leap to life around the platform: a fight, then the
+        # way down is clear to the landing, where Masa and Mune wait.
+        for _ in range(200):
+            if A.battle_menu_open(machine):
+                win(run, seed)
+                continue
+            if run.dialog():
+                machine.run(3, "A")
+            machine.run(40)
+            if machine.b(A.FIELD_PLAYER_CONTROL) and run.find_player() is not None:
+                break
+        assert leave_fighting(run, PALACE_LANDING, seed=seed), "the landing"
+        assert machine.b(STORY) == PALACE_LANDED, "Masa and Mune met"
+        run.checkpoint("masa_and_mune")
+    if ahead("palace_rested"):
+        approach(run, *PALACE_SAVE_SPOT)
+        rest(run)
+        run.checkpoint("palace_rested")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -469,6 +709,8 @@ def main():
         mt_woe(run, ahead, args.seed)
         if within(GIGA_GAIA):
             giga_gaia.play(run, within(GIGA_GAIA), args.seed)
+        to_dalton(run, ahead, args.seed)
+        ocean_palace(run, ahead, args.seed)
         run.finish("the leg's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
