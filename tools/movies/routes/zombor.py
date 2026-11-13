@@ -5,7 +5,8 @@ from . import _trial_party as early
 
 SAVE = "saves/fantasyanime/ctsave04-masamune.srm"
 SLOT = 0
-PHASES = ["loaded", "settings", "bridge", "supplies", "defense", "first", "second", "battle", "after"]
+PHASES = ["loaded", "zombor_settings", "zenan_bridge", "zenan_supplies", "zenan_defense", "zenan_first", "zenan_second",
+          "zombor", "zombor_after"]
 HEADER = """# Zenan Bridge: deliver the supplies, defeat Ozzie's troops and Zombor, regain the field.
 # Save: ctsave04 slot 1 (saves/fantasyanime/ctsave04-masamune.srm).
 # Route: zombor
@@ -59,6 +60,48 @@ def zombor_party(bot, state, rng, inventory):
     return ("attack", target if target is not None else living[0])
 
 
+def play(run, start=1, seed=1, before_zombor=None):
+    """From the fast settings to Zombor beaten on Zenan Bridge; `start` is the
+    index in PHASES of the first phase to run. `before_zombor` runs before the
+    walk that meets him (a caller can heal the party there)."""
+    if start <= 1:
+        early.fast_settings(run)
+        run.checkpoint("zombor_settings")
+    if start <= 2:
+        assert run.world_exit()
+        assert run.map_id() in ("8600", "8700"), "Zenan Bridge"
+        assert run.wait_control()
+        run.checkpoint("zenan_bridge")
+    if start <= 3:
+        assert run.talk(13), "give the supplies to the captain"
+        assert run.wait_control()
+        assert run.machine.b(early.STORY) == 0x57
+        run.checkpoint("zenan_supplies")
+    if start <= 4:
+        assert run.talk(13), "agree to defend the bridge"
+        assert run.wait_control()
+        assert run.machine.b(0x7F019A) & 1
+        run.checkpoint("zenan_defense")
+    if start <= 5:
+        next_battle(run)
+        early.fight(run, seed=seed, policy=bridge_party)
+        run.checkpoint("zenan_first")
+    if start <= 6:
+        next_battle(run)
+        early.fight(run, seed=seed, policy=bridge_party)
+        run.checkpoint("zenan_second")
+    if start <= 7:
+        if before_zombor:
+            before_zombor(run)
+        next_battle(run)
+        assert run.machine.b(early.STORY) == 0x5A
+        run.checkpoint("zombor")
+    if start <= 8:
+        early.fight(run, seed=seed, policy=zombor_party)
+        assert run.machine.b(early.STORY) == 0x5A
+        run.checkpoint("zombor_after")
+
+
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -68,40 +111,7 @@ def main():
         if start <= 0:
             early.load(run, SLOT, "f101", 0x54)
             run.checkpoint("loaded")
-        if start <= 1:
-            early.fast_settings(run)
-            run.checkpoint("settings")
-        if start <= 2:
-            assert run.world_exit()
-            assert run.map_id() in ("8600", "8700"), "Zenan Bridge"
-            assert run.wait_control()
-            run.checkpoint("bridge")
-        if start <= 3:
-            assert run.talk(13), "give the supplies to the captain"
-            assert run.wait_control()
-            assert run.machine.b(early.STORY) == 0x57
-            run.checkpoint("supplies")
-        if start <= 4:
-            assert run.talk(13), "agree to defend the bridge"
-            assert run.wait_control()
-            assert run.machine.b(0x7F019A) & 1
-            run.checkpoint("defense")
-        if start <= 5:
-            next_battle(run)
-            early.fight(run, seed=args.seed, policy=bridge_party)
-            run.checkpoint("first")
-        if start <= 6:
-            next_battle(run)
-            early.fight(run, seed=args.seed, policy=bridge_party)
-            run.checkpoint("second")
-        if start <= 7:
-            next_battle(run)
-            assert run.machine.b(early.STORY) == 0x5A
-            run.checkpoint("battle")
-        if start <= 8:
-            early.fight(run, seed=args.seed, policy=zombor_party)
-            assert run.machine.b(early.STORY) == 0x5A
-            run.checkpoint("after")
+        play(run, start, args.seed)
         run.finish("Zombor defeated and Zenan Bridge in hand")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
