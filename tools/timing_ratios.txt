@@ -100,7 +100,6 @@ C0B788 5117 6526 1.28  # menus-end-of-time 1.29 attract-demo 1.26 events-fair-re
 C0BA65 5889 7138 1.21  # events-ocean-palace-lavos 1.23 events-end-of-time-gate 1.19 events-epoch-lavos 1.18 attract-demo 1.19
 C0C98A 4479 9004 2.01  # menus-end-of-time 2.06 attract-demo 2.01 events-fair-rescue 2.02 menus-shop-inn 1.99
 C0CA76 4235 7642 1.80  # events-ocean-palace-lavos 1.67 attract-demo 1.84 field 2.18 menus-end-of-time 1.67
-C0CAD9 8219 7031 0.86  # attract-demo 0.94 menus-end-of-time 0.99 events-fair-rescue 0.95 menus-shop-inn 0.86
 C0CB3A 3933 6287 1.60  # menus-end-of-time 1.69 attract-demo 1.60 events-fair-rescue 1.56 menus-shop-inn 1.57
 C0E534 5679 7118 1.25  # attract-demo 1.25 events-fair-rescue 1.25 events-jetbike-race 1.25 events-jetbike-race-won 1.25
 C0ED15 7380 14724 2.00  # events-ocean-palace-lavos 2.00 attract-demo 2.00 field 2.00 menus-end-of-time 2.00
@@ -125,3 +124,14 @@ FDE8D7 5228 5865 1.12  # events-ocean-palace-lavos 1.11 events-epoch-lavos 1.12 
 # frame's input reads at 0.61 of the battle setup's figure, which its 90 frames had wrong:
 C284EC 15905 9697 0.61  # attract-demo 0.63 events-end-of-time-gate 0.60 events-fair-rescue 0.61 golem twins 4480-4670 0.67
 C285AE 2392 2845 1.19  # attract-demo 1.22 events-end-of-time-gate 1.18 events-fair-rescue 1.18 golem twins 4480-4670 1.27
+
+# The dialog window's builders, left out above because the window opens on other frames in ct_native than in the
+# original, so their calls differ by more than 10%; their clocks a call agree from movie to movie, and Crono's trial
+# (frames 4700-8600, oracle against ct_native) shows them under by the same ratio:
+FDC995 4871 6843 1.40  # events-ocean-palace-lavos 1.42 events-epoch-lavos 1.37 events-fair-rescue 1.36 field 1.38 cronos-trial 1.38
+FDCD0C 4875 6789 1.39  # events-ocean-palace-lavos 1.40 events-epoch-lavos 1.35 events-fair-rescue 1.39 field 1.36 cronos-trial 1.37
+FDCFCF 4845 6881 1.42  # events-ocean-palace-lavos 1.45 events-fair-rescue 1.33 events-jetbike-race 1.34 field 1.34 cronos-trial 1.36
+FDD27E 4846 6875 1.42  # events-ocean-palace-lavos 1.45 events-fair-rescue 1.35 events-jetbike-race 1.35 field 1.35 cronos-trial 1.36
+# $C0:CAD9 (field_draw_next_frame) keeps its rate, 8219: its ratio is 0.94-0.99 in its busiest movies (attract-demo,
+# menus-end-of-time, events-fair-rescue), 0.86 in menus-shop-inn and 0.74 in events-epoch-lavos, which pull the pooled
+# figure to 0.86; the evidence doesn't say one rate.
