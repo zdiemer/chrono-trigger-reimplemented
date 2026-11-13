@@ -28,7 +28,6 @@
 #include "charge.h"
 #include "core/panel_layout.h"
 #include "core/sprite_table.h"
-#include "menu/item_screen.h"
 #include "menu/menu.h"
 #include "platform/video.h"
 #include "vars.h"
@@ -50,7 +49,8 @@ static uint16_t row_start(uint16_t map, uint8_t row)
 static void read_layer_row(const Platform *pf, unsigned layer, uint16_t line, LayerRow *r)
 {
     VidBg bg;
-    r->shown = vid_layer_last_shown(pf, (VidLayer)layer, line, &bg) && bg.map_w == PANEL_COLUMNS && bg.hofs == 0;
+    r->shown = vid_layer_last_shown(pf, (VidLayer)layer, line, &bg) && bg.map_w == PANEL_COLUMNS &&
+               (bg.hofs & (PANEL_COLUMNS * ROW_DOTS - 1)) == 0;
     if (!r->shown)
         return;
     r->map = bg.map_base;
@@ -184,7 +184,7 @@ static void frame_the_row(PanelLayout *l, const LayerRow *r, int8_t moves)
             panel_show_columns(l, row, (uint8_t)(left + ((s - left) % PATTERN + PATTERN) % PATTERN), 1, (int8_t)s);
     } else {
         for (int s = -moves; s < 0; s++)
-            panel_show_columns(l, row, (uint8_t)(s & (OUTERMOST - 1)), 1, (int8_t)s);
+            panel_show_columns_as_they_lie(l, row, (uint8_t)(s & (OUTERMOST - 1)), 1, (int8_t)s);
     }
     if (cell[right] == cell[right - PATTERN]) {
         for (int s = right; s < right + moves; s++)
@@ -192,7 +192,8 @@ static void frame_the_row(PanelLayout *l, const LayerRow *r, int8_t moves)
         panel_show_columns(l, row, right, FRAME_EDGE, (int8_t)(right + moves));
     } else {
         for (int s = PANEL_COLUMNS; s < PANEL_COLUMNS + moves; s++)
-            panel_show_columns(l, row, (uint8_t)(PANEL_COLUMNS - OUTERMOST + (s & (OUTERMOST - 1))), 1, (int8_t)s);
+            panel_show_columns_as_they_lie(l, row, (uint8_t)(PANEL_COLUMNS - OUTERMOST + (s & (OUTERMOST - 1))), 1,
+                                           (int8_t)s);
     }
 }
 
@@ -255,12 +256,10 @@ typedef enum { KEPT_IN_THE_MIDDLE, PARTED, FRAMED } ScreenLayout;
 
 static ScreenLayout layout_of_the_screen(const GameState *g)
 {
-    uint8_t step = menu_tasks_step(g, MENU_MAIN_TASK);   /* the screen's own step, whichever task runs */
     switch ((MenuScreen)menu_screen(g)) {
-    case MENU_SCREEN_EXCHANGE:
     case MENU_SCREEN_LOAD: return PARTED;
-    case MENU_SCREEN_ITEMS: return step != ITEMS_MOVING_ONE && step != ITEMS_SHOWING_USERS ? PARTED : FRAMED;
-    case MENU_SCREEN_MAIN_MENU: return FRAMED;
+    case MENU_SCREEN_MAIN_MENU:
+    case MENU_SCREEN_EQUIPMENT: return FRAMED;
     default: return KEPT_IN_THE_MIDDLE;
     }
 }

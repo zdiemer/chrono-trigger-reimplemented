@@ -496,7 +496,8 @@ static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, u
     if (layout)
         wmask = 511;   /* a ring of VID_LAYOUT_COLUMNS columns, each one of the map's or none */
     uint32_t by = ((uint32_t)c->line + b->vofs) & hmask;
-    uint32_t bx = (uint32_t)(b->hofs + sp->left) & wmask;
+    /* a one-screen map repeats every 256 dots, and its layout starts at its column 0 */
+    uint32_t bx = (uint32_t)((layout ? b->hofs & 0xFF : b->hofs) + sp->left) & wmask;
     /* map_entry, with the row's part of the address computed once. */
     uint32_t map_row = by >> 3;
     const uint8_t *laid_out = layout ? layout->column[map_row & (VID_LAYOUT_ROWS - 1)] : NULL;
@@ -520,7 +521,7 @@ static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, u
                 memset(lb->z + x - n, 0, 8);
                 continue;
             }
-            col = laid_out[col];
+            col = laid_out[col] & 0x1Fu;
         }
         uint32_t a = (row_base + (((col & 0x20) ? quad_x : 0) + (col & 0x1F)) * 2) & 0xFFFF;
         uint16_t entry = (uint16_t)(vram[a] | vram[(a + 1) & 0xFFFF] << 8);
@@ -632,17 +633,19 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
     /* sx: screen X of the mosaic block, from the one the view's first pixel is in */
     int left = sp->left, right = sp->left + sp->width;
     for (int sx = left - ((left % msize) + msize) % msize; sx < right; sx += msize) {
-        uint32_t hofs = b->hofs, vofs = b->vofs;
+        uint32_t hofs = layout ? b->hofs & 0xFFu : b->hofs, vofs = b->vofs;
+        uint32_t laid_out_hofs = hofs;
         int seg = sx - (int)((sx + hofs) & 7);   /* first pixel of this BG tile on screen */
         uint32_t opt_col = ((uint32_t)(b3->hofs + seg - 1) & 0x1FF) >> 3;
         bool opt_here = opt && sx >= 8 - (int)(hofs & 7);
         if (opt && layout) {
             /* a column laid out across the view takes the offset its own
-             * column takes on the original's screen */
+             * column takes on the original's screen, unless the layout shows
+             * it as the layer lies */
             uint32_t t = (((uint32_t)sx + hofs) & 511) >> 3;
             uint8_t src = layout->column[((((uint32_t)y + vofs) & hmask) >> 3) & (VID_LAYOUT_ROWS - 1)][t & 63];
-            opt_here = src != VID_LAYOUT_NOTHING && src >= 1;
-            opt_col = ((b3->hofs >> 3) + src - 1u) & 0x3F;
+            opt_here = src != VID_LAYOUT_NOTHING && !(src & VID_LAYOUT_AS_IT_LIES) && src >= 1;
+            opt_col = ((b3->hofs >> 3) + (src & 0x1Fu) - 1u) & 0x3F;
         }
         if (opt_here) {
             uint32_t col = opt_col;
@@ -663,9 +666,13 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
         uint32_t by = ((uint32_t)y + vofs) & hmask;
         uint32_t col = bx >> 3;
         if (layout) {
-            col = layout->column[(by >> 3) & (VID_LAYOUT_ROWS - 1)][col];
-            if (col == VID_LAYOUT_NOTHING)
+            /* the column the layout puts here, moved on as far as the offset
+             * moves the original's own column */
+            uint32_t ring = (((uint32_t)sx + laid_out_hofs) & 511) >> 3;
+            uint8_t src = layout->column[(by >> 3) & (VID_LAYOUT_ROWS - 1)][ring & 63];
+            if (src == VID_LAYOUT_NOTHING)
                 continue;
+            col = ((src & 0x1Fu) + ((hofs >> 3) - (laid_out_hofs >> 3))) & 0x1F;
         }
         uint16_t entry = map_entry(vram, map_base, wide, tall, by >> 3, col);
         int tx = bx & 7, ty = by & 7;
@@ -1120,7 +1127,9 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
         sp->layer_left[bg] = f->layer_left[bg];
         sp->layer_right[bg] = f->layer_right[bg];
         sp->layout[bg] = NULL;
-        if (st->bg[bg].map_w != 32)
+        /* a layout is of the map unscrolled across; a line that scrolls it
+         * (a window sliding in) keeps it to the original's screen */
+        if (st->bg[bg].map_w != 32 || (st->bg[bg].hofs & 0xFF))
             continue;
         for (int n = 0; n < f->layout_count; n++)
             if (f->layout_map[n] == st->bg[bg].map_base)

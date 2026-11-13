@@ -219,7 +219,11 @@ static inline bool vid_view_is_wider(VidView v) { return v.width > VID_ORIGINAL_
  * layer that draws the map at `map_base` (32 columns, 32 or 64 rows) follows the layout
  * this frame; each frame starts with none, so a mode lays its panels out every
  * frame, at most VID_MAP_LAYOUTS of them. */
-enum { VID_LAYOUT_ROWS = 64, VID_LAYOUT_COLUMNS = 64, VID_MAP_LAYOUTS = 4, VID_LAYOUT_NOTHING = 0xFF };
+/* A column marked VID_LAYOUT_AS_IT_LIES shows the map's column as the layer
+ * lies, without the per-column offsets of Modes 2, 4 and 6 (a column repeated
+ * into a margin). */
+enum { VID_LAYOUT_ROWS = 64, VID_LAYOUT_COLUMNS = 64, VID_MAP_LAYOUTS = 4, VID_LAYOUT_NOTHING = 0xFF,
+       VID_LAYOUT_AS_IT_LIES = 0x40 };
 typedef struct {
     uint8_t column[VID_LAYOUT_ROWS][VID_LAYOUT_COLUMNS];   /* the map's column shown, or VID_LAYOUT_NOTHING */
 } VidMapLayout;
