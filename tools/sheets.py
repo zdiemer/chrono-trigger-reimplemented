@@ -7,12 +7,16 @@ number beside it (the battlefield's pool, its tiles of two and three
 planes, in eight greys).
 
 From a maps text (frontend/maps.h), draw a map assembled: a location's map
-as the field shows it, BG2 under BG1, each map tile the tile set's look and
-each look's entries the tile set's tiles in the location's palette, flipped
-and in front as they say (the location's record, its tile set's blocks and
-the pointers to them read from the pack beside the text, the rest from the
-texts beside it, <pack>.graphics and <pack>.palettes); or a tilemap's
-entries drawn with a graphics resource's tiles, in the neutral palette.
+as the field shows it, BG2 under BG1, each map tile the tile set's look (of
+its first 256, or its second where the tile's properties say so for the
+layer) and each look's entries the tile set's tiles in the location's
+palette, flipped and in front as they say (the location's record, its tile
+set's blocks and the pointers to them read from the pack beside the text,
+the rest from the texts beside it, <pack>.graphics and <pack>.palettes); a
+world map (location $1F0 on) the same from its two planes and their tile
+groups; or a tilemap's entries drawn with a graphics resource's tiles, in
+the neutral palette. tests/frontend/map_pictures.py compares what it draws
+with the game's own pictures.
 
 Made from the text, not the cartridge, so a sheet also shows what the text
 decodes to. The texts and the sheets come from the user's cartridge: write
@@ -207,8 +211,9 @@ def parse_lines(text: str):
 
 
 def field_map(lines):
-    """A location's map's BG1 and BG2: {layer: (columns, rows, cells)}."""
-    sizes, cells, layer = {}, {}, None
+    """A location's map's layers, {layer: (columns, rows, cells)} for BG1
+    and BG2, and its tiles' attributes, three bytes a BG1 tile."""
+    sizes, cells, layer = {}, {"attributes": []}, None
     for _, line in lines:
         words = line.split()
         if words[0] in ("bg1", "bg2", "bg3") and len(words) > 1 and "x" in words[1]:
@@ -217,10 +222,12 @@ def field_map(lines):
             layer = words[1]
             cells[layer] = []
         elif words[0] == "attributes":
-            layer = None
+            layer = "attributes"
         elif layer in ("bg1", "bg2"):
             cells[layer] += [int(c, 16) for c in words]
-    return {k: sizes[k] + (cells.get(k, []),) for k in ("bg1", "bg2")}
+        elif layer == "attributes":
+            cells[layer] += [bytes.fromhex(c) for c in words]
+    return {k: sizes[k] + (cells.get(k, []),) for k in ("bg1", "bg2")}, cells["attributes"]
 
 
 def entries(lines, looks: bool):
@@ -284,40 +291,191 @@ def neutral(planes: int):
     return [RAMP[c] for c in PIXELS] if planes == 4 else [COLORS[c] for c in ".123"]
 
 
+# A tile's properties (its attributes' first byte) say which half of the
+# tile set's 512 looks BG1's and BG2's map tile takes (game/field/streaming.c).
+SECOND_HALF = {"bg1": 0x01, "bg2": 0x02}
+LOOKS_HALF = 0x100
+# BG1's and BG2's tiles in VRAM: the tile set's six blocks of 128 from tile $100.
+FIRST_BLOCK_TILE, BLOCK_TILES, TILE_SET_BLOCKS_IN_VRAM, MAP_TILE = 0x100, 128, 6, 16
+
+
+class FieldLocation:
+    """A location's map as the field draws it, from the texts beside a pack:
+    its record, its tile set's blocks and the pointers to them from the
+    pack, the map, the looks, the tiles and the palette from the texts."""
+
+    def __init__(self, text: Path, location: int):
+        pack = read_pack(text.with_suffix(".assets"))
+        maps = parse_lines(text.read_text(encoding="utf-8"))
+        graphics = parse(text.with_suffix(".graphics").read_text(encoding="utf-8"))
+        palettes = parse_lines(text.with_suffix(".palettes").read_text(encoding="utf-8"))["location_palettes"]
+        record = pack["location_records"][14 * location:14 * location + 14]
+        tile_set, palette, number = record[1], record[3], record[4] | record[5] << 8
+        self.layers, self.attributes = field_map(maps[pointed_at(pack, "field_packed_map", number)])
+        self.looks = entries(maps[pointed_at(pack, "tile_looks_address", tile_set)], True)
+        self.blocks = [graphics.get(pointed_at(pack, "graphics_block_address", b)) if b != 0xFF else None
+                       for b in pack["tile_set_blocks"][8 * tile_set:8 * tile_set + TILE_SET_BLOCKS_IN_VRAM]]
+        words = [int(r) | int(g) << 5 | int(b) << 10 for _, line in palettes for r, g, b in [line.split()[:3]]]
+        self.colors = words[palette * 7 * 15:(palette + 1) * 7 * 15]
+
+    def look(self, layer: str, column: int, row: int):
+        """The look a layer's map tile takes, its four entries, or None."""
+        w, h, cells = self.layers[layer]
+        column, row = column % w, row % h
+        look = cells[row * w + column]
+        bg1_w = self.layers["bg1"][0]
+        at = row * bg1_w + column
+        if column < bg1_w and at < len(self.attributes) and self.attributes[at][0] & SECOND_HALF[layer]:
+            look |= LOOKS_HALF
+        return self.looks[look] if look < len(self.looks) else None
+
+    def tile(self, t: int):
+        n, k = divmod(t - FIRST_BLOCK_TILE, BLOCK_TILES)
+        return tile_pixels(self.blocks[n], k) if 0 <= n < len(self.blocks) else None
+
+    def pixel(self, layer: str, x: int, y: int):
+        """The layer's pixel at x, y of its map: (palette, color, in front),
+        or None where it is clear."""
+        look = self.look(layer, x // MAP_TILE, y // MAP_TILE)
+        if look is None:
+            return None
+        word = look[(y % MAP_TILE) // TILE * 2 + (x % MAP_TILE) // TILE]
+        pixels = self.tile(word & 0x3FF)
+        if pixels is None:
+            return None
+        tx, ty = x % TILE, y % TILE
+        c = pixels[TILE - 1 - ty if word & DOWN else ty][TILE - 1 - tx if word & ACROSS else tx]
+        return (word >> 10 & 7, c, bool(word & FRONT)) if c else None
+
+    def color(self, palette: int, c: int):
+        """A BGR555 color of the background's palettes: 1-7 are the
+        location's, color 0 of each the backdrop's (None)."""
+        return self.colors[(palette - 1) * 15 + c - 1] if palette and c else None
+
+    def picture(self, layers, width: int, height: int, color=None):
+        """Rows of colors (None where every layer is clear) of the layers
+        named, each with the map pixel its top left shows, BG2 under BG1 and
+        each layer's tiles in front over the others' behind; a color is
+        color(palette, color), the location's palettes' unless given."""
+        color = color or self.color
+        out = []
+        for y in range(height):
+            row = []
+            for x in range(width):
+                best, rank = None, -1
+                for layer, (left, top) in layers:
+                    px = self.pixel(layer, left + x, top + y)
+                    if px is None:
+                        continue
+                    r = (2 if px[2] else 0) + (1 if layer == "bg1" else 0)
+                    if r > rank:
+                        best, rank = px, r
+                row.append(None if best is None else color(best[0], best[1]))
+            out.append(row)
+        return out
+
+
+# ---- The world maps -----------------------------------------------------------------------------
+
+FIRST_WORLD_MAP = 0x1F0
+# A world map's record: a byte naming a stream of each table, $80 and up none
+# (game/overworld/setup.c): the map's seven blocks of tiles first, then
+# the palette, the tile groups and the planes.
+WORLD_RECORDS, WORLD_TILE_BLOCKS = 0xC6FD00, 7
+RECORD_PALETTE, RECORD_TILE_GROUPS, RECORD_MAPS, NO_STREAM = 0x0A, 0x10, 0x11, 0x80
+# A plane is 96 x 64 map tiles, a byte each, picking one of 256 tile groups;
+# BG1 shows the land's plane and BG2 the one over it. Where each plane's
+# groups and map are in work RAM (game/menu/menu_data.h's plane tables) says
+# where they are in the streams unpacked there.
+PLANE_COLUMNS, PLANE_ROWS, GROUPS_A_PLANE = 96, 64, 256
+WORLD_GROUPS_AT, WORLD_MAPS_AT = 0x3000, 0x4000
+
+
+def rom_bytes(pack, at: int, n: int) -> bytes:
+    """n bytes of the cartridge at a bus address, from the resource of the
+    pack's that holds them."""
+    for r in load_catalogue():
+        data = pack.get(r.name)
+        if data is not None and r.at <= at and at + n <= r.at + len(data):
+            return data[at - r.at:at - r.at + n]
+    raise SystemExit(f"no resource of the pack holds ${at >> 16:02X}:{at & 0xFFFF:04X}")
+
+
+class WorldMap:
+    """A world map's two scrolling planes as the overworld draws them, from
+    the texts beside a pack: its record and the plane tables from the pack;
+    the planes, the tile groups, the tiles and the palette from the texts."""
+
+    def __init__(self, text: Path, location: int):
+        pack = read_pack(text.with_suffix(".assets"))
+        maps = parse_lines(text.read_text(encoding="utf-8"))
+        graphics = parse(text.with_suffix(".graphics").read_text(encoding="utf-8"))
+        at = int.from_bytes(rom_bytes(pack, WORLD_RECORDS + 2 * (location - FIRST_WORLD_MAP), 2), "little")
+        record = rom_bytes(pack, WORLD_RECORDS & 0xFF0000 | at, RECORD_MAPS + 1)
+
+        def stream(table: str, field: int):
+            n = record[field]
+            return None if n & NO_STREAM else pointed_at(pack, table, n)
+
+        self.blocks = [graphics.get(stream("overworld_map_graphics", b) or "") for b in range(WORLD_TILE_BLOCKS)]
+        groups = entries(maps[stream("overworld_tile_groups", RECORD_TILE_GROUPS)], True)
+        planes = [int(c, 16) for _, line in maps[stream("overworld_maps", RECORD_MAPS)] for c in line.split()]
+        table = pack["menu_plane_groups"]
+        word = [int.from_bytes(table[2 * k:2 * k + 2], "little") for k in range(6)]
+        self.layers = {}
+        for plane, layer in enumerate(("bg1", "bg2")):
+            g0 = (word[plane] - WORLD_GROUPS_AT) // GROUP_BYTES
+            m0 = word[3 + plane] - WORLD_MAPS_AT
+            self.layers[layer] = (groups[g0:g0 + GROUPS_A_PLANE], planes[m0:m0 + PLANE_COLUMNS * PLANE_ROWS])
+        colors = maps.get(stream("menu_scene_stream_c6fea0", RECORD_PALETTE) or "", [])
+        self.colors = [int(c[0:2]) | int(c[3:5]) << 5 | int(c[6:8]) << 10 for _, line in colors for c in line.split()]
+
+    def pixel(self, layer: str, x: int, y: int):
+        """The plane's pixel at x, y of the map, round its edges: (palette,
+        color, in front), or None where it is clear."""
+        groups, cells = self.layers[layer]
+        column, row = x // MAP_TILE % PLANE_COLUMNS, y // MAP_TILE % PLANE_ROWS
+        word = groups[cells[row * PLANE_COLUMNS + column]][(y % MAP_TILE) // TILE * 2 + (x % MAP_TILE) // TILE]
+        n, k = divmod(word & 0x3FF, BLOCK_TILES)
+        pixels = tile_pixels(self.blocks[n], k) if n < len(self.blocks) else None
+        if pixels is None:
+            return None
+        tx, ty = x % TILE, y % TILE
+        c = pixels[TILE - 1 - ty if word & DOWN else ty][TILE - 1 - tx if word & ACROSS else tx]
+        return (word >> 10 & 7, c, bool(word & FRONT)) if c else None
+
+    def color(self, palette: int, c: int):
+        at = 16 * palette + c
+        return self.colors[at] if c and at < len(self.colors) else None
+
+    picture = FieldLocation.picture
+
+
+GROUP_BYTES = 8
+
+
+def place_at(text: Path, location: int):
+    """A location's map, or a world map's."""
+    return WorldMap(text, location) if location >= FIRST_WORLD_MAP else FieldLocation(text, location)
+
+
+def rgb(word):
+    """A BGR555 color as the sheets show it, 0-255 each."""
+    return tuple((word >> s & 31) * 255 // 31 for s in (0, 5, 10))
+
+
 def location_sheet(text: Path, location: int):
-    """A location's map: BG2 under BG1, each layer's tiles behind before those
-    in front, over BG1's size (BG2 repeating where it is smaller)."""
-    pack = read_pack(text.with_suffix(".assets"))
-    maps = parse_lines(text.read_text(encoding="utf-8"))
-    graphics = parse(text.with_suffix(".graphics").read_text(encoding="utf-8"))
-    palettes = parse_lines(text.with_suffix(".palettes").read_text(encoding="utf-8"))["location_palettes"]
-    record = pack["location_records"][14 * location:14 * location + 14]
-    tile_set, palette, number = record[1], record[3], record[4] | record[5] << 8
-    layers = field_map(maps[pointed_at(pack, "field_packed_map", number)])
-    looks = entries(maps[pointed_at(pack, "tile_looks_address", tile_set)], True)
-    blocks = [graphics.get(pointed_at(pack, "graphics_block_address", b)) if b != 0xFF else None
-              for b in pack["tile_set_blocks_place"][8 * tile_set:8 * tile_set + 6]]
-    location_colors = [tuple(int(v) * 255 // 31 for v in line.split()[:3]) for _, line in palettes]
-
-    def tiles(t):     # BG1's and BG2's tiles: the tile set's six blocks from tile $100
-        n, k = divmod(t - 0x100, 128)
-        return tile_pixels(blocks[n], k) if 0 <= n < len(blocks) else None
-
-    def colors(p):    # palettes 1-7 are the location's, color 0 clear
-        first = (palette * 7 + p - 1) * 15
-        return [PAPER] + location_colors[first:first + 15] if p else neutral(4)
-
-    columns, rows, _ = layers["bg1"]
-    picture = [[PAPER] * (16 * columns) for _ in range(16 * rows)]
-    for front in (False, True):
-        for layer in ("bg2", "bg1"):
-            w, h, cells = layers[layer]
-            for y in range(rows):
-                for x in range(columns):
-                    cell = cells[(y % h) * w + x % w]
-                    for k, word in enumerate(looks[cell] if cell < len(looks) else ()):
-                        draw_entry(picture, 16 * x + 8 * (k % 2), 16 * y + 8 * (k // 2), word, tiles, colors, front)
-    return picture
+    """A location's map: BG2 under BG1 over BG1's size (BG2 repeating where
+    it is smaller), each layer's tiles in front over those behind."""
+    place = place_at(text, location)
+    if isinstance(place, WorldMap):
+        columns, rows = PLANE_COLUMNS, PLANE_ROWS
+    else:
+        columns, rows, _ = place.layers["bg1"]
+    ramp = neutral(4)   # palette 0 isn't the location's: drawn in greys
+    picture = place.picture((("bg2", (0, 0)), ("bg1", (0, 0))), MAP_TILE * columns, MAP_TILE * rows,
+                            lambda p, c: rgb(place.color(p, c)) if place.color(p, c) is not None else ramp[c])
+    return [[PAPER if c is None else c for c in row] for row in picture]
 
 
 def tilemap_sheet(text: Path, name: str, tiles_name: str):

@@ -657,7 +657,9 @@ const DecodedKind map_text = {
     "# entry as TTT:P:hvp (tile, palette, '-' or h, v, p where it is flipped across,\n"
     "# flipped down or in front), a color as RR.GG.BB (0-31). A location's map gives\n"
     "# its header, each layer's map of the tile set's looks, then each tile's\n"
-    "# attributes. Edited, a resource is packed again as it is read, and must fit.\n"
+    "# attributes, three bytes a BG1 tile: the first's bit 0 has BG1's tile there,\n"
+    "# and bit 1 BG2's, take its look from the tile set's second 256.\n"
+    "# Edited, a resource is packed again as it is read, and must fit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
     decodes, write_resource, read_line, read_end,
 };

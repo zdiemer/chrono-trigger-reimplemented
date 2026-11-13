@@ -270,12 +270,18 @@ kinds share): an edited one must fit its slot and unpack to no more than
 the stream beneath, except a location's map, which may grow into the
 buffer every map is unpacked into, from `$7E:B500` to the end of the bank
 (the cartridge's biggest, map 107, reaches `$7E:FE20`). `tools/sheets.py`
-draws a location's map assembled, as the field shows it: BG2 under BG1,
-each map tile its look's four entries, each entry the tile set's tile
-(its six blocks from tile `$100`) in the location's palette, flipped and
-in front as it says; the location's record, its set's blocks and the
-pointers come from the pack, the rest from the texts. It draws a tilemap
-with a graphics resource's tiles the same way.
+draws a location's map assembled, as the field shows it
+(`game/field/streaming.c`): BG2 under BG1, each map tile its look's four
+entries -- a look of the tile set's first 256, or of its second where the
+tile's first attribute byte says so for that layer (bit 0 BG1, bit 1 BG2)
+-- each entry the tile set's tile (its six blocks from tile `$100`) in the
+location's palette, flipped and in front as it says; the location's record,
+its set's blocks and the pointers come from the pack, the rest from the
+texts. A world map (`--location` from `$1F0`) is drawn the same way from its
+two planes, 96 by 64 map tiles, each byte one of its plane's 256 tile groups
+(`game/menu/map.c`), with the seven blocks of tiles, the groups, the planes
+and the palette its record names. It draws a tilemap with a graphics
+resource's tiles the same way.
 
 Measured: `maps_test` (ROM-free) writes and reads back made-up resources
 of every codec, serves an edited map tile, attributes, tilemap entry, look,
@@ -287,6 +293,20 @@ attributes, a map too big for its slot); with the ROM staged every map of
 the cartridge reads back as its bytes. The lean gate runs on the decoded
 maps. Clearing eight rows of BG1 in map 60 changes Crono's house at frame
 6000 of `movies/new-game.ctm`, the map packed again.
+
+A round trip says a text keeps every byte, not that its fields are the
+game's. `tests/frontend/map_pictures.py` (a ctest, with the ROM staged)
+says that: at six frames of the gate's movies -- Crono's room and the floor
+below it, the 1000 A.D. world map, Leene Square and two rooms of Heckran's
+Cave -- it draws BG1, BG2 and the two together from the texts as
+`tools/sheets.py` does, placed where the game has scrolled them, and
+compares them pixel for pixel with ct_native's picture of the same layers
+alone (the route protocol's `layershot`: no sprites, windows or color
+math, at full brightness, with the frame's colors and scrolls), in the
+colors the game has loaded; all 18 pictures are the same. The frames are
+ones where nothing has changed the map since it loaded: an event's copied
+tiles, an animated tile or a dialog window drawn into BG1 differ there, as
+the game means them to.
 
 ### Text
 

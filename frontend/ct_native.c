@@ -583,6 +583,45 @@ static bool route_shot(void *ctx, const char *path)
     picture_frame(d->picture, d->pf, d->frame);
     return ct_png_write(path, d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT) == 0;
 }
+/* The frame's background layers in `layers` alone, for comparing a layer
+ * with a map drawn from its resources (tests/test_map_pictures.py): every
+ * line's screens hold just those layers, with no windows, color math or
+ * mosaic, at full brightness, and its colors, drawn by a renderer of its own so the
+ * player's picture keeps its cache. */
+static bool route_layer_shot(void *ctx, const char *path, uint8_t layers, uint16_t scroll[8], uint16_t colors[256])
+{
+    NativeDriver *d = ctx;
+    VidFrame *f = malloc(sizeof *f);
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = malloc(VID_RENDER_MAX_PIXELS * sizeof *pixels);
+    bool ok = f && r && pixels;
+    if (ok) {
+        *f = *vid_host_picture(d->pf);
+        for (unsigned i = 0; i < f->span_count; i++) {
+            VidLineState *s = &f->spans[i].state;
+            s->main_layers = layers;
+            s->sub_layers = 0;
+            s->windows.win_main = s->windows.win_sub = 0;
+            s->math.layers = 0;
+            s->math.clip_black = s->math.prevent_math = VID_REGION_NEVER;
+            s->mosaic_size = 1;
+            s->display.brightness = 15;
+            s->display.blank = false;
+        }
+        for (unsigned k = 0; k < 4; k++) {
+            scroll[2 * k] = f->spans[0].state.bg[k].hofs;
+            scroll[2 * k + 1] = f->spans[0].state.bg[k].vofs;
+        }
+        memcpy(colors, f->cgram, 256 * sizeof *colors);
+        vid_render_frame(r, f, pixels, NULL);
+        ok = ct_png_write(path, pixels, (unsigned)vid_render_width(f), VID_RENDER_HEIGHT) == 0;
+    }
+    free(pixels);
+    if (r)
+        vid_render_destroy(r);
+    free(f);
+    return ok;
+}
 static uint8_t *route_snapshot(void *ctx, size_t *len) { return native_snapshot(ctx, len); }
 static bool route_restore(void *ctx, const uint8_t *bytes, size_t len) { return native_restore(ctx, bytes, len); }
 
@@ -948,7 +987,7 @@ int main(int argc, char **argv)
     int rc = 0;
     if (load_state && native_load_state(&driver, load_state)) return 2;
     if (drive) {
-        RouteHost host = { &driver, route_step, route_read, route_write, route_shot, route_snapshot, route_restore };
+        RouteHost host = { &driver, route_step, route_read, route_write, route_shot, route_layer_shot, route_snapshot, route_restore };
         rc = route_driver(&host, driver.saved, sizeof driver.saved, asset_catalogue_version, stdin, stdout);
         g = driver.game;
         sound = driver.sound;
