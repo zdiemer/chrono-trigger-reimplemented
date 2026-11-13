@@ -278,8 +278,10 @@ static void climb(GameState *g, FieldObject obj, bool going)
 
 /* ---- The leader ------------------------------------------------------------------------ */
 
+enum { LEADER_STEPS = 0xC09E29 };
+
 // $C0:9E29, and its gait $C0:9E84
-void party_leader_steps(GameState *g, FieldObject leader)
+static void leader_steps(GameState *g, FieldObject leader)
 {
     LeaderGround ground = leader_ground(g);
     GroundKind kind = ground_kind(ground);
@@ -299,6 +301,8 @@ void party_leader_steps(GameState *g, FieldObject leader)
     leave_footprint(g, newest, (Footprint){ moved, walk, object_sprite_priorities(g, leader), ground });
     object_set_step(g, leader, moved);
 }
+
+void party_leader_steps(GameState *g, FieldObject leader) { TIMED_AS(g, LEADER_STEPS, leader_steps(g, leader)); }
 
 /* ---- The members ----------------------------------------------------------------------- */
 
@@ -382,8 +386,10 @@ bool party_place_steps(const GameState *g, PartyPlace place)
            (field_same_link(link, field_no_link()) && party_member_moves_on(g, place));
 }
 
+enum { FIRST_MEMBER_FOLLOWS = 0xC0A26B, SECOND_MEMBER_FOLLOWS = 0xC0A2CE };
+
 // $C0:A26B (the first member), $C0:A2CE (the second), and their gait $C0:9ED1, $C0:9F20
-void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
+static void member_follows(GameState *g, FieldObject member, PartyPlace place)
 {
     charge_accesses(g, 1); /* the member is not carried */
     step_the_place(g, place, (Velocity){ 0, 0 });
@@ -401,6 +407,12 @@ void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
         climb(g, member, f.walk.y != 0);
     else
         take_pose(g, member, member, pose_of(f.walk), false);
+}
+
+void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
+{
+    TIMED_AS(g, place == PARTY_FIRST_MEMBER ? FIRST_MEMBER_FOLLOWS : SECOND_MEMBER_FOLLOWS,
+             member_follows(g, member, place));
 }
 
 /* ---- The party regrouping --------------------------------------------------------------- */
