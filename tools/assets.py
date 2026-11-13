@@ -31,7 +31,11 @@ WIDTHS_CODEC = re.compile(r"font-widths:([a-z][a-z0-9_.]*):([0-9A-F]{2})")
 # Tiles' codecs: 8x8 tiles of two or four bitplanes, 16 or 32 bytes a tile,
 # and the same packed (frontend/tiles.h writes and reads them as text).
 TILE_BYTES = {"tiles:2bpp": 16, "tiles:4bpp": 32}
-PACKED_CODECS = ("lz", "lz:event", "lz:2bpp", "lz:4bpp")
+# Other packed resources' codecs: a location's map, a tile set's looks, and
+# grids of tilemap entries, bytes, hex digits or colors N a row; and streams
+# without a text of their own yet (frontend/maps.h writes and reads them all).
+PACKED_CODEC = re.compile(r"lz(:event|:2bpp|:4bpp|:field-map|:looks|:(tilemap|bytes|colors):[1-9][0-9]*"
+                          r"|:nibbles:([2468]|[1-9][0-9]*[02468]))?")
 
 
 
@@ -96,8 +100,8 @@ def problems_of(rows: list[Row]) -> list[str]:
                            f"of FONT's glyphs from $XX on and no more")
         if r.codec in TILE_BYTES and (r.type != "gfx" or size % TILE_BYTES[r.codec]):
             out.append(f"{r.name}: tiles are gfx, whole tiles of {TILE_BYTES[r.codec]} bytes")
-        if (r.codec.startswith("lz") or r.type == "lz") and (r.codec not in PACKED_CODECS or r.type != "lz"):
-            out.append(f"{r.name}: a packed stream is lz, its codec one of {', '.join(PACKED_CODECS)}")
+        if (r.codec.startswith("lz") or r.type == "lz") and (not PACKED_CODEC.fullmatch(r.codec) or r.type != "lz"):
+            out.append(f"{r.name}: a packed stream is lz, its codec lz or lz: and its kind (frontend/maps.h)")
         if i and rows[i - 1].end >= r.at:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out

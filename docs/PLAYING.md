@@ -13,13 +13,16 @@ The build needs no ROM. SDL2 supplies windowed video and audio; without it the
 program is headless. Use `.exe` on Windows. `--help` lists display options.
 The native frontend imports the user's cartridge into a local asset pack on
 first use. `--assets <pack>` chooses the pack; no game assets are distributed.
-Beside the pack, `<pack name>.palettes`, `<pack name>.fonts` and
-`<pack name>.graphics` hold the game's palettes, fonts and tiles as text,
-written from the pack the first time: edit a color, draw a glyph or a tile
-there and it is what the game shows from the next start; delete a file to
-write it afresh. `tools/sheets.py <pack name>.fonts DIR` (or `.graphics`, with
-`--only NAME...` for a few) draws each font or graphics resource into DIR as
-a picture.
+Beside the pack, `<pack name>.palettes`, `<pack name>.fonts`,
+`<pack name>.graphics` and `<pack name>.maps` hold the game's palettes,
+fonts, tiles and maps as text, written from the pack the first time: edit a
+color, draw a glyph or a tile, or change a map's tiles there and it is what
+the game shows from the next start; delete a file to write it afresh.
+`tools/sheets.py <pack name>.fonts DIR` (or `.graphics`, with `--only
+NAME...` for a few) draws each font or graphics resource into DIR as a
+picture; `tools/sheets.py <pack name>.maps DIR --location N` draws a
+location's map assembled from its tile set and palette, and `--tilemap NAME
+--tiles NAME` a tilemap with a graphics resource's tiles.
 `--sram <save.srm>` loads a cartridge save, including fixtures in `saves/`.
 
 ## Movies and diagnostics

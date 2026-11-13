@@ -214,7 +214,8 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
             else if (d->given[entry])
                 wrong = "that name is given twice";
             else
-                r = (DecodedReading){ entry, decoded_bytes(d, entry), 0, 0, 0, 0, 0, r.made, 0, r.made_room };
+                r = (DecodedReading){ .entry = entry, .bytes = decoded_bytes(d, entry), .made = r.made,
+                                      .made_room = r.made_room };
         } else if (r.entry < 0) {
             wrong = "a line before any [name]";
         } else {

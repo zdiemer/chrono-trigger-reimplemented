@@ -96,7 +96,7 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
@@ -207,9 +207,57 @@ again.
 Not decoded yet (issue #273): the attract sequence's packed resources
 (graphics, tilemaps and mode 7 pictures, which the scene program picks),
 and the battlefield's pool of two- and three-plane tiles at `$D0:0000`
-(`gfx:plane-pool`), which only its descriptors cut into tiles. The packed
-tilemaps, maps and scripts (`lz`, `lz:event`) pack again but have no text
-(issue #130).
+(`gfx:plane-pool`), which only its descriptors cut into tiles.
+
+### Maps and tilemaps
+
+The other packed resources are the maps' kind, `frontend/maps.c`, kept as
+`<pack>.maps`. Their codecs say what a cell of the unpacked grid is:
+`lz:field-map` a location's map (the 201 of `field_packed_map.N`, N the
+map's number: `$F5:0000`, once taken for the chests' table, is map 165);
+`lz:looks` a tile set's looks, a 16x16 tile's four tilemap entries two by
+two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
+`lz:tilemap:32` tilemap entries (the world maps' top layer, the battle
+effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
+`lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
+digit a cell; `lz:colors:16` the world maps' packed palettes
+(`menu_scene_stream_c6fea0.N`); and `lz`, `lz:event` for the scripts and
+place lists, whose own text is still to come (issue #130), in hex. A
+tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
+so a map is edited by its tile numbers, flips, priority and palettes.
+
+A location's map is written as the game reads it (`game/field/map.c`): its
+header as named lines (each layer's size, BG3's `none`, `half`, `still`,
+the drifts, and the screens' and color math's bytes), each layer's map a
+byte a 16x16 tile, and then a cell of three bytes of attributes a tile.
+Read back, the attributes are packed into runs again; packing every run as
+long as it goes, up to 256, is what the cartridge did, so all 201 maps come
+back as their bytes. Five maps' attributes stop short of BG1's tiles (maps
+29, 58, 98, 191 and 193): the game reads the rest from what follows the
+map, and the text keeps them short. A grid whose bytes don't come out in
+whole cells ends with a `rest` line (a tile set's look of one byte). Each
+resource packs again as the graphics do (`frontend/packed.c`, which both
+kinds share): an edited one must fit its slot and unpack to no more than
+the stream beneath, except a location's map, which may grow into the
+buffer every map is unpacked into, from `$7E:B500` to the end of the bank
+(the cartridge's biggest, map 107, reaches `$7E:FE20`). `tools/sheets.py`
+draws a location's map assembled, as the field shows it: BG2 under BG1,
+each map tile its look's four entries, each entry the tile set's tile
+(its six blocks from tile `$100`) in the location's palette, flipped and
+in front as it says; the location's record, its set's blocks and the
+pointers come from the pack, the rest from the texts. It draws a tilemap
+with a graphics resource's tiles the same way.
+
+Measured: `maps_test` (ROM-free) writes and reads back made-up resources
+of every codec, serves an edited map tile, attributes, tilemap entry, look,
+region and color (the map's edited attributes leaving their run), reads a
+map whole from text and only the resources a text names, and refuses wrong
+text at its line (a cell that isn't one, a short row not last, a header
+line out of order, a layer's row short of its width, too many tiles'
+attributes, a map too big for its slot); with the ROM staged every map of
+the cartridge reads back as its bytes. The lean gate runs on the decoded
+maps. Clearing eight rows of BG1 in map 60 changes Crono's house at frame
+6000 of `movies/new-game.ctm`, the map packed again.
 
 ## Further targets
 

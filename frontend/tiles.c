@@ -4,14 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lz.h"
+#include "packed.h"
 
 /* A tile is eight lines of eight pixels; its planes go two at a time, the
  * pair's sixteen bytes a byte of each plane a line. */
 enum { TILE_SIZE = 8, PAIR_BYTES = 16, TILES_ACROSS = 16 };
-
-/* How a packed resource's stream runs, as its text says (DecodedReading.form). */
-enum { FORM_UNSAID, FORM_SHORT_RUNS, FORM_LONG_RUNS };
 
 typedef struct {
     unsigned planes;
@@ -94,18 +91,11 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     (void)store;
     Tiles tiles = { 0 };
     tiles_of(e, &tiles);
-    const uint8_t *image = bytes;
-    uint8_t *unpacked = NULL;
     size_t len = e->length;
     bool long_runs = false;
-    if (tiles.packed) {
-        unpacked = malloc(LZ_MOST);
-        if (!unpacked || !lz_unpack(bytes, e->length, unpacked, &len, &long_runs)) {
-            free(unpacked);
-            return false;
-        }
-        image = unpacked;
-    }
+    uint8_t *unpacked = tiles.packed ? packed_unpack(bytes, e->length, &len, &long_runs) : NULL;
+    if (tiles.packed && !unpacked)
+        return false;
     bool whole = len % tile_bytes(tiles) == 0;
     if (whole) {
         char line[80];
@@ -114,27 +104,14 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
                  tiles.packed ? ", packed" : "");
         decoded_put(t, line);
         if (tiles.packed)
-            decoded_put(t, long_runs ? "packed long\n" : "packed short\n");
-        write_tiles(t, image, count, tiles.planes);
+            packed_write_form(t, long_runs);
+        write_tiles(t, unpacked ? unpacked : bytes, count, tiles.planes);
     }
     free(unpacked);
     return whole;
 }
 
 /* ---- Reading ----------------------------------------------------------------------------------- */
-
-static const char *read_form(DecodedReading *r, const char *s, const char *end)
-{
-    if (!decoded_word(&s, end, "packed"))
-        return "a packed resource starts `packed short` or `packed long`";
-    if (decoded_word(&s, end, "short"))
-        r->form = FORM_SHORT_RUNS;
-    else if (decoded_word(&s, end, "long"))
-        r->form = FORM_LONG_RUNS;
-    else
-        return "its runs are `short` or `long`";
-    return s == end ? NULL : "nothing goes after a stream's runs";
-}
 
 /* The tiles a line of pixels has: how many, NULL where it is wrong. */
 static const char *count_tiles(const char *s, const char *end, uint32_t *across)
@@ -154,29 +131,12 @@ static const char *count_tiles(const char *s, const char *end, uint32_t *across)
     return NULL;
 }
 
-/* As many tiles as the store beneath unpacks the resource to, at most: the
- * game unpacks it into a buffer made for those. */
-static const char *unpacked_most(const Decoded *d, DecodedReading *r)
-{
-    const AssetEntry *e = &asset_catalogue[r->entry];
-    const uint8_t *was = decoded_beneath(d, r->entry);
-    uint8_t *unpacked = was ? malloc(LZ_MOST) : NULL;
-    size_t len = 0;
-    bool long_runs;
-    bool known = unpacked && lz_unpack(was, e->length, unpacked, &len, &long_runs);
-    free(unpacked);
-    r->most = (uint32_t)len;
-    return known ? NULL : "the store under the text hasn't this packed resource to unpack";
-}
-
 static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const char *end)
 {
     Tiles tiles = { 0 };
     tiles_of(&asset_catalogue[r->entry], &tiles);
-    if (tiles.packed && r->form == FORM_UNSAID) {
-        const char *wrong = read_form(r, s, end);
-        return wrong ? wrong : unpacked_most(d, r);
-    }
+    if (tiles.packed && r->form == PACKED_UNSAID)
+        return packed_read_form(d, r, s, end);
     uint32_t across = 0, size = tile_bytes(tiles);
     const char *wrong = count_tiles(s, end, &across);
     if (wrong)
@@ -213,24 +173,6 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
     return NULL;
 }
 
-/* Whether a packed resource's tiles are the store beneath's, unpacked: if
- * so its bytes are taken as they are, which is what packing them again
- * would make (lz_test), only sooner. */
-static bool unchanged(const Decoded *d, const DecodedReading *r)
-{
-    const AssetEntry *e = &asset_catalogue[r->entry];
-    const uint8_t *was = decoded_beneath(d, r->entry);
-    uint8_t *unpacked = was ? malloc(LZ_MOST) : NULL;
-    size_t len = 0;
-    bool long_runs = false;
-    bool same = unpacked && lz_unpack(was, e->length, unpacked, &len, &long_runs) && len == r->made_len &&
-                long_runs == (r->form == FORM_LONG_RUNS) && !memcmp(unpacked, r->made, len);
-    free(unpacked);
-    if (same)
-        memcpy(r->bytes, was, e->length);
-    return same;
-}
-
 static const char *read_end(Decoded *d, DecodedReading *r)
 {
     const AssetEntry *e = &asset_catalogue[r->entry];
@@ -240,11 +182,7 @@ static const char *read_end(Decoded *d, DecodedReading *r)
         return "a row of tiles is eight lines";
     if (!tiles.packed)
         return r->items == e->length / tile_bytes(tiles) ? NULL : "fewer tiles than the resource has";
-    if (r->form == FORM_UNSAID)
-        return "a packed resource starts `packed short` or `packed long`";
-    if (!unchanged(d, r) && !lz_pack(r->made, r->made_len, r->form == FORM_LONG_RUNS, r->bytes, e->length))
-        return "packed, these tiles take more room than the cartridge has for them";
-    return NULL;
+    return packed_end(d, r);
 }
 
 const DecodedKind tile_text = {
