@@ -67,10 +67,18 @@ A catalogue row whose codec is `palette:N` (or `palette:NxM`) is BGR555
 colors, N a row and M rows a palette: the field's location palettes
 (`palette:15x7`, 88 of them) and sprite palettes (`palette:12`), the battle
 sprites' three- and seven-color sets, the battle screen's effect, gradient and
-background colors, and the party's color cycles. Each was split out of the
-mixed or untyped region that held it, its extent where the accessor's indexing
-and the data agree (every word below `$8000`; the cycle's `$FFFF` tail is its
-own padding row). `tools/assets.py check` holds a palette row to whole words.
+background colors, and the party's color cycles; the menus' colors and the
+portraits' (`menu_colors`, `$FF:CB9C`), the windows' designs' (`$FF:B210`),
+the battle's cursor, number, flash, member and background-set colors
+(`$D1:38F0`, `$D1:4D80`, `$D1:4D90`, `$D1:4B00`, `$D1:6000`), the world map
+view's and its last sprite palette (`$C6:F540`, `$C6:F620`), the palette
+animations' frames (`palette_animation_frames`, `$F6:6CF0`, read through
+`palette_frame_color`; zero from `$F6:7B80` to the bank's end) and the
+attract sequence's colors copied as they are (`$FE:4B7A`, `$FE:8D15`,
+`$FE:F91E`). Each was split out of the mixed or untyped region that held it,
+its extent where the accessor's indexing and the data agree (every word
+below `$8000`; the cycle's `$FFFF` tail is its own padding row). `tools/assets.py
+check` holds a palette row to whole words.
 
 `frontend/palettes.c` writes every palette resource a store serves as text, a
 color a line (`red green blue`, 0-31, and `+` where the word's unused top bit
@@ -96,12 +104,14 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.text`, `<pack>.records`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
-write leaves the pack's own bytes to play, after a warning; a text that is
+write leaves the pack's own bytes to play, after a warning, and so does a
+text written from another catalogue (its opening comment says which, `#
+catalogue XXXXXXXX`), whose names and forms may no longer be this one's; a text that is
 wrong stops the start, naming its line (a resource that is wrong as a whole,
 too short or too big to pack, at its `[name]` line).
 
@@ -204,12 +214,138 @@ tile of the field's block 135 with color 15 darkens the walls and floor of
 Crono's room at frame 6000 of `movies/new-game.ctm`, the block packed
 again.
 
-Not decoded yet (issue #273): the attract sequence's packed resources
-(graphics, tilemaps and mode 7 pictures, which the scene program picks),
-and the battlefield's pool of two- and three-plane tiles at `$D0:0000`
-(`gfx:plane-pool`), which only its descriptors cut into tiles. The packed
-tilemaps, maps and scripts (`lz`, `lz:event`) pack again but have no text
-(issue #130).
+The attract sequence's resources (`attract_resource_ptrs.N`, the table at
+`$FE:0000`) are typed by what the scene code does with each
+(`game/scene/`): sprite and layer tiles `lz:4bpp` and `lz:2bpp`, tilemaps
+`lz:tilemap:32`, palettes `lz:colors:16`, mode 7's byte-a-pixel tiles
+`lz:chunky` and its maps `lz:bytes:64`, and the race's, the Epoch's and the
+endings' byte-a-pixel pictures `lz:bytes:64` (64 a row, as the scaler reads
+them). Still bytes in hex where they have no form of their own yet: the
+two pictures of packed four-bit pixels (`.15`, `.46`), the planet's 8bpp
+planar tiles (`.54`), the dive panel's attribute bytes (`.34`) and the
+mosaic's tile list (`.45`); `.0`, the program (`.1`) and `.50` no port
+reads.
+
+The battlefield's pool (`battlefield_tile_pool`, `$D0:0000`,
+`tiles:plane-pool`) is tiles of two bit planes (16 bytes) or three (the
+third a byte a line after the first two, 24), each starting where one of
+the descriptors at `$CF:A000` says (`game/battle/tiles.c`). The cartridge's
+descriptors cut it exactly, 3203 tiles end to end with none overlapping and
+320 bytes after the last that no tile is cut from. `frontend/tiles.c` writes
+the pool's tiles sixteen a row as the other graphics, a three-plane tile's
+pixels `.` and `1`-`7`, and the bytes after them as `rest` lines in hex; it
+reads them back cut by the descriptors the store under the text has, so an
+edited tile keeps its planes and place. `tools/sheets.py` draws it in eight
+greys.
+
+### Maps and tilemaps
+
+The other packed resources are the maps' kind, `frontend/maps.c`, kept as
+`<pack>.maps`. Their codecs say what a cell of the unpacked grid is:
+`lz:field-map` a location's map (the 201 of `field_packed_map.N`, N the
+map's number: `$F5:0000`, once taken for the chests' table, is map 165);
+`lz:looks` a tile set's looks, a 16x16 tile's four tilemap entries two by
+two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
+`lz:tilemap:32` tilemap entries (the world maps' top layer, the battle
+effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
+`lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
+digit a cell; `lz:colors:16` the world maps' packed palettes
+(`menu_scene_stream_c6fea0.N`); and `lz`, `lz:event` for the scripts and
+place lists, whose own text is still to come (issue #130), in hex. A
+tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
+so a map is edited by its tile numbers, flips, priority and palettes.
+
+A location's map is written as the game reads it (`game/field/map.c`): its
+header as named lines (each layer's size, BG3's `none`, `half`, `still`,
+the drifts, and the screens' and color math's bytes), each layer's map a
+byte a 16x16 tile, and then a cell of three bytes of attributes a tile.
+Read back, the attributes are packed into runs again; packing every run as
+long as it goes, up to 256, is what the cartridge did, so all 201 maps come
+back as their bytes. Five maps' attributes stop short of BG1's tiles (maps
+29, 58, 98, 191 and 193): the game reads the rest from what follows the
+map, and the text keeps them short. A grid whose bytes don't come out in
+whole cells ends with a `rest` line (a tile set's look of one byte). Each
+resource packs again as the graphics do (`frontend/packed.c`, which both
+kinds share): an edited one must fit its slot and unpack to no more than
+the stream beneath, except a location's map, which may grow into the
+buffer every map is unpacked into, from `$7E:B500` to the end of the bank
+(the cartridge's biggest, map 107, reaches `$7E:FE20`). `tools/sheets.py`
+draws a location's map assembled, as the field shows it: BG2 under BG1,
+each map tile its look's four entries, each entry the tile set's tile
+(its six blocks from tile `$100`) in the location's palette, flipped and
+in front as it says; the location's record, its set's blocks and the
+pointers come from the pack, the rest from the texts. It draws a tilemap
+with a graphics resource's tiles the same way.
+
+Measured: `maps_test` (ROM-free) writes and reads back made-up resources
+of every codec, serves an edited map tile, attributes, tilemap entry, look,
+region and color (the map's edited attributes leaving their run), reads a
+map whole from text and only the resources a text names, and refuses wrong
+text at its line (a cell that isn't one, a short row not last, a header
+line out of order, a layer's row short of its width, too many tiles'
+attributes, a map too big for its slot); with the ROM staged every map of
+the cartridge reads back as its bytes. The lean gate runs on the decoded
+maps. Clearing eight rows of BG1 in map 60 changes Crono's house at frame
+6000 of `movies/new-game.ctm`, the map packed again.
+
+### Text
+
+The dialog's and the menus' strings (`text:dialog`, 4695 of them), the
+battle's names and the equipment screen's slot labels (`text:names:11`,
+`text:names:10`) and the dictionary the strings share words from
+(`text:dialog-dictionary`) are the text kind, `frontend/text.c`, kept as
+`<pack>.text`. A string is written as the typesetter reads it
+(`game/menu/typeset.c`): a glyph its letter, digit or sign (the dialog
+font's `“ ” ♪ ♥ … ∞` in UTF-8), a word of the dictionary its glyphs in angle
+brackets, and a control code its name in braces (`{line indent}`, `{page
+read}`, `{wait 0A}`, `{Crono}`, `{member 2}`, `{tech}`), each break ending
+a line of the text; anything else, and a space at a line's ends, in braces
+too (`{F3}`, `{01 7F}`, `{space}`), so every byte has a spelling. A name is
+its glyphs in quotes, in the small font, whose signs past `%` differ from
+the dialog font's and are written in hex. The dictionary is its 128 words a
+line, `XX "glyphs"`, in the order they are kept. A word in a string is the
+word the store under the text has with those glyphs (the pack's), so an
+edited dictionary changes every string that uses the word, as in the game;
+two words alike would be ambiguous and are written in hex.
+
+Read back, a string may be no longer than the cartridge's slot for it, its
+end included; a shorter one is ended there and the rest of its slot is
+zero. A name table has as many names as the cartridge's, and the
+dictionary's words must fit its slot. `decoded_beneath` asks the store
+under a text for each resource once, which keeps reading the strings'
+words from the dictionary quick.
+
+Measured: `text_test` (ROM-free) writes and reads back made-up strings of
+every code, words, signs and bytes no glyph spells, names and a dictionary
+with two words alike; serves a string written afresh (a word, a name, a
+wait, a two-byte glyph, a tech) and an edited name, and only what a text
+names; and refuses wrong text at its line (a code that isn't one, braces
+not closed, a word that isn't the dictionary's or is ambiguous, a sign that
+isn't a glyph, a string too long, a short name, too few names, a word given
+twice or missing). With the ROM staged every text resource reads back as
+its bytes. Changing Crono's mother's first line in `<pack>.text` shows at
+frame 6500 of `movies/new-game.ctm`.
+
+### Records
+
+The sprites' records (`struct:sprite-records:5`, the field's; `:10`, the
+enemies', the same five fields and then the enemy's header), other tables
+of records of N bytes (`struct:records:N`: the tile sets' eight graphics
+blocks at `$F6:1C00`, the battles' rules at `$E1:DE00`), and the locations'
+exits and chests (`struct:location-exits`, `struct:location-chests` at
+`$F5:F000`, a chest its tile and contents, two words) are the records kind,
+`frontend/records.c`, kept as `<pack>.records`. A sprite record is a line
+of its bytes in hex under a comment naming them; the exits are written a
+location at a time, `location NNN` and an exit a line (`x y reach location
+to_x to_y`), only the locations that have exits. The table's words that
+say where each location's exits start are made again from the lines, so a
+location can be given more exits or fewer, so long as the whole table fits
+its slot (the cartridge's 814 exits fill it; its 249 chests too).
+
+Measured: `records_test` (ROM-free) writes and reads back made-up records
+and exits, serves an edited record and a location given an exit (the
+locations after it moved on), and refuses wrong text at its line; with the
+ROM staged both tables read back as their bytes.
 
 ## Further targets
 
