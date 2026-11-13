@@ -31,6 +31,8 @@ SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
 MOVIE = Path(REPO) / "movies/saves/battle-black-tyrano.ctm"
 # The movie's walk ends as the battle begins (its first command menu opens at frame 7233 in the reference).
 WALK_ENDS = 7190
+# The walk's phases (to tyrano_battle) are the playthrough's, which walks the lair
+# (playthrough_leg-c); main starts at tyrano_battle from the movie's walk.
 PHASES = ["loaded", "lair_hall", "lair_corridor", "lair_throne", "tyrano_battle", "tyrano_won", "lavos_falls",
           "tyrano_after"]
 

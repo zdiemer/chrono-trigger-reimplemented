@@ -35,6 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from tools import native_slots  # noqa: E402
 from tools.sheets import FIRST_WORLD_MAP, place_at, png  # noqa: E402
 
 ROM = ROOT / "roms" / "ct-usa.sfc"
@@ -102,9 +103,13 @@ def sram_for(movie: Path):
 
 
 class Drive:
-    """ct_native --drive, the route protocol (frontend/route_driver.h)."""
+    """ct_native --drive, the route protocol (frontend/route_driver.h). In the
+    gate it holds one of the gate's ct_native slots while it runs
+    (tools/native_slots.py)."""
 
     def __init__(self, binary: str, pack: Path, sram):
+        self.slot = native_slots.slot()
+        self.slot.__enter__()
         args = [str(Path(binary).resolve()), "--rom", str(ROM), "--assets", str(pack), "--drive"]
         if sram:
             args += ["--sram", str(sram)]
@@ -126,6 +131,7 @@ class Drive:
     def close(self):
         self.cmd("quit")
         self.p.wait(timeout=60)
+        self.slot.__exit__(None, None, None)
 
 
 def origins(drive: Drive, location: int, scroll):

@@ -138,8 +138,9 @@ def main(argv=None):
     # Lanes run side by side: the movies (then their outcomes), the routes and
     # the snapshots, whose ct_native processes share the gate's two slots
     # (tools/native_slots.py) so that none waits for another stage to end;
-    # the unit tests; and the source checks.
-    plays = {'movies', 'routes', 'snapshots'}
+    # the unit tests; and the source checks with the native tests, whose map
+    # pictures' ct_native takes a slot too.
+    plays = {'movies', 'routes', 'snapshots', 'native-unit'}
     lane_of = {'movies': 0, 'outcomes': 0, 'routes': 1, 'snapshots': 2, 'unit': 3}
     lanes = [[s for s in stages if lane_of.get(s[0], 4) == n] for n in range(5)]
     slots = '%s:%d' % (args.out / 'native-slots', max(1, min(args.jobs, 2)))
