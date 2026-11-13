@@ -314,6 +314,15 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
 - **Every other mode** (the menus, the scenes, the time warp's tunnel aside,
   which is Mode 7) keeps its layers to the original's screen, the backdrop in
   the margins, until it builds what lies past it.
+- **The scenes** hold nothing past the original's screen but their Mode 7
+  planes, which go on as they are (the title's pendulum, the race's track, the
+  Epoch's dive, the Beyond Time flight). Every flat layer they set is a
+  tilemap one screen across -- the race's sky, the dive's dashboard, the
+  endings', staff roll's and credits' pictures and text, the rising palace,
+  the planet, Lavos's fall, the turning world -- which the original wraps, so
+  past the screen it could only repeat; the title's one wider layer (its logo,
+  BG1) is blank past the logo. So they keep the backdrop beside them. The
+  attract demo plays the field's maps, which go on as the field's do.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
