@@ -126,7 +126,7 @@ enum { MENUS_BANK = 0xC2 };
  * time, each from its head: the main task in the second record and the
  * cursor's in the fourth, its sprite the pointing hand. The original clears
  * the records with a block move from the first's first byte. */
-enum { MAIN_TASK = MENU_MAIN_TASK, MAIN_TASK_HEAD = 0x826F, CURSOR_TASK_HEAD = 0xE91B, THE_POINTING_HAND = 0x3020 };
+enum { MAIN_TASK = 1, MAIN_TASK_HEAD = 0x826F, CURSOR_TASK_HEAD = 0xE91B, THE_POINTING_HAND = 0x3020 };
 enum { THE_RECORDS_BYTES = MENU_TASKS * RECORD_BYTES };
 
 static void clear_the_tasks(GameState *g)

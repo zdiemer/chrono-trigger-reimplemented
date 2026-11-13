@@ -415,7 +415,10 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   elsewhere the layer stops at the map. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
-  within the map's width. Objects within the original's activation window
+  within the map's width -- unless it is a veil, a layer drawn whole that the
+  color math lays over the picture at half strength or that lies on the sub
+  screen alone (Death Peak's drifting fog): a pattern the original repeats as
+  it drifts, which goes on across the map. Objects within the original's activation window
   (two map tiles past the screen) run and are drawn as on the original's
   screen. Past it, as each finished frame is sent, `field/margin_objects.c`
   lists the objects the field updates that can be seen but are out of view,
@@ -429,9 +432,14 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
 - **The battle** is fought over the field's layers and shows them as far as
   the field last built them, moved with its own scroll
   (`field_show_the_layers_under_a_battle`); a battlefield that brings its own
-  BG3 keeps that layer to the original's screen.
+  BG3 keeps that layer to the original's screen until the battle puts the
+  field's back (`field_battle_gives_the_layer_back`, as the start's screen
+  settings return), when the field's layer -- the Denadoro forest's shade --
+  shows across again.
 - **The world maps** fill their two scrolling planes' margins the same way
-  each frame (`menu_map_fill_the_views_margins`) and show them across the view.
+  each frame (`menu_map_fill_the_views_margins`) and show them across the view,
+  and the layer over them (the clouds the opening flies over) too: it is laid
+  out whole across its tilemap's two screens, which its drift wraps round.
   The sprite list's drawing culls to the original's screen, and its counts,
   time and noise are the game's, so it is left as it is: beside it,
   `menu_list_the_sprites_past_the_screen` lists the map's sprites it left
@@ -456,24 +464,38 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   What the window's rows and frames show is noted as the vblank sends them
   (from the transfer's source, and the frames' window corners), so the layout
   always fits what VRAM holds.
-- **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) part
-  each row of the screen in two near its middle, where no layer has two tiles
-  side by side that stand out (letters, a window's side), and move each side
-  out to the view's: the backdrop and every window across the middle stretch,
-  the windows beside them move out with their text, and a layer that runs on
-  in its pattern up to the parting repeats the pattern across the gap. Rows
-  that can share a parting share it. The layout is read back from what the
+- **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) take
+  a layout per screen from an explicit list in that file. Most screens are
+  framed: where a layer runs on in a four-column pattern across the edge of
+  its outer columns (a window's inside, the backdrop), the columns outside it
+  move out to the view's sides and the pattern fills the gap; the lists, text
+  and figures inside stay where the original drew them, and the windows'
+  edges at the screen's sides move with the frame. The main menu, the
+  equipment, the items, the techs, the settings, the party exchange, the save
+  screen and its prompts, the shops and the save point are framed. The load
+  screen is parted: each row is parted in two near its middle, where no layer
+  has two tiles side by side that stand out (letters, a window's side), and
+  each side moves out with its windows, text and sprites. Naming and the
+  gate's exchange keep the original's arrangement in the middle of the view
+  until they are checked (issue #284). Layouts are read back from what the
   mode sent (`vid_read_vram`) and the rows the last picture showed
-  (`vid_layer_last_shown`); the sprites follow their row's side a frame later.
-  It applies only to the screens on an explicit list in that file (the
-  items but for an item picked up or being used, the party exchange and the
-  load screen); every other screen keeps the original's
-  arrangement in the middle of the view until it is put on the parting or
-  given a layout of its own (issue #284).
+  (`vid_layer_last_shown`). A line that scrolls a one-screen map partway
+  across (a window sliding in) keeps it to the original's screen, and a
+  column repeated into a margin shows its layer without Mode 2's per-column
+  offsets (`VID_LAYOUT_AS_IT_LIES`).
 - **Every other mode** (the scenes, the dialog window over the field, the
   time warp's tunnel aside, which is Mode 7) keeps its layers to the
   original's screen, the backdrop in the margins, until it builds what lies
   past it.
+- **The scenes** hold nothing past the original's screen but their Mode 7
+  planes, which go on as they are (the title's pendulum, the race's track, the
+  Epoch's dive, the Beyond Time flight). Every flat layer they set is a
+  tilemap one screen across -- the race's sky, the dive's dashboard, the
+  endings', staff roll's and credits' pictures and text, the rising palace,
+  the planet, Lavos's fall, the turning world -- which the original wraps, so
+  past the screen it could only repeat; the title's one wider layer (its logo,
+  BG1) is blank past the logo. So they keep the backdrop beside them. The
+  attract demo plays the field's maps, which go on as the field's do.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;

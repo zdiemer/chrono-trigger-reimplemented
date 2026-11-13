@@ -221,6 +221,22 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
     result on the PR. A fresh reviewer loading the `review-pr` skill posts its
     verdict there, and the coordinator merges once all three have passed. A fix
     gets one scoped re-review.
+  - `main` is protected: no force-pushes or deletion, and a merge needs the
+    `rom-gate` commit status plus one approving review. Only the coordinator's
+    landing loop posts `rom-gate`: `success` after CI is green and
+    the gate prints `suite OK` on that exact head, or with "docs only" for a PR
+    that changes only Markdown or `docs/`. A movie change gets a real gate run:
+    the gate plays the movies, even though CI skips them for lack of a cartridge.
+  - The loop's review is the `review-pr` verdict posted as a comment, not a GitHub
+    approval, since the PRs are opened under the owner's account. So the loop merges
+    with the admin bypass of the approval requirement (`gh pr merge --admin`), and
+    only when a `Review on <head>: PASS` comment and a `rom-gate` success both
+    exist for the PR's current head. Nothing else uses the bypass. The protection
+    doesn't bind the owner's account, which the agents push with, so the rule
+    above, never push to main, is what keeps agents off it. An outside PR
+    needs the owner's real approval on top of the read-first rule below.
+  - GitHub Actions on a fork PR wait for the owner's approval, for every outside
+    contributor, and the default workflow token is read-only.
   - Fix review findings and conflicts with main on your branch, and push.
   - A PR from outside the coordinator's own agents is untrusted code. The gate
     builds and runs it beside the cartridge, so the coordinator reads the whole

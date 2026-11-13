@@ -604,15 +604,19 @@ void menu_map_fill_the_views_margins(GameState *g, Platform *pf)
 }
 
 /* The two planes hold the world map across the whole view, every frame its
- * margins are kept filled; anything else holds the original's screen alone. */
+ * margins are kept filled. The layer over a world map (its clouds, drifted by
+ * menu/top_layer.c) is laid out whole across its tilemap's two screens, which
+ * its drift wraps round, so it holds the picture across the view as it is.
+ * Anything else holds the original's screen alone. */
 void menu_map_show_the_planes_across(GameState *g, Platform *pf)
 {
     VidView view = vid_view(pf);
-    if (!vid_view_is_wider(view))
+    if (!vid_view_is_wider(view) || !overworld_on_a_world_map(g))
         return;
     uint32_t mark = charge_uncounted_begin(g);
-    for (uint8_t plane = 0; plane < 2 && overworld_on_a_world_map(g); plane++)
+    for (uint8_t plane = 0; plane < 2; plane++)
         if (plane_is_on_the_map(g, plane))
             vid_show_a_layer_across(pf, (VidLayer)(VID_BG1 + plane), vid_view_left(view), vid_view_right(view));
+    vid_show_a_layer_across(pf, VID_BG3, vid_view_left(view), vid_view_right(view));
     charge_uncounted_end(g, mark);
 }
