@@ -223,6 +223,20 @@ void object_show_movement(GameState *g, FieldObject obj, uint8_t animation)
     object_restart_animation(g, obj);
 }
 
+void object_restart_animation_past_the_tables(GameState *g, FieldObject slot)
+{
+    set_field_object_animation_frame_unchecked(g, slot, 0);
+    set_field_object_frame_delay_unchecked(g, slot, 0);
+}
+
+void object_show_movement_past_the_tables(GameState *g, FieldObject slot, uint8_t animation)
+{
+    if (field_object_looped_animation_unchecked(g, slot) == animation)
+        return;
+    set_field_object_looped_animation_unchecked(g, slot, animation);
+    object_restart_animation_past_the_tables(g, slot);
+}
+
 static uint8_t magnitude(int8_t step) { return step < 0 ? (uint8_t)-step : (uint8_t)step; }
 
 /* How fast it moves, the two axes' steps added (a byte, as the original). */

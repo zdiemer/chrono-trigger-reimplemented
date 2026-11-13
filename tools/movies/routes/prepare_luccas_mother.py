@@ -173,9 +173,17 @@ def main():
             run.checkpoint("lower")
         if start <= 5:
             assert run.find_player() is not None
-            assert run.walk(lambda m, x, y: (112 <= x <= 176 and 176 <= y <= 240)
-                            or A.battle_menu_open(m), max_nodes=1500) is not None
-            assert run.dialogs_until(lambda: A.battle_menu_open(m), 4000)
+            # Down into the pit: the party first sees the sand stir (a scene),
+            # then Retinite rises where it walks on toward the far side.
+            for _ in range(4):
+                if A.battle_menu_open(m):
+                    break
+                assert run.wait_control(), "the pit in hand"
+                assert run.walk(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL)
+                                or A.battle_menu_open(m), max_nodes=1500) is not None, "Retinite's pit"
+                run.dialogs_until(lambda: A.battle_menu_open(m) or (m.b(A.FIELD_PLAYER_CONTROL)
+                                                                     and not run.dialog()), 4000)
+            assert A.battle_menu_open(m), "Retinite's battle"
             fight(run, retinite_policy, args.seed)
             assert m.b(0x7F01A3) & 1, "Retinite defeated"
             run.checkpoint("retinite")

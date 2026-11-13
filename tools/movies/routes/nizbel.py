@@ -1,7 +1,7 @@
 """Recover the Gate Key after defeating Nizbel in the Reptite Lair."""
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
-from . import _early_bosses as early
+from . import _trial_party as early
 
 SAVE = "saves/fantasyanime/ctsave05-prehistoric.srm"
 SLOT = 1

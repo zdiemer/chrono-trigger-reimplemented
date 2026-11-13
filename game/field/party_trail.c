@@ -219,6 +219,25 @@ static bool runs_on_the_spot(const GameState *g, FieldObject obj, bool carried)
     return !leader_moves(g) && is_leader(g, obj) && !carried;
 }
 
+/* What a pose shows goes on the one in the member's place, an object, or
+ * the slot an emptied place's marker names past the tables, which the
+ * original writes all the same (step_the_place). */
+static void show_movement(GameState *g, FieldObject obj, uint8_t animation)
+{
+    if (field_names_object(field_object_offset(obj)))
+        object_show_movement(g, obj, animation);
+    else
+        object_show_movement_past_the_tables(g, obj, animation);
+}
+
+static void restart_animation(GameState *g, FieldObject obj)
+{
+    if (field_names_object(field_object_offset(obj)))
+        object_restart_animation(g, obj);
+    else
+        object_restart_animation_past_the_tables(g, obj);
+}
+
 /* Standing: the leader takes a pose while the player picks an answer. With
  * the party in the player's hands, once it has stood about long enough it
  * may fidget, and then may again every 128 frames, keeping between times
@@ -228,7 +247,7 @@ enum { FIDGET_AFTER = 0x2FF, FIDGET_EVERY = 0x80, FIDGET_CHANCE = 8 };
 static void stand_or_fidget(GameState *g, FieldObject obj)
 {
     if (dialog_choice_active(g) == DIALOG_CHOOSING && is_leader(g, obj)) {
-        object_show_movement(g, obj, ANIMATION_CHOOSING);
+        show_movement(g, obj, ANIMATION_CHOOSING);
         return;
     }
     uint8_t shown = ANIMATION_STAND;
@@ -243,7 +262,7 @@ static void stand_or_fidget(GameState *g, FieldObject obj)
                 shown = ANIMATION_FIDGET;
         }
     }
-    object_show_movement(g, obj, shown);
+    show_movement(g, obj, shown);
 }
 
 // $C0:9FF7 (the gaits' table) and the poses' routines $C0:A079-$C0:A26A
@@ -262,9 +281,9 @@ static void take_pose(GameState *g, FieldObject turns, FieldObject shows, Pose p
     face_the_way(g, turns, p);
     count_as_on_the_move(g);
     if (p.gait == WALKS)
-        object_show_movement(g, shows, ANIMATION_WALK);
+        show_movement(g, shows, ANIMATION_WALK);
     else
-        object_show_movement(g, shows, runs_on_the_spot(g, shows, carried) ? ANIMATION_RUN_ON_THE_SPOT : ANIMATION_RUN);
+        show_movement(g, shows, runs_on_the_spot(g, shows, carried) ? ANIMATION_RUN_ON_THE_SPOT : ANIMATION_RUN);
 }
 
 /* On a climb: climbing while it goes up or down, holding still otherwise. */
@@ -342,7 +361,7 @@ static void wait_on_the_trail(GameState *g, FieldObject member, FieldObject in_t
     if (kind == GROUND_CLIMB) {
         if (f.walk.y != 0 && f.movement.y != 0 && f.movement.y != f.walk.y)
             return;
-        object_restart_animation(g, in_the_place);
+        restart_animation(g, in_the_place);
         return;
     }
     Velocity against = { (int8_t)(f.walk.x - field_floor_pull(f.movement.x)),
@@ -377,13 +396,12 @@ static void layer_the_place(GameState *g, PartyPlace place, SpritePriorities pri
         object_take_sprite_priorities(g, field_linked_object(link), priorities);
 }
 
-/* An emptied place's member moving on poses itself; waiting, it would pose
- * the slot past the tables, which the port leaves to the original. */
+/* A place steps an object, or with the game's marker for an emptied one,
+ * the slot past the tables (step_the_place, wait_on_the_trail). */
 bool party_place_steps(const GameState *g, PartyPlace place)
 {
     FieldLink link = party_member_link(g, place);
-    return field_link_names_object(link) ||
-           (field_same_link(link, field_no_link()) && party_member_moves_on(g, place));
+    return field_link_names_object(link) || field_same_link(link, field_no_link());
 }
 
 enum { FIRST_MEMBER_FOLLOWS = 0xC0A26B, SECOND_MEMBER_FOLLOWS = 0xC0A2CE };

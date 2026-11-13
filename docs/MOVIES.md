@@ -83,6 +83,10 @@ The default fast set is `new_game_plus` and `menu_sweep:items`: the first checks
 New Game+ and erasure, the second loads cartridge progress and uses an item.
 A route whose ct_native printed a runtime fault (tools/outcomes.py's: an
 overlay crossing, an accessor out of range) fails, as a movie does.
+A route writes only to its scratch directory (`--prefix`): one that changes a
+file under `saves/`, or leaves git's account of the working tree otherwise
+changed, fails (`tree_state`), so a long batch can't replace the saves the
+movies start from.
 
 ### Fights carried by routes
 

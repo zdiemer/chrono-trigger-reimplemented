@@ -68,6 +68,7 @@ def run_stamp(route, rom, drive):
 
 
 STAMP = "run-stamp.txt"
+START_GIT = subprocess.Popen    # git's own: a route's process is started apart
 SECONDS = "route-seconds.json"   # each route's last time in this scratch, for the order
 
 
@@ -120,6 +121,45 @@ def carried_fight(name, lines):
     return fight_facts.verdict(name, lines, bounds[name], expected)
 
 
+def tree_state(root=None):
+    """What a route may not change: each file under saves/ (its size and when
+    it was written: the cartridge saves the movies start from), and git's
+    account of the working tree. A route writes only to its scratch directory."""
+    root = root or REPO
+    saves = {}
+    for folder, _, names in os.walk(os.path.join(root, "saves")):
+        for name in names:
+            path = os.path.join(folder, name)
+            info = os.stat(path)
+            saves[os.path.relpath(path, root)] = (info.st_size, info.st_mtime_ns)
+    try:
+        git = START_GIT(["git", "status", "--porcelain", "--untracked-files=all"], cwd=root,
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    except OSError:
+        return saves, set()
+    lines, _ = git.communicate()
+    return saves, set(lines.splitlines()) if git.returncode == 0 else set()
+
+
+def tree_changes(before, after, scratch=None):
+    """The paths a run changed between two tree_state()s. Routes run side by
+    side in lanes, each writing to its own scratch: what any of them writes
+    inside the scratch root (where that is in the working tree and git
+    doesn't ignore it) is no route's fault, so `scratch` is left out. A
+    change under saves/ never is."""
+    saves = sorted(path for path in set(before[0]) | set(after[0]) if before[0].get(path) != after[0].get(path))
+    inside = None
+    if scratch:
+        try:
+            relative = os.path.relpath(os.path.abspath(scratch), REPO).replace(os.sep, "/")
+        except ValueError:      # another drive: outside the tree
+            relative = ".."
+        inside = None if relative.startswith("..") else relative.rstrip("/") + "/"
+    status = sorted(line[3:] for line in after[1] - before[1]
+                    if not (inside and line[3:].strip('"').startswith(inside)))
+    return sorted(set(saves) | set(status))
+
+
 def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=False):
     """Run one native route and report its asserted outcome."""
     name, _, until = route.partition(":")
@@ -136,6 +176,7 @@ def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=Fals
         command += ["--rom", rom]
     if drive:
         command += ["--drive", drive]
+    tree_before = tree_state()
     # a resumed run adds to the output of the runs before it, whose checkpoints
     # it carries on from
     with open(os.path.join(where, "output.txt"), "a" if resumed else "w", encoding="utf-8") as out, native_slots.slot():
@@ -164,10 +205,13 @@ def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=Fals
         if match:
             phases.append((match.group(1), int(match.group(2))))
     faults = runtime_faults(lines)
-    passed = status == 0 and outcome is not None and outcome[0] == "reached" and not faults
+    changed = tree_changes(tree_before, tree_state(), scratch)
+    passed = status == 0 and outcome is not None and outcome[0] == "reached" and not faults and not changed
     facts = carried_fight(name, lines) if passed and not until else []
     passed = passed and not facts
-    if facts:
+    if changed:
+        what = "changed the repository's tree (a route writes only to its scratch): " + ", ".join(changed)
+    elif facts:
         what = "fight facts: " + "; ".join(facts)
     elif faults:
         what = "runtime fault: %s" % faults[0]

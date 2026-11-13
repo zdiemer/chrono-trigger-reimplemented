@@ -179,9 +179,11 @@ def main():
     m = run.machine
     try:
         play(run, run.start_at(PHASES))
-        destination = Path(REPO) / "saves/recorded/blackbird-before-dalton.srm"
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        # The cartridge's battery RAM, to <prefix>.srm in the run's scratch:
+        # saves/recorded/blackbird-before-dalton.srm is the one committed.
+        destination = Path(run.prefix + ".srm")
         destination.write_bytes(m.peek(0x306000, 8192))
+        run.say("cartridge save", destination)
         run.finish("a normal cartridge save after the Blackbird opening and equipment recovery")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
