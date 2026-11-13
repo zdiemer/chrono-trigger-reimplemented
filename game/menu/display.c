@@ -30,6 +30,7 @@
 #include "menu/sprites.h"
 #include "core/input.h"
 #include "menu/opening.h"
+#include "menu/panels_across.h"
 #include "menu/party.h"
 #include "menu/saves.h"
 #include "menu/screen_objects.h"
@@ -236,6 +237,7 @@ void menu_close(GameState *g, Platform *pf, bool for_the_game)
     if (running)
         running->end = for_the_game ? MENUS_START_THE_GAME_AGAIN : MENUS_CLOSED;
     menu_tasks_closed(g);
+    menu_panels_closed(g);
 }
 
 /* The mode's frame: the screen blanked while it sends what the frame built,
@@ -277,6 +279,7 @@ static void menus_vblank(GameState *g, Platform *pf)
         vid_enable_line_effects(pf, PF_AT(0xC28446), (uint8_t)(menu_line_effects(g) & LINE_EFFECTS));
         set_menu_vblank_done(g, FRAME_SENT);
     }
+    menu_lay_out_the_screen_across(g, pf);
     bool taken = false;
     TIMED_AS(g, 0xC28473, taken = menu_frame_input_taken(g, pf));
     if (!taken)
@@ -353,6 +356,7 @@ static void send_the_frame(GameState *g, Platform *pf)
 {
     send_menu_scroll(g, pf);
     send_menu_screen_shadows(g, pf);
+    menu_move_the_sprites_across(g);
     vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
     if (menu_line_effects(g) & BLOCK_MOVE_ASKED) {
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
