@@ -242,6 +242,21 @@ def party_with_lapis(bot, state, rng, inventory):
     return party(bot, state, rng, inventory)
 
 
+def party_with_ethers(bot, state, rng, inventory):
+    """`party_with_lapis` for a long fight, such as Lavos's shell and its
+    imitations one after another: a member short of MP takes an Ether of the
+    bag (the Full, the Mid, the plain), which `party` would look for only as
+    Hyper Ethers."""
+    member = state.member
+    members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
+    if all(state.hp(slot) for slot in members) and state.mp(member) < 10 and rng.random() < 0.4:
+        for item in (FULL_ETHER, MID_ETHER, ETHER):
+            action = use(inventory, item, member)
+            if action:
+                return action
+    return party_with_lapis(bot, state, rng, inventory)
+
+
 def r_series(bot, state, rng, inventory):
     """Crono and Lucca against the factory's two columns of R Series robots.
 
@@ -538,6 +553,7 @@ POLICIES = {
     "party": party,
     "party_lavos_core": party_lavos_core,
     "party_with_lapis": party_with_lapis,
+    "party_with_ethers": party_with_ethers,
     "r_series": r_series,
     "motherbrain": motherbrain,
     "nizbel_ii": nizbel_ii,

@@ -14,12 +14,8 @@ HEADER = """\
 # <start_frame> <frame_count> <buttons>"""
 
 
-class DaltonRun(Run):
-    def wait_control(self, max_frames=6000, press_every=8):
-        return super().wait_control(max_frames, press_every)
-
-    def dialogs_until(self, condition, max_frames=20000, press_every=8):
-        return super().dialogs_until(condition, max_frames, press_every)
+# The Blackbird's windows are hurried along every eighth frame.
+DIALOG_PACE = 8
 
 
 def boss_policy(bot, state, rng, inventory):
@@ -55,26 +51,13 @@ def fight(run, boss=False):
     run.fight(boss_policy if boss else "party", won, max_frames=24000, delays=(0,))
 
 
-def main():
-    args = route_arguments(__doc__, save=SAVE)
-    run = DaltonRun(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
-                    until=args.until)
+def play(run, start=1, seed=1):
+    """From the cell's save point, the equipment recovered, to the winged
+    Epoch landed on the 12000 B.C. map and in hand; `start` is the index in
+    PHASES of the first phase to run."""
     m = run.machine
+    pace, run.dialog_pace = run.dialog_pace, DIALOG_PACE
     try:
-        start = run.start_at(PHASES)
-        if start <= 0:
-            m.run(1620)
-            m.run(5, "START")
-            m.run(2420 - m.frame)
-            assert run.select_slot(0)
-            m.run(4, "A")
-            assert run.dialogs_until(lambda: run.map_id() == "7301", 3000)
-            m.run(120)
-            assert run.wait_control()
-            assert m.b(0x7F0000) == 0xCF and m.b(0x7F00D2) == 0
-            assert m.b(0x7F00AF) & 7 == 7 and m.b(0x7F00BA) & 2
-            assert not m.b(0x7F00BA) & 0x80
-            run.checkpoint("loaded")
         if start <= 1:
             assert run.talk(11, done=lambda: run.map_id() == "7801")
             assert run.wait_control()
@@ -155,6 +138,32 @@ def main():
                     break
             assert run.map_id() == "f601" and run.world_pos() != before, "world-map control"
             run.checkpoint("field")
+    finally:
+        run.dialog_pace = pace
+
+
+def main():
+    args = route_arguments(__doc__, save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
+              until=args.until)
+    run.dialog_pace = DIALOG_PACE
+    m = run.machine
+    try:
+        start = run.start_at(PHASES)
+        if start <= 0:
+            m.run(1620)
+            m.run(5, "START")
+            m.run(2420 - m.frame)
+            assert run.select_slot(0)
+            m.run(4, "A")
+            assert run.dialogs_until(lambda: run.map_id() == "7301", 3000)
+            m.run(120)
+            assert run.wait_control()
+            assert m.b(0x7F0000) == 0xCF and m.b(0x7F00D2) == 0
+            assert m.b(0x7F00AF) & 7 == 7 and m.b(0x7F00BA) & 2
+            assert not m.b(0x7F00BA) & 0x80
+            run.checkpoint("loaded")
+        play(run, start, args.seed)
         run.finish("Dalton Plus beaten, Blackbird destroyed, the winged Epoch landed")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

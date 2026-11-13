@@ -156,6 +156,23 @@ fights before it leaving their MP alone. It ends at the End of Time after the
 R Series (frame 551350). Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
+
+The other legs of the playthrough start from cartridge saves so the whole
+game is played in parallel. `playthrough_leg-d` starts from ctsave11 slot 1,
+the party held in the Blackbird after Crono is gone, with the save's party
+and items, and plays on through `play()` of `blackbird_save`, `dalton`,
+`north_cape` (Magus joins; until he is met the Epoch shows Marle's resolve
+instead of flying), the Black Omen's rising, Gaspar's Chrono Trigger, Gato's
+silver points and Bekkler's clone (`fair_clone`; the clone is delivered to
+Crono's room), Belthasar in the Keeper's Dome, Death Peak (`death_peak_wind`,
+`death_peak`, `death_peak_return`; a Shelter before the last Spawn), Crono
+joining in Lucca's place, and the bucket into Lavos (`other_endings`), whose
+imitations of the earlier bosses it beats. It ends where the shell's own form
+stands (frame 359416): at levels 34-38 the party takes 400-500 HP a member
+from each of its blows and deals it some 40, so an ending waits on a party
+grown by the Black Omen or by fighting. The
+winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
+`black_omen_entry` flies it into the Black Omen from ctsave14.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
 (`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings

@@ -58,6 +58,11 @@ static unsigned slot_of(unsigned enemy) { return BATTLE_FIRST_ENEMY + enemy; }
 
 static BattlePoint standing(const GameState *g, unsigned slot) { return (BattlePoint){ combatant_x(g, slot), combatant_y(g, slot) }; }
 
+/* The enemy's target as its animation last saw it. An enemy whose action
+ * found nobody to aim at ($FF: a selector no combatant met) moves by where
+ * nobody stands: the original reads and writes that slot's place past the
+ * combatants' (combatant_x, battle_place_box), and so does the port, without
+ * deciding what nobody's place should be (issue #60). */
 static uint8_t target_of(const GameState *g, unsigned enemy) { return battle_enemy_target_seen(g, enemy); }
 
 /* ---- Steps ------------------------------------------------------------------------------- */
@@ -173,29 +178,12 @@ static Step head_for(GameState *g, unsigned enemy, uint8_t heading)
 /* ---- Waiting for the target to move ($C1:3772) ------------------------------------------- */
 
 // $C1:3772
-/* Where an enemy that saw no target ($FF) finds it standing: the original
- * reads the slot's place past the combatants', in the bytes after the
- * battlefield's objects' places, which nothing keeps for it. A target of
- * nobody is a place no one stands on in a build that keeps the game's own
- * storage (issue #60). */
-static BattlePoint where_the_original_finds_nobody(const GameState *g, uint8_t nobody)
-{
-    unsigned object = battle_object_of(nobody);
-    return (BattlePoint){ battle_object_x_unchecked(g, object), battle_object_y_unchecked(g, object) };
-}
-
-static BattlePoint target_standing(const GameState *g, unsigned enemy)
-{
-    uint8_t target = target_of(g, enemy);
-    return battle_names_combatant(target) ? standing(g, target) : where_the_original_finds_nobody(g, target);
-}
-
 static void wait_for_target_to_move(GameState *g, unsigned enemy)
 {
     if (!stopped_to_act(g, enemy))
         return;
     stop_weaving(g, enemy);
-    BattlePoint target = target_standing(g, enemy);
+    BattlePoint target = standing(g, target_of(g, enemy));
     if (target.x == battle_enemy_target_seen_x(g, enemy) && target.y == battle_enemy_target_seen_y(g, enemy))
         return;
     set_battle_enemy_animation(g, enemy, battle_enemy_animation_work(g, enemy));
@@ -220,12 +208,7 @@ static uint16_t approach_reach(uint8_t animation)
 }
 
 /* The boxes the reach is measured between: each where its combatant stands. */
-static void box_where_standing(GameState *g, unsigned slot)
-{
-    BattlePoint at = standing(g, slot);
-    set_battle_bounds_x(g, slot, at.x);
-    set_battle_bounds_y(g, slot, at.y);
-}
+static void box_where_standing(GameState *g, uint8_t slot) { battle_place_box(g, slot, standing(g, slot)); }
 
 /* A walk not turned aside heads afresh from where the enemy stands. */
 static uint8_t fresh_heading(GameState *g, unsigned enemy, BattlePoint from, BattlePoint to)
@@ -244,7 +227,7 @@ static void approach(GameState *g, unsigned enemy, uint8_t animation)
                                              : fresh_heading(g, enemy, standing(g, slot), standing(g, target));
     Step step = head_for(g, enemy, heading);
     box_where_standing(g, target);
-    box_where_standing(g, slot);
+    box_where_standing(g, (uint8_t)slot);
     uint16_t reach = approach_reach(animation);
     if (reach == 0 || battle_within_reach(g, (uint8_t)slot, target, reach)) {
         stop_to_act(g, enemy);
@@ -555,15 +538,6 @@ static void make_for_the_middle(GameState *g, unsigned enemy)
 }
 
 /* ---- The movements ----------------------------------------------------------------------- */
-
-/* Waiting for the target to move goes on when the enemy saw no target: it
- * waits on where nobody stands (where_the_original_finds_nobody). */
-static bool takes_no_target(EnemyMovement movement) { return movement == MOVEMENT_WAIT_FOR_TARGET; }
-
-bool battle_enemy_movement_needs_target(EnemyMovement movement)
-{
-    return movement <= MOVEMENT_CIRCLE && !takes_no_target(movement);
-}
 
 void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uint8_t animation)
 {
