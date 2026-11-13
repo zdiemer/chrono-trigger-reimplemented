@@ -19,9 +19,10 @@
  * (frontend/assets.h; game/data/assets.h, the store): <rom name>.assets beside
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
- * kept. The palettes and the fonts are served from the text beside the pack,
- * <pack name>.palettes and .fonts (frontend/palettes.h, frontend/fonts.h),
- * written from the pack where there is none.
+ * kept. The palettes, the fonts and the graphics are served from the text
+ * beside the pack, <pack name>.palettes, .fonts and .graphics
+ * (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h), written from the
+ * pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
  * --frames. It reports invalid game state with its frame and source origin, and what it
@@ -46,6 +47,7 @@
 #include "file_store.h"
 #include "fonts.h"
 #include "palettes.h"
+#include "tiles.h"
 #include "storage.h"
 #include "track.h"
 #include "snapshot.h"
@@ -232,16 +234,16 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     return written < 0 ? (free(text), NULL) : text;
 }
 
-/* The pack made again with its palettes and fonts as the text beside it
+/* The pack made again with its palettes, fonts and graphics as the text beside it
  * says, each kind's store over the one before. True with the pack unchanged
  * where there is no text; false, the pack and its bytes gone, only where a
  * text is wrong or the remade pack can't be had. */
-enum { DECODED_KINDS = 2 };
+enum { DECODED_KINDS = 3 };
 
 static bool serve_decoded(const Files *files, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
-    const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text };
-    const char *paths[DECODED_KINDS] = { files->palettes, files->fonts };
+    const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text, &tile_text };
+    const char *paths[DECODED_KINDS] = { files->palettes, files->fonts, files->graphics };
     Decoded *decoded[DECODED_KINDS] = { NULL };
     AssetStore stores[DECODED_KINDS + 1];
     asset_pack_store(*pack, &stores[0]);
@@ -838,6 +840,7 @@ int main(int argc, char **argv)
     if (pack_path) snprintf(files.assets, sizeof files.assets, "%s", pack_path);
     files_side_path(files.palettes, sizeof files.palettes, files.assets, files.assets, NULL, ".palettes");
     files_side_path(files.fonts, sizeof files.fonts, files.assets, files.assets, NULL, ".fonts");
+    files_side_path(files.graphics, sizeof files.graphics, files.assets, files.assets, NULL, ".graphics");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");

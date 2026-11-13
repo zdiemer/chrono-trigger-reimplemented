@@ -195,9 +195,9 @@ int main(void)
     refused(&made, small_text("glyph 00", "........\n....4...\n"), 4);
     refused(&made, small_text("glyph 00", "........\n.......\n"), 4);
     refused(&made, small_text("glyph 00", "........\nglyph 01\n"), 4);
-    refused(&made, small_text("glyph 00", pixels), 10);          /* too few glyphs */
-    refused(&made, "[dialog_font]\nglyph 00\n", 2);             /* its lines missing at the end */
-    refused(&made, "[small_font]\n[small_font]\n", 2);          /* no glyphs */
+    refused(&made, small_text("glyph 00", pixels), 1);           /* too few glyphs: at its [name] */
+    refused(&made, "[dialog_font]\nglyph 00\n", 1);             /* its lines missing at the end */
+    refused(&made, "[small_font]\n[small_font]\n", 1);          /* no glyphs */
     char *widthless = malloc(256 * 200 + 64);
     strcpy(widthless, "[dialog_font]\n");
     for (unsigned g = 0; g <= 0xA0; g++) {
