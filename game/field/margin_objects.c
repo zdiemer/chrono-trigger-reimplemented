@@ -7,7 +7,8 @@
  * original's screen. A view wider than that would show the map with the
  * rest of its people missing. So, as a wider view's own work, each frame
  * the field finishes lists the objects that can be seen but are out of view
- * and stand where the view could show them, and every vblank shows them in
+ * and stand where the view could show them, in the room the screen is held
+ * to (field_rooms_span), and every vblank shows them in
  * the view's margins (vid_show_a_sprite_in_the_margins), nearest the viewer
  * on top: each in the frame its animation is on, which out of view stands
  * still (the frame it was last placed in, or the first of the animation it
@@ -26,6 +27,7 @@
 #include "field/frames.h"
 #include "field/graphics.h"
 #include "field/palettes.h"
+#include "field/streaming.h"
 #include "platform/video.h"
 #include "vars.h"
 
@@ -82,13 +84,16 @@ void field_list_the_objects_past_the_window(GameState *g, Platform *pf)
     FieldObjectsPast *past = field_objects_past(g);
     uint32_t mark = charge_uncounted_begin(g);
     past->count = 0;
+    int16_t room_left, room_right;
+    field_rooms_span(g, &room_left, &room_right);
     uint8_t count = event_object_count(g);
     for (FieldObject obj = 0; obj < count && obj < FIELD_OBJECTS; obj++) {
         if (!shows_past_the_window(g, obj))
             continue;
         ScreenPoint at = object_place_on_the_screen(g, obj);
         ObjectFrame frame = object_frame_shown(g, obj);
-        if (near_the_view(view, at) && frame.has_frame)
+        bool in_the_room = at.x >= room_left && at.x < room_right;
+        if (near_the_view(view, at) && in_the_room && frame.has_frame)
             list(past, (FieldObjectPast){ obj, frame.frame, at.x, at.y });
     }
     charge_uncounted_end(g, mark);

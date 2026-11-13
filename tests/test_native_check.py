@@ -50,6 +50,9 @@ class CompletionTest(unittest.TestCase):
         self.assertTrue(native_check.picture_matches(text, expected))
         for bad in ('', text.replace('abcdef', 'abcdee'), '\n'.join(reversed(text.splitlines()))):
             self.assertFalse(native_check.picture_matches(bad, expected))
+        first = native_check.outcomes.observed_digest(['1:0123456789abcdef'])
+        self.assertTrue(native_check.picture_matches(text.replace('fedcba', 'aaaaaa'), first, until=2))
+        self.assertFalse(native_check.picture_matches(text, first))
 
     def test_missing_completion_is_failure(self):
         self.assertEqual(native_check.ended('', 0, 100)[0], 'incomplete')

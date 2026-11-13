@@ -51,6 +51,12 @@ typedef struct {
 /* Where the frame is: which of its three parts runs. */
 typedef enum { TM_HOST_IDLE, TM_HOST_IN_VBLANK, TM_HOST_IN_MAIN, TM_HOST_IN_LINE } TmHostPart;
 
+/* How the main thread sits frames out: not at all; through a wait for the
+ * next frame, which ends in the frame its work no longer fills; or in the
+ * middle of its work, which goes on in the first frame it doesn't fill, what
+ * is left over still owed. */
+typedef enum { TM_HOST_RUNNING, TM_HOST_LAGGING_IN_WAIT, TM_HOST_LAGGING_IN_WORK } TmHostLag;
+
 typedef struct {
     TmHostProgram program;
     Fiber *driver;          /* the driver's stack, which tm_host_frame runs on */
@@ -64,8 +70,12 @@ typedef struct {
     uint32_t owed;          /* the original's time charged to the main thread since it last waited (master clocks) */
     uint32_t handler_charges; /* service work in the line/vblank handlers, taken with their accesses */
     uint32_t handlers;      /* the handlers' time in the frame the main thread runs in (master clocks) */
-    uint32_t lagging;       /* frames the main thread sits out, its wait lasting through them */
-    uint32_t lag_frames;    /* ... in all */
+    TmHostLag lag;          /* whether the main thread sits this frame out, and how */
+    uint32_t debt;          /* the work it has yet to sit out, past the frames gone by (master clocks) */
+    uint32_t lag_start;     /* the frame its present stretch of lag began in, its work then, and */
+    uint32_t lag_owed;      /*   its lag frames so far, for the lag log */
+    uint32_t lag_count;
+    uint32_t lag_frames;    /* lag frames in all */
 } TmHost;
 
 /* The picture: every video call folded into its state by the observer

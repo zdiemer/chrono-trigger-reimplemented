@@ -100,9 +100,10 @@ static inline uint32_t time_of_sound_command(uint8_t command, uint32_t sent, uin
     return base + sent * (playing ? TIME_SOUND_BYTE_PLAYING : TIME_SOUND_BYTE) + moved * TIME_SOUND_BYTE_MOVED;
 }
 
-/* A transfer from the main thread, at DMA's byte rate. Unpacking and other
- * game work use their calibrated rates in the state backend. Transfers in
- * handlers remain the frame's own work. */
+/* A transfer, at DMA's byte rate, which halts the processor for its bytes:
+ * from the main thread, its own time; from a handler, the frame's, which the
+ * main thread then doesn't have. Unpacking and other game work use their
+ * calibrated rates in the state backend. */
 enum { TIME_DMA_BYTE = 8 };
 
 static inline uint32_t time_of_transfer(uint32_t bytes) { return bytes * TIME_DMA_BYTE; }

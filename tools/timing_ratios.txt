@@ -1,0 +1,57 @@
+# Battle work rates calibrated against the original (docs/REIMPLEMENTATION.md, "Time without a machine"):
+# routine, old rate, new rate, new/old; after `#`, where measured and the ratio there. A ratio is the original's clocks a call (the frozen
+# emulator-oracle tag's keyed clock profile) over ct_native's charge a call, both over the same windows.
+
+# The 40 handler routines, from the three fights (Dalton's Golem Boss, the Golem Twins, Giga Gaia):
+CD0340 3983 5480 1.38  # dalton 1.37 golem 1.40 giga 1.36
+CD05B2 3513 11885 3.38  # dalton 3.40 golem 3.40 giga 3.36
+CD0ADE 3485 11026 3.16  # dalton 2.81 golem 3.08 giga 3.50
+CD0AEE 4103 17542 4.28  # dalton 4.29 golem 4.27 giga 4.27
+CD0B51 3680 4723 1.28  # dalton 1.27 golem 1.27 giga 1.29
+CD1609 5149 10231 1.99  # dalton 1.95 golem 2.01 giga 2.03
+CD1654 1812 2470 1.36  # dalton 1.49 golem 1.31 giga 1.34
+CD2690 4479 6568 1.47  # giga 1.47
+CD26C0 4479 6612 1.48  # giga 1.48
+CD2717 7816 20128 2.58  # giga 2.58
+CD2952 9077 17636 1.94  # giga 1.94
+CD2DD6 2171 9866 4.54  # dalton 4.55 golem 4.55 giga 4.54
+CD2EB5 1353 5072 3.75  # dalton 3.66 golem 3.75 giga 3.83
+CEE7C8 2520 3293 1.31  # dalton 1.24 golem 1.23 giga 1.39
+CFE781 10500 12980 1.24  # dalton 1.27 golem 1.23 giga 1.20
+CFE7D7 7645 20374 2.67  # dalton 2.67 golem 2.68 giga 2.65
+CFE92C 15035 32772 2.18  # giga 2.18
+CFE99C 7898 16996 2.15  # giga 2.15
+CFEAC5 8578 16180 1.89  # dalton 1.85 golem 1.91 giga 1.89
+CFEB94 2509 3833 1.53  # dalton 1.50 golem 1.52 giga 1.55
+CFEC78 10910 14406 1.32  # dalton 1.31 golem 1.33 giga 1.32
+CFECC2 10748 18137 1.69  # dalton 1.69 golem 1.69 giga 1.69
+CFED18 11106 14432 1.30  # dalton 1.31 golem 1.32 giga 1.28
+CFEDB8 10724 27814 2.59  # dalton 2.52 golem 2.59 giga 2.64
+CFEDF7 9149 25504 2.79  # dalton 2.81 golem 2.78 giga 2.76
+CFEEEB 6434 13643 2.12  # dalton 2.04 golem 2.09 giga 2.09
+CFEFAF 11592 17844 1.54  # dalton 1.60 golem 1.52 giga 1.52
+CFF03E 4455 6005 1.35  # giga 1.34
+CFF23D 8974 11830 1.32  # giga 1.32
+CFF4B2 4540 6190 1.36  # golem 1.35 giga 1.39
+CFF61F 8173 9917 1.21  # dalton 1.22 golem 1.22 giga 1.20
+CFF68D 6815 6092 0.89  # dalton 0.90 golem 0.88 giga 0.90
+CFF7FC 8558 7636 0.89  # golem 0.89 giga 0.89
+D1F426 3723 10336 2.78  # dalton 2.65 golem 2.78 giga 2.87
+D1FCF4 1343 1610 1.20  # giga 1.19
+D1FE4C 3880 6408 1.65  # dalton 1.65 golem 1.65 giga 1.65
+FDE485 6790 12578 1.85  # golem 1.85
+FDE5A4 10998 19071 1.73  # dalton 1.78 golem 1.69 giga 1.71
+FDFFF7 11393 14755 1.30  # dalton 1.29 golem 1.30 giga 1.30
+FDFFFD 4181 10811 2.59  # dalton 2.72 golem 2.72 giga 2.07
+
+# Ten from the Golem Twins' battle setup (frames 4490-4579 against native's 4490-4575), its hold and its frame work:
+C11C55 4655 5586 1.20  # battle setup 1.20
+C1C90B 29284 69696 2.38  # battle setup 2.38
+C1C92A 80814 258605 3.20  # battle setup 3.20
+C1C96A 19458 9534 0.49  # battle setup 0.49
+C1CA1A 24102 12533 0.52  # battle setup 0.52
+C284EC 7003 15905 2.27  # battle setup 2.27
+CCED87 9849 26789 2.72  # battle setup 2.72
+CD088D 6776 101640 15.00  # battle setup 15.00
+CD09F1 7234 332764 46.00  # battle setup 46.00
+FDAF80 3699 12651 3.42  # battle setup 3.42
