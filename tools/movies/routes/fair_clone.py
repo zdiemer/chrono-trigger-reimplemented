@@ -7,7 +7,7 @@ PHASES = ["square", "tent", "paid", "back"]
 HEADER = fair.header("clone", "Bekkler's clone game: pay 40 silver points, copy all 22 poses, receive the clone, and return to the fair")
 
 
-def play(run):
+def copy_the_poses(run):
     m = run.machine
     assert not m.b(0x7F005E) & 1, "Crono's clone not yet awarded in this save"
     # Local $08 counts poses; $11=$80 opens an answer window, and $10
@@ -32,6 +32,22 @@ def play(run):
     run.say("copied", len(answered), "poses; silver points", m.b(fair.POINTS))
 
 
+def play(run, start=2, challenge_row=1):
+    """In Bekkler's tent: pay 40 silver points for the clone game and win it;
+    `start` is the index in PHASES of the first phase to run. The game is the
+    second row of Bekkler's list, or the first (`challenge_row`) after Crono
+    is gone, when it is the only game he offers."""
+    if start <= 2:
+        before = run.machine.b(fair.POINTS)
+        fair.greet(run)
+        fair.choose(run, challenge_row)
+        assert run.machine.b(fair.POINTS) == before - 40, "40 silver points paid"
+        run.checkpoint("paid")
+    if start <= 3:
+        copy_the_poses(run)
+        run.checkpoint("back")
+
+
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -43,15 +59,7 @@ def main():
         if start <= 1:
             fair.tent(run)
             run.checkpoint("tent")
-        if start <= 2:
-            before = run.machine.b(fair.POINTS)
-            fair.greet(run)
-            fair.choose(run, 1)
-            assert run.machine.b(fair.POINTS) == before - 40, "40 silver points paid"
-            run.checkpoint("paid")
-        if start <= 3:
-            play(run)
-            run.checkpoint("back")
+        play(run, max(2, start))
         assert run.map_id() == fair.SQUARE and run.wait_control(), "the field in hand"
         run.finish("Bekkler's clone game won")
         if args.movie:

@@ -142,7 +142,7 @@ def play(run, start=1, seed=1):
         run.checkpoint("cave")
     if start <= 2:
         m.run(55, "UP+B")
-        spawn(run, 8, args.seed)
+        spawn(run, 8, seed)
         run.checkpoint("spawn1")
     itinerary = [
         (3, "ledge", 88, 192, "0701"),
@@ -174,7 +174,7 @@ def play(run, start=1, seed=1):
             run.checkpoint(name)
     if start <= 13:
         m.run(20, "UP+B")
-        spawn(run, 16, args.seed)
+        spawn(run, 16, seed)
         run.checkpoint("spawn2")
     itinerary = [
         (14, "ridge", 0, 912, "0601"),

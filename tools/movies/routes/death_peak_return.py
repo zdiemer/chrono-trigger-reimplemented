@@ -28,7 +28,7 @@ def play(run, start=1, seed=1):
     if start <= 1:
         walk_to(run, 72, 358)
         m.run(20, "UP+B")
-        spawn(run, 32, args.seed)
+        spawn(run, 32, seed)
         run.checkpoint("spawn")
     if start <= 2:
         walk_to(run, 120, 180)
