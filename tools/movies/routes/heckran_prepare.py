@@ -69,9 +69,15 @@ def main():
             assert run.wait_control()
             assert run.walk(lambda machine, x, y: machine.b(0x7F0212) == 14
                             and machine.b(0x7F0214) == 8) is not None, "the Medina gate"
-            m.run(3, "A")
-            m.run(60)
-            m.run(3, "A")
+            # The pillar takes the party once it has settled on it: a step
+            # that stops on the pillar's tile can leave it a press short.
+            for nudge in ("UP", "DOWN", "UP", "DOWN"):
+                m.run(4, nudge)
+                m.run(3, "A")
+                m.run(60)
+                m.run(3, "A")
+                if run.dialogs_until(lambda: run.map_id() == "2400", 900):
+                    break
             assert run.dialogs_until(lambda: run.map_id() == "2400", 8000), "Medina"
             assert run.wait_control()
             run.checkpoint("medina")
