@@ -464,6 +464,7 @@ typedef struct {
     int16_t layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across (vid_show_a_layer_across) */
     uint16_t margin_count;  /* the sprites in the view's margins (vid_show_a_sprite_in_the_margins), first on top */
     const VidMarginEntry *margin;
+    bool picture_beside_panels;   /* vid_show_the_picture_beside_the_panels */
     uint16_t span_count;
     VidSpan spans[VID_MAX_SPANS];   /* spans[0].line == 1 */
     const uint8_t *vram;    /* 64 KiB, SNES layout */
@@ -622,6 +623,13 @@ PF_API void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int
  * them shows them every frame; past VID_MARGIN_SPRITES, and on the
  * original's view, they are left out. */
 PF_API void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture);
+/* This frame, a wider view's margins beside a panel -- lines whose layers
+ * hold the original's screen alone, tilemaps one screen across or kept to it,
+ * as a battle's windows are -- show the picture the nearest line above that
+ * holds more draws there (below, where none above does), as though the panel
+ * lay over it. Each frame starts without; the original's screen is drawn as
+ * the lines say. */
+PF_API void vid_show_the_picture_beside_the_panels(Platform *pf);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -820,7 +828,7 @@ uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
-                  const VidMarginEntry *margin, uint16_t margin_count);
+                  const VidMarginEntry *margin, uint16_t margin_count, bool picture_beside_panels);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);
 void vid_obs_write_oam(VidObserver *ob, uint8_t v);
 

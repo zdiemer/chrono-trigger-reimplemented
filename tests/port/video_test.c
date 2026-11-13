@@ -371,6 +371,30 @@ static void wider_view(void)
     vid_render_frame(r, f, pixels, NULL);
     CHECK(row[-4 - LEFT] == layer && row[262 - LEFT] == layer);
 
+    /* A panel's lines (a one-screen tilemap from line PANEL down) keep to the
+     * screen, the backdrop beside them, unless the frame shows the picture
+     * beside the panels: then their margins are drawn as the line above it. */
+    enum { PANEL = 150 };
+    static VidFrame panelled;
+    vid_host_frame_begins(&pf);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    panelled = *vid_host_picture(&pf);
+    CHECK(panelled.span_count == 1 && !panelled.picture_beside_panels);
+    panelled.spans[1] = panelled.spans[0];
+    panelled.spans[1].line = PANEL;
+    panelled.spans[1].state.bg[0].map_w = 32;
+    panelled.span_count = 2;
+    const uint32_t *panel_row = pixels + (PANEL + 2) * WIDTH;
+    vid_render_frame(r, &panelled, pixels, NULL);
+    CHECK(panel_row[0] == backdrop && panel_row[-LEFT] == layer && row[0] == layer);
+    vid_show_the_picture_beside_the_panels(&pf);
+    CHECK(vid_host_picture(&pf)->picture_beside_panels);
+    panelled.picture_beside_panels = true;
+    vid_render_frame(r, &panelled, pixels, NULL);
+    CHECK(panel_row[0] == layer && panel_row[279 - LEFT] == layer && panel_row[280 - LEFT] == backdrop);
+    vid_host_frame_begins(&pf);
+    CHECK(!vid_host_picture(&pf)->picture_beside_panels);
+
     /* The original's screen draws from the table alone. */
     vid_host_set_view(&pf, (VidView){ 256, 224 });
     f = vid_host_picture(&pf);

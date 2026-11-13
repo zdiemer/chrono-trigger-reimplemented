@@ -917,9 +917,10 @@ void vid_obs_frame_start(VidObserver *ob)
 void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
 
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
-                  const VidMarginEntry *margin, uint16_t margin_count)
+                  const VidMarginEntry *margin, uint16_t margin_count, bool picture_beside_panels)
 {
     ob->frame.view = view;
+    ob->frame.picture_beside_panels = picture_beside_panels;
     ob->frame.margin = margin;
     ob->frame.margin_count = margin_count;
     memcpy(ob->frame.layer_left, layer_left, sizeof ob->frame.layer_left);

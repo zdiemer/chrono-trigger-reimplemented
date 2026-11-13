@@ -94,6 +94,7 @@ typedef struct {
     int16_t layer_left[4], layer_right[4];   /* vid_show_a_layer_across's this frame */
     uint16_t margin_count;                   /* vid_show_a_sprite_in_the_margins's this frame */
     VidMarginEntry margin[VID_MARGIN_SPRITES];
+    bool picture_beside_panels;              /* vid_show_the_picture_beside_the_panels's this frame */
 } VidHost;
 
 /* The sound: the C sound driver (game/sound/) played in the SPC700's place,

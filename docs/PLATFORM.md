@@ -299,7 +299,10 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   BG3 keeps that layer to the original's screen until the battle puts the
   field's back (`field_battle_gives_the_layer_back`, as the start's screen
   settings return), when the field's layer -- the Denadoro forest's shade --
-  shows across again.
+  shows across again. The battle's windows are panels a screen across; beside
+  them the battlefield goes on (`vid_show_the_picture_beside_the_panels`: the
+  renderer draws a panel line's margins as the nearest line above that holds
+  more than the screen draws them, below where none above does).
 - **The world maps** fill their two scrolling planes' margins the same way
   each frame (`menu_map_fill_the_views_margins`) and show them across the view,
   and the layer over them (the clouds the opening flies over) too: it is laid

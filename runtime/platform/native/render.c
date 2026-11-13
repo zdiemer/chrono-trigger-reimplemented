@@ -147,6 +147,7 @@ struct VidRenderer {
     VidMarginEntry margin[VID_MARGIN_SPRITES];
     VidRenderStats stats;
     bool range_over, time_over;
+    uint32_t beside[W];         /* a panel line drawn as the picture beside it shows (VidFrame.picture_beside_panels) */
 };
 
 /* ---- tables ---------------------------------------------------------------------- */
@@ -1305,6 +1306,72 @@ static void span_key(VidRenderer *r, const SpanCtx *sp)
     }
 }
 
+/* A panel's lines (VidFrame.picture_beside_panels): lines whose layers hold
+ * the original's screen alone, every one of them a tilemap one screen across
+ * or kept to the screen, as a battle's windows are. Their margins show the
+ * picture the nearest line above that holds more draws on them -- below, where
+ * none above does -- as though the panel lay over it; the screen itself is as
+ * the line draws it. */
+static bool holds_past_the_screen(const VidFrame *f, const VidLineState *st)
+{
+    if (st->display.blank)
+        return false;
+    if (st->mode.mode == 7)
+        return true;
+    uint8_t used = (uint8_t)(st->main_layers | st->sub_layers);
+    for (int bg = 0; bg < 4; bg++)
+        if ((used & VID_LAYER_BIT(bg)) && st->bg[bg].map_w != 32 &&
+            (f->layer_left[bg] < 0 || f->layer_right[bg] > VID_ORIGINAL_VIEW_WIDTH))
+            return true;
+    return false;
+}
+
+static void show_the_picture_beside_the_panels(VidRenderer *r, const VidFrame *f, uint32_t *out)
+{
+    int16_t span_of[H + 1];
+    bool picture[H + 1];
+    for (uint16_t i = 0; i < f->span_count; i++) {
+        int from = f->spans[i].line < 1 ? 1 : f->spans[i].line;
+        int to = i + 1 < f->span_count ? f->spans[i + 1].line - 1 : H;
+        bool holds = holds_past_the_screen(f, &f->spans[i].state);
+        for (int line = from; line <= to && line <= H; line++) {
+            span_of[line] = (int16_t)i;
+            picture[line] = holds;
+        }
+    }
+    int first = f->spans[0].line < 1 ? 1 : f->spans[0].line;
+    bool range_over = r->range_over, time_over = r->time_over;
+    int begun = -1;
+    for (int line = first; line <= H; line++) {
+        const VidLineState *st = &f->spans[span_of[line]].state;
+        if (picture[line] || st->display.blank)
+            continue;
+        int from = line;
+        while (from > first && !picture[from])
+            from--;
+        if (!picture[from]) {
+            from = line;
+            while (from < H && !picture[from])
+                from++;
+            if (!picture[from])
+                return;
+        }
+        if (span_of[from] != begun) {
+            begun = span_of[from];
+            span_begin(r, &f->spans[begun], f, true);
+        }
+        LineCtx c = { .sp = &r->span, .line = line };
+        draw_line(r, &c, r->beside);
+        uint32_t *row = out + (size_t)(line - 1) * r->width;
+        int screen_from = -r->left, screen_to = -r->left + SCREEN_W;
+        memcpy(row, r->beside, sizeof *row * (size_t)screen_from);
+        memcpy(row + screen_to, r->beside + screen_to, sizeof *row * (size_t)(r->width - screen_to));
+        r->lines[line].valid = false;   /* its margins aren't the line's own */
+    }
+    r->range_over = range_over;
+    r->time_over = time_over;
+}
+
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
     r->range_over = r->time_over = false;
@@ -1407,6 +1474,8 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
             r->time_over |= time_over;
         }
     }
+    if (f->picture_beside_panels && r->left != 0)
+        show_the_picture_beside_the_panels(r, f, out);
     if (flags) {
         flags->range_over = r->range_over;
         flags->time_over = r->time_over;

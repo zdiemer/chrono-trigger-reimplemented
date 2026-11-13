@@ -263,7 +263,8 @@ static void count_down_to_reupload(GameState *g, Platform *pf)
 
 /* On a wider view, the field's layers the battle is fought over hold the map
  * as far across as the field built them, moved with the battle's scroll (read
- * outside the game's time: the original never reads it here). */
+ * outside the game's time: the original never reads it here), and they go on
+ * beside the battle's windows, whose panels are a screen across. */
 static void show_the_fields_layers(GameState *g, Platform *pf)
 {
     if (!vid_view_is_wider(vid_view(pf)))
@@ -274,6 +275,7 @@ static void show_the_fields_layers(GameState *g, Platform *pf)
         scroll[layer] = battle_bg_scroll_x(g, layer);
     charge_uncounted_end(g, mark);
     field_show_the_layers_under_a_battle(g, pf, scroll);
+    vid_show_the_picture_beside_the_panels(pf);
 }
 
 // $CF:E300

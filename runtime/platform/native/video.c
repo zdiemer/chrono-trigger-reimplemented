@@ -45,7 +45,7 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_display(ob, &v->display);
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
-    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->margin, v->margin_count);
+    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->margin, v->margin_count, v->picture_beside_panels);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
             vid_obs_display(ob, &v->display_below);
@@ -76,6 +76,7 @@ void vid_host_frame_begins(Platform *pf)
         v->layer_right[bg] = VID_ORIGINAL_VIEW_WIDTH;
     }
     v->margin_count = 0;
+    v->picture_beside_panels = false;
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -109,6 +110,11 @@ void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, co
     e->own = picture != NULL;
     if (picture)
         e->picture = *picture;
+}
+
+void vid_show_the_picture_beside_the_panels(Platform *pf)
+{
+    pf->video.picture_beside_panels = vid_view_is_wider(vid_view(pf));
 }
 
 /* The driver's choice, or the original's screen where it made none. */
