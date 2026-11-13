@@ -483,6 +483,9 @@ if(BUILD_TESTING)
   # The decoded maps drawn from their texts against ct_native's pictures (with the ROM staged).
   add_test(NAME map_pictures COMMAND ${Python3_EXECUTABLE} tests/frontend/map_pictures.py $<TARGET_FILE:ct_native>)
   set_tests_properties(map_pictures PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # ct_native's reporting options only look: play is the same with each of them (with the ROM staged).
+  add_test(NAME observers COMMAND ${Python3_EXECUTABLE} tests/frontend/observers.py $<TARGET_FILE:ct_native>)
+  set_tests_properties(observers PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   if(CT_SDL2)
     add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c frontend/bindings_config.c frontend/storage.c)
     target_include_directories(bindings_test PRIVATE frontend)
