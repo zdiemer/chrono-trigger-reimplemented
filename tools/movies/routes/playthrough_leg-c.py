@@ -14,9 +14,10 @@ from .. import bfs
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
 from ._trial_walk import world_enter
-from .ozzies_fort import fly_to, land
+from ._epoch import DIAL_PERIOD, land_by
 from .playthrough import naming
 from . import playthrough
+from . import _trial_party as early
 from ._zeal_navigation import approach
 from . import black_tyrano
 from . import menu_sweep as menus
@@ -56,9 +57,8 @@ HALL_SEALED_DOOR = (48, 88)
 HALL_RECORDS = range(8, 14)     # objects of Belthasar's hall
 THE_EPOCH = 13              # an object of the hangar
 EPOCH_NOSE = 300            # the hangar's row below the Epoch's nose
-EPOCH_DIAL = 0x7E0C52       # the era the Epoch's dial points at
-DIAL_12KBC = 5
-TERRA_CAVE, TERRA_CAVE_DOOR = 0x182, (424, 472)
+PERIOD_12KBC = 5            # the Epoch's dial (_epoch's periods)
+TERRA_CAVE = 0x182
 ALGETTY = "7c01"
 ALGETTY_SAVE_SPOT = (680, 700)  # below Algetty's save point
 MELCHIOR = 10                   # an object of Terra Cave's inner room
@@ -314,17 +314,15 @@ def exile(run, ahead, seed):
         run.checkpoint("exiled")
 
 
-def dactyl_to(run, x, y, location):
-    """Board the dactyl that waits by the Lair Ruins, fly it to (x, y), land
-    on the nearest open ground and walk into `location`."""
+def dactyl_to(run, location):
+    """Board the dactyl that waits by the Lair Ruins, fly it to `location`,
+    land on the nearest open ground and walk in."""
     machine = run.machine
     moves, _ = bfs.ow_bfs(machine, lambda m, px, py: m.b(A.OVERWORLD_TRAVEL) != TRAVEL_ON_FOOT,
                           lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(), confirm=True, max_nodes=800)
     machine.run(60)
     assert moves is not None and machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_ON_A_DACTYL, "aboard the dactyl"
-    fly_to(run, x, y)
-    assert land(run, max_nodes=200), "ground to land the dactyl on"
-    world_enter(run, location)
+    land_by(run, location)
 
 
 def to_the_epoch(run, ahead, seed):
@@ -334,7 +332,7 @@ def to_the_epoch(run, ahead, seed):
     if ahead("dactyl"):
         assert run.exit_to(WORLD_65M), "out onto the plateau"
         assert run.wait_world_control(), "the map in hand"
-        dactyl_to(run, 392, 712, MYSTIC_MTS)
+        dactyl_to(run, MYSTIC_MTS)
         assert in_hand(run), "the Mystic Mountains in hand"
         run.checkpoint("dactyl")
     if ahead("mystic_mts"):
@@ -452,12 +450,13 @@ def to_the_epoch(run, ahead, seed):
         assert run.talk(THE_EPOCH, done=lambda: run.dialog() or not machine.b(A.FIELD_PLAYER_CONTROL)), "the Epoch"
         assert run.dialogs_until(lambda: run.map_id() == WORLD_2300, 6000), "aboard the Epoch"
         machine.run(600)
+        # Its first flight opens the dial without the Y a later one takes.
         for _ in range(8):
-            if machine.b(EPOCH_DIAL) == DIAL_12KBC:
+            if machine.b(DIAL_PERIOD) == PERIOD_12KBC:
                 break
-            machine.run(4, "DOWN" if machine.b(EPOCH_DIAL) < DIAL_12KBC else "UP")
+            machine.run(4, "DOWN" if machine.b(DIAL_PERIOD) < PERIOD_12KBC else "UP")
             machine.run(56)
-        assert machine.b(EPOCH_DIAL) == DIAL_12KBC, "12000 B.C. on the dial"
+        assert machine.b(DIAL_PERIOD) == PERIOD_12KBC, "12000 B.C. on the dial"
         run.checkpoint("epoch_dial")
     if ahead("epoch_12kbc"):
         machine.run(3, "A")
@@ -465,9 +464,7 @@ def to_the_epoch(run, ahead, seed):
                                  and machine.b(A.OVERWORLD_TRAVEL) != TRAVEL_ON_FOOT, 8000), "12000 B.C."
         run.checkpoint("epoch_12kbc")
     if ahead("algetty"):
-        fly_to(run, *TERRA_CAVE_DOOR)
-        assert land(run), "ground by Terra Cave"
-        world_enter(run, TERRA_CAVE)
+        land_by(run, TERRA_CAVE)
         assert leave_fighting(run, ALGETTY), "Algetty"
         run.checkpoint("algetty")
     if ahead("algetty_rested"):
@@ -621,19 +618,22 @@ def ocean_palace(run, ahead, seed):
         # opens a battle, without waiting for the control to settle.
         assert in_hand(run), "the stairs' top in hand"
         for depth in range(200, PLATFORMS_TOP + 1, 100):
-            for _ in range(8):
+            for _ in range(30):
                 if run.me()[1] > depth:
                     break
-                if A.battle_menu_open(machine):
-                    win(run, seed)
-                    continue
                 for _ in range(60):         # the next moment the pad has the party
                     if machine.b(A.FIELD_PLAYER_CONTROL):
                         break
                     machine.run(1)
                 run.find_player()
-                if run.walk_here(lambda m, px, py: py > depth or A.battle_menu_open(m), max_nodes=3000) is None:
-                    machine.run(60)         # a monster's touch, its battle still opening
+                run.walk_here(lambda m, px, py: py > depth or not m.b(A.FIELD_PLAYER_CONTROL), max_nodes=3000)
+                # A monster's touch opens a battle a moment later; a
+                # statue's moment only pauses the walk.
+                for _ in range(9):
+                    if early.battle_ready(run):
+                        win(run, seed)
+                        break
+                    machine.run(10)
         assert run.me()[1] > PLATFORMS_TOP, "down the stairs"
         run.checkpoint("platforms")
     if ahead("masa_and_mune"):
@@ -659,6 +659,7 @@ def ocean_palace(run, ahead, seed):
         assert machine.b(STORY) == PALACE_LANDED, "Masa and Mune met"
         run.checkpoint("masa_and_mune")
     if ahead("palace_rested"):
+        assert in_hand(run), "the landing in hand"
         approach(run, *PALACE_SAVE_SPOT)
         rest(run)
         run.checkpoint("palace_rested")
