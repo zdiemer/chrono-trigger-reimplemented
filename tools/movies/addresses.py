@@ -141,8 +141,7 @@ four 16-bit values. Party members are slots 0-2, enemies 3-10. $5E30 is the HP
 the ported battle_draw_party_status and battle_stats code read."""
 
 BATTLE_ENEMY_KINDS = 0x7E98FF
-BATTLE_ENEMY_KIND_SLOTS = 4
-"""The distinct enemy numbers in the battle, a word each, low byte the
+"""The distinct enemy numbers in the battle, four words, each's low byte the
 number, high byte negative for none (`battle_enemy_kinds`)."""
 
 FIELD_PARTY_OBJECTS = 0x7E0197

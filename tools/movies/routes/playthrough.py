@@ -76,6 +76,7 @@ ARRIS_FLAGS, COMPUTER_SEEN = 0x7F00EC, 0x10
 SEED = 0xD4
 SHADOW = 0x66                # an enemy number: Lab 16's, 1 HP, no harm from weapons
 RUN_FROM = {SHADOW}
+ENEMY_KIND_SLOTS = 4         # words at A.BATTLE_ENEMY_KINDS
 WAIT_MODE = 1              # the battle mode question's second row: Wait
 
 
@@ -88,7 +89,7 @@ def naming(run):
 
 def enemy_kinds(machine):
     """The enemy numbers the open battle holds (battle_enemy_kinds)."""
-    words = [machine.w(A.BATTLE_ENEMY_KINDS + 2 * i) for i in range(A.BATTLE_ENEMY_KIND_SLOTS)]
+    words = [machine.w(A.BATTLE_ENEMY_KINDS + 2 * i) for i in range(ENEMY_KIND_SLOTS)]
     return {word & 0xFF for word in words if word < 0x8000}
 
 
