@@ -661,6 +661,8 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
             continue;
         ScreenEdges e = screen_edges(g, keeps_own_edges(g, layer));
         uint8_t x = field_layer_position_x(g, layer);
+        m->void_left[layer] = edge_is_a_void(g, layer, 0);
+        m->void_right[layer] = edge_is_a_void(g, layer, map_columns_of(g, layer) - 1);
         for (int k = 1; k <= margin; k++) {
             send_a_margin_column(g, pf, layer, e.left - k, (uint8_t)((x - k) & (FIELD_TILE_MAP_COLUMNS - 1)));
             send_a_margin_column(g, pf, layer, e.right + k,
@@ -686,6 +688,7 @@ static int around_the_ring(int pixels)
 
 static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int margin)
 {
+    const FieldMargins *m = field_margins(g);
     uint16_t scroll = field_layer_scroll_h(g, layer);
     unsigned map_columns = field_map_layer_sizes_width(g, layer) * FIELD_ENTRIES_A_MAP_TILE;
     if (layer != FIELD_BG1 && drawn_whole(g, layer)) {
@@ -699,9 +702,9 @@ static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int
     int fine = around_the_ring(scroll - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
     int first = e.left - margin, last = e.right + margin + 1;   /* the columns built, the last one past */
     int map_last = map_columns_of(g, layer);
-    if (first < 0 && !edge_is_a_void(g, layer, 0))
+    if (first < 0 && !m->void_left[layer])
         first = 0;
-    if (last > map_last && !edge_is_a_void(g, layer, map_last - 1))
+    if (last > map_last && !m->void_right[layer])
         last = map_last;
     int left = (first - e.left) * FIELD_ENTRY_PIXELS - fine, right = (last - e.left) * FIELD_ENTRY_PIXELS - fine;
     return (FieldLayerSpan){ (int16_t)left, (int16_t)(right > left ? right : left), scroll };
