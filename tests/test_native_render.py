@@ -2,10 +2,10 @@
 
 P3 of docs/PLATFORM.md: runtime/platform/native/ holds backends of the
 services -- the renderer of the video service, the mixer of the voices -- so
-each may read its service's header and the C library, and nothing in
-runtime/snes/ or runtime/apu/: not the PPU register layer, not its VRAM, CGRAM
-or OAM, not the scanline renderer it is checked against; not the S-DSP or its
-registers. Everything a backend draws or plays has to reach it through what
+each may read its service's header and the C library, and nothing of a
+hardware model: no PPU register layer, VRAM, CGRAM or OAM, no scanline renderer,
+no S-DSP or its registers. (The emulated hardware is gone from the tree; this
+keeps it from coming back through a backend.) Everything a backend draws or plays has to reach it through what
 its service describes, or a second backend (widescreen, GBA) would inherit the
 hardware model with it.
 """
