@@ -49,7 +49,7 @@ static BattlePoint box_place(const GameState *g, uint8_t slot)
     return (BattlePoint){ battle_bounds_x_unchecked(g, slot), battle_bounds_y_unchecked(g, slot) };
 }
 
-static void place_box(GameState *g, uint8_t slot, BattlePoint at)
+void battle_place_box(GameState *g, uint8_t slot, BattlePoint at)
 {
     if (slot < BATTLE_BOUNDS_X_COUNT) {
         set_battle_bounds_x(g, slot, at.x);
@@ -226,8 +226,8 @@ static SearchAnswer found(const GameState *g) { return (SearchAnswer){ battle_se
  * stand, and holding. */
 static void set_up(GameState *g, uint8_t searcher, uint8_t other)
 {
-    place_box(g, searcher, standing(g, searcher));
-    place_box(g, other, standing(g, other));
+    battle_place_box(g, searcher, standing(g, searcher));
+    battle_place_box(g, other, standing(g, other));
     set_battle_search_failed(g, 0);
 }
 
