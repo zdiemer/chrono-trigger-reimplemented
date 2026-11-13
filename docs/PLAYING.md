@@ -97,7 +97,7 @@ input history, while the frontend owns names and atomic writes.
 `python3 tools/player_check.py --build build/main --rom roms/ct-usa.sfc` checks
 opening, menu and battle continuations from a state file loaded by another
 process (state, picture and PCM), route slot/file restores, recording playback
-and `--check-snapshots` over a field, menu, battle and scene movie, one process
+and `--check-snapshots` over a field, menu, battle and scene movie, two processes
 at a time; the gate runs it. Outputs stay under the ignored
 `build/player-check` directory.
 
