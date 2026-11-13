@@ -7,7 +7,7 @@ from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
 SAVE = "saves/routes/pre-heckran.srm"
-PHASES = ["loaded", "battle", "won", "after"]
+PHASES = ["loaded", "heckran_battle", "heckran_won", "heckran_after"]
 HEADER = """\
 # Heckran's Cave, 1000 A.D.: load the cave save point, defeat Heckran with magic,
 # wait out its water counterattack stance, and end with the field back in hand (route heckran).
@@ -38,7 +38,7 @@ def magic(bot, state, rng, inventory):
     return ("tech", 2, min(living, key=lambda s: state.hp(s)) if living else None)
 
 
-def fight(run, seed, boss=False):
+def fight(run, seed, boss=False, max_tries=100):
     seen = []
     waited = []
 
@@ -70,11 +70,30 @@ def fight(run, seed, boss=False):
             return original(action)
         bot.do = do
 
-    run.fight(magic, won, seed=seed, max_frames=28000, max_tries=100,
+    run.fight(magic, won, seed=seed, max_frames=28000, max_tries=max_tries,
               setup=guard if boss else None)
     if boss:
         assert waited, "Heckran's water stance was waited out"
     assert run.wait_control(10000), "the field after the fight"
+
+
+def play(run, start=1, seed=1, max_tries=100):
+    """From the cave's save point to Heckran beaten and the field in hand; `start`
+    is the index in PHASES of the first phase to run."""
+    m = run.machine
+    if start <= 1:
+        assert run.exit_to("2f00"), "Heckran's chamber"
+        assert run.wait_control()
+        assert run.walk_here(lambda machine, x, y: y < 32 * 16) is not None
+        assert run.dialogs_until(lambda: m.b(0x7E95D5) < 0x80, 6000)
+        run.checkpoint("heckran_battle")
+    if start <= 2:
+        fight(run, seed, boss=True, max_tries=max_tries)
+        run.checkpoint("heckran_won")
+    if start <= 3:
+        assert run.find_player() is not None, "the field back in hand"
+        assert run.map_id() == "2f00" and m.b(0x7F0000) == 0x51
+        run.checkpoint("heckran_after")
 
 
 def main():
@@ -94,19 +113,7 @@ def main():
             assert run.wait_control()
             assert run.map_id() == "3100" and m.b(0x7F0000) < 0x51
             run.checkpoint("loaded")
-        if start <= 1:
-            assert run.exit_to("2f00"), "Heckran's chamber"
-            assert run.wait_control()
-            assert run.walk_here(lambda machine, x, y: y < 32 * 16) is not None
-            assert run.dialogs_until(lambda: m.b(0x7E95D5) < 0x80, 6000)
-            run.checkpoint("battle")
-        if start <= 2:
-            fight(run, args.seed, boss=True)
-            run.checkpoint("won")
-        if start <= 3:
-            assert run.find_player() is not None, "the field back in hand"
-            assert run.map_id() == "2f00" and m.b(0x7F0000) == 0x51
-            run.checkpoint("after")
+        play(run, start, args.seed)
         m.screenshot(run.prefix + "_end.png")
         run.finish("Heckran beaten and the field back in hand")
         if args.movie:
