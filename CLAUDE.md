@@ -222,7 +222,8 @@ worktree under `.claude/worktrees/`. `AGENTS.md` is this file.
     verdict there, and the coordinator merges once all three have passed. A fix
     gets one scoped re-review.
   - `main` is protected: no force-pushes or deletion, and a merge needs the
-    `rom-gate` commit status plus one approving review. Only the coordinator's landing loop posts `rom-gate`: `success` after CI is green and
+    `rom-gate` commit status plus one approving review. Only the coordinator's
+    landing loop posts `rom-gate`: `success` after CI is green and
     the gate prints `suite OK` on that exact head, or with "docs only" for a PR
     that changes only Markdown or `docs/`. A movie change gets a real gate run:
     the gate plays the movies, even though CI skips them for lack of a cartridge.
