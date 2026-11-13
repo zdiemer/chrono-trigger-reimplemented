@@ -21,6 +21,13 @@ TYPES = ["bytes", "words", "ptr16", "ptr24", "struct", "mixed", "undetermined", 
 # in groups (frontend/palettes.h writes and reads them as text).
 PALETTE_CODEC = re.compile(r"palette:[1-9][0-9]*(x[1-9][0-9]*)?")
 
+# A font's codec: 8x8 glyphs of two bitplanes, 16 bytes a glyph, or the
+# proportional 12x12 ones, 24 bytes of each glyph's left eight pixels and then
+# 24 a pair of their right four; and the widths of a font's glyphs from $XX on,
+# a byte each (frontend/fonts.h writes and reads them as text).
+FONT_BYTES = {"font:8x8": 16, "font:12x12": 36}
+WIDTHS_CODEC = re.compile(r"font-widths:([a-z][a-z0-9_.]*):([0-9A-F]{2})")
+
 
 
 class Row:
@@ -54,7 +61,7 @@ def data_views():
 def problems_of(rows: list[Row]) -> list[str]:
     """What makes a catalogue unusable: names twice, rows overlapping or out of
     order, a range in no bank, a type game/data/assets.h doesn't know, a
-    palette that isn't whole colors."""
+    palette that isn't whole colors, a font that isn't whole glyphs."""
     out, names = [], set()
     for i, r in enumerate(rows):
         if not re.fullmatch(r"[a-z][a-z0-9_.]*", r.name):
@@ -69,6 +76,18 @@ def problems_of(rows: list[Row]) -> list[str]:
         if r.codec.startswith("palette") and (not PALETTE_CODEC.fullmatch(r.codec) or r.type != "words"
                                               or (r.end - r.at + 1) % 2):
             out.append(f"{r.name}: a palette is words, an even number of bytes, its codec palette:N or palette:NxM")
+        size = r.end - r.at + 1
+        if r.codec.startswith("font:") and (r.codec not in FONT_BYTES or r.type != "gfx"
+                                            or size % (FONT_BYTES[r.codec] * (2 if r.codec == "font:12x12" else 1))):
+            out.append(f"{r.name}: a font is gfx, whole glyphs (pairs of them for font:12x12), "
+                       f"its codec one of {', '.join(FONT_BYTES)}")
+        if r.codec.startswith("font-widths"):
+            m = WIDTHS_CODEC.fullmatch(r.codec)
+            font = next((f for f in rows if m and f.name == m[1]), None)
+            glyphs = font and font.codec in FONT_BYTES and (font.end - font.at + 1) // FONT_BYTES[font.codec]
+            if not m or r.type != "bytes" or not glyphs or int(m[2], 16) + size > glyphs:
+                out.append(f"{r.name}: widths are bytes, their codec font-widths:FONT:XX, a width for each "
+                           f"of FONT's glyphs from $XX on and no more")
         if i and rows[i - 1].end >= r.at:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out

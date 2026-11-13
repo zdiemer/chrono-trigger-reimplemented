@@ -75,12 +75,8 @@ own padding row). `tools/assets.py check` holds a palette row to whole words.
 `frontend/palettes.c` writes every palette resource a store serves as text, a
 color a line (`red green blue`, 0-31, and `+` where the word's unused top bit
 is set, so any word survives), under a `[name]` line and row comments, and
-reads such text back into a store over the pack. `ct_native` keeps the text
-beside the pack (`<pack>.palettes`): where there is none it checks that every
-palette written and read again gives back its bytes, writes the file, and on
-every start remakes the pack in memory from the store over the text, so the
-game's existing accessors read the decoded palettes with `game/` unchanged.
-The text is from the user's cartridge and, like the pack, never committed.
+reads such text back into a store over the pack. The text is from the user's
+cartridge and, like the pack, never committed.
 
 Measured: `palettes_test` (ROM-free) writes and reads back a made-up store's
 six palettes, serves an edited color and only the palettes a text names, and
@@ -89,6 +85,66 @@ every cartridge palette as its bytes. The lean gate runs every movie, route
 and snapshot on the decoded palettes, since each run imports its pack and
 text. Swapping red and blue in the field's palettes shows in the first field
 scene's picture.
+
+### Decoded resources
+
+What a decoder needs besides its own format is shared, in
+`frontend/decoded.c`: a kind of decoded resource (`DecodedKind`) says which
+rows of the catalogue it decodes, how one is written as lines and how a line
+is read back, and the shared code writes the text (the kind's header, then
+each resource under `[name]`), reads it with comments and blank lines dropped
+and refuses wrong text at its line, serves what it read over the store
+beneath, and checks that every resource written and read again gives back its
+bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
+`<pack>.fonts`): where there is none it checks the round trip, writes the file
+(create-only, so two players starting on one pack don't overwrite each
+other), and on every start stacks each kind's store over the one before and
+remakes the pack in memory from the top, so the game's existing accessors
+read the decoded resources with `game/` unchanged. A text it can't read or
+write leaves the pack's own bytes to play, after a warning; a text that is
+wrong stops the start, naming its line.
+
+### Fonts
+
+A catalogue row whose codec is `font:8x8` or `font:12x12` is glyphs of two
+bitplanes, and `font-widths:FONT:XX` the widths of FONT's glyphs from `$XX`
+on, a byte each. Four fonts were split out of the mixed regions that held
+them, each where its accessor's indexing and the data agree:
+
+- `dialog_font` (`$FF:2060`, 256 glyphs, `font:12x12`): the proportional font
+  the dialog, the menus' text and the overworld's signs set with
+  (`game/menu/glyphs.c`). Each glyph's left eight pixels are 24 bytes of its
+  own from `$FF:2060`; their right four share a byte with the next glyph's,
+  24 bytes a pair from `$FF:3860`. Glyphs `$00-$9F` are blank: the text's
+  glyphs start at `$A0`. Its widths are `dialog_font_widths` (`$C2:60E6`,
+  glyphs `$A0-$FF`), split from the menu's table of name places.
+- `small_font` (`$FF:8E60`, 224 glyphs, `font:8x8`): the menus' four-color
+  tiles, the 8x8 letters, digits and kana with the icons, window marks and
+  cursors among them; and `small_font_replacements` (`$FF:C9FC`, 16), the
+  tiles the menus put over its second sixteen.
+- `battle_number_font` (`$D1:4C80`, 16 glyphs, `font:8x8`): the battle's
+  damage and healing numbers and MISS.
+
+`frontend/fonts.c` writes a glyph a block: `glyph XX` (its number in hex) and
+`width N` where its font has one, then a line of characters for each of its
+lines, `.` for color 0 and `1`-`3` for the rest, so a person edits a glyph by
+drawing it. A font is read back whole, its glyphs in order, and its widths
+with it. `tools/assets.py check` holds a font row to whole glyphs and a
+widths row to its font's glyphs. `tools/font_sheets.py` draws each font of a
+text as a picture of its glyphs under their numbers, written where it is
+told, never into the repository. The credits' letters (`$FD:0000`) are glyphs
+too but are packed (`lz`); decoding them waits on a packer that gives back the
+cartridge's bytes (an issue labelled kind: target).
+
+Measured: `fonts_test` (ROM-free) writes and reads back made-up glyphs of
+every font and their widths, serves an edited pixel and width and only the
+fonts a text names, and refuses wrong text at its line (a pixel that isn't
+one, a short line, a glyph out of order, a width where there is none or none
+where there is one, a font cut short); with the ROM staged every font reads
+back as its bytes. The lean gate runs on the decoded fonts. Drawing a box
+over the dialog font's `e` and a checkerboard over the small font's `A` shows
+both in the Battle Mode screen of a new game (frame 2000 of
+`movies/new-game.ctm`).
 
 ## Further targets
 
