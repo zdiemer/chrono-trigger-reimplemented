@@ -822,6 +822,33 @@ def rested_for_azala(run):
     press_facing(run, WALL_SWITCH)
 
 
+CURE_TECH, KISS_TECH = 12, 41   # Marle's Cure and Ayla's Kiss, by tech id
+HURT = 120                      # HP a member is down by before a heal
+
+
+def nizbel_ii_fight(bot, state, rng, inventory):
+    """Nizbel II with no Ethers, Lapis or Tonics to hand (route nizbel_ii's policy spends MP its
+    save restores with them): Crono's Lightning, his cheapest, lowers the boss's guard for the
+    others' blows; Marle's Cure and Ayla's Kiss keep the party up."""
+    member = state.member
+    ids = list(policies.party_ids(bot))
+    entries = dict((tech, entry) for entry, tech in policies.tech_list_entries(bot, member))
+    mp = state.mp(member)
+    alive = [i for i in range(3) if state.hp(i)]
+    living = policies.enemies(state)
+    target = living[0] if living else None
+    if alive:
+        worst = min(alive, key=lambda i: policies.fraction(state, i))
+        if state.max_hp(worst) - state.hp(worst) >= HURT:
+            if CURE_TECH in entries and mp >= CURE_MP:
+                return "tech", entries[CURE_TECH], worst
+            if KISS_TECH in entries and mp >= KISS_MP:
+                return "tech", entries[KISS_TECH], worst
+    if ids[member] == CRONO_CHARACTER and LIGHTNING_TECH in entries and mp >= 2:
+        return "tech", entries[LIGHTNING_TECH], target
+    return "attack", target
+
+
 def lair_settle(run):
     """A fight on the lair's ways: run from it where it lets the party (settle_fight), else
     lair_fights; then the field back in hand."""

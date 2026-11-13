@@ -231,7 +231,7 @@ Frog is ready and Aura Whirl only when Marle is. After the Gate to
 65,000,000 B.C. it plays Laruba's hut, Dactyl's Nest and Ayla's dactyls, the
 flight to Tyrano Lair, `nizbel_ii`'s piece with a frugal policy and rests at
 the lair's save points (its Shelters), the switch room's west part, and
-`black_tyrano`'s piece to Lavos's fall (`tyrano_after`, frame 768749).
+`black_tyrano`'s piece to Lavos's fall (`tyrano_after`, frame 738065).
 
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
