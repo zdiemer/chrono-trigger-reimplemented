@@ -134,6 +134,36 @@ class OutcomesTest(unittest.TestCase):
 
 
 
+    def test_a_carried_fight_needs_no_exception_but_keeps_its_protected_matches(self):
+        self.run["test", "game"] = ["a" * 64]
+        self.run["test", "places"] = ["1:0", "400:1", "900:0"]
+        result = o.compare(self.ref, self.run, "test", 600)
+        base = {("test/native", "places"): ["0", "1"], ("test/native", "game"): [],
+                ("test/native", "sram"): ["end"]}
+        self.assertTrue(o.ratchet(result, self.run, "test", "native", base, {}))
+        self.assertFalse(o.ratchet(result, self.run, "test", "native", base, {}, carried=True))
+        failures = o.ratchet(result, self.run, "test", "native", base, self.exception("game"), carried=True)
+        self.assertTrue(any("delete it" in f for f in failures))
+        self.run["test", "places"] = ["1:0", "520:1"]
+        lost = o.compare(self.ref, self.run, "test", 600)
+        self.assertTrue(any("places regressed" in f for f in
+                            o.ratchet(lost, self.run, "test", "native", base, {}, carried=True)))
+
+    def test_fight_routes_name_known_routes_with_reasons(self):
+        routes = self.root / "routes"
+        routes.mkdir()
+        (routes / "duel.py").write_text("")
+        (routes / "_helper.py").write_text("")
+        path = self.root / "fights"
+        path.write_text("# header\nbattle-duel duel  # won, field in hand\n")
+        self.assertEqual(o.fight_routes(path, routes), {"battle-duel": "duel"})
+        for text in ("battle-duel duel\n", "battle-duel _helper  # a helper\n",
+                     "battle-duel nowhere  # missing\n", "a duel  # x\na duel  # twice\n"):
+            path.write_text(text)
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                o.fight_routes(path, routes)
+        self.assertTrue(o.fight_routes())
+
     def test_artifact_check_runs_no_executable(self):
         ledger, baseline, exc = [self.root / name for name in ("ledger", "baseline", "exceptions")]
         o.write(ledger, self.ref, "# reference")
