@@ -126,17 +126,17 @@ typedef enum {
  * facing). Magus walks and stands with his own, a fixed count further on. */
 static inline uint8_t overworld_walking_animation(const GameState *g, uint8_t facing, uint8_t gait)
 {
-    return rom_read8(g, 0xC2397Fu + (uint8_t)(facing * 2u + gait));
+    return asset_read8(g, ASSET_OVERWORLD_WALKING_ANIMATION, (uint8_t)(facing * 2u + gait));
 }
 
 static inline uint8_t overworld_standing_animation(const GameState *g, uint8_t facing)
 {
-    return rom_read8(g, 0xC239AAu + facing);
+    return asset_read8(g, ASSET_OVERWORLD_STANDING_ANIMATION, facing);
 }
 
 static inline uint8_t overworld_sign_sprites_byte(const GameState *g, unsigned at)
 {
-    return rom_read8(g, 0xC257C2u + at);
+    return asset_read8(g, ASSET_OVERWORLD_SIGN_SPRITES_BYTE, 0x12u + at);
 }
 
 static inline Reach overworld_reach(const GameState *g, ReachRecord r)
@@ -154,7 +154,7 @@ static inline uint8_t overworld_epoch_flying_animation(const GameState *g, bool 
  * and down ($C2:4899, two words a facing). */
 static inline int16_t overworld_epoch_pace(const GameState *g, uint8_t facing, MenuAxis axis)
 {
-    return (int16_t)rom_read16(g, 0xC24899u + facing * 4u + axis * 2u);
+    return (int16_t)asset_read16(g, ASSET_OVERWORLD_EPOCH_PACE, facing * 4u + axis * 2u);
 }
 
 /* The leader's dactyl flies the way it faces two pixels a frame, across and
@@ -162,12 +162,12 @@ static inline int16_t overworld_epoch_pace(const GameState *g, uint8_t facing, M
  * ($C2:5047, a byte a facing). */
 static inline int16_t overworld_dactyl_pace(const GameState *g, uint8_t facing, MenuAxis axis)
 {
-    return (int16_t)rom_read16(g, 0xC25037u + facing * 4u + axis * 2u);
+    return (int16_t)asset_read16(g, ASSET_OVERWORLD_DACTYL_PACE, facing * 4u + axis * 2u);
 }
 
 static inline uint8_t overworld_dactyl_flying_animation(const GameState *g, uint8_t facing)
 {
-    return rom_read8(g, 0xC25047u + facing);
+    return asset_read8(g, ASSET_OVERWORLD_DACTYL_PACE, 0x10u + facing);
 }
 
 /* Where the leader's dactyl's second sprite is drawn, below its spot (above
@@ -175,12 +175,12 @@ static inline uint8_t overworld_dactyl_flying_animation(const GameState *g, uint
  * word of its sprite script). */
 static inline int16_t overworld_dactyl_second_sprite_below(const GameState *g, bool flying)
 {
-    return (int16_t)rom_read16(g, 0xC2508Fu + (flying ? 4u : 0u));
+    return (int16_t)asset_read16(g, ASSET_OVERWORLD_DACTYL_SECOND_SPRITE_BELOW, (flying ? 4u : 0u));
 }
 
 static inline uint8_t overworld_dactyl_second_sprite(const GameState *g, bool flying)
 {
-    return rom_read8(g, 0xC25091u + (flying ? 4u : 0u));
+    return asset_read8(g, ASSET_OVERWORLD_DACTYL_SECOND_SPRITE_BELOW, 0x2u + (flying ? 4u : 0u));
 }
 
 /* The second and third members' dactyls fly in a V behind the leader's: each
@@ -190,18 +190,18 @@ static inline uint8_t overworld_dactyl_second_sprite(const GameState *g, bool fl
  * a follower). */
 static inline int16_t overworld_formation_place(const GameState *g, uint8_t leader_facing, unsigned follower, MenuAxis axis)
 {
-    return (int16_t)rom_read16(g, 0xC2543Cu + (leader_facing * 2u + follower) * 4u + axis * 2u);
+    return (int16_t)asset_read16(g, ASSET_OVERWORLD_FORMATION_PLACE, (leader_facing * 2u + follower) * 4u + axis * 2u);
 }
 
 static inline uint8_t overworld_following_dactyl_flying_animation(const GameState *g, unsigned follower, uint8_t facing)
 {
-    return rom_read8(g, 0xC2548Cu + follower * 4u + facing);
+    return asset_read8(g, ASSET_OVERWORLD_FOLLOWING_DACTYL_FLYING_ANIMATION, follower * 4u + facing);
 }
 
 static inline uint32_t overworld_map_record_of(const GameState *g, uint16_t location)
 {
     uint16_t at = (uint16_t)(((location & 0x1FFu) - OVERWORLD_FIRST_MAP) * 2u);
-    return OVERWORLD_RECORDS_BANK | rom_read16(g, 0xC6FD00u + at);
+    return OVERWORLD_RECORDS_BANK | asset_read16(g, ASSET_OVERWORLD_MAP_RECORD_OF, at);
 }
 
 static inline uint8_t overworld_map_record_byte(const GameState *g, uint32_t record, uint8_t field)
@@ -221,7 +221,7 @@ static inline uint32_t overworld_stream(const GameState *g, OverworldStreamTable
  * on to. */
 static inline uint8_t overworld_last_sprite_colours_byte(const GameState *g, unsigned at)
 {
-    return rom_read8(g, 0xC6F620u + at);
+    return asset_read8(g, ASSET_OVERWORLD_LAST_SPRITE_COLORS, at);
 }
 
 #endif

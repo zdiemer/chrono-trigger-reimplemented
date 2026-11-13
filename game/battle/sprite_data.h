@@ -41,45 +41,47 @@ enum { BATTLE_ARCTANGENT_STEP = 8, BATTLE_ARCTANGENT_COLUMNS = 32 };
  * kind ($CC:F50A, a word a kind). */
 static inline uint8_t battle_frame_parts(const GameState *g, uint8_t kind)
 {
-    return rom_read8(g, 0xCCF50Au + (uint8_t)(kind << 1));
+    return asset_read8(g, ASSET_BATTLE_FRAME_PARTS, (uint8_t)(kind << 1));
 }
 
 /* Where an effect sprite set starts in the effect sprites, in bytes, by set
  * ($CC:F7C0, a word a set). */
 static inline uint16_t battle_effect_sprite_set_start(const GameState *g, uint8_t set)
 {
-    return rom_read16(g, 0xCCF7C0u + (uint16_t)(set << 1));
+    return asset_read16(g, ASSET_BATTLE_SPRITE_SET_START, (uint16_t)(set << 1));
 }
 
 static inline MarkerSprite battle_marker_sprite(const GameState *g, uint8_t frame_sprite)
 {
-    uint32_t at = 0xCCF6D4u + frame_sprite;
-    return (MarkerSprite){ (int8_t)rom_read8(g, at), (int8_t)rom_read8(g, at + 1), rom_read8(g, at + 2),
-                           rom_read8(g, at + 3) };
+    uint32_t at = frame_sprite;
+    return (MarkerSprite){ (int8_t)asset_read8(g, ASSET_BATTLE_MARKER_SPRITE, at),
+                           (int8_t)asset_read8(g, ASSET_BATTLE_MARKER_SPRITE, at + 1),
+                           asset_read8(g, ASSET_BATTLE_MARKER_SPRITE, at + 2),
+                           asset_read8(g, ASSET_BATTLE_MARKER_SPRITE, at + 3) };
 }
 
 /* How many frames each frame of a marker shows, by its kind from the first
  * ($CC:F5FD). */
 static inline uint8_t battle_marker_pace(const GameState *g, uint8_t kind)
 {
-    return rom_read8(g, 0xCCF5FDu + kind);
+    return asset_read8(g, ASSET_BATTLE_MARKER_PACE, kind);
 }
 
 /* The held pose's tint: the two colours it puts in a party member's palette
  * ($CC:F77B, a word each). */
 static inline uint16_t battle_held_tint(const GameState *g, unsigned k)
 {
-    return rom_read16(g, 0xCCF77Bu + k * 2);
+    return asset_read16(g, ASSET_BATTLE_HELD_TINT, k * 2);
 }
 
 static inline int8_t battle_scripted_move_dx(const GameState *g, uint8_t move, uint8_t step)
 {
-    return (int8_t)rom_read8(g, 0xCCF494u + (uint16_t)(move * BATTLE_SCRIPTED_MOVE_STEPS + step));
+    return (int8_t)asset_read8(g, ASSET_BATTLE_SCRIPTED_MOVE_DX, (uint16_t)(move * BATTLE_SCRIPTED_MOVE_STEPS + step));
 }
 
 static inline int8_t battle_scripted_move_dy(const GameState *g, uint8_t move, uint8_t step)
 {
-    return (int8_t)rom_read8(g, 0xCCF594u + (uint16_t)(move * BATTLE_SCRIPTED_MOVE_STEPS + step));
+    return (int8_t)asset_read8(g, ASSET_BATTLE_SCRIPTED_MOVE_DY, (uint16_t)(move * BATTLE_SCRIPTED_MOVE_STEPS + step));
 }
 
 static inline uint8_t battle_number_rise_table(const GameState *g, bool second, uint8_t row)
@@ -91,19 +93,20 @@ static inline uint8_t battle_number_rise_table(const GameState *g, bool second, 
  * ($CC:F754, a word a pose), and the color at a place in them ($CE:0100). */
 static inline uint16_t battle_color_cycle_start(const GameState *g, uint8_t pose)
 {
-    return rom_read16(g, 0xCCF754u + (uint8_t)(pose << 1));
+    return asset_read16(g, ASSET_BATTLE_COLOR_CYCLE_START, (uint8_t)(pose << 1));
 }
 
 static inline uint16_t battle_color_cycle_color(const GameState *g, uint16_t at)
 {
-    return (uint16_t)(rom_read8(g, 0xCE0100u + at) | rom_read8(g, 0xCE0101u + at) << 8);
+    return (uint16_t)(asset_read8(g, ASSET_BATTLE_COLOR_CYCLE_COLOR, at) |
+                      asset_read8(g, ASSET_BATTLE_COLOR_CYCLE_COLOR, 0x1u + at) << 8);
 }
 
 /* The sine of an angle, 256 steps a turn: its magnitude in 256ths, from the
  * table at $C0:F900 (every fourth byte), and the sign by the half turn. */
 static inline uint8_t battle_sine_magnitude(const GameState *g, uint8_t angle)
 {
-    return rom_read8(g, 0xC0F900u + (uint16_t)(angle << 2));
+    return asset_read8(g, ASSET_SINES, (uint16_t)(angle << 2));
 }
 
 static inline uint16_t battle_arctangent_index(uint8_t across, uint8_t down)
@@ -113,10 +116,13 @@ static inline uint16_t battle_arctangent_index(uint8_t across, uint8_t down)
 
 static inline uint8_t battle_arctangent(const GameState *g, uint8_t across, uint8_t down)
 {
-    return rom_read8(g, 0xC0F300u + battle_arctangent_index(across, down));
+    return asset_read8(g, ASSET_SLOPE_ANGLES, battle_arctangent_index(across, down));
 }
 
 /* The facing an object moving at an angle takes ($C0:F700). */
-static inline uint8_t battle_facing_for_angle(const GameState *g, uint8_t angle) { return rom_read8(g, 0xC0F700u + angle); }
+static inline uint8_t battle_facing_for_angle(const GameState *g, uint8_t angle)
+{
+    return asset_read8(g, ASSET_DIRECTION_FACINGS, angle);
+}
 
 #endif

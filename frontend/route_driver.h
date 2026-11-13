@@ -15,6 +15,11 @@ typedef struct {
     uint8_t (*read)(void *ctx, uint32_t address);
     void (*write)(void *ctx, uint32_t address, uint8_t value);
     bool (*shot)(void *ctx, const char *path);
+    /* The picture of the background layers in `layers` (VID_LAYER_BIT set)
+     * alone, as the frame places them: no sprites, windows or color math,
+     * at full brightness; each of BG1-BG4's scroll across and down; and the
+     * frame's 256 colors (BGR555). */
+    bool (*layer_shot)(void *ctx, const char *path, uint8_t layers, uint16_t scroll[8], uint16_t colors[256]);
     /* The program as it stands at the end of the last frame, as bytes the
      * host reads back (malloc'd; NULL where it can't take one), and the
      * program put back as such bytes had it, false changing nothing where

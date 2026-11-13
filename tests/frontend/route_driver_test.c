@@ -24,6 +24,13 @@ static uint8_t read_byte(void *ctx, uint32_t at)
 }
 static void write_byte(void *ctx, uint32_t at, uint8_t v) { (void)at; ((Program *)ctx)->value = v; }
 static bool shot(void *ctx, const char *path) { (void)ctx; return !strcmp(path, "path with spaces.png"); }
+static bool layer_shot(void *ctx, const char *path, uint8_t layers, uint16_t scroll[8], uint16_t colors[256])
+{
+    (void)ctx;
+    for (unsigned k = 0; k < 256; k++) colors[k] = k == 1 ? 0x7FFF : 0;
+    for (unsigned k = 0; k < 8; k++) scroll[k] = (uint16_t)(layers * 10 + k);
+    return !strcmp(path, "a layer.png");
+}
 static uint8_t *snapshot(void *ctx, size_t *len)
 {
     Program *p = ctx;
@@ -51,7 +58,7 @@ static void run(Program *p, uint32_t identity, const char *commands, const char 
     if (!in || !out) exit(1);
     fputs(commands, in); rewind(in);
     uint8_t seed[] = {1, 2, 3};
-    RouteHost host = {p, step, read_byte, write_byte, shot, snapshot, restore};
+    RouteHost host = {p, step, read_byte, write_byte, shot, layer_shot, snapshot, restore};
     CHECK(route_driver(&host, seed, sizeof seed, identity, in, out) == 0);
     rewind(out);
     char text[4096];
@@ -61,6 +68,12 @@ static void run(Program *p, uint32_t identity, const char *commands, const char 
     fclose(in); fclose(out);
 }
 
+/* 254 colors of 0, four hex digits each */
+#define ZEROS_2 "00000000"
+#define ZEROS_16 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2
+#define ZEROS_254 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 \
+    ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_16 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2 ZEROS_2
+
 int main(void)
 {
     /* 0 -> 2 -> 8 -> 26 after `run 3 2`; then pads 1|1<<16 twice */
@@ -68,10 +81,12 @@ int main(void)
     run(&p, 42,
         "save 0\nrun 3 2\nsave 1\nrun 2 1 1\npeek 7e0000 4\nsave 2\n"
         "run 2 50\nload 1\npeek 7e0000 4\nrun 2 1 1\npeek 7e0000 4\nload 2\nframe\n"
-        "load 0\nframe\ndrop 1\nload 1\nload 9\nshot path with spaces.png\nquit\n",
+        "load 0\nframe\ndrop 1\nload 1\nload 9\nshot path with spaces.png\n"
+        "layershot 3 a layer.png\nlayershot 3\nlayershot 1x a layer.png\nquit\n",
         "ok 0\nok 3\nok 3\nok 5\nok ee000400\nok 5\n"
         "ok 7\nok 3\nok 1a000000\nok 5\nok ee000400\nok 5\nok 5\n"
-        "ok 0\nok 0\nok\nerr empty\nerr empty\nok\nok\n");
+        "ok 0\nok 0\nok\nerr empty\nerr empty\nok\n"
+        "ok 30 31 32 33 34 35 36 37 00007fff" ZEROS_254 "\nerr file\nerr file\nok\n");
     CHECK(p.snapshots == 3 && p.restores == 3 && p.steps == 9);
 
     p = (Program){0};

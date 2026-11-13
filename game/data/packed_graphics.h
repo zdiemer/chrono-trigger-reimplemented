@@ -18,8 +18,9 @@ enum { NO_GRAPHICS_BLOCK = 0xFF };
 /* Where a block is: a long pointer per id ($F6:2220). */
 static inline uint32_t graphics_block_address(const GameState *g, uint8_t id)
 {
-    uint32_t at = 0xF62220u + 3u * id;
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = 3u * id;
+    return asset_read16(g, ASSET_GRAPHICS_BLOCK_ADDRESS, at) |
+           (uint32_t)asset_read8(g, ASSET_GRAPHICS_BLOCK_ADDRESS, at + 2) << 16;
 }
 
 #endif

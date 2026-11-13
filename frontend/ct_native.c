@@ -19,12 +19,12 @@
  * (frontend/assets.h; game/data/assets.h, the store): <rom name>.assets beside
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
- * kept. The palettes, the fonts, the graphics, the maps, the text and the
- * tables of records are served from the text beside the pack, <pack
- * name>.palettes, .fonts, .graphics, .maps, .text and .records
- * (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h, frontend/maps.h,
- * frontend/text.h, frontend/records.h), written from the pack where there is
- * none.
+ * kept. The palettes, the fonts, the graphics, the maps, the event scripts,
+ * the text and the tables of records are served from the text beside the
+ * pack, <pack name>.palettes, .fonts, .graphics, .maps, .scripts, .text and
+ * .records (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h,
+ * frontend/maps.h, frontend/scripts.h, frontend/text.h, frontend/records.h),
+ * written from the pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
  * --frames. It reports invalid game state with its frame and source origin, and what it
@@ -50,6 +50,7 @@
 #include "fonts.h"
 #include "maps.h"
 #include "records.h"
+#include "scripts.h"
 #include "text.h"
 #include "palettes.h"
 #include "tiles.h"
@@ -219,9 +220,10 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     const char *why = "";
     bool missing = false;
     char *text = (char *)files_read(path, len, true, &missing);
-    if (text && !decoded_of_this_catalogue(text, *len)) {
-        fprintf(stderr, "ct_native: %s is of another catalogue of resources; playing the pack's own %s "
-                        "(move it away to write it afresh)\n", path, kind->what);
+    if (text && !decoded_of_these_rows(kind, text, *len)) {
+        fprintf(stderr, "ct_native: %s was written for another catalogue's %s, so its edits are not applied "
+                        "and the pack's own %s play. To keep them, move the file away, start again to have "
+                        "it written afresh, and make the edits again there.\n", path, kind->what, kind->what);
         free(text);
         return NULL;
     }
@@ -245,18 +247,18 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     return written < 0 ? (free(text), NULL) : text;
 }
 
-/* The pack made again with its palettes, fonts, graphics, maps, text and records as the text beside it
+/* The pack made again with its palettes, fonts, graphics, maps, scripts, text and records as the text beside it
  * says, each kind's store over the one before. True with the pack unchanged
  * where there is no text; false, the pack and its bytes gone, only where a
  * text is wrong or the remade pack can't be had. */
-enum { DECODED_KINDS = 6 };
+enum { DECODED_KINDS = 7 };
 
 static bool serve_decoded(const Files *files, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
-    const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text, &tile_text, &map_text, &game_text,
-                                                &record_text };
-    const char *paths[DECODED_KINDS] = { files->palettes, files->fonts, files->graphics, files->maps, files->text,
-                                         files->records };
+    const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text, &tile_text, &map_text, &script_text,
+                                                &game_text, &record_text };
+    const char *paths[DECODED_KINDS] = { files->palettes, files->fonts, files->graphics, files->maps, files->scripts,
+                                         files->text, files->records };
     Decoded *decoded[DECODED_KINDS] = { NULL };
     AssetStore stores[DECODED_KINDS + 1];
     asset_pack_store(*pack, &stores[0]);
@@ -583,6 +585,45 @@ static bool route_shot(void *ctx, const char *path)
     picture_frame(d->picture, d->pf, d->frame);
     return ct_png_write(path, d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT) == 0;
 }
+/* The frame's background layers in `layers` alone, for comparing a layer
+ * with a map drawn from its resources (tests/test_map_pictures.py): every
+ * line's screens hold just those layers, with no windows, color math or
+ * mosaic, at full brightness, and its colors, drawn by a renderer of its own so the
+ * player's picture keeps its cache. */
+static bool route_layer_shot(void *ctx, const char *path, uint8_t layers, uint16_t scroll[8], uint16_t colors[256])
+{
+    NativeDriver *d = ctx;
+    VidFrame *f = malloc(sizeof *f);
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = malloc(VID_RENDER_MAX_PIXELS * sizeof *pixels);
+    bool ok = f && r && pixels;
+    if (ok) {
+        *f = *vid_host_picture(d->pf);
+        for (unsigned i = 0; i < f->span_count; i++) {
+            VidLineState *s = &f->spans[i].state;
+            s->main_layers = layers;
+            s->sub_layers = 0;
+            s->windows.win_main = s->windows.win_sub = 0;
+            s->math.layers = 0;
+            s->math.clip_black = s->math.prevent_math = VID_REGION_NEVER;
+            s->mosaic_size = 1;
+            s->display.brightness = 15;
+            s->display.blank = false;
+        }
+        for (unsigned k = 0; k < 4; k++) {
+            scroll[2 * k] = f->spans[0].state.bg[k].hofs;
+            scroll[2 * k + 1] = f->spans[0].state.bg[k].vofs;
+        }
+        memcpy(colors, f->cgram, 256 * sizeof *colors);
+        vid_render_frame(r, f, pixels, NULL);
+        ok = ct_png_write(path, pixels, (unsigned)vid_render_width(f), VID_RENDER_HEIGHT) == 0;
+    }
+    free(pixels);
+    if (r)
+        vid_render_destroy(r);
+    free(f);
+    return ok;
+}
 static uint8_t *route_snapshot(void *ctx, size_t *len) { return native_snapshot(ctx, len); }
 static bool route_restore(void *ctx, const uint8_t *bytes, size_t len) { return native_restore(ctx, bytes, len); }
 
@@ -857,6 +898,7 @@ int main(int argc, char **argv)
     files_side_path(files.maps, sizeof files.maps, files.assets, files.assets, NULL, ".maps");
     files_side_path(files.text, sizeof files.text, files.assets, files.assets, NULL, ".text");
     files_side_path(files.records, sizeof files.records, files.assets, files.assets, NULL, ".records");
+    files_side_path(files.scripts, sizeof files.scripts, files.assets, files.assets, NULL, ".scripts");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");
@@ -948,7 +990,7 @@ int main(int argc, char **argv)
     int rc = 0;
     if (load_state && native_load_state(&driver, load_state)) return 2;
     if (drive) {
-        RouteHost host = { &driver, route_step, route_read, route_write, route_shot, route_snapshot, route_restore };
+        RouteHost host = { &driver, route_step, route_read, route_write, route_shot, route_layer_shot, route_snapshot, route_restore };
         rc = route_driver(&host, driver.saved, sizeof driver.saved, asset_catalogue_version, stdin, stdout);
         g = driver.game;
         sound = driver.sound;

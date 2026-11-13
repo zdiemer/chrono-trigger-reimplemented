@@ -95,14 +95,14 @@ enum { BATTLE_FACINGS = 4 };
 static inline ActionAnimation battle_weapon_animation(const GameState *g, uint8_t weapon, AttackView view,
                                                       uint8_t character)
 {
-    uint32_t at = 0xCD4015u + (uint16_t)(weapon * WEAPON_VIEWS * WEAPON_VIEW_BYTES) + view * WEAPON_VIEW_BYTES;
+    uint32_t at = (uint16_t)(weapon * WEAPON_VIEWS * WEAPON_VIEW_BYTES) + view * WEAPON_VIEW_BYTES;
     return (ActionAnimation){
-        .scripts = rom_read8(g, 0xCD4000u + view * CHARACTER_SCRIPTS_PER_VIEW + character),
-        .graphics = rom_read8(g, at),
-        .second_graphics = rom_read8(g, at + 1),
-        .tiles = rom_read8(g, at + 2),
-        .palette = rom_read8(g, at + 3),
-        .records = rom_read8(g, at + 4),
+        .scripts = asset_read8(g, ASSET_BATTLE_WEAPON_ANIMATION, view * CHARACTER_SCRIPTS_PER_VIEW + character),
+        .graphics = asset_read8(g, ASSET_BATTLE_WEAPON_ANIMATION_4015, at),
+        .second_graphics = asset_read8(g, ASSET_BATTLE_WEAPON_ANIMATION_4015, at + 1),
+        .tiles = asset_read8(g, ASSET_BATTLE_WEAPON_ANIMATION_4015, at + 2),
+        .palette = asset_read8(g, ASSET_BATTLE_WEAPON_ANIMATION_4015, at + 3),
+        .records = asset_read8(g, ASSET_BATTLE_WEAPON_ANIMATION_4015, at + 4),
         .background = ANIMATION_NO_BACKGROUND,
     };
 }
@@ -212,33 +212,33 @@ static inline uint16_t battle_script_set_script(const GameState *g, uint8_t bank
  * do but those who shoot. */
 static inline bool battle_character_walks_up(const GameState *g, uint8_t character)
 {
-    return rom_read8(g, 0xCCF63Cu + character) != 0;
+    return asset_read8(g, ASSET_BATTLE_CHARACTER_WALKS_UP, character) != 0;
 }
 
 static inline uint8_t battle_one_sprite_tile(const GameState *g, unsigned shape)
 {
-    return rom_read8(g, 0xD150A2u + shape * ONE_SPRITE_SHAPE_BYTES);
+    return asset_read8(g, ASSET_BATTLE_ONE_SPRITE_TILE, shape * ONE_SPRITE_SHAPE_BYTES);
 }
 
 static inline uint8_t battle_one_sprite_attributes(const GameState *g, unsigned shape)
 {
-    return rom_read8(g, 0xD150A3u + shape * ONE_SPRITE_SHAPE_BYTES);
+    return asset_read8(g, ASSET_BATTLE_ONE_SPRITE_ATTRIBUTES, shape * ONE_SPRITE_SHAPE_BYTES);
 }
 
 static inline AnimationSwitch battle_animation_switch(const GameState *g)
 {
-    if (rom_read8(g, 0xCFFFFFu))
+    if (asset_read8(g, ASSET_BATTLE_ANIMATION_SWITCH, 0x17Au))
         return ANIMATIONS_ALL_CRITICAL;
-    if (rom_read8(g, 0xCFFFFEu))
+    if (asset_read8(g, ASSET_BATTLE_ANIMATION_SWITCH, 0x179u))
         return ANIMATIONS_ALL_SECOND;
-    if (rom_read8(g, 0xCFFFFDu))
+    if (asset_read8(g, ASSET_BATTLE_ANIMATION_SWITCH, 0x178u))
         return ANIMATIONS_ALL_PLAIN;
     return ANIMATIONS_AS_THEY_ARE;
 }
 
 static inline uint8_t battle_character_falling_frame(const GameState *g, uint8_t character, uint8_t facing)
 {
-    return rom_read8(g, 0xD15F42u + (uint8_t)(character * BATTLE_FACINGS + facing));
+    return asset_read8(g, ASSET_BATTLE_CHARACTER_FALLING_FRAME, (uint8_t)(character * BATTLE_FACINGS + facing));
 }
 
 #endif

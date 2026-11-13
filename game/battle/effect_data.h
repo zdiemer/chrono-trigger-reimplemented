@@ -246,7 +246,7 @@ static inline bool party_tech_locked(const GameState *g, uint8_t tech) { return 
 
 static inline uint8_t tech_member_at(const GameState *g, uint16_t place, unsigned part)
 {
-    return rom_read8(g, 0xCC249Fu + place + part);
+    return asset_read8(g, ASSET_TECH_MEMBER_AT, place + part);
 }
 
 static inline uint8_t tech_member(const GameState *g, uint8_t members, unsigned part)
@@ -256,8 +256,9 @@ static inline uint8_t tech_member(const GameState *g, uint8_t members, unsigned 
 
 static inline TechMenuBytes tech_menu_bytes(const GameState *g, uint8_t tech)
 {
-    uint32_t at = 0xCC1ACBu + (uint32_t)(tech * 2);
-    return (TechMenuBytes){ rom_read8(g, at), (uint8_t)(rom_read8(g, at + 1) & 0x3F) };
+    uint32_t at = (uint32_t)(tech * 2);
+    return (TechMenuBytes){ asset_read8(g, ASSET_PARTY_TECH_AIM, at),
+                            (uint8_t)(asset_read8(g, ASSET_PARTY_TECH_AIM, at + 1) & 0x3F) };
 }
 
 /* $CC:213F: a party effect's record, twelve bytes as the enemies' are: as the
@@ -265,7 +266,7 @@ static inline TechMenuBytes tech_menu_bytes(const GameState *g, uint8_t tech)
 static inline void party_effect_bytes(const GameState *g, uint8_t effect, uint8_t out[EFFECT_RECORD_BYTES])
 {
     for (unsigned n = 0; n < EFFECT_RECORD_BYTES; n++)
-        out[n] = rom_read8(g, 0xCC213Fu + (uint32_t)(effect * EFFECT_RECORD_BYTES) + n);
+        out[n] = asset_read8(g, ASSET_PARTY_EFFECT_BYTES, (uint32_t)(effect * EFFECT_RECORD_BYTES) + n);
 }
 
 static inline EffectRecord party_effect_record(const GameState *g, uint8_t effect)
@@ -278,7 +279,7 @@ static inline EffectRecord party_effect_record(const GameState *g, uint8_t effec
 /* $CC:2583: each character's attack, as the party tech it is worked out as. */
 static inline uint8_t character_attack_tech(const GameState *g, uint8_t character)
 {
-    return rom_read8(g, 0xCC2583u + character);
+    return asset_read8(g, ASSET_CHARACTER_ATTACK_TECH, character);
 }
 
 /* $CC:2BDC and $CC:2BEB: how much longer each member of a tech waits for its
@@ -287,44 +288,48 @@ static inline uint8_t character_attack_tech(const GameState *g, uint8_t characte
  * second's. */
 static inline uint8_t tech_wait_tenths(const GameState *g, uint8_t tech, unsigned part)
 {
-    uint8_t first = rom_read8(g, 0xCC2BDCu + tech), third = rom_read8(g, 0xCC2BEBu + tech);
+    uint8_t first = asset_read8(g, ASSET_TECH_WAIT_TENTHS, tech),
+            third = asset_read8(g, ASSET_TECH_WAIT_TENTHS_2BEB, tech);
     return part == 0 ? (uint8_t)(first >> 4) : part == 1 ? (uint8_t)(first & 0x0F) : (uint8_t)(third & 0x0F);
 }
 
 /* $CC:253B: what a part's effect costs its member in MP. */
 static inline uint8_t party_effect_mp_cost(const GameState *g, uint8_t effect)
 {
-    return rom_read8(g, 0xCC253Bu + (uint8_t)(effect & 0x7F));
+    return asset_read8(g, ASSET_PARTY_EFFECT_MP_COST, (uint8_t)(effect & 0x7F));
 }
 
 static inline EnemyItems enemy_items(const GameState *g, uint8_t enemy)
 {
-    uint32_t at = 0xCC5E00u + (uint32_t)(enemy * ENEMY_REWARD_BYTES);
-    return (EnemyItems){ rom_read8(g, at + 4), rom_read8(g, at + 5) };
+    uint32_t at = (uint32_t)(enemy * ENEMY_REWARD_BYTES);
+    return (EnemyItems){ asset_read8(g, ASSET_ENEMY_ITEMS, at + 4), asset_read8(g, ASSET_ENEMY_ITEMS, at + 5) };
 }
 
 static inline EnemySpoils enemy_spoils(const GameState *g, uint16_t place)
 {
-    uint32_t at = 0xCC5E00u + place;
-    return (EnemySpoils){ rom_read16(g, at), rom_read16(g, at + 2), { rom_read8(g, at + 4), rom_read8(g, at + 5) },
-                          rom_read8(g, at + 6) };
+    uint32_t at = place;
+    return (EnemySpoils){ asset_read16(g, ASSET_ENEMY_ITEMS, at),
+                          asset_read16(g, ASSET_ENEMY_ITEMS, at + 2),
+                          { asset_read8(g, ASSET_ENEMY_ITEMS, at + 4), asset_read8(g, ASSET_ENEMY_ITEMS, at + 5) },
+                          asset_read8(g, ASSET_ENEMY_ITEMS, at + 6) };
 }
 
 static inline ModifierRecord modifier_record(const GameState *g, uint8_t modifier)
 {
-    uint32_t at = 0xCC2A05u + (uint32_t)(modifier * 3);
-    return (ModifierRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+    uint32_t at = (uint32_t)(modifier * 3);
+    return (ModifierRecord){ asset_read8(g, ASSET_MODIFIER_RECORD, at), asset_read8(g, ASSET_MODIFIER_RECORD, at + 1),
+                             asset_read8(g, ASSET_MODIFIER_RECORD, at + 2) };
 }
 
 static inline ArmorModifier armor_modifier(const GameState *g, uint8_t modifier)
 {
-    uint32_t at = 0xCC2A05u + (uint8_t)(modifier * 3);
-    return (ArmorModifier){ rom_read8(g, at), rom_read8(g, at + 1) };
+    uint32_t at = (uint8_t)(modifier * 3);
+    return (ArmorModifier){ asset_read8(g, ASSET_MODIFIER_RECORD, at), asset_read8(g, ASSET_MODIFIER_RECORD, at + 1) };
 }
 
 static inline uint8_t item_healing_byte(const GameState *g, uint8_t item, unsigned n)
 {
-    return rom_read8(g, 0xCC05CDu + (uint8_t)(item << 2) + n);
+    return asset_read8(g, ASSET_ITEM_HEALING_BYTE, (uint8_t)(item << 2) + n);
 }
 
 static inline uint16_t item_use_place(uint8_t item) { return (uint16_t)(ITEM_RECORDS_PLACE + (uint8_t)(item << 2)); }
@@ -333,12 +338,13 @@ static inline uint8_t item_use(const GameState *g, uint8_t item) { return rom_re
 
 static inline uint8_t item_record_flags(const GameState *g, uint8_t item)
 {
-    return rom_read8(g, 0xCC0ABCu + (uint32_t)((uint8_t)(item - FIRST_RECORDED_ITEM) * ITEM_RECORD_BYTES));
+    return asset_read8(g, ASSET_ITEM_RECORD_FLAGS,
+                       (uint32_t)((uint8_t)(item - FIRST_RECORDED_ITEM) * ITEM_RECORD_BYTES));
 }
 
 static inline uint8_t item_record_detail(const GameState *g, uint8_t item)
 {
-    return rom_read8(g, 0xCC1BB5u + (uint8_t)(item - FIRST_RECORDED_ITEM));
+    return asset_read8(g, ASSET_ITEM_AIM_MODE, (uint8_t)(item - FIRST_RECORDED_ITEM));
 }
 
 #endif
