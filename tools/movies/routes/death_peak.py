@@ -12,9 +12,10 @@ from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 
 SAVE = "saves/fantasyanime/ctsave12-side_quests1.srm"
+LOWER_FIELD = "f600"             # the mountain's field below the caves, with its save point
 PHASES = ["loaded", "cave", "spawn1", "ledge", "east_cave", "east_outside", "opened",
           "east_back", "ledge_back", "first_back", "west_back", "middle", "spawn2_room", "spawn2",
-          "ridge", "ridge_crossed", "lower_slope", "last_field", "saved"]
+          "ridge", "ridge_crossed", "lower_slope", "last_field", "summit_saved"]
 HEADER = """\
 # Death Peak, 2300 A.D.: beat the first two Lavos Spawn, open the middle cave, cross the slippery ridge,
 # and save before the final Spawn; field control returns (route death_peak).
@@ -122,9 +123,85 @@ def spawn_policy(bot, state, rng, inventory):
 def spawn(run, bit, seed):
     m = run.machine
     assert run.dialogs_until(lambda: A.battle_menu_open(m), 4000), "the Spawn's command menu"
-    run.fight(spawn_policy, lambda r, state: state.hp(9) == 0, seed=seed, max_frames=15000)
+    # The head has 4000 HP; the leg D playthrough's party wears it down in
+    # over 15000 frames.
+    run.fight(spawn_policy, lambda r, state: state.hp(9) == 0, seed=seed, max_frames=40000)
     assert run.wait_control(5000), "the field after the Spawn"
     assert m.b(0x7F0064) & bit, "the Spawn's victory flag"
+
+
+def play(run, start=1, seed=1):
+    """From the mountain's save point ($0F6), up through the first two Lavos
+    Spawn and across the ridge, to the last save point ($1EF), saved over slot
+    1; `start` is the index in PHASES of the first phase to run."""
+    m = run.machine
+    assert run.find_player() is not None
+    if start <= 1:
+        m.run(180, "UP+B")
+        m.run(12, "LEFT+B")
+        m.run(50, "UP+B")
+        assert run.wait_control()
+        arrive(run, 672, 64, "0801")
+        run.checkpoint("cave")
+    if start <= 2:
+        m.run(55, "UP+B")
+        spawn(run, 8, seed)
+        run.checkpoint("spawn1")
+    itinerary = [
+        (3, "ledge", 88, 192, "0701"),
+        (4, "east_cave", 440, 496, "0801"),
+        (5, "east_outside", 416, 464, "f600"),
+    ]
+    for phase, name, x, y, destination in itinerary:
+        if start <= phase:
+            arrive(run, x, y, destination)
+            run.checkpoint(name)
+    if start <= 6:
+        walk_to(run, 904, 70)
+        m.run(2, "UP")
+        m.run(3, "A")
+        m.run(90)
+        assert m.b(0x7F0058) & 128, "the sparkle opens the middle cave"
+        run.checkpoint("opened")
+    itinerary = [
+        (7, "east_back", 976, 112, "0801"),
+        (8, "ledge_back", 440, 208, "0701"),
+        (9, "first_back", 48, 496, "0801"),
+        (10, "west_back", 144, 480, "f600"),
+        (11, "middle", 832, 64, "0801"),
+        (12, "spawn2_room", 264, 80, "f700"),
+    ]
+    for phase, name, x, y, destination in itinerary:
+        if start <= phase:
+            arrive(run, x, y, destination)
+            run.checkpoint(name)
+    if start <= 13:
+        m.run(20, "UP+B")
+        spawn(run, 16, seed)
+        run.checkpoint("spawn2")
+    itinerary = [
+        (14, "ridge", 0, 912, "0601"),
+        (15, "ridge_crossed", 0, 128, "0401"),
+        (16, "lower_slope", 632, 1008, "f600"),
+        (17, "last_field", 512, 272, "ef01"),
+    ]
+    for phase, name, x, y, destination in itinerary:
+        if start <= phase:
+            arrive(run, x, y, destination)
+            run.checkpoint(name)
+    if start <= 18:
+        from .save_point import press, to_slot
+        walk_to(run, 104, 640)
+        # The point's script may not test the held button during a short tap.
+        m.run(30, "A")
+        m.run(160)
+        assert m.b(0x7E0067) == 11, "the save point's screen"
+        to_slot(m, 0)
+        press(m, "A", 60)
+        press(m, "A", 90)
+        press(m, "B", 90)
+        assert run.wait_control(), "the field after saving"
+        run.checkpoint("summit_saved")
 
 
 def main():
@@ -146,74 +223,7 @@ def main():
             assert m.b(0x7F007C) & 3 == 3
             assert all(item in m.peek(0x7E2400, 242) for item in (0xD9, 0xE2))
             run.checkpoint("loaded")
-        else:
-            assert run.find_player() is not None
-        if start <= 1:
-            m.run(180, "UP+B")
-            m.run(12, "LEFT+B")
-            m.run(50, "UP+B")
-            assert run.wait_control()
-            arrive(run, 672, 64, "0801")
-            run.checkpoint("cave")
-        if start <= 2:
-            m.run(55, "UP+B")
-            spawn(run, 8, args.seed)
-            run.checkpoint("spawn1")
-        itinerary = [
-            (3, "ledge", 88, 192, "0701"),
-            (4, "east_cave", 440, 496, "0801"),
-            (5, "east_outside", 416, 464, "f600"),
-        ]
-        for phase, name, x, y, destination in itinerary:
-            if start <= phase:
-                arrive(run, x, y, destination)
-                run.checkpoint(name)
-        if start <= 6:
-            walk_to(run, 904, 70)
-            m.run(2, "UP")
-            m.run(3, "A")
-            m.run(90)
-            assert m.b(0x7F0058) & 128, "the sparkle opens the middle cave"
-            run.checkpoint("opened")
-        itinerary = [
-            (7, "east_back", 976, 112, "0801"),
-            (8, "ledge_back", 440, 208, "0701"),
-            (9, "first_back", 48, 496, "0801"),
-            (10, "west_back", 144, 480, "f600"),
-            (11, "middle", 832, 64, "0801"),
-            (12, "spawn2_room", 264, 80, "f700"),
-        ]
-        for phase, name, x, y, destination in itinerary:
-            if start <= phase:
-                arrive(run, x, y, destination)
-                run.checkpoint(name)
-        if start <= 13:
-            m.run(20, "UP+B")
-            spawn(run, 16, args.seed)
-            run.checkpoint("spawn2")
-        itinerary = [
-            (14, "ridge", 0, 912, "0601"),
-            (15, "ridge_crossed", 0, 128, "0401"),
-            (16, "lower_slope", 632, 1008, "f600"),
-            (17, "last_field", 512, 272, "ef01"),
-        ]
-        for phase, name, x, y, destination in itinerary:
-            if start <= phase:
-                arrive(run, x, y, destination)
-                run.checkpoint(name)
-        if start <= 18:
-            from .save_point import press, to_slot
-            walk_to(run, 104, 640)
-            # The point's script may not test the held button during a short tap.
-            m.run(30, "A")
-            m.run(160)
-            assert m.b(0x7E0067) == 11, "the save point's screen"
-            to_slot(m, 0)
-            press(m, "A", 60)
-            press(m, "A", 90)
-            press(m, "B", 90)
-            assert run.wait_control(), "the field after saving"
-            run.checkpoint("saved")
+        play(run, start, args.seed)
         assert run.map_id() == "ef01" and m.b(0x7F0064) & 0x38 == 0x18
         # Cartridge progress only, for the next movie's starting save. The
         # route's output stays beside its checkpoints until explicitly kept.

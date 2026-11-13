@@ -7677,8 +7677,8 @@ void set_battle_object_x(GameState *g, unsigned i, uint8_t v);
 /* Battle objects' screen X positions Unchecked, reaching past the variable into what follows it:
  * a combatant's position read for a slot past the combatants, as the original's indexed reads
  * do: the grid's marking with the party off the grid (game/battle/battlefield.c), the menu's
- * cursors at a target entry no battle makes (game/battle/battle.h combatant_x), an enemy waiting
- * on a target of nobody (game/battle/enemy_movement.c where_the_original_finds_nobody) */
+ * cursors at a target entry no battle makes (game/battle/battle.h combatant_x), an enemy moving
+ * by a target of nobody (game/battle/enemy_movement.c target_of) */
 uint8_t battle_object_x_unchecked(const GameState *g, unsigned i);
 void set_battle_object_x_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -7690,8 +7690,8 @@ void set_battle_object_y(GameState *g, unsigned i, uint8_t v);
  * reaching past the variable into what follows it: a combatant's position read for a slot past
  * the combatants, as the original's indexed reads do: the grid's marking with the party off the
  * grid (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes
- * (game/battle/battle.h combatant_x), an enemy waiting on a target of nobody
- * (game/battle/enemy_movement.c where_the_original_finds_nobody) */
+ * (game/battle/battle.h combatant_x), an enemy moving by a target of nobody
+ * (game/battle/enemy_movement.c target_of) */
 uint8_t battle_object_y_unchecked(const GameState *g, unsigned i);
 void set_battle_object_y_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -9244,8 +9244,10 @@ uint8_t battle_bounds_x(const GameState *g, unsigned slot);
 void set_battle_bounds_x(GameState *g, unsigned slot, uint8_t v);
 /* Object's X position the bounds were computed from Unchecked, reaching past the variable into
  * what follows it: the enemies' conditions search from whichever combatant their candidates
- * list, $FF (none) among them, which reads and writes the box place past the table as the
- * original's indexed stores do (game/battle/positions.c; fuzzing only, no movie) */
+ * list, $FF (none) among them, and an enemy approaches a target of nobody, both of which read
+ * and write the box place past the table as the original's indexed stores do
+ * (game/battle/positions.c battle_place_box; the approach in the Blackbird's guard fight, route
+ * playthrough_leg-d) */
 uint8_t battle_bounds_x_unchecked(const GameState *g, unsigned slot);
 void set_battle_bounds_x_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -9255,8 +9257,10 @@ uint8_t battle_bounds_y(const GameState *g, unsigned slot);
 void set_battle_bounds_y(GameState *g, unsigned slot, uint8_t v);
 /* Object's Y position the bounds were computed from Unchecked, reaching past the variable into
  * what follows it: the enemies' conditions search from whichever combatant their candidates
- * list, $FF (none) among them, which reads and writes the box place past the table as the
- * original's indexed stores do (game/battle/positions.c; fuzzing only, no movie) */
+ * list, $FF (none) among them, and an enemy approaches a target of nobody, both of which read
+ * and write the box place past the table as the original's indexed stores do
+ * (game/battle/positions.c battle_place_box; the approach in the Blackbird's guard fight, route
+ * playthrough_leg-d) */
 uint8_t battle_bounds_y_unchecked(const GameState *g, unsigned slot);
 void set_battle_bounds_y_unchecked(GameState *g, unsigned slot, uint8_t v);
 
