@@ -57,10 +57,12 @@ static const uint8_t *served(const AssetStore *s, const AssetEntry *e)
 
 static uint8_t *made_up(const AssetEntry *e) { return made_up_bytes + made_up_at[e - asset_catalogue]; }
 
-static bool is_packed_tiles(const AssetEntry *e)
+/* A packed resource of tiles: its tiles' bytes, or 0. */
+static unsigned packed_tile_bytes(const AssetEntry *e)
 {
     const char *codec = asset_codec_names[e->codec];
-    return !strcmp(codec, "lz:2bpp") || !strcmp(codec, "lz:4bpp");
+    return !strcmp(codec, "lz:2bpp") ? 16 : !strcmp(codec, "lz:8bpp") ? 64
+           : !strcmp(codec, "lz:4bpp") || !strcmp(codec, "lz:4bpp-chunky") ? 32 : 0;
 }
 
 /* Text that must be refused, and the line it is refused at. */
@@ -132,9 +134,9 @@ int main(void)
     static uint8_t image[LZ_MOST];
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         const AssetEntry *e = &asset_catalogue[i];
-        if (!is_packed_tiles(e))
+        if (!packed_tile_bytes(e))
             continue;
-        size_t len = 4 * 32 + (i % 3) * 32;
+        size_t len = (4 + i % 3) * (size_t)packed_tile_bytes(e);
         for (size_t k = 0; k < len; k++)
             image[k] = (uint8_t)((k % 7) * 0x11 ^ i);
         memset(made_up(e), 0, e->length);
@@ -299,6 +301,46 @@ int main(void)
     refused(&made, pool_text, 1);                                      /* too few: at its [name] */
     free(pool_text);
     free(big);
+
+    /* Eight bit planes, two characters a pixel, and chunky tiles of four bits
+     * a pixel, the left one the low nibble: an edited first pixel lands in
+     * every plane's top bit, or in the first byte's low nibble. */
+    static const struct {
+        const char *name, *pixel;
+        unsigned tiles;
+    } edits[] = { { "attract_resource_ptrs.54", "FF", 4 }, { "attract_resource_ptrs.15", "F", 4 } };
+    for (size_t k = 0; k < sizeof edits / sizeof *edits; k++) {
+        const AssetEntry *e = named(edits[k].name);
+        CHECK(e && packed_tile_bytes(e));
+        if (!e)
+            continue;
+        bool eight = packed_tile_bytes(e) == 64;
+        uint8_t first[64] = { 0 };
+        memset(image, 0, sizeof first * 4);
+        CHECK(lz_pack(image, 4 * packed_tile_bytes(e), false, made_up(e), e->length) != 0);
+        char *edit = packed_text(e->name, "packed short", 4, eight ? "................" : "........");
+        memcpy(strchr(edit, '\n') + 1 + strlen("packed short\n"), edits[k].pixel, strlen(edits[k].pixel));
+        unsigned at = 0;
+        Decoded *d = decoded_import(&tile_text, edit, strlen(edit), &made, &at, &why);
+        CHECK(d != NULL);
+        if (!d) {
+            fprintf(stderr, "  %s: line %u: %s\n", e->name, at, why);
+            continue;
+        }
+        AssetStore over;
+        decoded_store(d, &over);
+        size_t n = 0;
+        bool long_runs;
+        CHECK(lz_unpack(served(&over, e), e->length, image, &n, &long_runs) && n == 4 * packed_tile_bytes(e));
+        memcpy(first, image, packed_tile_bytes(e));
+        if (eight)
+            CHECK(first[0] == 0x80 && first[1] == 0x80 && first[16] == 0x80 && first[17] == 0x80 && first[32] == 0x80 &&
+                  first[33] == 0x80 && first[48] == 0x80 && first[49] == 0x80 && first[2] == 0);
+        else
+            CHECK(first[0] == 0x0F && first[1] == 0);
+        decoded_close(d);
+    }
+    refused(&made, packed_text("attract_resource_ptrs.54", "packed short", 4, "..............00"), 3);   /* 00 is .. */
 
     the_cartridge();
     free(made_up_bytes);

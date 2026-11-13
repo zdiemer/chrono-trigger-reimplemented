@@ -8,7 +8,7 @@ from .. import policies
 from ..campaign import Run, route_arguments, run_route
 
 SAVE = "saves/fantasyanime/ctsave09-epoch.srm"
-PHASES = ["loaded", "cave", "beasts1", "beasts2", "battle", "won", "after"]
+PHASES = ["loaded", "beast_nest", "beasts1", "beasts2", "mud_imp", "mud_imp_won", "mud_imp_after"]
 HEADER = """\
 # Terra Cave, 12,000 B.C.: from the settlement save through two Beast pairs to the Mud Imp,
 # Blue Beast and Red Beast; win and return control to the field (route mud_imp).
@@ -57,6 +57,32 @@ def win(run, policy, seed):
     run.fight(policy, won, seed=seed, max_frames=30000, max_tries=100)
 
 
+def play(run, start=1, seed=1):
+    """From Algetty down the Beasts' nest to the Mud Imp beaten and the field
+    back in hand; `start` is the index in PHASES of the first phase to run."""
+    m = run.machine
+    if start <= 1:
+        assert run.exit_to("8401"), "the Beast cave"
+        assert run.wait_control()
+        run.checkpoint("beast_nest")
+    for phase, row in [(2, 47), (3, 29), (4, 17)]:
+        if start <= phase:
+            assert run.find_player() is not None
+            assert run.walk_here(lambda machine, x, y: y < (row + 1) * 16) is not None
+            assert run.dialogs_until(lambda: m.b(0x7E95D5) < 0x80, 6000), "battle menu"
+            if phase < 4:
+                win(run, "party_with_lapis", seed)
+                assert run.wait_control(10000)
+            run.checkpoint(PHASES[phase])
+    if start <= 5:
+        win(run, mud_imp, seed)
+        run.checkpoint("mud_imp_won")
+    if start <= 6:
+        assert run.wait_control(10000), "the field back in hand"
+        assert run.map_id() == "8401" and m.b(0x7F0000) == 0xB4
+        run.checkpoint("mud_imp_after")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -75,26 +101,7 @@ def main():
             assert run.map_id() == "7c01" and m.b(0x7F0000) == 0xAE
             run.say("loaded", run.map_id(), "story", hex(m.b(0x7F0000)), "at", run.me())
             run.checkpoint("loaded")
-        if start <= 1:
-            assert run.exit_to("8401"), "the Beast cave"
-            assert run.wait_control()
-            run.checkpoint("cave")
-        for phase, row in [(2, 47), (3, 29), (4, 17)]:
-            if start <= phase:
-                assert run.find_player() is not None
-                assert run.walk_here(lambda machine, x, y: y < (row + 1) * 16) is not None
-                assert run.dialogs_until(lambda: m.b(0x7E95D5) < 0x80, 6000), "battle menu"
-                if phase < 4:
-                    win(run, "party_with_lapis", args.seed)
-                    assert run.wait_control(10000)
-                run.checkpoint(PHASES[phase])
-        if start <= 5:
-            win(run, mud_imp, args.seed)
-            run.checkpoint("won")
-        if start <= 6:
-            assert run.wait_control(10000), "the field back in hand"
-            assert run.map_id() == "8401" and m.b(0x7F0000) == 0xB4
-            run.checkpoint("after")
+        play(run, start, args.seed)
         m.screenshot(run.prefix + "_end.png")
         run.finish("the Mud Imp and Beasts beaten")
         if args.movie:

@@ -39,13 +39,14 @@ typedef enum {
 
 static inline uint32_t battle_script_handler(const GameState *g, uint8_t command)
 {
-    return (uint32_t)SCRIPT_HANDLER_BANK << 16 | rom_read16(g, 0xC17A6Bu + 2u * command);
+    return (uint32_t)SCRIPT_HANDLER_BANK << 16 | asset_read16(g, ASSET_BATTLE_SCRIPT_HANDLER, 2u * command);
 }
 
 static inline PlaceWeights battle_place_weights(const GameState *g, uint8_t entry)
 {
-    uint32_t at = 0xCCFB7Fu + (uint16_t)(entry * 2);
-    return (PlaceWeights){ rom_read8(g, at), rom_read8(g, at + 1) };
+    uint32_t at = (uint16_t)(entry * 2);
+    return (PlaceWeights){ asset_read8(g, ASSET_BATTLE_PLACE_WEIGHTS, at),
+                           asset_read8(g, ASSET_BATTLE_PLACE_WEIGHTS, at + 1) };
 }
 
 /* ---- The grid walk ------------------------------------------------------------------------ */
@@ -54,19 +55,26 @@ static inline PlaceWeights battle_place_weights(const GameState *g, uint8_t entr
  * ($CC:F67C, a word a combatant: its offset in the grids' store). */
 static inline uint16_t battle_walk_grid_store(const GameState *g, uint8_t slot)
 {
-    uint32_t at = 0xCCF67Cu + (uint16_t)(slot * 2);
-    return (uint16_t)(rom_read8(g, at) | rom_read8(g, at + 1) << 8);
+    uint32_t at = (uint16_t)(slot * 2);
+    return (uint16_t)(asset_read8(g, ASSET_BATTLE_WALK_GRID_STORE, at) |
+                      asset_read8(g, ASSET_BATTLE_WALK_GRID_STORE, at + 1) << 8);
 }
 
 /* A step of the walk, by its number (eight bytes a heading, $CC:F414 on): the
  * heading the walker takes after it, and the facing it shows. */
-static inline uint8_t battle_walk_step_heading(const GameState *g, uint8_t step) { return rom_read8(g, 0xCCF414u + step); }
+static inline uint8_t battle_walk_step_heading(const GameState *g, uint8_t step)
+{
+    return asset_read8(g, ASSET_BATTLE_WALK_STEP_HEADING, step);
+}
 
-static inline uint8_t battle_walk_step_facing(const GameState *g, uint8_t step) { return rom_read8(g, 0xCCF434u + step); }
+static inline uint8_t battle_walk_step_facing(const GameState *g, uint8_t step)
+{
+    return asset_read8(g, ASSET_BATTLE_WALK_STEP_FACING, step);
+}
 
 static inline uint8_t battle_walk_probe(const GameState *g, uint8_t step, WalkProbe probe)
 {
-    return rom_read8(g, 0xCCF454u + step + probe);
+    return asset_read8(g, ASSET_BATTLE_WALK_PROBE, step + probe);
 }
 
 /* ---- Sounds ------------------------------------------------------------------------------- */

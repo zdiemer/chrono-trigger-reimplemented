@@ -99,7 +99,10 @@ static uint16_t wide_word(const GameState *g, unsigned at)
 static void set_wide_word(GameState *g, unsigned at, uint16_t v) { leave_word(g, set_battle_wide_math, at, v); }
 
 // $C1:C90B
-/* A word times a word, a 32-bit product. */
+/* A word times a word, a 32-bit product. The original shifts and adds a bit
+ * at a time; its time is the routine's, which the cells it leaves are
+ * charged at (MULTIPLY_WORDS, as $C1:C92A's division is at DIVIDE_LONG). */
+enum { MULTIPLY_WORDS = 0xC1C90B, DIVIDE_LONG = 0xC1C92A };
 static uint32_t multiply_words(uint16_t a, uint16_t b) { return (uint32_t)a * b; }
 
 /* The long arithmetic's leftover high word ($2E): a word-by-word product's
@@ -123,8 +126,7 @@ static void leave_word_product(GameState *g, uint16_t a, uint32_t product)
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
 {
     uint32_t product = multiply_words(a, b);
-    keep_high_word_left(g, (uint16_t)(product >> 16));
-    leave_word_product(g, a, product);
+    TIMED_AS(g, MULTIPLY_WORDS, keep_high_word_left(g, (uint16_t)(product >> 16)); leave_word_product(g, a, product));
     return product;
 }
 
@@ -181,10 +183,12 @@ static BattleLongQuotient divide_leftover(GameState *g, uint16_t low, uint16_t d
 {
     uint32_t dividend = (uint32_t)battle_long_high_word(g) << 16 | low;
     WideQuotient q = divide_long(dividend, divisor);
+    int was = charge_time_as_begin(g, DIVIDE_LONG);
     set_wide_word(g, RESULT_LOW, (uint16_t)q.quotient);
     set_wide_word(g, WIDE_REMAINDER, q.remainder);
     keep_high_word_left(g, division_high_word_left(dividend, divisor, top_bit));
     leave_long_division(g, dividend, divisor, q);
+    charge_time_as_end(g, was);
     return (BattleLongQuotient){ q.quotient, q.remainder };
 }
 
@@ -201,8 +205,10 @@ BattleLongQuotient battle_divide_leftover_marked(GameState *g, uint16_t low, uin
 BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t divisor)
 {
     WideQuotient q = divide_long(dividend, divisor);
+    int was = charge_time_as_begin(g, DIVIDE_LONG);
     keep_high_word_left(g, division_high_word_left(dividend, divisor, false));
     leave_long_division(g, dividend, divisor, q);
+    charge_time_as_end(g, was);
     return (BattleLongQuotient){ q.quotient, q.remainder };
 }
 

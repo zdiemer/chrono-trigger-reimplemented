@@ -4,3 +4,4 @@
 # a run the native program's time carries late into a stretch where the
 # reference play's own picture is black;
 # the line comes out when the run keeps the reference's time there (issues labelled kind: timing).
+events-ocean-palace-lavos $1ED 29700 # The battle and handler time (issues #320, #321) carries the movie into $1ED at frame 29237, 4,919 frames after the reference, and it goes dark 497 frames later; the reference goes dark there too, 499 frames after entering ($1ED at 24318, black 24817-25765, 948 frames), and the movie ends 631 frames into that stretch.

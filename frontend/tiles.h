@@ -6,8 +6,11 @@
  *
  * A resource is 8x8 tiles of two or four bit planes, as the SNES keeps them
  * (`tiles:2bpp`, `tiles:4bpp`: a tile's lines two planes at a time, a byte of
- * each), or the same packed (`lz:2bpp`, `lz:4bpp`: frontend/lz.h), which the
- * game unpacks as it loads them. A packed resource is written unpacked. Read
+ * each), or the same packed (`lz:2bpp`, `lz:4bpp`, and `lz:8bpp` of eight
+ * planes: frontend/lz.h), which the game unpacks as it loads them; or Mode
+ * 7's chunky tiles of four bits a pixel, packed two pixels a byte with the
+ * left one the low nibble (`lz:4bpp-chunky`), which the scenes spread to a
+ * byte a pixel. A packed resource is written unpacked. Read
  * back, its tiles are packed again as the cartridge's packer packs them, so
  * an edited one must still fit the cartridge's room for it; an unedited one
  * is taken as the store under the text has it, which is the same bytes
@@ -24,7 +27,7 @@
  *   ...
  *
  * '.' is color 0 (clear) and '1' to '3', or '1' to '9' and 'A' to 'F', the
- * others; the colors themselves are the palette's the game draws the tile
+ * others; a pixel of eight planes is two characters, '..' or 01-FF; the colors themselves are the palette's the game draws the tile
  * with, which isn't the tile's own. A packed resource first says `packed`
  * and the runs its stream has, `short` or `long`. Each row of tiles is eight
  * lines; only the last row may have fewer than sixteen. A resource that

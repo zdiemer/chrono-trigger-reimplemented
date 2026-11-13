@@ -54,6 +54,33 @@ const EventOpcode *event_opcode(uint8_t opcode)
     return by_opcode[opcode];
 }
 
+/* The commands that read their own operands, by name, for a script's text. */
+static const struct {
+    uint8_t opcode;
+    const char *name;
+} undecoded_names[] = {
+#define EVENT_UNDECODED_COMMAND_NAME(name, op) { op, #name },
+    EVENT_UNDECODED_COMMANDS(EVENT_UNDECODED_COMMAND_NAME)
+#undef EVENT_UNDECODED_COMMAND_NAME
+};
+enum { UNDECODED_PREFIX = sizeof "event_" - 1 };
+
+const char *event_command_name(const EventOpcode *row)
+{
+    if (row->name)
+        return row->name;
+    for (unsigned i = 0; i < sizeof undecoded_names / sizeof undecoded_names[0]; i++)
+        if (undecoded_names[i].opcode == row->opcode)
+            return undecoded_names[i].name + UNDECODED_PREFIX;
+    return NULL;
+}
+
+uint16_t event_command_length(const EventOpcode *row, const uint8_t *command, uint16_t available)
+{
+    uint16_t length = row->measure ? row->measure(command, available) : row->length;
+    return length <= available ? length : 0;
+}
+
 /* ---- What a command may reach -----------------------------------------------------------
  *
  * The operations reach the object tables by object, where the original
@@ -220,6 +247,45 @@ static SearchlightMove decode_SearchlightMove(const GameState *g, const EventArg
     return m;
 }
 
+/* A colour effect's command's bytes, its opcode's included, from its form
+ * byte and the count word the colours of the script's own follow (their
+ * bytes plus two). */
+static uint16_t colour_effect_length(uint8_t form, uint16_t count, bool object)
+{
+    uint8_t type = form & FORM_TYPE;
+    if (object && form == STOP_FORM)
+        return 2;
+    if (object && (form == ROTATE_DOWN_FORM || form == ROTATE_UP_FORM))
+        return 4;
+    if (type == FADE_TO_WHITE_FORM || type == FADE_TO_BLACK_FORM)
+        return object ? 5 : 6;
+    if (type == COLOURS_FORM)
+        return (uint16_t)((object ? 2 : 3) + count);
+    return 2;
+}
+
+/* The colours' count word is after the form byte, and the screen's first
+ * colour's. */
+static uint16_t measure_colours(const uint8_t *command, uint16_t available, bool object)
+{
+    uint16_t count_at = object ? 2 : 3;
+    if (available < 2 || ((command[1] & FORM_TYPE) == COLOURS_FORM && available < count_at + 2))
+        return 0;
+    uint16_t count = (command[1] & FORM_TYPE) == COLOURS_FORM
+                         ? (uint16_t)(command[count_at] | command[count_at + 1] << 8) : 0;
+    return colour_effect_length(command[1], count, object);
+}
+
+uint16_t event_measure_object_colours(const uint8_t *command, uint16_t available)
+{
+    return measure_colours(command, available, true);
+}
+
+uint16_t event_measure_screen_colours(const uint8_t *command, uint16_t available)
+{
+    return measure_colours(command, available, false);
+}
+
 static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg, uint16_t at)
 {
     ColourEffect e = { COLOURS_UNCHANGED, 0, 0, 0, 0, 0, 0, 0, 2 };
@@ -237,7 +303,6 @@ static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg,
         e.first = next >> 4;
         e.count = next & FORM_LOW;
         e.period = script_byte(g, (uint16_t)(form_at + 2));
-        e.length = 4;
     } else if (type == FADE_TO_WHITE_FORM || type == FADE_TO_BLACK_FORM) {
         uint16_t rest = (uint16_t)(form_at + (object ? 2 : 3));
         e.kind = COLOURS_FADE;
@@ -245,16 +310,14 @@ static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg,
         e.count = object ? (uint8_t)(next & FORM_LOW) : script_byte(g, (uint16_t)(form_at + 2));
         e.levels = script_byte(g, rest);
         e.period = script_byte(g, (uint16_t)(rest + 1));
-        e.length = object ? 5 : 6;
     } else if (type == COLOURS_FORM) {
         uint16_t count_at = (uint16_t)(form_at + (object ? 1 : 2));
-        uint16_t count = script_word(g, count_at);
         e.kind = COLOURS_SET;
         e.first = object ? (uint8_t)(form & FORM_LOW) : next;
         e.colours_at = (uint16_t)(count_at + 2);
-        e.bytes = (uint16_t)(count - 2);
-        e.length = (uint16_t)(e.colours_at + e.bytes - at);
+        e.bytes = (uint16_t)(script_word(g, count_at) - 2);
     }
+    e.length = colour_effect_length(form, type == COLOURS_FORM ? (uint16_t)(e.bytes + 2) : 0, object);
     return e;
 }
 

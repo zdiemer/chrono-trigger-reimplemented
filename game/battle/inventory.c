@@ -209,6 +209,8 @@ static bool list_item(GameState *g, unsigned record, uint8_t item, uint8_t held)
 // $C1:CDFF
 /* The list built afresh from the inventory's 256 places, as the battle
  * starts. */
+enum { PASS_EMPTY_PLACE = 0xFDB01C, PASS_EMPTY_PLACE_ACCESSES = 12 };
+
 static void build_item_list(GameState *g)
 {
     for (unsigned record = 0; record < LIST_RECORDS; record++)
@@ -218,11 +220,15 @@ static void build_item_list(GameState *g)
     for (unsigned place = 0; place < INVENTORY_PLACES; place++) {
         uint8_t item = item_at(g, place);
         if (item == NO_ITEM) {
+            /* passing the empty place, its own routine ($FD:B01C): 288 clocks a place in the original */
+            charge_as(g, PASS_EMPTY_PLACE, PASS_EMPTY_PLACE_ACCESSES);
             record++;
             continue;
         }
         battle_keep_byte(g, HELD_AT, held_at(g, place));
-        if (list_item(g, record, item, held_at(g, place)))
+        bool listed = false;
+        TIMED_AS(g, 0xFDAF80, listed = list_item(g, record, item, held_at(g, place)));
+        if (listed)
             record++;
     }
     /* the place counts come round to 0 as the last place is passed */

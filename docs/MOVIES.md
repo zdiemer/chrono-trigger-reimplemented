@@ -92,16 +92,25 @@ place after it, follow the time model rather than the game. A route from the
 same save chooses its commands by game state and wins (or, for the Lavos
 game over, loses) whatever the frames. `tools/fight_routes.txt` names the gate
 movies whose fight such a route carries, each movie's own route, the one its
-header names: 17 movies, from Dalton, Giga Gaia, the Golem Twins, the Black
-Tyrano, Son of Sun, Magus at North Cape and the Lavos game over to Cyrus,
-Fiona's forest and Death Peak's summit. The gate runs those routes beside the fast
+header names (or, for a hand recording, the route that names the movie): 19
+movies, from Dalton, Giga Gaia, the Golem Twins, the Black Tyrano, Son of
+Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's forest,
+Death Peak's summit, the unequipped armor's fights and the TerraMutant. Two
+routes take the movie's own presses for the field before their fights, which
+the field plays on time: `unequipped_armor` to Truce Canyon (16 s where the
+world map's searches took 41) and `terramutant` to the boss; the TerraMutant's
+movie ends partway through the fight, so its route stops there too, the head
+hurt as far as the movie's, both parts up. The gate runs those routes beside the fast
 pair (`routes` in the gate's `times:` line). For those movies the outcome check
 (`tools/outcomes.py`) still holds every protected match in
 `tools/outcomes_baseline.txt`, and `tools/places_baseline.txt` still counts
 their places on time, but a difference elsewhere in their places, saved game
 or save RAM needs no pinned exception, and may have none: the route is the
-fight's outcome. Nothing else moved: every other movie's exceptions still pin
-exactly what it observes.
+fight's outcome. A protected saved-game or save-RAM end still holds; the
+TerraMutant's, which its movie no longer reaches, is lowered on its baseline
+line with the reason. A picture fingerprint of such a movie (`tools/native_picture_baseline.txt`,
+`until=FRAME`) keeps to the pictures before its fight. Nothing else moved:
+every other movie's exceptions still pin exactly what it observes.
 
 A route wins by retrying a lost fight from its command menus, so a battle
 that computed otherwise could still be won. A carried route therefore
@@ -129,18 +138,14 @@ and the boss left first. The route now takes the single techs only
 (`policies.single_tech_known`), Robo Tackle beats the boss, and Dalton is
 carried again.
 
-Measured with the time-model change of issue #321 (each lag frame gets its
-own handlers' time) on a throwaway branch: all 17 fight routes then carried still win,
-including Black Tyrano's and Son of Sun's, whose movies then lose their
-fights, and the carried movies' outcome checks pass. What still fails there
-is not carried: three native picture fingerprints (attract-demo and both
-Golem Twins movies), events-jetbike-race-won's finish (31 frames early,
-past the tolerance), events-ocean-palace-lavos ending in the original's own
-dark scene, and the pinned exceptions of the fights whose routes are too
-slow for the gate (Ozzie's Fort 35 s, the R Series 50 s, the Guardian 54 to
-79 s, the Spekkio sweep 32 s, the Beyond Time and Bucket endings 52 to 97 s)
-and of the other movies the change moves. Those routes run in the long
-batch, as every public route does.
+The battle's time calibrated against the original's (issues #320 and #321,
+REIMPLEMENTATION.md) moved every fight's turns: all 19 carried routes still win
+with their facts, and the gate's 58 movies keep 394 places on time (383 before)
+and 476 in the reference's order (470). The fights whose routes are too slow
+for the gate (Ozzie's Fort 35 s, the R Series 50 s, the Guardian 54 to 79 s,
+the Spekkio sweep 32 s, the Beyond Time and Bucket endings 52 to 97 s) keep
+their movies' pinned exceptions, re-recorded with the places they keep; their
+routes run in the long batch, as every public route does.
 
 `playthrough` starts from a blank cartridge and plays the story on from a new
 game. Its own phases cover what no save-based route plays (the opening, the
@@ -161,7 +166,25 @@ which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
 The other legs of the playthrough start from cartridge saves so the whole
-game is played in parallel. `playthrough_leg-d` starts from ctsave11 slot 1,
+game is played in parallel. `playthrough_leg-c` starts from ctsave08 slot 1,
+Crono, Ayla and Marle at Tyrano Lair's save point, and plays through `play()`
+of `black_tyrano`, `zeal_palace`, `mud_imp`, `giga_gaia`, `golem_twins` and
+`ocean_palace_lavos`, with its own phases between them: the Lair Ruins' Gate,
+the Golem and the exile, a dactyl to the Mystic Mountains' Gate, the End of
+Time's 2300 A.D. pillar, Lab 32, the Sewer Access's switch, Belthasar's Epoch
+to Algetty, Mt. Woe's islands, Dalton, the Ocean Palace's buttons, platforms,
+elevator and floor switches. It ends as Lavos rises from the Mammon Machine
+(frame 568835). The save's bag has no Tonics by Zeal, so its fights heal
+with Lapis, Marle's Cure 2 and Revives, and use weapons (the Ocean Palace's
+Scouts drink the element they are hit with); Shelters at Algetty's, Mt. Woe's
+and the Ocean Palace's save points restore the party before Mud Imp, Giga
+Gaia, Dalton and the Twins. No level or purchase was needed. The Ocean
+Palace's platform statues take the field's control a moment at a time while
+the pad still walks the party, so that stretch walks by position (measured in
+ct_native only). The palace's elevator stands still after its first fight
+until the orb on its left is confirmed, as the original does: checked with the
+frozen `emulator-oracle` oracle from ctsave10 slot 2.
+`playthrough_leg-d` starts from ctsave11 slot 1,
 the party held in the Blackbird after Crono is gone, with the save's party
 and items, and plays on through `play()` of `blackbird_save`, `dalton`,
 `north_cape` (Magus joins; until he is met the Epoch shows Marle's resolve
@@ -183,9 +206,14 @@ the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
 Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
 Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 `castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
-corridor and the inner rooms (a search that plays ladders and stairs through)
-to Magus's door (frame 385447). Ozzie waits there behind a barrier the
-party's blows barely touch; the leg stops before him, its MP spent.
+corridor and the inner rooms (a search that plays ladders and stairs through),
+a rest with a Shelter at the save point in the dark room off the tower
+(`$1D7`), Ozzie's last stand (the party strikes the levers beside him, not
+Ozzie), a second rest at the save point in his hall, and the stair down to
+Magus's chamber (`$0AC`, frame 403039). It stops before Magus: at levels 21-22
+the bot's best tries leave him 4042 of his 6666 HP (X-Strike about 120 a hit,
+Frog's blows about 100), while his spells take the party's 330-370 HP down
+in a few turns.
 
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check

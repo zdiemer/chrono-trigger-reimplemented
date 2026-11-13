@@ -30,8 +30,9 @@
  * order the words are kept.
  *
  * Read back, a string may be as long as the cartridge's (its slot, the end
- * included), a shorter one ended there; the dictionary's words must fit
- * their slot too. */
+ * included), a shorter one ended there, and an edited one may not end in a
+ * code that takes the byte after it; the dictionary's words must fit their
+ * slot too. */
 #ifndef CT_FRONTEND_TEXT_H
 #define CT_FRONTEND_TEXT_H
 

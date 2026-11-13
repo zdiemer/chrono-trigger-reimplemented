@@ -42,7 +42,12 @@ The game advances in frames. Its main thread and menu tasks use the coroutine
 interface in `runtime/port/fiber.h`; the host resumes work at frame boundaries.
 Native work charges accumulate debt, with fractional carry and excluded reads
 handled by the state host. Existing rates in `runtime/port/time_rates.c` are
-frozen authored estimates. Changing a rate requires evidence from native play.
+authored estimates, changed only with evidence from native play (the battle's
+were calibrated against the original's clocks, REIMPLEMENTATION.md). Each lag
+frame gives the main thread the time that frame's own handlers leave it. A
+handler's transfers and its waits for a line (`tm_wait_line`) are the
+handlers' time, which the main thread then doesn't have; a wait for a line
+from the main thread charges nothing.
 The timing, native-time, task and unpack-time tests exercise this accounting
 without a ROM. Core owns typed mode callbacks in game state; the frame driver
 dispatches them in the established order. The program test checks callback
@@ -56,10 +61,24 @@ names; the frontend supplies files and handles errors. Cartridge saves retain
 their slot/checksum format, tested through the real game routines.
 
 `re/assets.tsv` is the resource catalogue and `re/asset_views.toml` defines typed
-views. `tools/assets.py generate` emits the committed lookup table. On first run,
-the frontend verifies the user's cartridge and imports a local pack. Game code
-loads named resources from that store, never an embedded ROM. Packs and decoded
-assets are not committed.
+views. `tools/assets.py generate` emits the committed lookup table and the
+resources' names (`game/data/asset_names.h`). On first run, the frontend
+verifies the user's cartridge and imports a local pack. Game code loads named
+resources from that store, never an embedded ROM. Packs and decoded assets are
+not committed.
+
+An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
+ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
+store finds by the resource's name, so a pack may keep it anywhere; an
+offset past the resource's end reads on by address, as the original's
+indexing does. 491 of the data headers' reads (call sites) name their
+resource. What the data's own pointers lead to (a stream a table points
+to, a script's text, a bank and a 16-bit place the data gives) is still
+read by the address the original keeps it at, 200 call sites, the address
+a key the catalogue's rows are looked up by. A region the catalogue hasn't
+typed is cut where each accessor's table starts, the piece named for its
+accessor and still `mixed`, so a read names its own table rather than the
+region it shares (issue #127 types them).
 
 ### Palettes, the first decoded resource
 
@@ -104,14 +123,19 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.text`, `<pack>.records`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.scripts`, `<pack>.text`, `<pack>.records`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
 write leaves the pack's own bytes to play, after a warning, and so does a
-text written from another catalogue (its opening comment says which, `#
-catalogue XXXXXXXX`), whose names and forms may no longer be this one's; a text that is
+text written from other rows of the catalogue than its kind decodes now
+(its opening comment stamps them, `# rows XXXXXXXX`, a hash of those rows'
+names, types, codecs and lengths, and for scripts of the event table's
+rows the commands are written in), whose names and forms may no longer be
+these; the warning says the file's edits aren't applied and to move it
+away, have it written afresh and make them again. A change to other rows
+leaves a kind's text and its edits good. A text that is
 wrong stops the start, naming its line (a resource that is wrong as a whole,
 too short or too big to pack, at its `[name]` line).
 
@@ -205,7 +229,8 @@ size and kind, short runs and long, and refuses streams that aren't one;
 with the ROM staged it packs every packed stream of the catalogue again to
 its bytes. `tiles_test` (ROM-free) writes and reads back made-up tiles,
 packed and not, serves an edited pixel of each (the packed one packed
-again) and only the resources a text names, and refuses wrong text at its
+again; of eight planes, in every plane's bit, and of a chunky tile, in its
+byte's low nibble) and only the resources a text names, and refuses wrong text at its
 line (a pixel that isn't one, a tile short a line or a pixel, a short row
 that isn't the last, how it packs unsaid, too few tiles, more tiles
 than the stream beneath, an edit that doesn't fit); with the ROM staged every graphics resource reads back as
@@ -220,11 +245,14 @@ The attract sequence's resources (`attract_resource_ptrs.N`, the table at
 `lz:tilemap:32`, palettes `lz:colors:16`, mode 7's byte-a-pixel tiles
 `lz:chunky` and its maps `lz:bytes:64`, and the race's, the Epoch's and the
 endings' byte-a-pixel pictures `lz:bytes:64` (64 a row, as the scaler reads
-them). Still bytes in hex where they have no form of their own yet: the
-two pictures of packed four-bit pixels (`.15`, `.46`), the planet's 8bpp
-planar tiles (`.54`), the dive panel's attribute bytes (`.34`) and the
-mosaic's tile list (`.45`); `.0`, the program (`.1`) and `.50` no port
-reads.
+them). The planet's tiles of eight bit planes (`.54`, `lz:8bpp`) are
+written two hex digits a pixel (`..` for color 0), and the two pictures of
+Mode 7 tiles of four bits a pixel, packed two to a byte for the scene to
+spread (`.15`, Lavos's, `game/scene/lavos_falls.c`; and `.46`), are
+`lz:4bpp-chunky`, a hex digit a pixel, the left one the byte's low nibble.
+Still bytes in hex, having no form of their own: the dive panel's
+attribute bytes (`.34`) and the mosaic's tile list (`.45`); `.0`, the
+program (`.1`) and `.50` no port reads.
 
 The battlefield's pool (`battlefield_tile_pool`, `$D0:0000`,
 `tiles:plane-pool`) is tiles of two bit planes (16 bytes) or three (the
@@ -250,8 +278,8 @@ two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
 effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
 `lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
 digit a cell; `lz:colors:16` the world maps' packed palettes
-(`menu_scene_stream_c6fea0.N`); and `lz`, `lz:event` for the scripts and
-place lists, whose own text is still to come (issue #130), in hex. A
+(`menu_scene_stream_c6fea0.N`); and `lz` for the streams that have no
+text of their own yet (the world maps' scene scripts, issue #130), in hex. A
 tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
 so a map is edited by its tile numbers, flips, priority and palettes.
 
@@ -270,12 +298,18 @@ kinds share): an edited one must fit its slot and unpack to no more than
 the stream beneath, except a location's map, which may grow into the
 buffer every map is unpacked into, from `$7E:B500` to the end of the bank
 (the cartridge's biggest, map 107, reaches `$7E:FE20`). `tools/sheets.py`
-draws a location's map assembled, as the field shows it: BG2 under BG1,
-each map tile its look's four entries, each entry the tile set's tile
-(its six blocks from tile `$100`) in the location's palette, flipped and
-in front as it says; the location's record, its set's blocks and the
-pointers come from the pack, the rest from the texts. It draws a tilemap
-with a graphics resource's tiles the same way.
+draws a location's map assembled, as the field shows it
+(`game/field/streaming.c`): BG2 under BG1, each map tile its look's four
+entries -- a look of the tile set's first 256, or of its second where the
+tile's first attribute byte says so for that layer (bit 0 BG1, bit 1 BG2)
+-- each entry the tile set's tile (its six blocks from tile `$100`) in the
+location's palette, flipped and in front as it says; the location's record,
+its set's blocks and the pointers come from the pack, the rest from the
+texts. A world map (`--location` from `$1F0`) is drawn the same way from its
+two planes, 96 by 64 map tiles, each byte one of its plane's 256 tile groups
+(`game/menu/map.c`), with the seven blocks of tiles, the groups, the planes
+and the palette its record names. It draws a tilemap with a graphics
+resource's tiles the same way.
 
 Measured: `maps_test` (ROM-free) writes and reads back made-up resources
 of every codec, serves an edited map tile, attributes, tilemap entry, look,
@@ -287,6 +321,77 @@ attributes, a map too big for its slot); with the ROM staged every map of
 the cartridge reads back as its bytes. The lean gate runs on the decoded
 maps. Clearing eight rows of BG1 in map 60 changes Crono's house at frame
 6000 of `movies/new-game.ctm`, the map packed again.
+
+A round trip says a text keeps every byte, not that its fields are the
+game's. `tests/frontend/map_pictures.py` (a ctest, with the ROM staged)
+says that: at six frames of the gate's movies -- Crono's room and the floor
+below it, the 1000 A.D. world map, Leene Square and two rooms of Heckran's
+Cave -- it draws BG1, BG2 and the two together from the texts as
+`tools/sheets.py` does, placed where the game has scrolled them, and
+compares them pixel for pixel with ct_native's picture of the same layers
+alone (the route protocol's `layershot`: no sprites, windows or color
+math, at full brightness, with the frame's colors and scrolls), in the
+colors the game has loaded; all 18 pictures are the same. The frames are
+ones where nothing has changed the map since it loaded: an event's copied
+tiles, an animated tile or a dialog window drawn into BG1 differ there, as
+the game means them to.
+
+### Scripts
+
+The locations' event scripts (`lz:event`, the 462 `field_packed_script.N`)
+and the world maps' lists of places (`lz:place-lists`,
+`overworld_place_lists.N`) are the scripts kind, `frontend/scripts.c`, kept
+as `<pack>.scripts`. A script is written as the event engine runs it
+(`game/event/engine.c`), from the language's own table
+(`game/event/script.h`): its objects' count and each object's sixteen
+functions (`functions 00 L0060 ...`), then a command a line, its
+operation's name (the table's `OPERATION`, or the command's own for a row
+that reads its operands) and each parameter the row decodes, `name=value`,
+the value as many hex digits as its operand has bytes and marked with what
+it names (`var:`, `var16:`, `obj:`, `member:`, `story:`, `bit:`; `self`,
+`progress`), so the text can't say anything the port doesn't decode:
+
+    L0280:
+    peek width=00 address=7F0000 variable=var:06
+    if_story offset=5C value=01 comparison=80 to=L0297
+    say window=00 line=12
+
+A command whose length its operands decide (the colour effects, the tint's
+short form, the screen commands, the data a copy carries) has its row's
+`MEASURED` length, the same function the engine's operations take it from.
+Bits of an operand byte no parameter reads would be kept as byteN=XX (N
+its operand) and a command's own data after its operands as
+`data=XX.XX...`; the places a
+function or a jump names are labels (`L0297:`), so commands may be added
+or taken away, a jump still reaching its place within a byte's distance;
+and bytes no command could be read from would be `bytes`. Read back, a
+line is the shortest of its name's rows its parameters fit, a jump to a
+place already named going back; where the cartridge used another (a long
+form whose value a short form has, `wait_frames frames=08` as `$AD 08`
+rather than `$BA`), the line keeps it as `@AD`. Every byte of the
+cartridge's scripts is read as a command; 6,800 of their 190,000 lines carry
+an opcode, and one jump lands where no command starts (`to=+06`).
+
+A world map's places are its lists, each a record a line in the game's
+order (`game/overworld/setup.c`): `exit` (column, row, name, location, x,
+y), `event`, `halt`, `script`, then the bytes after the lists as `rest`;
+each list's count is its records', and a list with none is refused, since
+the game reads a count of 0 as 65,536.
+
+An edited resource is packed again and must fit its slot, as the other
+packed kinds; a script may unpack to as much as the game's buffer for it
+(`$1700` bytes). Packed slots are exact, so an edit that packs no smaller
+rarely fits until a pack can give a resource more room (issue #128).
+
+Measured: `scripts_test` (ROM-free) writes and reads back a made-up script
+and places, serves an edited script (a command put in before a condition,
+moving its jump's place and a function's on; a parameter changed) and
+edited places, only what a text names, and refuses wrong text at its line
+(a parameter no form of the command has, a command that isn't one, a place
+not named or named twice, a jump out of reach, an opcode not the command's,
+a short table, an empty list, lists out of order); with the ROM staged every
+script and list of places of the cartridge reads back as its bytes. The
+lean gate runs every movie on the decoded scripts.
 
 ### Text
 
@@ -310,7 +415,10 @@ two words alike would be ambiguous and are written in hex.
 
 Read back, a string may be no longer than the cartridge's slot for it, its
 end included; a shorter one is ended there and the rest of its slot is
-zero. A name table has as many names as the cartridge's, and the
+zero. An edited string may not end in a code the typesetter takes the next
+byte with (`{01}`, `{02}`, `{03}`, `{12}`), which would take its end as
+that byte and set on into what follows; some of the cartridge's strings do,
+and are kept as they are. A name table has as many names as the cartridge's, and the
 dictionary's words must fit its slot. `decoded_beneath` asks the store
 under a text for each resource once, which keeps reading the strings'
 words from the dictionary quick.
@@ -321,7 +429,8 @@ with two words alike; serves a string written afresh (a word, a name, a
 wait, a two-byte glyph, a tech) and an edited name, and only what a text
 names; and refuses wrong text at its line (a code that isn't one, braces
 not closed, a word that isn't the dictionary's or is ambiguous, a sign that
-isn't a glyph, a string too long, a short name, too few names, a word given
+isn't a glyph, a string too long, an edited string ending in a code wanting
+its byte (at its last line), a short name, too few names, a word given
 twice or missing). With the ROM staged every text resource reads back as
 its bytes. Changing Crono's mother's first line in `<pack>.text` shows at
 frame 6500 of `movies/new-game.ctm`.
@@ -331,7 +440,8 @@ frame 6500 of `movies/new-game.ctm`.
 The sprites' records (`struct:sprite-records:5`, the field's; `:10`, the
 enemies', the same five fields and then the enemy's header), other tables
 of records of N bytes (`struct:records:N`: the tile sets' eight graphics
-blocks at `$F6:1C00`, the battles' rules at `$E1:DE00`), and the locations'
+blocks at `$F6:1C00`, the battles' rules at `$E1:DE00`, the enemies' stats at
+`$CC:4700`, 23 bytes an enemy), and the locations'
 exits and chests (`struct:location-exits`, `struct:location-chests` at
 `$F5:F000`, a chest its tile and contents, two words) are the records kind,
 `frontend/records.c`, kept as `<pack>.records`. A sprite record is a line

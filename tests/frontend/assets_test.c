@@ -154,6 +154,18 @@ int main(void)
         if ((e->at & 0xFFFF) >= 0x8000 && e->length > 1)                 /* the upper half of $80-$BF */
             CHECK(rom_read16(NULL, e->at - 0x400000u) == (made_up(i, 0) | made_up(i, 1) << 8));
     }
+    /* A named resource's reads find it by name: its first and last bytes, a
+     * word, and past its end the bytes after it by address. */
+    {
+        const AssetEntry *e = &asset_catalogue[ASSET_LOCATION_RECORDS];
+        CHECK(!strcmp(e->name, "location_records"));
+        CHECK(asset_read8(NULL, ASSET_LOCATION_RECORDS, 0) == made_up(ASSET_LOCATION_RECORDS, 0));
+        CHECK(asset_read8(NULL, ASSET_LOCATION_RECORDS, e->length - 1) ==
+              made_up(ASSET_LOCATION_RECORDS, e->length - 1));
+        CHECK(asset_read16(NULL, ASSET_LOCATION_RECORDS, 4) ==
+              (made_up(ASSET_LOCATION_RECORDS, 4) | made_up(ASSET_LOCATION_RECORDS, 5) << 8));
+        CHECK(asset_read8(NULL, ASSET_LOCATION_RECORDS, e->length) == rom_read8(NULL, e->at + e->length));
+    }
     /* A cartridge byte in no resource is counted; work RAM isn't the cartridge's. */
     /* Transfers use the pack's bytes, including across separately allocated
      * resources and a wrap in a mirrored cartridge bank. */

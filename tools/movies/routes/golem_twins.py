@@ -12,7 +12,7 @@ HEADER = """\
 # frames {FRAMES}
 # sram crc32 {CRC}
 # <start_frame> <frame_count> <buttons>"""
-PHASES = ["loaded", "battle", "won", "after_twins", "save_room", "saved", "after"]
+PHASES = ["loaded", "twins_battle", "twins_won", "twins_gone", "save_room", "saved", "after"]
 
 
 def twins(bot, state, rng, inventory):
@@ -35,6 +35,33 @@ def twins(bot, state, rng, inventory):
     return ("tech", (4, 5, 5)[member], None)
 
 
+def play(run, start=1, seed=1, policy=twins):
+    """From the save point before them to the Golem Twins beaten and the field
+    back in hand; `start` is the index in PHASES of the first phase to run,
+    `policy` the fight's (this save's Crono, Marle and Lucca by default)."""
+    machine = run.machine
+    if start <= 1:
+        machine.run(40, "RIGHT")
+        machine.run(300, "UP")
+        assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 8000), "the Twins' menu"
+        run.checkpoint("twins_battle")
+    if start <= 2:
+        seen = []
+
+        def won(r, state):
+            living = policies.enemies(state)
+            if living:
+                seen.append(True)
+            return bool(seen) and not living and any(state.hp(i) for i in range(3))
+
+        run.fight(policy, won, seed=seed, max_frames=24000, max_tries=30)
+        run.checkpoint("twins_won")
+    if start <= 3:
+        assert run.wait_control(12000), "the field after the Twins"
+        run.say("after Twins", run.map_id(), run.me())
+        run.checkpoint("twins_gone")
+
+
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -52,26 +79,7 @@ def main():
             assert run.wait_control(), "the party at the save point"
             run.say("loaded", run.map_id(), run.me())
             run.checkpoint("loaded")
-        if start <= 1:
-            machine.run(40, "RIGHT")
-            machine.run(300, "UP")
-            assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 8000), "the Twins' menu"
-            run.checkpoint("battle")
-        if start <= 2:
-            seen = []
-
-            def won(r, state):
-                living = policies.enemies(state)
-                if living:
-                    seen.append(True)
-                return bool(seen) and not living and any(state.hp(i) for i in range(3))
-
-            run.fight(twins, won, seed=args.seed, max_frames=24000, max_tries=30)
-            run.checkpoint("won")
-        if start <= 3:
-            assert run.wait_control(12000), "the field after the Twins"
-            run.say("after Twins", run.map_id(), run.me())
-            run.checkpoint("after_twins")
+        play(run, start, args.seed)
         if start <= 4:
             assert run.exit_to("9d01"), "back to the save point room"
             assert run.wait_control(), "the save point room in hand"

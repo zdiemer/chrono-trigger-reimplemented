@@ -15,7 +15,10 @@ from tools.native_state import ROOT, SavedGame, seconds_for
 
 
 def read_picture_baseline():
-    """Native fingerprints accepted with the title fill, independent of the oracle."""
+    """Native fingerprints accepted with the title fill, independent of the oracle:
+    {movie: (digest, until)}. `until=FRAME` on a line keeps the fingerprint to the
+    pictures before that frame (a movie whose fight its route carries pins the
+    drawing up to the fight, not the fight's timing)."""
     pins = {}
     path = ROOT / 'tools/native_picture_baseline.txt'
     for line in path.read_text().splitlines():
@@ -23,16 +26,23 @@ def read_picture_baseline():
         if not body.strip():
             continue
         fields = body.split()
-        if (len(fields) != 2 or not re.fullmatch(r'[0-9a-f]{64}', fields[1]) or
-                not reason.strip() or fields[0] in pins):
+        until = re.fullmatch(r'until=([1-9][0-9]*)', fields[2]) if len(fields) == 3 else None
+        if (len(fields) not in (2, 3) or (len(fields) == 3 and not until) or
+                not re.fullmatch(r'[0-9a-f]{64}', fields[1]) or not reason.strip() or fields[0] in pins):
             raise ValueError('malformed or duplicate native picture fingerprint')
-        pins[fields[0]] = fields[1]
+        pins[fields[0]] = (fields[1], int(until.group(1)) if until else None)
     return pins
 
 
-def picture_matches(text, expected):
-    tokens = [frame + ':' + digest for frame, digest in
-              re.findall(r'^outcome-picture: (\d+) ([0-9a-f]{16})\r?$', text, re.M)]
+def picture_tokens(text, until=None):
+    return [frame + ':' + digest for frame, digest in
+            re.findall(r'^outcome-picture: (\d+) ([0-9a-f]{16})\r?$', text, re.M)
+            if until is None or int(frame) < until]
+
+
+
+def picture_matches(text, expected, until=None):
+    tokens = picture_tokens(text, until)
     return bool(tokens) and outcomes.observed_digest(tokens) == expected
 
 DARK_EXCEPTIONS = ROOT / 'tools/native_dark_exceptions.txt'
@@ -153,7 +163,7 @@ def main(argv=None):
                 ok = how == 'end' or how == 'dark' and dark_is_excepted(exceptions.get(name), detail)
                 kept = places.Kept(outcomes.pairs(ledger[name, 'places']), places.parse(text))
                 ok = ok and name in baseline and kept.kept >= baseline[name]
-                if name in picture_pins and not picture_matches(text, picture_pins[name]):
+                if name in picture_pins and not picture_matches(text, *picture_pins[name]):
                     ok = False
                     detail += '; native picture fingerprint changed'
                 return name, ok, how + (': ' + detail if detail else '') + '; ' + kept.summary()
