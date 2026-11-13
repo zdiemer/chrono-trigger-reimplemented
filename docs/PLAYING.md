@@ -13,9 +13,11 @@ The build needs no ROM. SDL2 supplies windowed video and audio; without it the
 program is headless. Use `.exe` on Windows. `--help` lists display options.
 The native frontend imports the user's cartridge into a local asset pack on
 first use. `--assets <pack>` chooses the pack; no game assets are distributed.
-Beside the pack, `<pack name>.palettes` holds the game's palettes as text,
-written from the pack the first time: edit a color there and it is what the
-game shows from the next start; delete the file to write it afresh.
+Beside the pack, `<pack name>.palettes` and `<pack name>.fonts` hold the game's
+palettes and fonts as text, written from the pack the first time: edit a color
+or draw a glyph there and it is what the game shows from the next start; delete
+a file to write it afresh. `tools/font_sheets.py <pack name>.fonts DIR` draws
+each font's glyphs into DIR as pictures.
 `--sram <save.srm>` loads a cartridge save, including fixtures in `saves/`.
 
 ## Movies and diagnostics
