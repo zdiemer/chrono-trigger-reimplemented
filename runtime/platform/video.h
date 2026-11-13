@@ -223,15 +223,16 @@ enum { VID_LAYOUT_ROWS = 64, VID_LAYOUT_COLUMNS = 64, VID_MAP_LAYOUTS = 4, VID_L
 typedef struct {
     uint8_t column[VID_LAYOUT_ROWS][VID_LAYOUT_COLUMNS];   /* the map's column shown, or VID_LAYOUT_NOTHING */
 } VidMapLayout;
-/* The windows parted with panels that a layout parts in two, each side moved
- * out to the view's: on each run of eight lines, an edge left of the run's
- * parting moves `moves` dots left and any other as far right, so a window
- * keeps to what it framed; an edge on the screen's first or last dot reaches
- * on to the view's side as before. A parting at the screen's width moves the
- * whole run left. */
+/* The windows parted with panels that a layout moves apart, their sides out
+ * to the view's: on each run of eight lines, an edge left of the run's left
+ * side's end moves `moves` dots left, one at or right of its right side's
+ * start as far right, and one between stays, so a window keeps to what it
+ * framed; an edge on the screen's first or last dot reaches on to the view's
+ * side as before. A panel parted in two has both at its parting. */
 enum { VID_PARTING_ROWS = VID_ORIGINAL_VIEW_HEIGHT / 8 };
 typedef struct {
-    uint16_t cut[VID_PARTING_ROWS];   /* the dot where each run's right side starts */
+    uint16_t left_side[VID_PARTING_ROWS];    /* the dot each run's left side ends at */
+    uint16_t right_side[VID_PARTING_ROWS];   /* the dot each run's right side starts at */
     int16_t moves;
 } VidWindowParting;
 

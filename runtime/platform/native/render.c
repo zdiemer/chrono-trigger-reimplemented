@@ -397,9 +397,13 @@ static inline void mark_entry(uint64_t entries[4], unsigned index, bool used)
 /* Sets out[x] to 1 inside the combined window and 0 outside. Returns false,
  * leaving out alone, when neither window is enabled (nothing is inside). */
 /* An edge inside the screen, moved with the side of a parting it is on. */
-static int parted_edge(int e, int cut, int moves) { return e < cut ? e - moves : e + moves; }
+static int parted_edge(int e, int left_side, int right_side, int moves)
+{
+    return e < left_side ? e - moves : e >= right_side ? e + moves : e;
+}
 
-static bool window_mask(const VidWindows *ww, int layer, uint8_t *out, int left, int width, int cut, int moves)
+static bool window_mask(const VidWindows *ww, int layer, uint8_t *out, int left, int width, int left_side,
+                        int right_side, int moves)
 {
     VidWinUse u1 = ww->w1[layer], u2 = ww->w2[layer];
     bool en1 = (u1 & 2) != 0, en2 = (u2 & 2) != 0;
@@ -407,8 +411,8 @@ static bool window_mask(const VidWindows *ww, int layer, uint8_t *out, int left,
         return false;
     int l1 = ww->w1_left, r1 = ww->w1_right, l2 = ww->w2_left, r2 = ww->w2_right;
     if (moves) {
-        l1 = parted_edge(l1, cut, moves), r1 = parted_edge(r1, cut, moves);
-        l2 = parted_edge(l2, cut, moves), r2 = parted_edge(r2, cut, moves);
+        l1 = parted_edge(l1, left_side, right_side, moves), r1 = parted_edge(r1, left_side, right_side, moves);
+        l2 = parted_edge(l2, left_side, right_side, moves), r2 = parted_edge(r2, left_side, right_side, moves);
     }
     /* Past the original's screen, an edge on its first or last dot reaches on
      * to the view's side (VidWindows). */
@@ -1162,16 +1166,18 @@ static int parting_row(int line) { return (line - 1) / 8; }
 static void span_windows(SpanCtx *sp, int line)
 {
     const VidLineState *st = sp->st;
-    int row = parting_row(line), cut = 0, moves = 0;
+    int row = parting_row(line), left_side = 0, right_side = 0, moves = 0;
     if (sp->parting && row < VID_PARTING_ROWS) {
-        cut = sp->parting->cut[row];
+        left_side = sp->parting->left_side[row];
+        right_side = sp->parting->right_side[row];
         moves = sp->parting->moves;
     }
     sp->parted_row = row;
     for (int layer = L_BG1; layer <= L_OBJ; layer++) {
         uint8_t bit = (uint8_t)(1 << layer);
         sp->windowed[layer] = ((sp->win_main | (sp->need_sub ? sp->win_sub : 0)) & bit) != 0 &&
-                              window_mask(&st->windows, layer, sp->win[layer], sp->left, sp->width, cut, moves);
+                              window_mask(&st->windows, layer, sp->win[layer], sp->left, sp->width, left_side, right_side,
+                                          moves);
     }
 
     /* Color window: per value (outside, inside), whether to clip the main screen
@@ -1191,7 +1197,7 @@ static void span_windows(SpanCtx *sp, int line)
         default: math_when[v] = 0; break;
         }
     }
-    if (window_mask(&st->windows, L_BACK, sp->win[L_BACK], sp->left, sp->width, cut, moves)) {
+    if (window_mask(&st->windows, L_BACK, sp->win[L_BACK], sp->left, sp->width, left_side, right_side, moves)) {
         for (int x = 0; x < sp->width; x++) {
             sp->clip[x] = clip_when[sp->win[L_BACK][x]];
             sp->math_on[x] = math_when[sp->win[L_BACK][x]];
