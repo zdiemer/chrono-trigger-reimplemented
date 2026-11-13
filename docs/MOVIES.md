@@ -95,10 +95,15 @@ movies whose fight such a route carries, each movie's own route, the one its
 header names (or, for a hand recording, the route that names the movie): 19
 movies, from Dalton, Giga Gaia, the Golem Twins, the Black Tyrano, Son of
 Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's forest,
-Death Peak's summit, the unequipped armor's fights and the TerraMutant. Two
+Death Peak's summit, the unequipped armor's fights and the TerraMutant. Six
 routes take the movie's own presses for the field before their fights, which
 the field plays on time: `unequipped_armor` to Truce Canyon (16 s where the
-world map's searches took 41) and `terramutant` to the boss; the TerraMutant's
+world map's searches took 41), `terramutant` to the boss, and `black_tyrano`,
+`giga_gaia`, `rust_tyrano` and `north_cape` (the fight) to their battles' first
+command menus, where walking there took 40-80% of each route's time (black_tyrano
+23 s to 7, north_cape 23 to 4). Their `play` functions still walk the way for the
+playthrough legs and `magus_joins`; from the movie's start, Magus's fight is
+checked with seed 2, the first that wins without the party falling. The TerraMutant's
 movie ends partway through the fight, so its route stops there too, the head
 hurt as far as the movie's, both parts up. The gate runs those routes beside the fast
 pair (`routes` in the gate's `times:` line). For those movies the outcome check

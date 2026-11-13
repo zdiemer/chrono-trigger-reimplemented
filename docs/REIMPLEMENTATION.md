@@ -9,7 +9,12 @@ ct_native is the product. The last commit containing the emulator and oracle too
 portsmell, doc-names (no doc or RAM-map prose naming code that is gone), Python unit tests and the native CTest tests. Every sampled movie
 must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
-and must be below 600 seconds. The separate `--long` batch runs the whole library, every public route
+and must be below 600 seconds. Its stages run side by side in lanes: the movies
+(then their outcomes), the routes, the snapshots, the unit tests and the source
+checks. The three that run ct_native share two slots (`tools/native_slots.py`,
+lock files the suite names in `CT_NATIVE_SLOTS`), so no more than two of its
+processes run at once and none waits for another stage to end; movies and
+routes start longest first (routes by the times `route_check --scratch` keeps). The separate `--long` batch runs the whole library, every public route
 module and the wide-view end-state check at `-j 2`, with stage logs and `findings.json` under `build/suite-long`.
 Gameplay failures remain findings, but a missing binary or a stage launch
 failure aborts the batch with nonzero status and a diagnostic. It reports
@@ -38,12 +43,15 @@ trips, asset loading, route protocol, audio replay, persistence and bindings.
 
 ## Validation receipt
 
-With the fight routes carried and their facts checked, the sampled native
-gate finished `suite OK` in **447.2 seconds** at `-j 2`, on a machine other
-agents shared: 251 Python tests (109.1 s), 24 native C tests (6.0 s),
-58 movies (191.3 s), 58 outcome ratchets (0.4 s), the fast pair and 16 fight
-routes (135.1 s), snapshots (120.3 s), portstyle (0.4 s), portsmell (94.7 s)
-and doc-names (1.0 s). All three native picture fingerprints passed.
+With the fight routes carried and their facts checked, and the plays stages
+side by side on the two ct_native slots, the sampled native gate finished in
+**321.4 seconds** at `-j 2` (447.2 with the stages in turn), on a machine other
+agents shared: 252 Python tests (104.4 s), 29 native C tests (20.3 s), 58 movies
+(288.5 s), 58 outcome ratchets (0.1 s), the fast pair and 19 fight routes
+(321.4 s), snapshots (82.7 s), portstyle (0.4 s), portsmell (88.5 s) and
+doc-names (0.9 s); the three plays stages overlap, so their times add to more
+than the wall. Every stage passed but one native C test, `map_pictures`, whose
+Heckran's Cave frame meets a battle since main's battle timing changed. All three native picture fingerprints passed.
 
 Windows MinGW GCC and WSL GCC/Clang built with warnings as errors; both Linux
 builds passed all 15 C tests. Opening, menu and battle quick-load continuations
