@@ -156,8 +156,10 @@ fights before it leaving their MP alone. At the End of Time Spekkio's three
 laps pass each post once (a post counts again each time its count runs while
 the leader is still against it, so the walk ends on the touch and the party
 then stands still); `heckran_prepare` and `heckran` then play the Medina gate,
-the cave, a Shelter at its save point and Heckran. It ends with Heckran beaten
-(frame 626047). Lab 16's Shadows,
+the cave, a Shelter at its save point and Heckran. Heckran's whirlpool,
+Leene Square's Gate (which shows Truce Canyon's pillar at the End of Time) and
+that pillar lead to 600 A.D.; Guardia's kitchen gives Zenan Bridge's jerky,
+and `zombor` plays the bridge. It ends with Zombor beaten (frame 698042). Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 

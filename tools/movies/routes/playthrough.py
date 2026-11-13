@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends with Heckran beaten in his
-cave, 1000 A.D.
+on only past checkpoints that succeeded. It ends with Zombor beaten on Zenan
+Bridge, 600 A.D.
 """
 import os
 
@@ -1162,9 +1162,17 @@ def main():
             assert machine.b(A.EVENT_MEMORY) == STORY_600_AGAIN
             run.checkpoint("truce_600")
         if later <= 3:
-            # Zenan Bridge's captain asks for supplies.
+            # Tonics, Revives and Shelters from the village's shop by the
+            # canyon (the cave and the R Series spent them); then Zenan
+            # Bridge's captain asks for supplies.
             assert leave_fighting(run, "7000"), "the canyon's lower part"
             assert leave_fighting(run, "f101"), "the 600 A.D. world map"
+            assert run.world_go(*TRUCE_600), "the village"
+            world_enter(run, TRUCE_600_SHOP)
+            buy(run, SHOP_COUNTER, [(TONIC_ROW, 60, 10), (REVIVE_ROW, 3, 200), (SHELTER_ROW, 3, 150)])
+            run.say("supplies", "tonics", count_of(machine, policies.TONIC), "revives", count_of(machine, policies.REVIVE),
+                    "shelters", count_of(machine, SHELTER))
+            assert leave_fighting(run, "f101"), "out of the shop"
             run.wait_world_control()
             world_enter(run, ZENAN_BRIDGE_600)
             walking(run)
@@ -1209,7 +1217,7 @@ def main():
             run.checkpoint("zenan_bridge")
         if later <= len(ZENAN) - 1:
             walking(run)
-            zombor.play(run, max(3, later - 7 + 3), args.seed)
+            zombor.play(run, max(3, later - 7 + 3), args.seed, before_zombor=drink_tonics)
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

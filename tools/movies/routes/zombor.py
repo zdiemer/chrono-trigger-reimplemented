@@ -60,9 +60,10 @@ def zombor_party(bot, state, rng, inventory):
     return ("attack", target if target is not None else living[0])
 
 
-def play(run, start=1, seed=1):
+def play(run, start=1, seed=1, before_zombor=None):
     """From the fast settings to Zombor beaten on Zenan Bridge; `start` is the
-    index in PHASES of the first phase to run."""
+    index in PHASES of the first phase to run. `before_zombor` runs before the
+    walk that meets him (a caller can heal the party there)."""
     if start <= 1:
         early.fast_settings(run)
         run.checkpoint("zombor_settings")
@@ -90,6 +91,8 @@ def play(run, start=1, seed=1):
         early.fight(run, seed=seed, policy=bridge_party)
         run.checkpoint("zenan_second")
     if start <= 7:
+        if before_zombor:
+            before_zombor(run)
         next_battle(run)
         assert run.machine.b(early.STORY) == 0x5A
         run.checkpoint("zombor")
