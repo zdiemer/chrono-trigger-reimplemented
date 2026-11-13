@@ -3,6 +3,7 @@
 These routes keep their movies in scratch storage: each fight and ending is
 too long to replay in every gate. Checkpoints contain only the winning input.
 """
+from . import addresses as A
 from .campaign import Run, route_arguments
 from .routes.telepod_lavos import to_the_shell
 
@@ -101,6 +102,16 @@ def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None):
         assert run.exit_to("db01"), "the inner cavern's second chamber"
         run.checkpoint("inner")
     if start <= 5:
+        # With Robo in the party the inner fight opens on his line about
+        # Lavos's DNA, a battle window the field's dialog flag doesn't show,
+        # before anyone's HP is in the battle: confirm through it first, or
+        # the fight takes the empty stats for a wipe.
+        machine = run.machine
+        for _ in range(300):
+            if machine.b(A.BATTLE_MENU_MEMBER) < 0x80:
+                break
+            machine.run(3, "A")
+            machine.run(37)
         run.fight(policy, lambda r, s: r.map_id() == "df01", party=party, seed=seed)
         run.checkpoint("core")
     if start <= 6:

@@ -108,8 +108,9 @@ slot 1: defeat Retinite, leave Robo with Fiona in 600 A.D., fly the Epoch to
 1000 A.D., land and save. `tools/movies/routes/prepare_luccas_mother.py`
 repeats those prerequisites and exports the game's SRAM; its long movie is a
 hand-run route kept outside the library. The library's `luccas_mother` route
-starts from this boundary. The preparation's 40031-frame replay reproduces
-this SRAM byte for byte.
+starts from this boundary. The preparation took 40031 frames when this save
+was made; a rerun now takes 40705 and writes the same story state, with
+other play-time bytes.
 
 The stock saves bracket too much: fantasyanime `ctsave12` slot 3 still has
 the desert closed (`$7F:00F7 = $00`), while `ctsave13` slot 1 has Lara already
