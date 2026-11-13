@@ -38,6 +38,12 @@ death_peak_return gold 63430  # events-death-peak
 death_peak_return items -  # events-death-peak
 death_peak_return events 9f24c554722f3cd8  # events-death-peak
 
+dalton levels 37,37,35,33,34,35,37  # battle-dalton
+dalton experience 100512,101781,89965,80976,81993,87094,97780  # battle-dalton
+dalton gold 4000  # battle-dalton
+dalton items -  # battle-dalton
+dalton events 490233425ce315f2  # battle-dalton
+
 dragon_tank levels 7,7,7,10,8,18,37  # battle-dragon-tank
 dragon_tank experience 905,673,839,1840,979,11520,97780  # battle-dragon-tank
 dragon_tank gold 7770  # battle-dragon-tank
