@@ -2,6 +2,7 @@
  * changes to sprites and tile data while later lines are still being built. */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "platform/native/host.h"
 #include "platform/native/render.h"
@@ -300,7 +301,7 @@ static void wider_view(void)
         oam[4 * n + 1] = VID_OAM_HIDDEN_Y;
     oam[0] = vid_oam_x_low(270), oam[1] = ROW, oam[0x200] = vid_oam_high_bits(270, false);
     oam[4] = vid_oam_x_low(VID_OAM_HIDDEN_X), oam[5] = ROW, oam[0x200] |= vid_oam_high_bits(VID_OAM_HIDDEN_X, false) << 2;
-    VidSpritePlace places[VID_SPRITES] = { { 270, ROW, VID_PLACE_AT }, { VID_OAM_HIDDEN_X, ROW, VID_PLACE_HIDDEN } };
+    VidSpritePlace places[VID_SPRITES] = { { 270, ROW, VID_PLACE_AT, 0 }, { VID_OAM_HIDDEN_X, ROW, VID_PLACE_HIDDEN, 0 } };
     vid_send_oam(&pf, PF_AT(0), (PfData){ .ptr = oam }, places);
     const VidFrame *f = vid_host_picture(&pf);
     CHECK(vid_render_width(f) == WIDTH);
@@ -332,10 +333,98 @@ static void wider_view(void)
     vid_host_stop(&pf);
 }
 
+/* A one-screen map laid out across a wider view: each 8-dot column shows the
+ * map's column the layout names, or nothing; a window's edges move with the
+ * side of the parting they are on; a sprite placed with a move is drawn that
+ * far across. The original's screen alone ignores none of it, as no layout is
+ * given there. */
+static void laid_out_panel(void)
+{
+    enum { WIDTH = 320, LEFT = (256 - WIDTH) / 2, ROW = 10, MAP = 0x0800, CHARS = 0x1000 };
+    Platform pf = {0};
+    vid_host_start(&pf, NULL, NULL);
+    vid_host_frame_begins(&pf);
+    vid_host_set_view(&pf, (VidView){ WIDTH, 224 });
+    vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
+    vid_set_mode(&pf, PF_AT(0), &(VidMode){ .mode = 1 });
+    vid_set_screens(&pf, PF_AT(0), VID_BG1_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
+    vid_set_obj_config(&pf, PF_AT(0), &(VidObjConfig){ 0 });
+    vid_set_bg_map(&pf, PF_AT(0), VID_BG1, &(VidBg){ VID_TILEMAP(MAP, 32, 32) });
+    vid_set_bg_chars(&pf, PF_AT(0), VID_BG1, CHARS, CHARS);
+    vid_set_palette_color(&pf, PF_AT(0), 0, 31);
+    vid_set_palette_color(&pf, PF_AT(0), 1, 31 << 5);
+    vid_set_palette_color(&pf, PF_AT(0), 2, 31 << 10);
+    vid_set_palette_color(&pf, PF_AT(0), 129, 31 << 5 | 31);
+    uint8_t tile[2][32] = { { 0 } };
+    for (unsigned row = 0; row < 8; row++) {
+        tile[0][2 * row] = 0xFF;       /* every pixel colour 1 */
+        tile[1][2 * row + 1] = 0xFF;   /* every pixel colour 2 */
+    }
+    vid_send_vram(&pf, PF_AT(0), CHARS + 16, (PfData){ .ptr = tile[0] }, sizeof tile[0], VID_VRAM_WORD_PORT);
+    vid_send_vram(&pf, PF_AT(0), CHARS + 32, (PfData){ .ptr = tile[1] }, sizeof tile[1], VID_VRAM_WORD_PORT);
+    vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .ptr = tile[0] }, sizeof tile[0], VID_VRAM_WORD_PORT);
+    static uint8_t map[32 * 32 * 2];
+    for (unsigned i = 0; i < sizeof map; i += 2)
+        map[i] = (i / 2) % 32 == 5 ? 2 : 1;   /* column 5 tile 2, the rest tile 1 */
+    vid_send_vram(&pf, PF_AT(0), MAP, (PfData){ .ptr = map }, sizeof map, VID_VRAM_WORD_PORT);
+    uint8_t oam[0x220] = { 0 };
+    for (unsigned n = 0; n < VID_SPRITES; n++)
+        oam[4 * n + 1] = VID_OAM_HIDDEN_Y;
+    oam[0] = 100, oam[1] = ROW + 8;
+    VidSpritePlace places[VID_SPRITES] = { { 100, ROW + 8, VID_PLACE_AT, 40 } };
+    vid_send_oam(&pf, PF_AT(0), (PfData){ .ptr = oam }, places);
+
+    static VidMapLayout layout;
+    memset(&layout, VID_LAYOUT_NOTHING, sizeof layout);
+    layout.column[1][(unsigned)-2 & 63] = 5;    /* the map's column 5 two columns left of the screen */
+    layout.column[1][0] = 6;
+    vid_lay_out_a_map_across(&pf, MAP, &layout);
+    const VidFrame *f = vid_host_picture(&pf);
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = calloc(VID_RENDER_MAX_PIXELS, sizeof *pixels);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t backdrop = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    uint32_t one = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15));
+    uint32_t two = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 10, 15));
+    uint32_t sprite = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5 | 31, 15));
+    const uint32_t *row = pixels + ROW * WIDTH;
+    CHECK(row[-16 - LEFT] == two && row[-9 - LEFT] == two && row[-17 - LEFT] == backdrop);
+    CHECK(row[0 - LEFT] == one && row[8 - LEFT] == backdrop && row[255 - LEFT] == backdrop);
+    CHECK(pixels[(ROW + 8) * WIDTH + 140 - LEFT] == sprite && pixels[(ROW + 8) * WIDTH + 100 - LEFT] != sprite);
+
+    /* A window round the screen's middle, parted at dot 128 and moved 16 each way. */
+    VidWindows w = { 0 };
+    w.w1[VID_BG1] = VID_WIN_IN;
+    w.w1_left = 100, w.w1_right = 150;
+    w.win_main = VID_BG1_BIT;
+    vid_set_windows(&pf, PF_AT(0), &w, VID_WINDOWS_BG1_BG2 | VID_WINDOWS_W1_LEFT | VID_WINDOWS_W1_RIGHT | VID_WINDOWS_MAIN);
+    memset(&layout, VID_LAYOUT_NOTHING, sizeof layout);
+    for (int s = -32; s < 64; s++)
+        layout.column[1][(unsigned)s & 63] = 1;
+    vid_lay_out_a_map_across(&pf, MAP, &layout);
+    VidWindowParting parting = { .moves = 16 };
+    for (unsigned n = 0; n < VID_PARTING_ROWS; n++)
+        parting.cut[n] = 128;
+    vid_part_the_windows(&pf, &parting);
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(row[83 - LEFT] == one && row[84 - LEFT] == backdrop && row[166 - LEFT] == backdrop &&
+          row[167 - LEFT] == one);
+
+    /* Each frame starts with none. */
+    vid_host_frame_begins(&pf);
+    f = vid_host_picture(&pf);
+    CHECK(f->layout_count == 0 && f->parting == NULL);
+    free(pixels);
+    vid_render_destroy(r);
+    vid_host_stop(&pf);
+}
+
 int main(void)
 {
     view_size();
     wider_view();
+    laid_out_panel();
     resource_transfers();
     fill_half_from_cursor();
     changing_picture();

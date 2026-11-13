@@ -868,7 +868,7 @@ static void decode_sprites(VidObserver *ob)
         uint16_t x9 = (uint16_t)(e[0] | (hi & 1) << 8);
         const VidSpritePlace *place = &ob->places[n];
         bool holds = vid_place_holds(place, x9, e[1]);
-        ob->frame.sprites[n] = (VidSprite){ .x = holds && place->kind == VID_PLACE_AT ? place->x : (int16_t)x9,
+        ob->frame.sprites[n] = (VidSprite){ .x = holds && place->kind == VID_PLACE_AT ? (int16_t)(place->x + place->moves) : (int16_t)x9,
                                             .y = e[1],
                                             .tile = (uint16_t)(e[2] | (e[3] & 1) << 8),
                                             .palette = (uint8_t)((e[3] >> 1) & 7),
@@ -898,6 +898,15 @@ void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], co
     ob->frame.view = view;
     memcpy(ob->frame.layer_left, layer_left, sizeof ob->frame.layer_left);
     memcpy(ob->frame.layer_right, layer_right, sizeof ob->frame.layer_right);
+}
+
+void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
+                     const VidWindowParting *parting)
+{
+    ob->frame.parting = parting;
+    ob->frame.layout_count = count;
+    memcpy(ob->frame.layout_map, map, sizeof ob->frame.layout_map);
+    ob->frame.layouts = layouts;
 }
 
 void vid_obs_line(VidObserver *ob, uint16_t line)

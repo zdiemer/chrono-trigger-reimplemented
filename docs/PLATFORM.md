@@ -153,16 +153,38 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   BG3 keeps that layer to the original's screen.
 - **The world maps** fill their two scrolling planes' margins the same way
   each frame (`menu_map_fill_the_views_margins`) and show them across the view.
-- **Every other mode** (the menus, the scenes, the time warp's tunnel aside,
-  which is Mode 7) keeps its layers to the original's screen, the backdrop in
-  the margins, until it builds what lies past it.
+- **Panels** -- the battle window's and the menus' tilemaps, one screen (32
+  columns) across -- are laid out across the view rather than stretched
+  (`vid_lay_out_a_map_across`): each frame a mode says, row by row of a map,
+  which of its columns each 8-dot column of the view shows, or nothing. It
+  only moves the map's own columns along their row, so what a panel shows and
+  everything the game decides stay the original's. The windows' edges can be
+  parted with it (`vid_part_the_windows`: an edge left of a row's parting moves
+  left, any other right), and a sprite place can carry a move across
+  (`VidSpritePlace.moves`), so clipping windows, highlights and cursors keep to
+  what they framed. `game/core/panel_layout.h` builds layouts: columns shown
+  at a place, a window stretched with its inside's four-column pattern
+  repeated.
+- **The battle window** (`game/battle/wide_window.c`) keeps the windows at its
+  left (the command windows, the enemies' list) at the view's left side,
+  stretches the party's window to its right side and spreads each member's
+  name, numbers and gauge across it; the tech page's two windows each stretch
+  to their side, and the item list and the message window across the view.
+  What the window's rows and frames show is noted as the vblank sends them
+  (from the transfer's source, and the frames' window corners), so the layout
+  always fits what VRAM holds.
+- **Every other mode** (the menus, the scenes, the dialog window over the
+  field, the time warp's tunnel aside, which is Mode 7) keeps its layers to the
+  original's screen, the backdrop in the margins, until it builds what lies
+  past it.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
-its state (`SpritePlaces`, `FieldMargins`) is the program's, beside the game's
+its state (`SpritePlaces`, `FieldMargins`, `PanelLayout`, `BattleWideWindow`) is the program's, beside the game's
 memory. So a movie played at a wider view ends in the same work RAM and save
-RAM as at the original's: `field.ctm`, `gato-battle.ctm` and
-`attract-demo.ctm` were checked so with `--end-state` at 398x224.
+RAM as at the original's: `field.ctm`, `gato-battle.ctm`,
+`attract-demo.ctm` and `battle-menu-buttons.ctm` were checked so with `--end-state` at
+398x224.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate

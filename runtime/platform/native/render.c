@@ -68,6 +68,9 @@ typedef struct {
     uint8_t clip[W], math_on[W];   /* the color window's effect */
     int width, left;               /* the view: pixels across, and the screen X of the first */
     int layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across */
+    const VidMapLayout *layout[4];       /* how each BG's one-screen map is laid out across the view, or NULL */
+    const VidWindowParting *parting;     /* how the windows are parted, or NULL */
+    int parted_row;                      /* the run of eight lines the window masks were parted for */
 } SpanCtx;
 
 /* VRAM is tracked in 32-byte pages: one 4bpp tile each, which the dependency
@@ -141,6 +144,11 @@ struct VidRenderer {
     const uint32_t *last_out;   /* the framebuffer the cached lines are in */
     int width, left;            /* the view the cached lines were drawn for */
     int16_t layer_left[4], layer_right[4];   /* and where its layers held the picture */
+    uint8_t layout_count;                    /* and how its panels were laid out */
+    uint16_t layout_map[VID_MAP_LAYOUTS];
+    VidMapLayout layouts[VID_MAP_LAYOUTS];
+    bool parted;                             /* and its windows parted */
+    VidWindowParting parting;
     VidRenderStats stats;
     bool range_over, time_over;
 };
@@ -384,19 +392,26 @@ static inline void mark_entry(uint64_t entries[4], unsigned index, bool used)
 
 /* Sets out[x] to 1 inside the combined window and 0 outside. Returns false,
  * leaving out alone, when neither window is enabled (nothing is inside). */
-static bool window_mask(const VidWindows *ww, int layer, uint8_t *out, int left, int width)
+/* An edge inside the screen, moved with the side of a parting it is on. */
+static int parted_edge(int e, int cut, int moves) { return e < cut ? e - moves : e + moves; }
+
+static bool window_mask(const VidWindows *ww, int layer, uint8_t *out, int left, int width, int cut, int moves)
 {
     VidWinUse u1 = ww->w1[layer], u2 = ww->w2[layer];
     bool en1 = (u1 & 2) != 0, en2 = (u2 & 2) != 0;
     if (!en1 && !en2)
         return false;
     int l1 = ww->w1_left, r1 = ww->w1_right, l2 = ww->w2_left, r2 = ww->w2_right;
+    if (moves) {
+        l1 = parted_edge(l1, cut, moves), r1 = parted_edge(r1, cut, moves);
+        l2 = parted_edge(l2, cut, moves), r2 = parted_edge(r2, cut, moves);
+    }
     /* Past the original's screen, an edge on its first or last dot reaches on
      * to the view's side (VidWindows). */
-    if (l1 == VID_WINDOW_FIRST_DOT) l1 = left;
-    if (l2 == VID_WINDOW_FIRST_DOT) l2 = left;
-    if (r1 == VID_WINDOW_LAST_DOT) r1 = left + width - 1;
-    if (r2 == VID_WINDOW_LAST_DOT) r2 = left + width - 1;
+    if (ww->w1_left == VID_WINDOW_FIRST_DOT) l1 = left;
+    if (ww->w2_left == VID_WINDOW_FIRST_DOT) l2 = left;
+    if (ww->w1_right == VID_WINDOW_LAST_DOT) r1 = left + width - 1;
+    if (ww->w2_right == VID_WINDOW_LAST_DOT) r2 = left + width - 1;
     uint8_t inv1 = (uint8_t)(u1 & 1), inv2 = (uint8_t)(u2 & 1);
     VidWinLogic logic = ww->logic[layer];
     for (int i = 0; i < width; i++) {
@@ -469,10 +484,14 @@ static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, u
     /* Pages and entries read, kept in locals while drawing. */
     uint64_t pages[VRAM_WORDS] = { 0 }, entries[4] = { 0 };
 
+    const VidMapLayout *layout = sp->layout[bg];
+    if (layout)
+        wmask = 511;   /* a ring of VID_LAYOUT_COLUMNS columns, each one of the map's or none */
     uint32_t by = ((uint32_t)c->line + b->vofs) & hmask;
     uint32_t bx = (uint32_t)(b->hofs + sp->left) & wmask;
     /* map_entry, with the row's part of the address computed once. */
     uint32_t map_row = by >> 3;
+    const uint8_t *laid_out = layout ? layout->column[map_row & (VID_LAYOUT_ROWS - 1)] : NULL;
     uint32_t quad_y = ((map_row & 0x20) && tall) ? (wide ? 2048 : 1024) : 0;
     uint32_t row_base = ((uint32_t)b->map_base << 1) + (quad_y + ((map_row & 0x1F) << 5)) * 2;
     uint32_t quad_x = wide ? 1024 : 0;   /* for columns with bit 5 set */
@@ -486,10 +505,17 @@ static inline void draw_bg_tiles(LayerBuf *lb, LineCtx *c, int bg, int planes, u
         int tx0 = (int)(bx & 7);
         int n = min_i(8 - tx0, width - x);
         uint32_t col = bx >> 3;
-        uint32_t a = (row_base + (((col & 0x20) ? quad_x : 0) + (col & 0x1F)) * 2) & 0xFFFF;
-        uint16_t entry = (uint16_t)(vram[a] | vram[(a + 1) & 0xFFFF] << 8);
         x += n;
         bx = (bx + (uint32_t)n) & wmask;
+        if (laid_out) {
+            if (laid_out[col] == VID_LAYOUT_NOTHING) {
+                memset(lb->z + x - n, 0, 8);
+                continue;
+            }
+            col = laid_out[col];
+        }
+        uint32_t a = (row_base + (((col & 0x20) ? quad_x : 0) + (col & 0x1F)) * 2) & 0xFFFF;
+        uint16_t entry = (uint16_t)(vram[a] | vram[(a + 1) & 0xFFFF] << 8);
 
         int ty = (entry & 0x8000) ? 7 - (int)(by & 7) : (int)(by & 7);
         uint32_t addr = (char_base + (entry & 0x3FFu) * tile_bytes) & 0xFFFF;
@@ -577,8 +603,9 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
 
     const uint8_t *vram = sp->vram;
     const VidBg *b = &st->bg[bg], *b3 = &st->bg[2];
+    const VidMapLayout *layout = sp->layout[bg];
     bool wide = b->map_w == 64, tall = b->map_h == 64;
-    uint32_t wmask = (wide ? 512u : 256u) - 1;
+    uint32_t wmask = (wide || layout ? 512u : 256u) - 1;
     uint32_t hmask = (tall ? 512u : 256u) - 1;
     uint32_t map_base = (uint32_t)b->map_base << 1;
     uint32_t char_base = (uint32_t)b->char_base << 1;
@@ -598,9 +625,19 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
     int left = sp->left, right = sp->left + sp->width;
     for (int sx = left - ((left % msize) + msize) % msize; sx < right; sx += msize) {
         uint32_t hofs = b->hofs, vofs = b->vofs;
-        if (opt && sx >= 8 - (int)(hofs & 7)) {
-            int seg = sx - (int)((sx + hofs) & 7);   /* first pixel of this BG tile on screen */
-            uint32_t col = ((uint32_t)(b3->hofs + seg - 1) & 0x1FF) >> 3;
+        int seg = sx - (int)((sx + hofs) & 7);   /* first pixel of this BG tile on screen */
+        uint32_t opt_col = ((uint32_t)(b3->hofs + seg - 1) & 0x1FF) >> 3;
+        bool opt_here = opt && sx >= 8 - (int)(hofs & 7);
+        if (opt && layout) {
+            /* a column laid out across the view takes the offset its own
+             * column takes on the original's screen */
+            uint32_t t = (((uint32_t)sx + hofs) & 511) >> 3;
+            uint8_t src = layout->column[((((uint32_t)y + vofs) & hmask) >> 3) & (VID_LAYOUT_ROWS - 1)][t & 63];
+            opt_here = src != VID_LAYOUT_NOTHING && src >= 1;
+            opt_col = ((b3->hofs >> 3) + src - 1u) & 0x3F;
+        }
+        if (opt_here) {
+            uint32_t col = opt_col;
             uint16_t hword = map_entry(vram, map3, wide3, tall3, hrow, col), vword;
             if (mode == 4) {
                 vword = (hword & 0x8000) ? hword : 0;
@@ -616,7 +653,13 @@ static void draw_bg(LayerBuf *lb, LineCtx *c, int bg, int planes, bool hires)
         }
         uint32_t bx = ((uint32_t)(hires ? sx * 2 : sx) + hofs) & wmask;
         uint32_t by = ((uint32_t)y + vofs) & hmask;
-        uint16_t entry = map_entry(vram, map_base, wide, tall, by >> 3, bx >> 3);
+        uint32_t col = bx >> 3;
+        if (layout) {
+            col = layout->column[(by >> 3) & (VID_LAYOUT_ROWS - 1)][col];
+            if (col == VID_LAYOUT_NOTHING)
+                continue;
+        }
+        uint16_t entry = map_entry(vram, map_base, wide, tall, by >> 3, col);
         int tx = bx & 7, ty = by & 7;
         if (entry & 0x4000)
             tx = 7 - tx;
@@ -998,6 +1041,8 @@ static inline void compose_math(uint32_t *restrict out, const Screen *m, const S
 /* Everything a span shares, worked out once for all its lines, and the caches
  * brought up to the memory it reads. `recheck_vram` compares all of VRAM, which
  * is worth doing once a frame and again wherever the frame says it changed. */
+static void span_windows(SpanCtx *sp, int line);
+
 static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, bool recheck_vram)
 {
     SpanCtx *sp = &r->span;
@@ -1008,6 +1053,12 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     for (int bg = 0; bg < 4; bg++) {
         sp->layer_left[bg] = f->layer_left[bg];
         sp->layer_right[bg] = f->layer_right[bg];
+        sp->layout[bg] = NULL;
+        if (st->bg[bg].map_w != 32)
+            continue;
+        for (int n = 0; n < f->layout_count; n++)
+            if (f->layout_map[n] == st->bg[bg].map_base)
+                sp->layout[bg] = &f->layouts[n];
     }
     sp->vram = span->vram ? span->vram : f->vram;
     sp->sprites = span->sprites ? span->sprites->sprites : f->sprites;
@@ -1036,10 +1087,27 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     sp->need_sub = sp->any_math && sp->sub_add;
     sp->add_cap = sp->brightness == 15 ? 31 : brightness_scale(31, sp->brightness);
 
+    sp->parting = f->parting;
+    span_windows(sp, span->line < 1 ? 1 : span->line);
+}
+
+/* The run of eight lines a line is in, for the windows' parting. */
+static int parting_row(int line) { return (line - 1) / 8; }
+
+/* The window masks for the span's line `line`, parted as that line's run is. */
+static void span_windows(SpanCtx *sp, int line)
+{
+    const VidLineState *st = sp->st;
+    int row = parting_row(line), cut = 0, moves = 0;
+    if (sp->parting && row < VID_PARTING_ROWS) {
+        cut = sp->parting->cut[row];
+        moves = sp->parting->moves;
+    }
+    sp->parted_row = row;
     for (int layer = L_BG1; layer <= L_OBJ; layer++) {
         uint8_t bit = (uint8_t)(1 << layer);
         sp->windowed[layer] = ((sp->win_main | (sp->need_sub ? sp->win_sub : 0)) & bit) != 0 &&
-                              window_mask(&st->windows, layer, sp->win[layer], sp->left, sp->width);
+                              window_mask(&st->windows, layer, sp->win[layer], sp->left, sp->width, cut, moves);
     }
 
     /* Color window: per value (outside, inside), whether to clip the main screen
@@ -1059,7 +1127,7 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
         default: math_when[v] = 0; break;
         }
     }
-    if (window_mask(&st->windows, L_BACK, sp->win[L_BACK], sp->left, sp->width)) {
+    if (window_mask(&st->windows, L_BACK, sp->win[L_BACK], sp->left, sp->width, cut, moves)) {
         for (int x = 0; x < sp->width; x++) {
             sp->clip[x] = clip_when[sp->win[L_BACK][x]];
             sp->math_on[x] = math_when[sp->win[L_BACK][x]];
@@ -1078,7 +1146,7 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
  * down) is kept to the original's screen whatever the frame says. */
 static void keep_the_layer_to_its_picture(LayerBuf *lb, const SpanCtx *sp, int layer)
 {
-    if (sp->left == 0)
+    if (sp->left == 0 || sp->layout[layer])
         return;
     /* the original's screen is drawn as the original draws it, whatever */
     int screen_from = -sp->left, screen_to = -sp->left + SCREEN_W;
@@ -1248,8 +1316,13 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
     int width = vid_render_width(f);
     /* The cached lines are the pixels in the framebuffer they were drawn into,
      * across the view they were drawn for. */
+    bool laid_out_alike = (f->parting != NULL) == r->parted &&
+                          (!f->parting || !memcmp(f->parting, &r->parting, sizeof r->parting)) &&
+                          f->layout_count == r->layout_count &&
+                          !memcmp(f->layout_map, r->layout_map, sizeof *f->layout_map * f->layout_count) &&
+                          (!f->layout_count || !memcmp(f->layouts, r->layouts, sizeof *f->layouts * f->layout_count));
     if (out != r->last_out || width != r->width || memcmp(f->layer_left, r->layer_left, sizeof r->layer_left) ||
-        memcmp(f->layer_right, r->layer_right, sizeof r->layer_right)) {
+        memcmp(f->layer_right, r->layer_right, sizeof r->layer_right) || !laid_out_alike) {
         for (int line = 1; line <= H; line++)
             r->lines[line].valid = false;
         r->last_out = out;
@@ -1258,6 +1331,14 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         r->sprites.valid = false;
         memcpy(r->layer_left, f->layer_left, sizeof r->layer_left);
         memcpy(r->layer_right, f->layer_right, sizeof r->layer_right);
+        r->parted = f->parting != NULL;
+        if (f->parting)
+            r->parting = *f->parting;
+        r->layout_count = f->layout_count;
+        if (f->layout_count) {
+            memcpy(r->layout_map, f->layout_map, sizeof *f->layout_map * f->layout_count);
+            memcpy(r->layouts, f->layouts, sizeof *f->layouts * f->layout_count);
+        }
     }
     if (f->span_count == 0) {
         memset(out, 0, sizeof *out * (size_t)width * H);
@@ -1297,11 +1378,13 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
             continue;
         }
         span_begin(r, span, f, recheck_vram);
-        const SpanCtx *sp = &r->span;
+        SpanCtx *sp = &r->span;
         span_key(r, sp);
         bool has_obj = (sp->used & VID_LAYER_BIT(VID_OBJ)) != 0;
         uint8_t first_sprite = has_obj ? sp->first_sprite : 0;
         for (int line = from; line <= to; line++) {
+            if (sp->parting && parting_row(line) != sp->parted_row)
+                span_windows(sp, line);
             uint32_t *row = out + (size_t)(line - 1) * width;
             LineCache *cache = &r->lines[line];
             uint64_t row_gen = has_obj ? r->sprites.row_gen[(line - 1) & 0xFF] : 0;

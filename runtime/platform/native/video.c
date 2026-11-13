@@ -46,6 +46,7 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
     vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right);
+    vid_obs_layouts(ob, v->layout_count, v->layout_map, v->layouts, v->parted ? &v->parting : NULL);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
             vid_obs_display(ob, &v->display_below);
@@ -75,6 +76,8 @@ void vid_host_frame_begins(Platform *pf)
         v->layer_left[bg] = 0;
         v->layer_right[bg] = VID_ORIGINAL_VIEW_WIDTH;
     }
+    v->layout_count = 0;
+    v->parted = false;
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -96,6 +99,48 @@ void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t ri
         return;
     pf->video.layer_left[bg] = left;
     pf->video.layer_right[bg] = right;
+}
+
+/* A layout given again for the same map this frame takes the earlier one's
+ * place; past VID_MAP_LAYOUTS a map keeps the original's arrangement. */
+void vid_lay_out_a_map_across(Platform *pf, uint16_t map_base, const VidMapLayout *layout)
+{
+    VidHost *v = &pf->video;
+    unsigned n = 0;
+    while (n < v->layout_count && v->layout_map[n] != map_base)
+        n++;
+    if (n == VID_MAP_LAYOUTS)
+        return;
+    if (n == v->layout_count)
+        v->layout_count++;
+    v->layout_map[n] = map_base;
+    v->layouts[n] = *layout;
+}
+
+void vid_part_the_windows(Platform *pf, const VidWindowParting *parting)
+{
+    pf->video.parted = true;
+    pf->video.parting = *parting;
+}
+
+void vid_read_vram(const Platform *pf, uint16_t vram, uint16_t *words, uint16_t count)
+{
+    for (uint16_t i = 0; i < count; i++)
+        words[i] = pf->video.observer ? vid_obs_vram_word(pf->video.observer, (uint16_t)(vram + i)) : 0;
+}
+
+bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg *out)
+{
+    const VidLineState *st = NULL;
+    if (!pf->video.observer || bg > VID_BG4)
+        return false;
+    const VidFrame *f = vid_obs_frame(pf->video.observer);
+    for (unsigned i = 0; i < f->span_count && f->spans[i].line <= line; i++)
+        st = &f->spans[i].state;
+    if (!st || st->display.blank)
+        return false;
+    *out = st->bg[bg];
+    return (st->main_layers & VID_LAYER_BIT(bg)) != 0;
 }
 
 /* The driver's choice, or the original's screen where it made none. */

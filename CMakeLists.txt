@@ -56,6 +56,7 @@ add_library(ct_game STATIC
   game/core/sound_commands.c
   game/core/tile_animation.c
   game/core/sprite_table.c
+  game/core/panel_layout.c
   game/data/assets.c
   game/data/asset_catalogue.c
   game/data/decompress.c
@@ -342,6 +343,7 @@ add_library(ct_game STATIC
   game/battle/beaten_enemies.c
   game/battle/closing.c
   game/battle/uploads.c
+  game/battle/wide_window.c
   game/battle/timers.c
   game/battle/wait.c
   game/battle/window.c)

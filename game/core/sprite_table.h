@@ -43,6 +43,11 @@ void sprite_table_place(GameState *g, unsigned sprite, int16_t x, uint8_t y);
  * its high bits alone. */
 void sprite_table_hide(GameState *g, unsigned sprite, int16_t x, uint8_t y);
 void sprite_table_hide_as_it_stands(GameState *g, unsigned sprite);
+/* The sprite as its entry now stands, moved `moves` dots across on a wider
+ * view with the panel under it (core/panel_layout.h); and every place
+ * forgotten, as a mode whose sprites had them ends. */
+void sprite_table_move_as_it_stands(GameState *g, unsigned sprite, int16_t moves);
+void sprite_table_forget_places(GameState *g);
 /* The places, for the send (vid_send_oam). */
 const VidSpritePlace *sprite_table_places(GameState *g);
 

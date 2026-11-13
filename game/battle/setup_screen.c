@@ -15,6 +15,7 @@
 #include "battle/setup.h"
 
 #include "battle/setup_data.h"
+#include "battle/wide_window.h"
 #include "vars.h"
 
 /* ---- The sprite drawing's tables ------------------------------------------------------------ */
@@ -125,6 +126,8 @@ void setup_tilemaps(GameState *g)
         set_battle_load_tilemap_2(g, at, LOAD_BLANK_TILE);
         set_battle_load_tilemap_2(g, at + 1u, WINDOW_ATTRIBUTES);
     }
+    battle_note_window_rows_sent(g, WINDOW_SHOWS_PARTY);
+    battle_note_frames_sent(g);
 }
 
 /* ---- The colors ----------------------------------------------------------------------------- */
