@@ -35,6 +35,8 @@ void sprite_table_hide(GameState *g, unsigned sprite, int16_t x, uint8_t y)
     sprite_places(g)->sprite[sprite % OAM_BUFFER_COUNT] = (VidSpritePlace){ x, y, VID_PLACE_HIDDEN };
 }
 
+void sprite_table_forget_places(GameState *g) { *sprite_places(g) = (SpritePlaces){ 0 }; }
+
 const VidSpritePlace *sprite_table_places(GameState *g) { return sprite_places(g)->sprite; }
 
 /* The entry is read outside the game's time: the original never reads it. */

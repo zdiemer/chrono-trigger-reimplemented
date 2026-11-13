@@ -34,7 +34,7 @@ enum { PROGRAM_START = 0x7E3000, PROGRAM_ADDRESS = 0x3000 };
  * enabled. */
 static bool boot(GameState *g, Platform *pf, uint8_t flags)
 {
-    program_install_vblank_handler(g, scene_boot_vblank);
+    program_hand_the_vblank_to(g, scene_boot_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, scene_boot_line);
     charge_accesses(g, 4);

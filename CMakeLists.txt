@@ -404,7 +404,7 @@ if(BUILD_TESTING)
   add_executable(native_time_test tests/port/native_time_test.c runtime/port/state_host.c runtime/port/vars_host.c
   runtime/port/arena.c)
   target_include_directories(native_time_test PRIVATE game runtime)
-  add_executable(program_test tests/port/program_test.c game/core/program.c)
+  add_executable(program_test tests/port/program_test.c game/core/program.c game/core/sprite_table.c)
   target_link_libraries(program_test PRIVATE ct_state_host)
   add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c)
   # Preserve bounds diagnostics when an indexed variable moves into a struct.
