@@ -17,6 +17,8 @@ SAVE = "saves/fantasyanime/ctsave09-epoch.srm"
 MOVIE = Path(REPO) / "movies/saves/battle-giga-gaia.ctm"
 # The movie's walk ends as the battle begins (its first command menu opens at frame 5752 in the reference).
 WALK_ENDS = 5710
+# The walk's phases (to giga_gaia) are the playthrough's, which climbs Mt. Woe
+# (playthrough_leg-c); main starts at giga_gaia from the movie's walk.
 PHASES = ["loaded", "woe_bridge", "woe_summit", "giga_gaia", "giga_gaia_won", "woe_fallen"]
 HEADER = """\
 # Mt. Woe: from the last save point over the bridges to Giga Gaia; defeat the head and arms,

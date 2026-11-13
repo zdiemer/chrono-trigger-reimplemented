@@ -11,7 +11,7 @@ must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
 and must be below 600 seconds. Its stages run side by side in lanes: the movies
 (then their outcomes), the routes, the snapshots, the unit tests and the source
-checks. The three that run ct_native share two slots (`tools/native_slots.py`,
+checks. The three that run ct_native, and the native tests' map pictures, share two slots (`tools/native_slots.py`,
 lock files the suite names in `CT_NATIVE_SLOTS`), so no more than two of its
 processes run at once and none waits for another stage to end; movies and
 routes start longest first (routes by the times `route_check --scratch` keeps). The separate `--long` batch runs the whole library, every public route

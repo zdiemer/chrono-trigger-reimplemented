@@ -91,7 +91,7 @@ def play(run, start=1, seed=1, join=False):
         if join:
             assert run.wait_control(), "walk away from Magus"
         else:
-            assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 5000), "Magus battle menu"
+            assert run.dialogs_until(lambda: A.battle_menu_open(machine), 5000), "Magus battle menu"
         run.checkpoint("branch")
     if start <= 5:
         if join:
@@ -131,7 +131,7 @@ def main(join=False):
         if not join and start <= 4:
             # The way to Magus's battle is the movie's own, which the field plays on time.
             machine.play_movie(str(MOVIE), WALK_ENDS)
-            assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 3000), "Magus battle menu"
+            assert run.dialogs_until(lambda: A.battle_menu_open(machine), 3000), "Magus battle menu"
             run.checkpoint("branch")
             start = 5
         if start <= 0:
