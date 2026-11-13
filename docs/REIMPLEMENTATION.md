@@ -181,9 +181,14 @@ Giga Gaia), it showed where native battle time fell short:
   `$C0:1F87`, and `$C0:CAD9`, 0.94-0.99 in its busiest movies and 0.74 in
   another) and the song changes, where the original waits 1-10 frames on
   the sound processor. Across the 84 movies native_check runs, places on time
-  go from 589 to 598 and in the reference's order from 689 to 696 (the gate's
-  58: 394 to 394, 476 to 478); four move away, each with its measured lag in
-  `tools/outcomes_exceptions.txt`.
+  go from 589 to 599 and in the reference's order from 691 to 694 (the gate's
+  58: 394 to 395, 478 to 476). Four move away, each with its measured evidence
+  on its line in `tools/outcomes_exceptions.txt`: the Epoch's Lavos movie (its
+  lag before `$474`), Bucket Lavos's order (it parts from the reference
+  earlier, though 2 more places are on time), Crono's trial (the original
+  stalls 8 frames at each redraw of the courtroom's layers, ct_native 1-3,
+  with or without this change) and MotherBrain (its lag by thousands of
+  frames through `$07E`).
 - A lag frame gets the main thread time its own handlers leave (issue #321),
   so a frame whose handlers made a load's sends no longer shortens every lag
   frame after it.
