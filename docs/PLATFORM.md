@@ -419,7 +419,8 @@ frame 6500 of `movies/new-game.ctm`.
 The sprites' records (`struct:sprite-records:5`, the field's; `:10`, the
 enemies', the same five fields and then the enemy's header), other tables
 of records of N bytes (`struct:records:N`: the tile sets' eight graphics
-blocks at `$F6:1C00`, the battles' rules at `$E1:DE00`), and the locations'
+blocks at `$F6:1C00`, the battles' rules at `$E1:DE00`, the enemies' stats at
+`$CC:4700`, 23 bytes an enemy), and the locations'
 exits and chests (`struct:location-exits`, `struct:location-chests` at
 `$F5:F000`, a chest its tile and contents, two words) are the records kind,
 `frontend/records.c`, kept as `<pack>.records`. A sprite record is a line
