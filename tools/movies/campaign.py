@@ -125,6 +125,18 @@ class Run:
             self.close()
             raise RouteDone("%s frame %d" % (name, frame))
 
+    def from_movie(self, movie, frame, ready, max_frames=3000):
+        """Come to a fight where the route's own movie does: the movie's presses
+        to `frame` (the field plays them on time), then frames until `ready()`.
+        A fight route starts so rather than walking there again, which took most
+        of its time; the fight itself is still the bot's. True once ready."""
+        self.machine.play_movie(str(movie), frame)
+        for _ in range(max_frames // 4):
+            if ready():
+                return True
+            self.machine.run(4)
+        return ready()
+
     def finish(self, what):
         """The route reached its goal: say so, with the frame, its fights'
         retries and the facts they left (fight_facts), for route_check."""
