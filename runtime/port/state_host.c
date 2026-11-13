@@ -12,6 +12,7 @@
 #include "core/sprite_table.h"
 #include "field/streaming.h"
 #include "menu/menu.h"
+#include "menu/panels_across.h"
 #include "cpu_io.h"
 #include "platform/time_model.h"
 #include "port/time_rates.h"
@@ -26,6 +27,7 @@ struct GameState {
     FieldMargins field_margins;
     PanelLayout panel_layout;
     BattleWideWindow battle_wide_window;
+    MenuPanels menu_panels;
     uint8_t sram[STATE_HOST_SRAM_BYTES];
     /* the multiplier and divider: their operands, and the result the
      * product-or-remainder register shows */
@@ -106,6 +108,7 @@ SpritePlaces *sprite_places(GameState *g) { return &g->sprite_places; }
 FieldMargins *field_margins(GameState *g) { return &g->field_margins; }
 PanelLayout *panel_layout(GameState *g) { return &g->panel_layout; }
 BattleWideWindow *battle_wide_window(GameState *g) { return &g->battle_wide_window; }
+MenuPanels *menu_panels(GameState *g) { return &g->menu_panels; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 VarsHost *state_host_vars(GameState *g) { return &g->vars; }

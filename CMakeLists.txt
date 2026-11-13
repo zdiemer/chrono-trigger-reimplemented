@@ -57,6 +57,7 @@ add_library(ct_game STATIC
   game/core/tile_animation.c
   game/core/sprite_table.c
   game/core/panel_layout.c
+  game/menu/panels_across.c
   game/data/assets.c
   game/data/asset_catalogue.c
   game/data/decompress.c

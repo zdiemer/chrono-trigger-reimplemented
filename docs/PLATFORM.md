@@ -173,17 +173,32 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   What the window's rows and frames show is noted as the vblank sends them
   (from the transfer's source, and the frames' window corners), so the layout
   always fits what VRAM holds.
-- **Every other mode** (the menus, the scenes, the dialog window over the
-  field, the time warp's tunnel aside, which is Mode 7) keeps its layers to the
+- **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) part
+  each row of the screen in two near its middle, where no layer has two tiles
+  side by side that stand out (letters, a window's side), and move each side
+  out to the view's: the backdrop and every window across the middle stretch,
+  the windows beside them move out with their text, and a layer that runs on
+  in its pattern up to the parting repeats the pattern across the gap. Rows
+  that can share a parting share it. The layout is read back from what the
+  mode sent (`vid_read_vram`) and the rows the last picture showed
+  (`vid_layer_last_shown`); the sprites follow their row's side a frame later.
+  A screen set up partway through a frame, a popup over a screen, and a list
+  scrolling sideways can still part where the original's arrangement shows
+  better; those are follow-ups of issue #284.
+- **Every other mode** (the scenes, the dialog window over the field, the
+  time warp's tunnel aside, which is Mode 7) keeps its layers to the
   original's screen, the backdrop in the margins, until it builds what lies
   past it.
 
 A wider view's own work reads the game's state outside its time
 (`charge_uncounted_begin`) and sends in the vblank, where a send takes none;
-its state (`SpritePlaces`, `FieldMargins`, `PanelLayout`, `BattleWideWindow`) is the program's, beside the game's
+its state (`SpritePlaces`, `FieldMargins`, `PanelLayout`, `BattleWideWindow`,
+`MenuPanels`) is the program's, beside the game's
 memory. So a movie played at a wider view ends in the same work RAM and save
 RAM as at the original's: `field.ctm`, `gato-battle.ctm`,
-`attract-demo.ctm` and `battle-menu-buttons.ctm` were checked so with `--end-state` at
+`attract-demo.ctm`, `battle-menu-buttons.ctm` and the menus' movies
+(`menus-field-menu`, `menus-shop-equip`, `menus-shop-inn`,
+`menus-save-point`, `menus-sweep`) were checked so with `--end-state` at
 398x224.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
