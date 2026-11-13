@@ -92,6 +92,8 @@ uint8_t *decoded_bytes(Decoded *d, int entry)
     return d->bytes + d->at[entry];
 }
 
+const uint8_t *decoded_beneath(const Decoded *d, int entry) { return served(d->base, &asset_catalogue[entry]); }
+
 static bool space(char c) { return c == ' ' || c == '\t'; }
 
 /* A line without its comment and the spaces about it. */
@@ -135,6 +137,26 @@ bool decoded_word(const char **s, const char *end, const char *word)
     return true;
 }
 
+uint8_t *decoded_grow(DecodedReading *r, uint32_t more)
+{
+    if (more > UINT32_MAX - r->made_len)
+        return NULL;
+    if (r->made_len + more > r->made_room) {
+        uint32_t room = r->made_room ? r->made_room : 1 << 12;
+        while (room < r->made_len + more)
+            room = room > UINT32_MAX / 2 ? UINT32_MAX : room * 2;
+        uint8_t *bigger = realloc(r->made, room);
+        if (!bigger)
+            return NULL;
+        r->made = bigger;
+        r->made_room = room;
+    }
+    uint8_t *at = r->made + r->made_len;
+    memset(at, 0, more);
+    r->made_len += more;
+    return at;
+}
+
 static Decoded *refuse(Decoded *d, const char *what, const char **why)
 {
     decoded_close(d);
@@ -164,7 +186,7 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
     d->bytes = calloc(total ? total : 1, 1);
     if (!d->bytes)
         return refuse(d, "out of memory", why);
-    DecodedReading r = { -1, NULL, 0, 0 };
+    DecodedReading r = { .entry = -1 };
     const char *wrong = NULL;
     for (const char *s = text, *stop = text + len; s < stop && !wrong;) {
         const char *newline = memchr(s, '\n', (size_t)(stop - s));
@@ -188,7 +210,7 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
             else if (d->given[entry])
                 wrong = "that name is given twice";
             else
-                r = (DecodedReading){ entry, decoded_bytes(d, entry), 0, 0 };
+                r = (DecodedReading){ entry, decoded_bytes(d, entry), 0, 0, 0, 0, r.made, 0, r.made_room };
         } else if (r.entry < 0) {
             wrong = "a line before any [name]";
         } else {
@@ -198,6 +220,7 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
     }
     if (!wrong && r.entry >= 0)
         wrong = kind->read_end(d, &r);
+    free(r.made);
     if (wrong)
         return refuse(d, wrong, why);
     return d;
