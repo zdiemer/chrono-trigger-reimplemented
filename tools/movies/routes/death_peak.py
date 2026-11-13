@@ -12,6 +12,7 @@ from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 
 SAVE = "saves/fantasyanime/ctsave12-side_quests1.srm"
+LOWER_FIELD = "f600"             # the mountain's field below the caves, with its save point
 PHASES = ["loaded", "cave", "spawn1", "ledge", "east_cave", "east_outside", "opened",
           "east_back", "ledge_back", "first_back", "west_back", "middle", "spawn2_room", "spawn2",
           "ridge", "ridge_crossed", "lower_slope", "last_field", "summit_saved"]
@@ -122,7 +123,9 @@ def spawn_policy(bot, state, rng, inventory):
 def spawn(run, bit, seed):
     m = run.machine
     assert run.dialogs_until(lambda: A.battle_menu_open(m), 4000), "the Spawn's command menu"
-    run.fight(spawn_policy, lambda r, state: state.hp(9) == 0, seed=seed, max_frames=15000)
+    # The head has 4000 HP; the leg D playthrough's party wears it down in
+    # over 15000 frames.
+    run.fight(spawn_policy, lambda r, state: state.hp(9) == 0, seed=seed, max_frames=40000)
     assert run.wait_control(5000), "the field after the Spawn"
     assert m.b(0x7F0064) & bit, "the Spawn's victory flag"
 

@@ -17,10 +17,15 @@ from .. import bfs, policies
 from ..campaign import Run, route_arguments, run_route
 from . import blackbird_save
 from . import dalton
+from . import death_peak
+from . import death_peak_return
+from . import death_peak_wind
 from . import _fair as fair
 from . import fair_clone
 from . import north_cape
 from ._trial_walk import world_enter
+from .menu_sweep import ITEMS, SHELTER, back_to_main_menu, count_of, open_menu, open_option, use_item
+from .save_point import press
 
 SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
 BLACKBIRD = blackbird_save.PHASES
@@ -37,7 +42,17 @@ TIME = ["omen_rises", "end_of_time", "chrono_trigger"]
 CLONE = ["fair", "silver_points", "tent"]
 CLONE_BACK = fair_clone.PHASES[2:]
 KEEPER = ["clone", "keepers_dome", "belthasar"]
-PHASES = BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER
+# Death Peak: the wind slope (death_peak_wind), the caves past two Lavos
+# Spawn to the last save point (death_peak), the last Spawn and the summit,
+# where the Chrono Trigger brings Crono back (death_peak_return).
+TO_THE_PEAK = ["peak"]
+WIND = death_peak_wind.PHASES[1:]
+CAVES = ["mountain_save"] + death_peak.PHASES[1:]
+# The caves' two Spawn leave the party all but beaten, and the third, met
+# so, wipes it before anyone acts: a Shelter at the last save point first.
+SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
+PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + CAVES
+          + SUMMIT)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg D of the playthrough, from the Blackbird to an ending (route playthrough_leg-d).
@@ -72,11 +87,14 @@ LEENE_SQUARE, BELL_PLAZA, GATOS_RING = 0x005, "b701", "0600"
 GATO, GATO_POINTS = 8, 15       # the ring's object 8; each win
 SILVER_POINTS = 0x7F0052        # the fair's points (tools/movies/routes/_fair.py)
 CLONE_PRICE = 40
+CHARACTER_RECORDS, CHARACTER_RECORD_BYTES = 0x7E2600, 0x50   # a word of HP at +3, its most at +5
 CRONOS_HOUSE, CRONOS_HOUSE_DOWNSTAIRS, CRONOS_ROOM = 0x001, "0100", "0200"
 DELIVERED_CLONE = 19            # Crono's room's object 19, the clone, once Bekkler has made it
 KEEPERS_DOME, KEEPERS_HANGAR = 0x0F1, "f200"
 WORLD_1000, WORLD_2300 = "f001", "f201"
 BEFORE_THE_SEALED_DOOR = 330    # the dome's hall, below the door the pendant opens
+DEATH_PEAK = 0x0F4             # its wind slope, entered from the 2300 A.D. map
+DEATH_PEAK_SAVE_POINT = (856, 448)   # on the mountain's lower field ($0F6), where death_peak starts
 BELTHASAR = 16                  # the hangar's object 16, his recorded message, spoken to from below
 
 
@@ -190,9 +208,9 @@ def fly_to(run, x, y, near=6):
     raise AssertionError(("flying to", (x, y), "stuck at", run.world_pos()))
 
 
-def land_by(run, location):
+def land_by(run, location, enter=True):
     """Fly over a place's entrance, come down on open ground beside it, and
-    walk in."""
+    walk in (unless not `enter`)."""
     machine = run.machine
     x, y = entrance(run, location)
     for dx, dy in LANDING_SPOTS:
@@ -211,12 +229,47 @@ def land_by(run, location):
         machine.free(LANDING_SLOT)
     assert machine.b(A.OVERWORLD_TRAVEL) == 0, ("landed by", hex(location))
     run.wait_world_control()
-    world_enter(run, location)
+    if enter:
+        world_enter(run, location)
 
 
 def won_against_all(run, state):
     """A fight's end: every enemy down and someone standing."""
     return not policies.enemies(state) and any(state.hp(slot) for slot in range(3))
+
+
+def fight_through(run, arrived, what, seed=1, rounds=8):
+    """Walk until `arrived(machine, x, y)`, winning the fights that the
+    field's monsters start on the way (the walk stops where one blocks it)."""
+    machine = run.machine
+    here = lambda: arrived(machine, *run.me())
+    for _ in range(rounds):
+        assert run.wait_control(), "the field in hand"
+        if here():
+            return
+        moves = run.walk(lambda m, px, py: arrived(m, px, py) or not m.b(A.FIELD_PLAYER_CONTROL))
+        run.say("fight_through", what, "steps", moves and len(moves), "now", run.map_id(), "at", run.me())
+        assert moves is not None, ("a way to", what)
+        machine.run(60)
+        if run.dialogs_until(lambda: A.battle_menu_open(machine) or bool(machine.b(A.FIELD_PLAYER_CONTROL)), 3000)                 and A.battle_menu_open(machine):
+            run.fight("party", won_against_all, party=3, seed=seed)
+    assert run.wait_control() and here(), ("arrived at", what)
+
+
+def rest_at_the_save_point(run):
+    """Standing on a save point: a Shelter from the items restores everyone."""
+    machine = run.machine
+    assert count_of(machine, SHELTER), "a Shelter"
+    assert run.wait_control(), "the field in hand"
+    open_menu(machine)
+    open_option(machine, ITEMS)
+    use_item(run, SHELTER, choose_member=True)
+    back_to_main_menu(machine)
+    press(machine, "B", 120)
+    assert run.wait_control(), "the field after the Shelter"
+    for member in machine.peek(A.PARTY_MEMBERS, 3):
+        record = CHARACTER_RECORDS + member * CHARACTER_RECORD_BYTES
+        assert machine.w(record + 3) == machine.w(record + 5), "rested"
 
 
 def beat_gato(run, seed=1):
@@ -359,6 +412,34 @@ def main():
             assert run.map_id() == KEEPERS_HANGAR and run.wait_control(), "the hangar"
             assert run.talk(BELTHASAR, done=lambda: machine.b(KEEPER_FLAGS) & 2), "Belthasar heard with the clone"
             run.checkpoint("belthasar")
+        later -= len(KEEPER)
+        if later <= 0:
+            for want in ("f100", WORLD_2300):
+                assert run.exit_to(want), want
+            board(run)
+            land_by(run, DEATH_PEAK, enter=False)
+            run.checkpoint("peak")
+        later -= len(TO_THE_PEAK)
+        if later < len(WIND):
+            death_peak_wind.play(run, max(1, later + 1))
+        later -= len(WIND)
+        if later <= 0:
+            # On from the slope's top to the mountain's save point, past the
+            # monsters that stand in the way.
+            lower, (x, y) = death_peak.LOWER_FIELD, DEATH_PEAK_SAVE_POINT
+            fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
+            fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower and abs(px - x) <= 2
+                          and abs(py - y) <= 2, "the save point", args.seed)
+            run.checkpoint("mountain_save")
+        if later < len(CAVES):
+            death_peak.play(run, max(1, later), args.seed)
+        later -= len(CAVES)
+        if later <= 0:
+            rest_at_the_save_point(run)
+            run.checkpoint("rested")
+        if later < len(SUMMIT):
+            death_peak_return.play(run, max(1, later), args.seed)
+        later -= len(SUMMIT)
         run.finish("leg D's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
