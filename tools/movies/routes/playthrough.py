@@ -93,7 +93,7 @@ RAT = 13                       # the room below's rat at its foot; another waits
 RAT_TOLD = 0x40                # ARRIS_FLAGS: the password heard
 RAT_TRIGGER_STEPS = 6          # up from the room below's foot onto the tile that sets the rat running
 RAT_INTERCEPT = (96, 330)      # beside its run, west along the pipe, before it turns north
-TALK_REACH, RAT_PIXELS_A_FRAME, RAT_MARGIN_FRAMES = 28, 2, 2
+TALK_REACH, RAT_PIXELS_A_FRAME, RAT_MARGIN_FRAMES = 28, 2, 1   # the party arrives with a frame to spare
 INNER_DOOR = 9                 # of the inner room's two sealed doors, the one to the storeroom's way
 STORE_DOOR = 8                 # the sealed door on the way, in the store hall
 STORY_STORE_SEEN = 0x36        # the storeroom's scene: the party sees the food is gone
@@ -221,7 +221,8 @@ def catch_the_rat(run, max_nodes=2500):
     # The margin (issue #314): the rat runs west at about two pixels a frame
     # and stays in talking reach until it is TALK_REACH pixels past the
     # party's x. Measured in ct_native only (no recorded run of the original
-    # catching the rat is in the library), so it is asserted, not confirmed.
+    # catching the rat is in the library), so it is asserted, not confirmed:
+    # the party arrives with about a frame to spare.
     px, rx = run.me()[0], run.object_pos(RAT)[0]
     margin = int((rx - (px - TALK_REACH)) // RAT_PIXELS_A_FRAME)
     run.say("rat margin", margin, "frames: party at", run.me(), "rat at", run.object_pos(RAT))

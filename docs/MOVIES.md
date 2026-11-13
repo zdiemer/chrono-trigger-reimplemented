@@ -92,8 +92,8 @@ stretch, the route calls that route's `play(run, start)` from the state it
 reached instead of a save (`_trial_cathedral`, `cronos_trial`, `dragon_tank`,
 `guardian`, `proto_dome`, `r_series`). Its checkpoint names are unique across
 the pieces it composes. In Arris Dome it catches the room below's rat for the
-password by waiting where its run passes (the margin asserted, measured in
-ct_native only), opens the sealed doors and trades the Seed for the Bike Key;
+password by waiting where its run passes (a frame to spare, asserted;
+measured in ct_native only, unconfirmed against the original), opens the sealed doors and trades the Seed for the Bike Key;
 Lab 32's race is steered with `events-jetbike-race-won`'s input from the race's
 first frame, as `proto_dome`'s own approach is; a rest in Proto Dome's Enertron
 and Tonics before the R Series keep Crono and Lucca fit for it, the factory's
