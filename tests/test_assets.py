@@ -27,6 +27,19 @@ class Catalogue(unittest.TestCase):
                     ("words", 0xC0001D, "palette:0"), ("words", 0xC0001D, "palette")):
             self.assertTrue(assets.problems_of([assets.Row("p", bad[0], 0xC00000, bad[1], bad[2], "read")]))
 
+    def test_fonts(self):
+        def font(codec, end, type_="gfx", name="f", at=0xC00000):
+            return assets.Row(name, type_, at, end, codec, "read")
+        self.assertEqual(assets.problems_of([font("font:8x8", 0xC0000F), font("font:12x12", 0xC00057, name="g", at=0xC00010)]), [])
+        for bad in (font("font:8x8", 0xC0000E), font("font:12x12", 0xC00023), font("font:8x8", 0xC0000F, "bytes"),
+                    font("font:9x9", 0xC0000F)):
+            self.assertTrue(assets.problems_of([bad]))
+        glyphs = font("font:8x8", 0xC0003F)                       # four glyphs
+        for codec, end, ok in (("font-widths:f:01", 0xC00042, True), ("font-widths:f:02", 0xC00042, False),
+                               ("font-widths:g:00", 0xC00040, False), ("font-widths:f:1", 0xC00040, False)):
+            widths = assets.Row("w", "bytes", 0xC00040, end, codec, "read")
+            self.assertEqual(assets.problems_of([glyphs, widths]) == [], ok, codec)
+
     def test_version_follows_the_rows_not_how_they_were_found(self):
         a = [row("a", 0xC00000, 0xC0000F)]
         b = [assets.Row("a", "bytes", 0xC00000, 0xC0000F, "raw", "read")]

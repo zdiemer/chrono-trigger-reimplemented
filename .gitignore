@@ -5,8 +5,11 @@ roms/
 *.swc
 *.fig
 *.srm
-# The asset pack ct_native imports from the ROM (frontend/assets.h)
+# The asset pack ct_native imports from the ROM (frontend/assets.h), and its
+# palettes and fonts as text (frontend/palettes.h, frontend/fonts.h)
 *.assets
+*.palettes
+*.fonts
 !saves/**/*.srm
 *.spc
 
