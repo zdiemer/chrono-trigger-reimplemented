@@ -88,7 +88,7 @@ static void start_the_warp(GameState *g, Platform *pf)
     vid_set_display(pf, PF_AT(0xFDDBAD), &(VidDisplay){ .brightness = FULL_BRIGHTNESS, .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xFDDBB0), 0);
     set_warp_zero(g, 0);
-    program_install_vblank_handler(g, warp_vblank);
+    program_hand_the_vblank_to(g, warp_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, warp_line);
     charge_accesses(g, 4);

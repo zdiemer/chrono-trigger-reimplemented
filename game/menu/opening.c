@@ -108,7 +108,7 @@ void menu_pack_settings(GameState *g)
 
 static void take_the_interrupts(GameState *g)
 {
-    program_install_vblank_handler(g, menu_vblank);
+    program_hand_the_vblank_to(g, menu_vblank);
     charge_accesses(g, 4);
     program_install_line_handler(g, menu_line);
     charge_accesses(g, 4);

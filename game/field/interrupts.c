@@ -10,7 +10,7 @@
 #include "port/vars_ram.h"
 
 // $C0:0B64
-void field_take_the_vblank_interrupt(GameState *g) { program_install_vblank_handler(g, field_vblank);
+void field_take_the_vblank_interrupt(GameState *g) { program_hand_the_vblank_to(g, field_vblank);
     charge_accesses(g, 4); }
 
 // $C0:0B75
