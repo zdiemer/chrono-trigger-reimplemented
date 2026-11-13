@@ -172,3 +172,11 @@ C2F871 7694 11288 1.47  # menus-shop-inn 1.48 menus-field-menu 1.45 menus-end-of
 C2F943 3125 4372 1.40  # menus-field-menu 1.39 menus-sweep 1.43
 C2FAE9 6414 8864 1.38  # menus-field-menu 1.39 menus-sweep 1.39
 C2FB97 5843 6716 1.15  # menus-field-menu 1.16 menus-end-of-time 1.14 menus-save-point 1.13 menus-epoch 1.16
+# The glyph drawer's line ($C2:5E89) has its scope back, so the glyph's own routine ($C2:5E36) keeps only its own work;
+# their calls differ by 11% (a line drawn only where a glyph shows), so the picker above left them out:
+C25E89 3477 13099 3.77  # events-end-of-time-gate 3.72 events-epoch-lavos 3.81 events-fair-rescue 3.76 events-jetbike-race 3.75
+C25E36 13580 177178 13.05  # events-end-of-time-gate 12.81 events-epoch-lavos 13.21 events-fair-rescue 13.09 events-jetbike-race 13.00
+# The objects' frame ($C2:051D) and its upload queue ($C2:0405) keep, once the checks stopped counting, only their own
+# work, under the original's by 2.7-4.3 in 9 of 11 movies (7.9 and 9.5 in two with few objects); they take the pooled ratio:
+C2051D 5435 20019 3.68  # attract-demo 3.75 events-epoch-lavos 3.50 events-fair-rescue 3.27 menus-epoch 4.13
+C20405 3545 12943 3.65  # attract-demo 3.60 events-epoch-lavos 4.03 events-fair-rescue 4.30 menus-epoch 4.03
