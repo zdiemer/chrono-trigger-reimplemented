@@ -1,0 +1,28 @@
+# The gate movies whose fight a route carries: `movie route [retries=N] # reason`.
+# The route starts from the movie's save and chooses its commands by game
+# state, so whether the fight is won (or lost, where the movie loses it) and
+# where play ends up don't hang on the frames a recorded press meets. The gate
+# runs these routes (tools/suite.py); tools/outcomes.py then stops pinning the
+# movie's exact places, saved game and save RAM, and keeps its protected
+# matches. A movie's own route is named in its header. A carried route fails
+# where one of its fights needs more retries than its bound (none unless the
+# line gives one, with its reason), or where it finishes with other facts than
+# the movie's reference end state (tools/fight_facts.txt): levels, experience,
+# gold, the items won and the story's event memory.
+battle-black-tyrano black_tyrano  # Azala and the Black Tyrano, won; Lavos's fall after
+battle-castle-flea castle_flea  # the Flea decoy and Flea, won; the field in hand
+battle-castle-slash castle_slash  # both rounds of Slash, won; the field in hand
+battle-dragon-tank dragon_tank  # the Dragon Tank, destroyed; the field in hand
+battle-giga-gaia giga_gaia  # Giga Gaia, won; Melchior freed and Mt. Woe fallen
+battle-golem-twins golem_twins  # the Golem Twins, won; the save point's slot saved
+battle-heckran heckran  # Heckran, won; the field in hand
+battle-lavos-gameover lavos_lost  # the Day of Lavos fight, lost; the future refuses to change
+battle-magus-north-cape north_cape retries=24  # Magus at North Cape, won; the field in hand. Up to 24 retries: Magus
+#   changes his barrier to one element at a time and the bot's random choices can miss it; main took 16
+battle-mud-imp mud_imp  # the Mud Imp and the Beasts, won
+battle-rust-tyrano rust_tyrano  # Rust Tyrano, won; the field in hand
+battle-son-of-sun son_of_sun  # Son of Sun, won; the field in hand
+battle-zombor zombor  # Zombor, won; Zenan Bridge in hand
+events-cyrus cyrus  # the fights on the way to Cyrus's grave, won; Masamune restored
+events-death-peak death_peak_return  # the summit's last Lavos Spawn, won; Crono brought back
+events-fionas-forest fionas_forest  # Retinite and the desert's fights, won; the forest restored
