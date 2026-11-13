@@ -87,8 +87,8 @@ jobs:
 
   native-player:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    # A skipped job is named before its matrix expands, so it falls back to the bare name.
-    name: native-player${{ matrix.name && format('-{0}', matrix.name) || '' }}
+    # A static name: a skipped job's name is never expanded. GitHub adds the matrix values to the jobs that run.
+    name: native-player
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
