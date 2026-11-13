@@ -290,9 +290,10 @@ void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
 /* A send the main thread makes takes the original's transfer time (a load's,
  * with the screen off; platform/time_model.h); the handlers' sends are the
  * frame's own. */
+/* A send's time, the main thread's or the handlers' as it is made (timing.c). */
 static void charge_send(Platform *pf, uint32_t bytes)
 {
-    if (pf->timing.part == TM_HOST_IN_MAIN)
+    if (pf->timing.part != TM_HOST_IDLE)
         tm_host_charge(pf, time_of_transfer(bytes));
 }
 

@@ -85,10 +85,12 @@ void tm_host_charge(Platform *pf, uint32_t clocks)
         t->owed = sum(t->owed, clocks);
 }
 
+/* A transfer halts the processor for its bytes wherever it is made: the main
+ * thread's owes it, a handler's is the frame's own (tm_host_charge). */
 void tm_charge_transfer(Platform *pf, PfOrigin o, uint32_t bytes)
 {
     (void)o;
-    if (pf->timing.part == TM_HOST_IN_MAIN)
+    if (pf->timing.part != TM_HOST_IDLE)
         tm_host_charge(pf, time_of_transfer(bytes));
 }
 
@@ -253,7 +255,33 @@ bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
     return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
 }
 
-void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line) { (void)pf; (void)o; (void)line; }
+/* Where the beam is in a handler: the line its part of the frame starts at,
+ * on by the handlers' work so far (the game's own accesses taken into the
+ * handlers' account, where they would go as the main thread starts). */
+static uint16_t handlers_line(TmHost *t)
+{
+    if (t->program.owed)
+        t->handler_charges = sum(t->handler_charges, t->program.owed(t->program.ctx));
+    uint16_t start = t->part == TM_HOST_IN_LINE ? (uint16_t)(t->line + 1) : TIME_VBLANK_LINE;
+    return (uint16_t)((start + t->handler_charges / TIME_LINE_CLOCKS) % TIME_FRAME_LINES);
+}
+
+/* A handler's wait for a line: nothing to wait for in a picture drawn whole,
+ * but the original's handler holds the processor until the beam gets there --
+ * the battle's frame work, while effects run, waits for line 64 ($CD:3B82),
+ * a third of the frame after the vblank -- and that time is the frame's, not
+ * the main thread's: it is charged to the handlers. A wait from the main
+ * thread charges nothing. */
+void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line)
+{
+    (void)o;
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_VBLANK && t->part != TM_HOST_IN_LINE)
+        return;
+    uint16_t at = handlers_line(t);
+    uint16_t lines = (uint16_t)((line % TIME_FRAME_LINES + TIME_FRAME_LINES - at) % TIME_FRAME_LINES);
+    t->handler_charges = sum(t->handler_charges, (uint32_t)lines * TIME_LINE_CLOCKS);
+}
 void tm_wait_line_drawn(Platform *pf, PfOrigin o) { (void)pf; (void)o; }
 void tm_wait_line_started(Platform *pf, PfOrigin o) { (void)pf; (void)o; }
 
