@@ -176,6 +176,17 @@ from each of its blows and deals it some 40, so an ending waits on a party
 grown by the Black Omen or by fighting. The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
+`playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest
+Maze, 65,000,000 B.C.) with the save's party and items: the maze and the
+Reptite Lair (`nizbel`'s piece), the Mystic Mountains' Gate, Melchior forging
+the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
+Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
+Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
+`castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
+corridor and the inner rooms (a search that plays ladders and stairs through)
+to Magus's door (frame 385447). Ozzie waits there behind a barrier the
+party's blows barely touch; the leg stops before him, its MP spent.
+
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
 (`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings

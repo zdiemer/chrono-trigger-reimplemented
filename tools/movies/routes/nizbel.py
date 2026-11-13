@@ -5,7 +5,8 @@ from . import _early_bosses as early
 
 SAVE = "saves/fantasyanime/ctsave05-prehistoric.srm"
 SLOT = 1
-PHASES = ["loaded", "settings", "entrance", "top", "middle", "lower", "bottom", "hall", "chamber", "battle", "won", "after"]
+FOREST_MAZE = "1a01"
+PHASES = ["loaded", "settings", "entrance", "top", "middle", "lower", "bottom", "lair_hall", "chamber", "battle", "won", "after"]
 HEADER = """# Reptite Lair: defeat Nizbel, recover the Gate Key, regain field control.
 # Save: ctsave05 slot 2 (saves/fantasyanime/ctsave05-prehistoric.srm).
 # Route: nizbel
@@ -66,6 +67,66 @@ def descend(run, hole, destination, seed):
     raise AssertionError("the hole remains blocked")
 
 
+def play(run, start=2, seed=1):
+    """From the world map outside the Reptite Lair to Nizbel beaten, the Gate Key
+    recovered and the field in hand at Ioka; `start` is the index in PHASES of the
+    first phase to run."""
+    if start <= 2:
+        # The lair's door, not the Forest Maze's foot beside it, which leg B
+        # of the playthrough comes out of.
+        assert run.world_exit(avoid=frozenset({FOREST_MAZE}))
+        assert run.wait_control()
+        run.say("lair entrance", run.map_id(), run.me())
+        run.checkpoint("entrance")
+    if start <= 3:
+        assert run.exit_to("1c01"), "the top floor"
+        run.checkpoint("top")
+    if start <= 4:
+        # Reptites can spring from the hole as the party jumps (by when it
+        # does): win, and jump again.
+        for _ in range(6):
+            assert run.talk(14, done=lambda: not run.machine.b(early.PLAYER_CONTROL)), "the open hole"
+            assert run.dialogs_until(lambda: early.battle_ready(run) or run.map_id() == "1d01", 3000)
+            if run.map_id() == "1d01":
+                break
+            early.fight(run, seed=seed, policy=nizbel_party)
+        assert run.map_id() == "1d01", "the middle floor"
+        assert run.wait_control()
+        run.checkpoint("middle")
+    if start <= 5:
+        descend(run, 20, "1e01", seed)
+        run.checkpoint("lower")
+    if start <= 6:
+        descend(run, 21, "1f01", seed)
+        run.checkpoint("bottom")
+    if start <= 7:
+        early.search_through(run, lambda m, x, y: run.map_id() == "2001", seed=seed,
+                             inside=lambda x, y: run.map_id() != "1f01" or y < 800, policy=nizbel_party)
+        early.settle(run, seed, nizbel_party)
+        assert run.wait_control(), "the hall after its entrance encounter"
+        run.checkpoint("lair_hall")
+    if start <= 8:
+        early.search_through(run, lambda m, x, y: run.map_id() == "2101", seed=seed, policy=nizbel_party)
+        early.settle(run, seed, nizbel_party)
+        assert run.wait_control(), "inside Nizbel's chamber"
+        run.checkpoint("chamber")
+    if start <= 9:
+        early.walk_through(run, "LEFT", lambda: run.me()[0] < 872, seed=seed)
+        early.approach_battle(run, "UP")
+        run.checkpoint("battle")
+    if start <= 10:
+        early.fight(run, seed=seed, policy=nizbel_party, after=False)
+        run.checkpoint("won")
+    if start <= 11:
+        assert run.dialogs_until(lambda: 0x7C <= run.machine.b(early.STORY) <= 0x7D
+                                 and run.map_id() == "1301", 16000), "recover the Gate Key"
+        assert run.wait_control(), "the field after the return to Ioka"
+        assert run.machine.b(early.STORY) == 0x7D, "Ayla's farewell"
+        assert run.map_id() == "1301", "the return to Ioka"
+        assert 0xD7 in run.machine.peek(0x7E2400, 0xF2), "the Gate Key in the bag"
+        run.checkpoint("after")
+
+
 def main():
     args = route_arguments(__doc__, save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -78,51 +139,7 @@ def main():
         if start <= 1:
             early.fast_settings(run)
             run.checkpoint("settings")
-        if start <= 2:
-            assert run.world_exit()
-            assert run.wait_control()
-            run.say("lair entrance", run.map_id(), run.me())
-            run.checkpoint("entrance")
-        if start <= 3:
-            assert run.exit_to("1c01"), "the top floor"
-            run.checkpoint("top")
-        if start <= 4:
-            assert run.talk(14, done=lambda: not run.machine.b(early.PLAYER_CONTROL)), "the open hole"
-            assert run.dialogs_until(lambda: run.map_id() == "1d01", 3000)
-            assert run.wait_control()
-            run.checkpoint("middle")
-        if start <= 5:
-            descend(run, 20, "1e01", args.seed)
-            run.checkpoint("lower")
-        if start <= 6:
-            descend(run, 21, "1f01", args.seed)
-            run.checkpoint("bottom")
-        if start <= 7:
-            early.search_through(run, lambda m, x, y: run.map_id() == "2001", seed=args.seed,
-                                 inside=lambda x, y: run.map_id() != "1f01" or y < 800, policy=nizbel_party)
-            early.settle(run, args.seed, nizbel_party)
-            assert run.wait_control(), "the hall after its entrance encounter"
-            run.checkpoint("hall")
-        if start <= 8:
-            early.search_through(run, lambda m, x, y: run.map_id() == "2101", seed=args.seed, policy=nizbel_party)
-            early.settle(run, args.seed, nizbel_party)
-            assert run.wait_control(), "inside Nizbel's chamber"
-            run.checkpoint("chamber")
-        if start <= 9:
-            early.walk_through(run, "LEFT", lambda: run.me()[0] < 872, seed=args.seed)
-            early.approach_battle(run, "UP")
-            run.checkpoint("battle")
-        if start <= 10:
-            early.fight(run, seed=args.seed, policy=nizbel_party, after=False)
-            run.checkpoint("won")
-        if start <= 11:
-            assert run.dialogs_until(lambda: 0x7C <= run.machine.b(early.STORY) <= 0x7D
-                                     and run.map_id() == "1301", 16000), "recover the Gate Key"
-            assert run.wait_control(), "the field after the return to Ioka"
-            assert run.machine.b(early.STORY) == 0x7D, "Ayla's farewell"
-            assert run.map_id() == "1301", "the return to Ioka"
-            assert 0xD7 in run.machine.peek(0x7E2400, 0xF2), "the Gate Key in the bag"
-            run.checkpoint("after")
+        play(run, start, args.seed)
         run.finish("Nizbel defeated, Gate Key recovered and field in hand")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
