@@ -89,11 +89,14 @@ char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *l
             return NULL;
         }
     }
+    char end[2] = { 'x', 0 };
+    decoded_put(&t, end);   /* room for the NUL after the text, which a caller may search it by */
     if (t.full) {
         free(t.text);
         *why = "out of memory";
         return NULL;
     }
+    t.text[--t.len] = 0;
     *len = t.len;
     return t.text;
 }

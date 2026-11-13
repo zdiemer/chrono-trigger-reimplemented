@@ -89,7 +89,7 @@ bool decoded_number(const char **s, const char *end, unsigned base, unsigned mos
 bool decoded_word(const char **s, const char *end, const char *word);
 
 /* Every resource of the kind `store` serves, as text: malloc'd, *len bytes
- * (not terminated); NULL with *why when the store lacks one. Its opening
+ * (and a NUL after them); NULL with *why when the store lacks one. Its opening
  * comment says the catalogue it was written from. */
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why);
 
