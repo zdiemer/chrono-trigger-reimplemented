@@ -67,6 +67,8 @@ MEDINA_CUPBOARD = (112, 104)    # below the cupboard the Gate is in, in the Medi
 # 600 A.D.
 ZENAN_BRIDGE, ZENAN_NORTH_ROW = 0x087, 0x1C
 ZENAN_WEST = (8, 7 * 16 + 8)    # the bridge's south-west end, tile 0, 7
+DORINO_SHOP, DORINO_COUNTER = 0x08B, (896, 424)   # below the merchant
+DORINO_MID_TONIC_ROW, DORINO_REVIVE_ROW = 1, 3      # of its list: Tonic, Mid Tonic, Heal, Revive, Shelter
 CURSED_WOODS, WOODS, FROGS_BURROW = 0x08C, "8c00", "8d00"
 FROG = 4                    # in his burrow
 FROG_ID = 4                 # in the party's record
@@ -76,19 +78,36 @@ MOUNTAINSIDE, MOUNTAINSIDE_NEAR = 0x0A3, (528, 690)
 MAGIC_CAVE, MAGIC_CAVE_EXIT = "a400", (42 * 16 + 8, 7 * 16 + 8)
 STORY_MAGIC_CAVE = 0x87
 CASTLE_DOOR = (672, 472)
-CASTLE_HALL, CASTLE_LEFT_WING = "a600", "d501"    # beside the castle's door on the world map, where ctsave06 slot 2 stands
+CASTLE_HALL, CASTLE_LEFT_WING = "a600", "d501"
+FLEA_WAY_BACK = ("7d00", "ab00", "a600")
+CASTLE_KNOWN_DOORS = {"a600", "ab00", "d501", "a500"}   # the hall's ways out the party has taken
+OZZIES_CORRIDOR = "aa00"    # down through the hall's floor once both of Magus's generals are beaten
+CORRIDOR_END_ROW = 130      # past the corridor's last statue pair
+# The inner castle, room by room: each next map and its way in (the exits' tiles, from the rooms'
+# exit records), the aim of the search toward it.
+INNER_WAY = {
+    "corridor_end": ("a700", (38 * 16 + 8, 4 * 16 + 8)),
+    "tower": ("b000", (39 * 16 + 8, 4 * 16 + 8)),
+    "tower_top": ("a800", (23 * 16 + 8, 3 * 16 + 8)),
+    "bridge_room": ("be01", (58 * 16 + 8, 3 * 16 + 8)),
+    "gallery": ("af00", (23 * 16 + 8, 3 * 16 + 8)),
+    "antechamber": ("d601", (54 * 16 + 8, 4 * 16 + 8)),
+    "magus_door": ("ae00", (38 * 16 + 8, 4 * 16 + 8)),
+}    # beside the castle's door on the world map, where ctsave06 slot 2 stands
 
 START = ["loaded", "settings", "forest_maze", "maze_out"]
 NIZBEL = nizbel.PHASES[2:]
 HOME = ["mystic_mountains", "end_of_time", "medina", "melchior", "masamune", "medina_gate", "truce_canyon_600",
-        "zenan", "cursed_woods", "frog", "woods_out", "mountainside"]
+        "zenan", "dorino", "cursed_woods", "frog", "woods_out", "mountainside"]
 FLASHBACK = magic_cave.PHASES[2:]
 CAVE = ["magic_cave", "cave_out"]
 CASTLE = castle.APPROACH[1:]
 SLASH = castle_slash.PHASES[len(castle.APPROACH):]
 SLASH_BACK = ["slash_back", "tended_for_flea"]
 FLEA = castle_flea.PHASES[len(castle.APPROACH):]
-PHASES = START + NIZBEL + HOME + FLASHBACK + CAVE + CASTLE + ["tended_for_slash"] + SLASH + SLASH_BACK + FLEA
+INNER = ["hall_again", "trapdoor", "ozzies_corridor", "corridor_end", "tower", "tower_top", "bridge_room",
+         "gallery", "antechamber", "magus_door"]
+PHASES = START + NIZBEL + HOME + FLASHBACK + CAVE + CASTLE + ["tended_for_slash"] + SLASH + SLASH_BACK + FLEA + INNER
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 
 
@@ -199,6 +218,19 @@ def zenan(run):
     world_enter(run, ZENAN_BRIDGE, row=ZENAN_NORTH_ROW)
     main_leg.walking(run)
     main_leg.through(run, *ZENAN_WEST, lambda: run.map_id() == WORLD_600, rounds=20)
+
+
+def dorino(run):
+    """Supplies from Dorino's shop, by the bridge's south end: the save has no Mid Tonics, and
+    Magus's castle is long, with no save point to rest at before its last rooms."""
+    machine = run.machine
+    run.wait_world_control()
+    world_enter(run, DORINO_SHOP)
+    main_leg.buy(run, DORINO_COUNTER, [(DORINO_MID_TONIC_ROW, 30, 100), (DORINO_REVIVE_ROW, 2, 200)])
+    run.say("supplies", "mid tonics", menus.count_of(machine, policies.MID_TONIC),
+            "revives", menus.count_of(machine, policies.REVIVE))
+    main_leg.walking(run)
+    assert main_leg.leave_fighting(run, WORLD_600), "out of the shop"
 
 
 def cursed_woods(run):
@@ -319,6 +351,106 @@ def castle_fights(bot, state, rng, inventory):
     return castle.castle_policy(bot, state, rng, inventory)
 
 
+SEARCH_ROOT = 400               # in-memory slots: the search's root, then its places from here up
+STEP_FRAMES, SETTLE_FRAMES, SETTLE_LIMIT, PUSH_FRAMES = 8, 6, 40, 150
+WAYS = ("UP", "DOWN", "LEFT", "RIGHT")
+PUSHES = tuple("PUSH " + way for way in WAYS)   # a way held a while, against whatever stops the party
+
+
+def hold(way):
+    """A move's frames and buttons."""
+    return (PUSH_FRAMES, way[len("PUSH "):]) if way in PUSHES else (STEP_FRAMES, way)
+FLEE_SLOT = 3980
+LONG_FIGHT = 250000     # frames: the four statues before Magus's hall take the party's blows a few points at a time
+
+
+def search_through(run, want, aim, max_places=3000, wait=False):
+    """Walk to map `want`, searching copies nearest `aim` first, where the field takes the party
+    out of the pad's hands on the way: a ladder climbed, a step on a moving stair. Each move
+    plays on until the party is in hand again (or a fight or window stops it), and where that
+    leaves the party is the place searched from. A fight or a window that stops a move ends the
+    search there, to be settled; the caller searches again. With `wait`, pushing a while against
+    whatever stops the party is a move too: an enemy that guards the way (on the castle's stairs)
+    fights a party that keeps pressing on it, but not one that walks on by."""
+    import heapq
+    machine = run.machine
+    here = run.map_id()
+    machine.mark(SEARCH_ROOT)
+    queue, seen, used, found = [(0, SEARCH_ROOT, ())], set(), [], None
+    try:
+        while queue and len(used) < max_places and found is None:
+            _, slot, path = heapq.heappop(queue)
+            for way in WAYS + (PUSHES if wait else ()):
+                machine.restore(slot)
+                machine.probe(*hold(way))
+                waited = 0
+                while not machine.b(A.FIELD_PLAYER_CONTROL) and waited < SETTLE_LIMIT and run.map_id() == here:
+                    machine.probe(SETTLE_FRAMES)
+                    waited += 1
+                move = path + ((way, waited),)
+                if run.map_id() == want or run.dialog() or A.battle_menu_open(machine) or (
+                        waited >= SETTLE_LIMIT and run.map_id() == here):
+                    found = move
+                    break
+                if run.map_id() != here or way in PUSHES:
+                    continue
+                x, y = run.me()
+                key = (int(x) // 4, int(y) // 4)
+                if key in seen:
+                    continue
+                seen.add(key)
+                child = SEARCH_ROOT + 1 + len(used)
+                machine.mark(child)
+                used.append(child)
+                heapq.heappush(queue, (len(move) * STEP_FRAMES + 4 * (abs(x - aim[0]) + abs(y - aim[1])), child, move))
+    finally:
+        machine.restore(SEARCH_ROOT)
+        machine.free(SEARCH_ROOT)
+        for slot in used:
+            machine.free(slot)
+    assert found is not None, ("no way to", want, "from", here, run.me(), len(seen))
+    for way, waited in found:
+        machine.run(*hold(way))
+        machine.run(SETTLE_FRAMES * waited)
+    run.say("search_through", want, "moves", len(found), "places", len(seen), "now", run.map_id(), run.me())
+
+
+def settle_fight(run):
+    """A fight on the way: run from it, the party holding L and R, and only where that fails
+    (a fight the castle won't let it leave) fight it with castle_fights. The castle's inner
+    rooms are full of foes the party's blows hardly touch, and nothing on the way needs them
+    beaten."""
+    if not early.battle_ready(run):
+        return
+    machine = run.machine
+    machine.mark(FLEE_SLOT)
+    try:
+        main_leg.flee(run)
+    except AssertionError:
+        machine.restore(FLEE_SLOT)
+        main_leg.win(run, policy=castle_fights, max_frames=LONG_FIGHT)
+    finally:
+        machine.free(FLEE_SLOT)
+
+
+def castle_walk(run, want, aim, rounds=20):
+    """search_through to map `want`, the fights on the way run from (settle_fight)."""
+    for _ in range(rounds):
+        if run.map_id() == want:
+            return
+        run.dialogs_until(lambda: early.battle_ready(run) or run.machine.b(A.FIELD_PLAYER_CONTROL), 3000)
+        settle_fight(run)
+        assert main_leg.in_hand(run, 30000, policy=castle_fights), "the field in hand"
+        if run.map_id() == want:
+            return
+        main_leg.walking(run)
+        try:
+            search_through(run, want, aim)
+        except AssertionError:
+            search_through(run, want, aim, wait=True)
+    assert run.map_id() == want, ("too many stops on the way to", want)
+
+
 def slash_back(run):
     """From Slash's room back through the left wing to the hall."""
     for want in (CASTLE_LEFT_WING, CASTLE_HALL):
@@ -326,15 +458,56 @@ def slash_back(run):
         assert run.wait_control()
 
 
+def hall_again(run):
+    """From Flea's room back to the hall."""
+    for want in FLEA_WAY_BACK:
+        assert run.exit_to(want), want
+        assert run.wait_control()
+
+
+def trapdoor(run):
+    """Both generals beaten, the hall's floor gives way under the party: down to Ozzie's
+    corridor."""
+    main_leg.walking(run)
+    assert run.walk(lambda m, x, y: m.peek(A.MAP_ID, 2).hex() not in CASTLE_KNOWN_DOORS
+                    or not m.b(A.FIELD_PLAYER_CONTROL)) is not None, "the hall's floor"
+    for _ in range(4):
+        if run.map_id() == OZZIES_CORRIDOR:
+            break
+        assert main_leg.in_hand(run, 6000, policy=castle_fights)
+    assert run.map_id() == OZZIES_CORRIDOR, "Ozzie's corridor"
+    assert main_leg.in_hand(run, policy=castle_fights)
+
+
+def ozzies_corridor(run):
+    """Up the corridor: its statues come alive as the party passes each pair."""
+    goal = lambda: run.map_id() != OZZIES_CORRIDOR or run.me()[1] < CORRIDOR_END_ROW
+    for _ in range(12):
+        assert early.advance(run, "UP", goal), ("blocked in the corridor", run.me())
+        if goal():
+            return
+        run.dialogs_until(lambda: early.battle_ready(run) or run.machine.b(A.FIELD_PLAYER_CONTROL), 3000)
+        settle_fight(run)
+        assert main_leg.in_hand(run, policy=castle_fights)
+    raise AssertionError("too many fights in the corridor")
+
+
+def inner_room(name):
+    want, aim = INNER_WAY[name]
+    return lambda run: castle_walk(run, want, aim)
+
+
 STEPS = {
     "forest_maze": forest_maze, "maze_out": maze_out,
     "mystic_mountains": mystic_mountains, "end_of_time": end_of_time, "medina": medina,
     "melchior": melchior, "masamune": masamune, "medina_gate": medina_gate,
-    "truce_canyon_600": truce_canyon_600, "zenan": zenan, "cursed_woods": cursed_woods,
+    "truce_canyon_600": truce_canyon_600, "zenan": zenan, "dorino": dorino, "cursed_woods": cursed_woods,
     "frog": frog, "woods_out": woods_out, "mountainside": mountainside,
     "magic_cave": magic_cave_scene, "cave_out": cave_out, "slash_back": slash_back,
     "tended_for_slash": tend, "tended_for_flea": tend,
+    "hall_again": hall_again, "trapdoor": trapdoor, "ozzies_corridor": ozzies_corridor,
 }
+STEPS.update({name: inner_room(name) for name in INNER_WAY})
 
 
 def main():
@@ -382,6 +555,8 @@ def main():
         at += len(SLASH_BACK)
         if start < at + len(FLEA):
             castle_flea.play(castle_run, start - at + len(castle.APPROACH), args.seed, castle_fights)
+        at += len(FLEA)
+        own(castle_run, start, at, INNER)
         run.finish("the leg's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
