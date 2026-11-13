@@ -3,13 +3,20 @@
 Ctsave09 slot 3 is on Mt. Woe ($189), story $B4, before the summit's
 arrival flag ($7F:01A0 bit 3). The last bridge crosses the map's levels;
 its northern exit needs UP held after reaching the end of the chain.
+The route plays the movie's own way to the summit (battle-giga-gaia) on
+time and starts from the battle; the playthrough walks it.
 """
+from pathlib import Path
+
 from .. import addresses as A, policies
-from ..campaign import Run, route_arguments, run_route
+from ..campaign import REPO, Run, route_arguments, run_route
 from ._zeal_navigation import approach
 from .playthrough import leave_fighting
 
 SAVE = "saves/fantasyanime/ctsave09-epoch.srm"
+MOVIE = Path(REPO) / "movies/saves/battle-giga-gaia.ctm"
+# The movie's walk ends as the battle begins (its first command menu opens at frame 5752 in the reference).
+WALK_ENDS = 5710
 PHASES = ["loaded", "woe_bridge", "woe_summit", "giga_gaia", "giga_gaia_won", "woe_fallen"]
 HEADER = """\
 # Mt. Woe: from the last save point over the bridges to Giga Gaia; defeat the head and arms,
@@ -37,6 +44,11 @@ def fight_policy(bot, state, rng, inventory):
     return policies.use(inventory, policies.ETHER, member) or ("attack", 6)
 
 
+def giga_gaia_ready(machine):
+    """Giga Gaia's battle at its first command menu, the head at its full 9,500 HP."""
+    return A.battle_menu_open(machine) and machine.w(A.BATTLE_STATS + 6 * 128 + 2) == 9500
+
+
 def play(run, start=1, seed=1):
     """From Mt. Woe's last save point to Giga Gaia beaten and Terra Cave in
     hand; `start` is the index in PHASES of the first phase to run."""
@@ -56,8 +68,7 @@ def play(run, start=1, seed=1):
         assert run.wait_control()
         machine.run(100, "UP")
         machine.run(3, "A")
-        assert run.dialogs_until(lambda: A.battle_menu_open(machine)
-                                 and machine.w(A.BATTLE_STATS + 6 * 128 + 2) == 9500, 8000)
+        assert run.dialogs_until(lambda: giga_gaia_ready(machine), 8000)
         run.checkpoint("giga_gaia")
     if start <= 4:
         seen = []
@@ -82,19 +93,12 @@ def main():
     machine = run.machine
     start = run.start_at(PHASES)
     try:
-        if start <= 0:
-            machine.run(1620)
-            machine.run(5, "START")
-            machine.run(2420 - machine.frame)
-            assert run.select_slot(2)
-            machine.run(4, "A")
-            machine.run(300)
-            assert run.map_id() == "8901" and machine.b(0x7F0000) == 0xB4
-            assert machine.peek(A.PARTY_MEMBERS, 3) == bytes((0, 1, 2)), "Crono, Marle and Lucca"
-            assert not machine.b(0x7F01A0) & 8, "Giga Gaia still ahead"
-            assert run.wait_control()
-            run.checkpoint("loaded")
-        play(run, start, args.seed)
+        if start <= 3:
+            # The way to the summit is the movie's own, which the field plays on time.
+            machine.play_movie(str(MOVIE), WALK_ENDS)
+            assert run.dialogs_until(lambda: giga_gaia_ready(machine), 3000), "Giga Gaia's battle"
+            run.checkpoint("giga_gaia")
+        play(run, max(start, 4), args.seed)
         run.finish("Giga Gaia beaten, Melchior freed and Mt. Woe fallen")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

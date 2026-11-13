@@ -2,14 +2,21 @@
 
 rainbow_shell makes the starting cartridge save by playing ctsave13 slot 1
 to the dungeon's save point, using a Shelter and saving normally. Its long
-approach is a hand-run route, outside the movie library.
+approach is a hand-run route, outside the movie library. From there this
+route plays the movie's own way into the chamber (battle-rust-tyrano) on
+time: the door opened, Rust Tyrano's chamber entered and the battle begun.
 """
+from pathlib import Path
+
 from .. import addresses as A, policies
-from ..campaign import Run, route_arguments, run_route
-from .rainbow_shell import CONTROL, enter, fight, load
+from ..campaign import REPO, Run, route_arguments, run_route
+from .rainbow_shell import fight
 
 SAVE = "saves/routes/rainbow-shell.srm"
-PHASES = ["loaded", "door", "room", "battle", "after"]
+MOVIE = Path(REPO) / "movies/saves/battle-rust-tyrano.ctm"
+# The movie's walk ends as the battle begins (its first command menu opens at frame 4812 in the reference).
+WALK_ENDS = 4770
+PHASES = ["battle", "after"]
 HEADER = """# Giant's Claw, 600 A.D.: from the dungeon save point, open the door,
 # enter Rust Tyrano's chamber and defeat it with Crono, Lucca and Robo.
 # Includes the countdown and fire breath; ends with the field back in hand.
@@ -60,29 +67,12 @@ def main():
     try:
         start = run.start_at(PHASES)
         if start <= 0:
-            load(run)
-            assert run.wait_control()
-            assert run.map_id() == "6d00"
-            assert not m.b(0x7F01D2) & 0x40
-            run.checkpoint("loaded")
-        if start <= 1:
-            assert run.go(824, 354)
-            m.run(2, "UP")
-            m.run(8)
-            m.run(30, "A")
-            assert run.wait_control()
-            assert m.b(0x7F0218) == 1, "the door opened"
-            run.checkpoint("door")
-        if start <= 2:
-            enter(run, "c500")
-            run.checkpoint("room")
-        if start <= 3:
-            assert run.wait_control()
-            assert run.walk(lambda m, x, y: not m.b(CONTROL)) is not None
-            assert run.dialogs_until(lambda: A.battle_menu_open(m), 5000)
+            # The way to the chamber is the movie's own, which the field plays on time.
+            m.play_movie(str(MOVIE), WALK_ENDS)
+            assert run.dialogs_until(lambda: A.battle_menu_open(m), 3000), "Rust Tyrano's battle"
             m.run(700)                 # the party and Tyrano take their places
             run.checkpoint("battle")
-        if start <= 4:
+        if start <= 1:
             fight(run, tyrano, args.seed)
             assert run.map_id() == "c500" and m.b(0x7F01D2) & 0x40
             run.checkpoint("after")

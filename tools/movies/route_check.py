@@ -4,6 +4,7 @@ Other routes run explicitly by name; --resume retains checkpoints for the same b
 """
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -15,6 +16,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if __package__:
+    from .. import native_slots
+else:  # run as a file, tools/movies/route_check.py
+    sys.path.insert(0, REPO)
+    from tools import native_slots
 
 # Fast gameplay outcomes: New Game+ and cartridge-loaded inventory item use.
 DEFAULT_ROUTES = ["new_game_plus", "menu_sweep:items"]
@@ -63,6 +69,7 @@ def run_stamp(route, rom, drive):
 
 STAMP = "run-stamp.txt"
 START_GIT = subprocess.Popen    # git's own: a route's process is started apart
+SECONDS = "route-seconds.json"   # each route's last time in this scratch, for the order
 
 
 def prepare(where, stamp, resume):
@@ -134,10 +141,22 @@ def tree_state(root=None):
     return saves, set(lines.splitlines()) if git.returncode == 0 else set()
 
 
-def tree_changes(before, after):
-    """The paths a run changed between two tree_state()s."""
+def tree_changes(before, after, scratch=None):
+    """The paths a run changed between two tree_state()s. Routes run side by
+    side in lanes, each writing to its own scratch: what any of them writes
+    inside the scratch root (where that is in the working tree and git
+    doesn't ignore it) is no route's fault, so `scratch` is left out. A
+    change under saves/ never is."""
     saves = sorted(path for path in set(before[0]) | set(after[0]) if before[0].get(path) != after[0].get(path))
-    status = sorted(line[3:] for line in after[1] - before[1])
+    inside = None
+    if scratch:
+        try:
+            relative = os.path.relpath(os.path.abspath(scratch), REPO).replace(os.sep, "/")
+        except ValueError:      # another drive: outside the tree
+            relative = ".."
+        inside = None if relative.startswith("..") else relative.rstrip("/") + "/"
+    status = sorted(line[3:] for line in after[1] - before[1]
+                    if not (inside and line[3:].strip('"').startswith(inside)))
     return sorted(set(saves) | set(status))
 
 
@@ -157,11 +176,11 @@ def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=Fals
         command += ["--rom", rom]
     if drive:
         command += ["--drive", drive]
-    started = time.time()
     tree_before = tree_state()
     # a resumed run adds to the output of the runs before it, whose checkpoints
     # it carries on from
-    with open(os.path.join(where, "output.txt"), "a" if resumed else "w", encoding="utf-8") as out:
+    with open(os.path.join(where, "output.txt"), "a" if resumed else "w", encoding="utf-8") as out, native_slots.slot():
+        started = time.time()
         process = subprocess.Popen(command, cwd=REPO, stdout=out, stderr=subprocess.STDOUT,
                                    env=env, start_new_session=os.name != "nt")
         try:
@@ -186,7 +205,7 @@ def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=Fals
         if match:
             phases.append((match.group(1), int(match.group(2))))
     faults = runtime_faults(lines)
-    changed = tree_changes(tree_before, tree_state())
+    changed = tree_changes(tree_before, tree_state(), scratch)
     passed = status == 0 and outcome is not None and outcome[0] == "reached" and not faults and not changed
     facts = carried_fight(name, lines) if passed and not until else []
     passed = passed and not facts
@@ -227,15 +246,28 @@ def main(argv=None):
         if getattr(args, name):
             setattr(args, name, os.path.abspath(getattr(args, name)))
     scratch = args.scratch or tempfile.mkdtemp(prefix="route_check-")
+    # The longest routes first (as the last run in this scratch timed them), so
+    # no long one is left running alone at the end; one never timed goes first.
+    timed = os.path.join(scratch, SECONDS)
+    try:
+        with open(timed, encoding="utf-8") as f:
+            seconds = json.load(f)
+    except (OSError, ValueError):
+        seconds = {}
+    order = sorted(args.routes, key=lambda route: -seconds.get(route, float("inf")))
     try:
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             futures = [pool.submit(run_one, route, scratch, args.rom, args.drive, args.timeout,
-                                   args.resume, args.protocol_log) for route in args.routes]
+                                   args.resume, args.protocol_log) for route in order]
             results = []
             for future in as_completed(futures):
                 r = future.result()
                 results.append(r)
+                seconds[r["route"]] = round(r["seconds"], 1)
                 print("%s %s: %s (%.1fs)" % ("PASS" if r["passed"] else "FAIL", r["route"], r["what"], r["seconds"]), flush=True)
+        if args.scratch:
+            with open(timed, "w", encoding="utf-8") as f:
+                json.dump(seconds, f, indent=1, sort_keys=True)
     finally:
         if not args.scratch:
             shutil.rmtree(scratch, ignore_errors=True)

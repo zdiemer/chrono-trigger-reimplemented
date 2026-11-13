@@ -90,6 +90,13 @@ class NativeModeTest(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertIn(os.path.join("saves", "recorded", "kept.srm"), result["what"])
 
+    def test_writes_in_the_scratch_are_no_routes_fault(self):
+        before = ({}, {" M tools/x.py"})
+        after = ({}, {" M tools/x.py", "?? scratch/other_route/run.st", "?? stray.txt"})
+        with patch.object(route_check, "REPO", os.path.abspath("repo")):
+            changed = route_check.tree_changes(before, after, os.path.join("repo", "scratch"))
+        self.assertEqual(changed, ["stray.txt"])
+
     def test_timeout_stops_the_route_process_tree(self):
         with tempfile.TemporaryDirectory() as where, patch.object(route_check, "run_stamp", return_value="test"), \
                 patch.object(route_check.subprocess, "Popen") as start, \
