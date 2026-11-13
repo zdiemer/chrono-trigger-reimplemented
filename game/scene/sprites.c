@@ -344,9 +344,12 @@ void scene_hide_rest_of_group(GameState *g)
 {
     SpriteCursor c = cursor(g);
     uint8_t bits = oam_high_table_byte(g, c.high);
-    for (unsigned n = (c.entry / ENTRY_BYTES) % SPRITES_PER_HIGH_BYTE; n < SPRITES_PER_HIGH_BYTE; n++)
+    unsigned first = (c.entry / ENTRY_BYTES) % SPRITES_PER_HIGH_BYTE;
+    for (unsigned n = first; n < SPRITES_PER_HIGH_BYTE; n++)
         bits = (uint8_t)(HIGH_X9 | bits >> 2);
     set_oam_high_table_byte(g, c.high, bits);
+    for (unsigned n = first; n < SPRITES_PER_HIGH_BYTE; n++)
+        sprite_table_hide_as_it_stands(g, c.entry / ENTRY_BYTES + n - first);
 }
 
 /* How many sprites a list in the program holds. */

@@ -17,6 +17,7 @@
 #include "field/switches.h"
 
 #include "charge.h"
+#include "core/sprite_table.h"
 #include "core/tile_animation.h"
 #include "field/bridge.h"
 #include "field/field.h"
@@ -37,9 +38,9 @@ static const VidVramPort column_port = { .step = 32, .after_high = true };
 
 // $C0:ECA3
 /* The sprite table, all of it, from the first sprite. */
-void field_upload_sprite_table(Platform *pf)
+void field_upload_sprite_table(GameState *g, Platform *pf)
 {
-    vid_send_oam(pf, PF_AT(0xC0ECA5), PF_GAME(FIELD_SPRITE_TABLE_ADDRESS));
+    vid_send_oam(pf, PF_AT(0xC0ECA5), PF_GAME(FIELD_SPRITE_TABLE_ADDRESS), sprite_table_places(g));
 }
 
 // $C0:B1B2

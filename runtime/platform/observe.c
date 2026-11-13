@@ -28,6 +28,7 @@ struct VidObserver {
     uint8_t vram[0x10000];
     uint16_t cgram[256];
     uint8_t oam[0x220];
+    VidSpritePlace places[VID_SPRITES];   /* where the game put each sprite, beside the table */
 
     /* Latches the scroll and Mode 7 registers share, which per-line effects and
      * the scroll calls both go through (as in runtime/snes/ppu.c). */
@@ -597,11 +598,15 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
     ob->palette_dirty = true;
 }
 
-void vid_obs_upload_oam(VidObserver *ob, PfData oam)
+void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places)
 {
     keep_sprites(ob);
     for (uint32_t i = 0; i < sizeof ob->oam; i++)
         ob->oam[i] = data_byte(ob, oam, i);
+    if (places)
+        memcpy(ob->places, places, sizeof ob->places);
+    else
+        memset(ob->places, 0, sizeof ob->places);
 }
 
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len)
@@ -860,14 +865,19 @@ static void decode_sprites(VidObserver *ob)
     for (int n = 0; n < VID_SPRITES; n++) {
         const uint8_t *e = &ob->oam[n * 4];
         uint8_t hi = (uint8_t)(ob->oam[0x200 + n / 4] >> ((n % 4) * 2));
-        ob->frame.sprites[n] = (VidSprite){ .x = (int16_t)(e[0] | (hi & 1) << 8),
+        uint16_t x9 = (uint16_t)(e[0] | (hi & 1) << 8);
+        const VidSpritePlace *place = &ob->places[n];
+        bool holds = vid_place_holds(place, x9, e[1]);
+        ob->frame.sprites[n] = (VidSprite){ .x = holds && place->kind == VID_PLACE_AT ? place->x : (int16_t)x9,
                                             .y = e[1],
                                             .tile = (uint16_t)(e[2] | (e[3] & 1) << 8),
                                             .palette = (uint8_t)((e[3] >> 1) & 7),
                                             .priority = (uint8_t)((e[3] >> 4) & 3),
                                             .hflip = (e[3] & 0x40) != 0,
                                             .vflip = (e[3] & 0x80) != 0,
-                                            .large = ((hi >> 1) & 1) != 0 };
+                                            .large = ((hi >> 1) & 1) != 0,
+                                            .placed = holds && place->kind == VID_PLACE_AT,
+                                            .hidden = holds && place->kind == VID_PLACE_HIDDEN };
     }
 }
 
@@ -882,6 +892,13 @@ void vid_obs_frame_start(VidObserver *ob)
 }
 
 void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
+
+void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4])
+{
+    ob->frame.view = view;
+    memcpy(ob->frame.layer_left, layer_left, sizeof ob->frame.layer_left);
+    memcpy(ob->frame.layer_right, layer_right, sizeof ob->frame.layer_right);
+}
 
 void vid_obs_line(VidObserver *ob, uint16_t line)
 {
@@ -1038,7 +1055,8 @@ bool vid_frame_diff(const VidFrame *a, const VidFrame *b, VidDiff *out)
     for (int n = 0; n < VID_SPRITES; n++) {
         const VidSprite *x = &a->sprites[n], *y = &b->sprites[n];
         if (x->x != y->x || x->y != y->y || x->tile != y->tile || x->palette != y->palette ||
-            x->priority != y->priority || x->hflip != y->hflip || x->vflip != y->vflip || x->large != y->large)
+            x->priority != y->priority || x->hflip != y->hflip || x->vflip != y->vflip || x->large != y->large ||
+            x->placed != y->placed || x->hidden != y->hidden)
             DIFF("sprite", "sprite %d: (%d,%u) tile $%03X pal %u pri %u, commands (%d,%u) tile $%03X pal %u pri %u", n,
                  x->x, x->y, x->tile, x->palette, x->priority, y->x, y->y, y->tile, y->palette, y->priority);
     }

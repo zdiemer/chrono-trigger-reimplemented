@@ -21,6 +21,7 @@
 #include "warp/warp.h"
 #include "warp/warp_data.h"
 
+#include "core/sprite_table.h"
 #include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -138,6 +139,8 @@ static void place_the_sprites(GameState *g)
     }
     for (unsigned at = 0; at < WARP_LIGHT_SPRITES / SPRITES_A_HIGH_BYTE; at++)
         set_oam_high_table_byte(g, at, ALL_LARGE_ON_SCREEN);
+    for (unsigned i = WARP_LIGHT_SPRITES; i < SPRITES; i++)
+        sprite_table_hide_as_it_stands(g, i);
 }
 
 /* ---- The light ----------------------------------------------------------------------------------- */

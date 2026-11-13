@@ -266,9 +266,76 @@ static void view_size(void)
     CHECK(v.width == 400 && v.height == 224);
 }
 
+/* A wider view: the original's screen in its middle; a sprite placed past the
+ * screen's right edge shown there, and one the game hid shown nowhere though
+ * its nine bits would land in the margin; a background layer left out of the
+ * margins until the mode says it holds the picture there. */
+static void wider_view(void)
+{
+    enum { WIDTH = 320, LEFT = (256 - WIDTH) / 2, ROW = 10, MAP = 0x0800, CHARS = 0x1000 };
+    Platform pf = {0};
+    vid_host_start(&pf, NULL, NULL);
+    vid_host_frame_begins(&pf);
+    vid_host_set_view(&pf, (VidView){ WIDTH, 224 });
+    vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
+    vid_set_mode(&pf, PF_AT(0), &(VidMode){ .mode = 1 });
+    vid_set_screens(&pf, PF_AT(0), VID_BG1_BIT | VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
+    vid_set_obj_config(&pf, PF_AT(0), &(VidObjConfig){ 0 });
+    vid_set_bg_map(&pf, PF_AT(0), VID_BG1, &(VidBg){ VID_TILEMAP(MAP, 64, 32) });
+    vid_set_bg_chars(&pf, PF_AT(0), VID_BG1, CHARS, CHARS);
+    vid_set_palette_color(&pf, PF_AT(0), 0, 31);
+    vid_set_palette_color(&pf, PF_AT(0), 1, 31 << 5);
+    vid_set_palette_color(&pf, PF_AT(0), 129, 31 << 10);
+    uint8_t tile[32] = { 0 };
+    for (unsigned row = 0; row < 8; row++)
+        tile[2 * row] = 0xFF;   /* every pixel colour 1 */
+    vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .ptr = tile }, sizeof tile, VID_VRAM_WORD_PORT);
+    vid_send_vram(&pf, PF_AT(0), CHARS + 16, (PfData){ .ptr = tile }, sizeof tile, VID_VRAM_WORD_PORT);
+    static uint8_t map[64 * 32 * 2];
+    for (unsigned i = 0; i < sizeof map; i += 2)
+        map[i] = 1;   /* tile 1 everywhere */
+    vid_send_vram(&pf, PF_AT(0), MAP, (PfData){ .ptr = map }, sizeof map, VID_VRAM_WORD_PORT);
+    uint8_t oam[0x220] = { 0 };
+    for (unsigned n = 0; n < VID_SPRITES; n++)
+        oam[4 * n + 1] = VID_OAM_HIDDEN_Y;
+    oam[0] = vid_oam_x_low(270), oam[1] = ROW, oam[0x200] = vid_oam_high_bits(270, false);
+    oam[4] = vid_oam_x_low(VID_OAM_HIDDEN_X), oam[5] = ROW, oam[0x200] |= vid_oam_high_bits(VID_OAM_HIDDEN_X, false) << 2;
+    VidSpritePlace places[VID_SPRITES] = { { 270, ROW, VID_PLACE_AT }, { VID_OAM_HIDDEN_X, ROW, VID_PLACE_HIDDEN } };
+    vid_send_oam(&pf, PF_AT(0), (PfData){ .ptr = oam }, places);
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(vid_render_width(f) == WIDTH);
+    CHECK(f->sprites[0].placed && f->sprites[0].x == 270 && f->sprites[1].hidden);
+
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = calloc(VID_RENDER_MAX_PIXELS, sizeof *pixels);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t backdrop = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    uint32_t layer = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15));
+    uint32_t sprite = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 10, 15));
+    const uint32_t *row = pixels + ROW * WIDTH;
+    CHECK(row[270 - LEFT] == sprite && row[277 - LEFT] == sprite && row[278 - LEFT] == backdrop);
+    CHECK(row[256 - LEFT] == backdrop);   /* the hidden one, over no layer */
+    CHECK(row[0] == backdrop && row[-LEFT - 1] == backdrop && row[-LEFT] == layer && row[255 - LEFT] == layer);
+
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, 280);
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(row[0] == layer && row[279 - LEFT] == layer && row[280 - LEFT] == backdrop);
+
+    /* The original's screen draws from the table alone. */
+    vid_host_set_view(&pf, (VidView){ 256, 224 });
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(vid_render_width(f) == 256 && pixels[ROW * 256 + 255] == layer);
+    free(pixels);
+    vid_render_destroy(r);
+    vid_host_stop(&pf);
+}
+
 int main(void)
 {
     view_size();
+    wider_view();
     resource_transfers();
     fill_half_from_cursor();
     changing_picture();
