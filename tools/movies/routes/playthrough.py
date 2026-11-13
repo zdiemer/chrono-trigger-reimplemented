@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends with the Guardian beaten in
-Arris Dome, 2300 A.D.
+on only past checkpoints that succeeded. It ends past the Guardian in Arris
+Dome, 2300 A.D., with the Day of Lavos on the information center's computer.
 """
 from .. import addresses as A
 from .. import policies
@@ -30,7 +30,9 @@ TANK = dragon_tank.PHASES[2:]
 # to Arris Dome, and the Guardian there (its piece, after its save's loading).
 FUTURE = ["castle_gate", "forest_chase", "forest_back", "future", "lab16", "lab16_east", "arris"]
 GUARDIAN = guardian.PHASES[1:]
-PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN
+# Past the Guardian, through its room's door to the information center.
+INFO = ["info_center", "lavos_day"]
+PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -67,6 +69,11 @@ LAB16_DOOR = (264, 368)     # on the 2300 A.D. map, north of Bangor Dome
 LAB16_WEST_EXIT = (504, 120)   # tile column 31, rows 5-9, to the east part
 LAB16_EAST_EXIT = (952, 536)   # tile columns 57-61, row 33, out by Arris Dome
 ARRIS_DOME = 0x0D6
+INFO_CENTER = "5801"           # location $158, through the Guardian room's north door
+INFO_CENTER_DOOR = (128, 340)  # below it, in the Guardian's room
+COMPUTER = 8                   # an object of the information center
+ARRIS_FLAGS, COMPUTER_SEEN = 0x7F00EC, 0x10
+SEED = 0xD4
 SHADOW = 0x66                # an enemy number: Lab 16's, 1 HP, no harm from weapons
 RUN_FROM = {SHADOW}
 WAIT_MODE = 1              # the battle mode question's second row: Wait
@@ -603,6 +610,27 @@ def main():
         if later <= len(FUTURE) + len(GUARDIAN) - 1:
             walking(run)
             guardian.play(run, max(1, later - len(FUTURE) + 1), args.seed)
+        later -= len(FUTURE) + len(GUARDIAN)
+        if later <= 0:
+            # The door the Guardian kept opens to the information center,
+            # where the party finds a Seed as it comes in.
+            walking(run)
+            assert run.go(*INFO_CENTER_DOOR), "below the door"
+            machine.run(4, "UP")
+            machine.run(10)
+            machine.run(4, "A")
+            machine.run(60)
+            assert leave_fighting(run, INFO_CENTER), "the information center"
+            assert in_hand(run)
+            assert count_of(machine, SEED), "the Seed"
+            run.checkpoint("info_center")
+        if later <= 1:
+            # Its computer shows the Day of Lavos.
+            walking(run)
+            assert run.talk(COMPUTER), "the computer"
+            assert in_hand(run, 30000)
+            assert machine.b(ARRIS_FLAGS) & COMPUTER_SEEN, "the Day of Lavos seen"
+            run.checkpoint("lavos_day")
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

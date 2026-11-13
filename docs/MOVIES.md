@@ -34,8 +34,10 @@ Guardia Forest to the Gate, Lab 16); where a save-based route already plays a
 stretch, the route calls that route's `play(run, start)` from the state it
 reached instead of a save (`_trial_cathedral`, `cronos_trial`, `dragon_tank`,
 `guardian`). Its checkpoint names are unique across the pieces it composes. It
-ends with the Guardian beaten in Arris Dome, 2300 A.D. (frame 356087).
-A fight with no enemy the bot can hurt (Lab 16's 1-HP Shadows) is run from.
+ends past the Guardian in Arris Dome, 2300 A.D., with the information
+center's computer showing the Day of Lavos (frame 365902). Lab 16's Shadows,
+which no weapon hurts, are run from by their enemy number; any other fight
+with no enemy the bot can wear down fails the route.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library and every public route module as a non-blocking batch. Findings
 become fixes; the batch never blocks a commit, merge or push. Its stage logs,
