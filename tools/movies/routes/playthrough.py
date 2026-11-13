@@ -43,6 +43,7 @@ HEADER = """\
 
 MENU_SCREEN = 0x7E0067      # which of the menus' screens is open
 NAMING_SCREEN = 0x0D        # name entry (and, on a new game, the battle mode first)
+EXCHANGE_SCREEN = 7         # the party exchange, which a member joining a full party opens
 CURSOR = 0x7E0054
 GOLD = 0x7E2C53             # three bytes
 LEENE_SQUARE = 0x005        # the Millennial Fair's lower square
@@ -226,7 +227,8 @@ def password(run, door):
 
 def in_hand(run, max_frames=12000, seed=1):
     """Play on until the pad walks the party again: windows closed with
-    confirm, each name the game asks for accepted as offered (Start), and any
+    confirm, each name the game asks for accepted as offered (Start), the
+    party exchange a joining member opens left as offered (cancel), and any
     fight that starts on the way won. True once it is."""
     machine = run.machine
     start = machine.frame
@@ -239,6 +241,11 @@ def in_hand(run, max_frames=12000, seed=1):
         if naming(run):
             machine.run(3, "START")
             machine.run(40)
+            continue
+        if machine.b(MENU_SCREEN) == EXCHANGE_SCREEN and not machine.b(A.FIELD_PLAYER_CONTROL):
+            machine.run(3, "B")
+            machine.run(90)
+            found = held = 0
             continue
         if run.dialog():
             machine.run(3, "A")

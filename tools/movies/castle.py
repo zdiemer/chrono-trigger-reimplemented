@@ -64,6 +64,14 @@ def castle_policy(bot, state, rng, inventory):
 
 
 class CastleRun(Run):
+    @classmethod
+    def adopt(cls, run):
+        """The castle's walking for a run already under way (a playthrough
+        reaching the castle): the same machine, log and checkpoints."""
+        castle_run = cls.__new__(cls)
+        castle_run.__dict__ = run.__dict__
+        return castle_run
+
     def settle(self, max_frames=10000):
         """Advance a scene, fighting a corridor ambush if it opens a menu."""
         m = self.machine

@@ -39,6 +39,17 @@ Guardian to the information center, the room below's rat caught for the
 password by waiting where its run passes, the sealed doors and the storeroom. Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
+
+The rest of the game is played in legs that start from cartridge saves, so
+that the whole story is covered in parallel. `playthrough_leg-b` starts from
+fantasyanime ctsave05 slot 1 (the Forest Maze, 65,000,000 B.C.) with the
+save's party and items: the maze and the Reptite Lair (`nizbel`'s piece), the
+Mystic Mountains' Gate, Melchior forging the Masamune in 1000 A.D., Medina's
+and Truce Canyon's Gates, Zenan Bridge and the Cursed Woods, where Frog joins,
+the Magic Cave (`magic_cave`'s piece) and Magus's castle (the castle's
+approach, then `castle_slash`'s and `castle_flea`'s pieces). Like the main
+playthrough it is run by hand with `--scratch <dir> --resume`, not in the
+gate.
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
 (`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings
