@@ -183,6 +183,7 @@ Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 corridor and the inner rooms (a search that plays ladders and stairs through)
 to Magus's door (frame about 387000). Ozzie waits there behind a barrier the
 party's blows barely touch; the leg stops before him, its MP spent.
+
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
 (`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings
