@@ -38,12 +38,12 @@ trips, asset loading, route protocol, audio replay, persistence and bindings.
 
 ## Validation receipt
 
-After integrating the native player, owner/alias storage and scene fills, the
-sampled native gate finished `suite OK` in **309.6 seconds** at `-j 2`:
-201 Python tests (87.8 s), 15 native C tests (1.2 s), 58 movies (145.7 s),
-58 outcome ratchets (0.2 s), both fast routes (0.8 s), portstyle (0.2 s) and
-portsmell (73.9 s). All three native picture fingerprints passed. No native
-save/place baseline value or exception changed.
+With the fight routes carried and their facts checked, the sampled native
+gate finished `suite OK` in **447.2 seconds** at `-j 2`, on a machine other
+agents shared: 251 Python tests (109.1 s), 24 native C tests (6.0 s),
+58 movies (191.3 s), 58 outcome ratchets (0.4 s), the fast pair and 16 fight
+routes (135.1 s), snapshots (120.3 s), portstyle (0.4 s), portsmell (94.7 s)
+and doc-names (1.0 s). All three native picture fingerprints passed.
 
 Windows MinGW GCC and WSL GCC/Clang built with warnings as errors; both Linux
 builds passed all 15 C tests. Opening, menu and battle quick-load continuations

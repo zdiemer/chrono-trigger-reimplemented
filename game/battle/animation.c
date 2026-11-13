@@ -633,14 +633,9 @@ static const uint32_t movement_routines[ENEMY_MOVEMENTS] = {
 
 /* The movement runs unless the table names none for the animation (an
  * animation past those the battle gives, where the original's table runs on
- * into other code), or it goes by a target the enemy hasn't got. */
-static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
-{
-    if (movement >= ENEMY_MOVEMENTS)
-        return false;
-    return !battle_enemy_movement_needs_target((EnemyMovement)movement)
-           || battle_names_combatant(battle_enemy_target_seen(g, enemy));
-}
+ * into other code). A target of nobody moves by where nobody stands
+ * (battle/enemy_movement.c). */
+static bool movement_runs(uint8_t movement) { return movement < ENEMY_MOVEMENTS; }
 
 // $C1:3714
 /* Run the enemies' animation effects that are due, unless they stand still
@@ -664,7 +659,7 @@ bool battle_enemy_effects_stepped(GameState *g, Platform *pf)
             continue;
         set_battle_effect_kind(g, animation);
         uint8_t movement = battle_enemy_animation_effect(g, animation);
-        if (movement_runs(g, enemy, movement))
+        if (movement_runs(movement))
             TIMED_AS(g, movement_routines[movement], battle_move_enemy(g, enemy, (EnemyMovement)movement, animation));
         else
             return battle_contract_broken(g, 0xC13760, "an enemy's movement the port doesn't run");
