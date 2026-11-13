@@ -28,6 +28,8 @@
 #include "charge.h"
 #include "core/panel_layout.h"
 #include "core/sprite_table.h"
+#include "menu/item_screen.h"
+#include "menu/menu.h"
 #include "platform/video.h"
 #include "vars.h"
 
@@ -205,12 +207,38 @@ static void lay_out_a_layers_map(GameState *g, Platform *pf, VidView view, unsig
     panel_layout_send(l, pf, map);
 }
 
+/* ---- Which screens take the rule ---------------------------------------------------------- */
+
+/* The screens and steps the parting lays out well, checked picture by picture
+ * at 16:9: the screens a later change gives a layout of their own, or puts
+ * on the parting, are switched here one at a time. Every other one -- the
+ * main menu with its icon bar, the equipment (an equipped item's line parts
+ * from the rest), an item picked up and the members an item is used on, the
+ * techs (whose member rows part from their figures), the settings, the save screen and its prompts, the shops, naming, the save
+ * point and the gate's exchange -- keeps the original's arrangement in the
+ * middle of the view (issue #284). */
+static bool takes_the_parting(const GameState *g)
+{
+    uint8_t step = menu_tasks_step(g, MENU_MAIN_TASK);   /* the screen's own step, whichever task runs */
+    switch ((MenuScreen)menu_screen(g)) {
+    case MENU_SCREEN_EXCHANGE:
+    case MENU_SCREEN_LOAD: return true;
+    case MENU_SCREEN_ITEMS: return step != ITEMS_MOVING_ONE && step != ITEMS_SHOWING_USERS;
+    default: return false;
+    }
+}
+
 void menu_lay_out_the_screen_across(GameState *g, Platform *pf)
 {
     MenuPanels *p = menu_panels(g);
     VidView view = vid_view(pf);
-    p->laid_out = vid_view_is_wider(view);
-    if (!p->laid_out)
+    uint32_t mark = charge_uncounted_begin(g);
+    bool laid_out = vid_view_is_wider(view) && takes_the_parting(g);
+    charge_uncounted_end(g, mark);
+    if (p->laid_out && !laid_out)
+        sprite_table_forget_places(g);
+    p->laid_out = laid_out;
+    if (!laid_out)
         return;
     LayerRow (*rows)[LAYERS] = p->rows;
     /* Each row's partings, and a row's narrowed to its neighbours' where they

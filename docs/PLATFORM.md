@@ -238,9 +238,11 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   that can share a parting share it. The layout is read back from what the
   mode sent (`vid_read_vram`) and the rows the last picture showed
   (`vid_layer_last_shown`); the sprites follow their row's side a frame later.
-  A screen set up partway through a frame, a popup over a screen, and a list
-  scrolling sideways can still part where the original's arrangement shows
-  better; those are follow-ups of issue #284.
+  It applies only to the screens on an explicit list in that file (the
+  items but for an item picked up or being used, the party exchange and the
+  load screen); every other screen keeps the original's
+  arrangement in the middle of the view until it is put on the parting or
+  given a layout of its own (issue #284).
 - **Every other mode** (the scenes, the dialog window over the field, the
   time warp's tunnel aside, which is Mode 7) keeps its layers to the
   original's screen, the backdrop in the margins, until it builds what lies
