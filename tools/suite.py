@@ -14,7 +14,8 @@ BUDGET = 600
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
-from tools.movies.route_check import all_routes
+from tools.movies.route_check import DEFAULT_ROUTES, all_routes
+from tools import outcomes
 
 GATE_MOVIES = ROOT / "tools/gate_movies.txt"
 
@@ -119,12 +120,16 @@ def main(argv=None):
     args.out.mkdir(parents=True, exist_ok=True)
     runs = args.out / 'outcomes'
     py = sys.executable
+    # The fast routes, and the routes that carry the selected movies' fights
+    # (tools/fight_routes.txt), which the outcome check counts on.
+    fights = outcomes.fight_routes()
+    route_names = DEFAULT_ROUTES + sorted({fights[n] for n in names if n in fights})
     stages = [
         ('unit', [py, '-m', 'unittest', 'discover', 'tests']),
         ('native-unit', [ctest, '--test-dir', str(binary.parent), '--output-on-failure', '--no-tests=error', '-j', str(args.jobs)]),
         ('movies', [py, 'tools/native_check.py', '--ct-native', str(binary), '--rom', str(args.rom), '--outcomes', str(runs), '-j', str(args.jobs), '--movies', *names]),
         ('outcomes', [py, 'tools/outcomes.py', '--check', '--runs', str(runs), '--movies', *names]),
-        ('routes', [py, '-m', 'tools.movies.route_check', '--drive', str(binary), '--rom', str(args.rom), '--scratch', str(args.out / 'routes'), '--timeout', '90', '-j', str(args.jobs)]),
+        ('routes', [py, '-m', 'tools.movies.route_check', '--drive', str(binary), '--rom', str(args.rom), '--scratch', str(args.out / 'routes'), '--timeout', '90', '-j', str(args.jobs), *route_names]),
         ('snapshots', [py, 'tools/player_check.py', '--build', str(binary.parent), '--rom', str(args.rom), '--out', str(args.out / 'player-check')]),
         ('portstyle', [py, 'tools/portstyle.py', '--check']),
         ('portsmell', [py, 'tools/portsmell.py', '--check']),

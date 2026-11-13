@@ -5,19 +5,23 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends past the Guardian in Arris
-Dome, 2300 A.D., with the Day of Lavos on the information center's computer.
+on only past checkpoints that succeeded. It ends at the End of Time, after
+the R Series.
 """
+import os
+
 from .. import addresses as A
 from .. import policies
 from .menu_sweep import SHELTER, count_of
-from ..campaign import Run, route_arguments, run_route
+from ..campaign import REPO, Run, route_arguments, run_route
 from ._trial_walk import field_exit, toward, world_enter
 from . import _trial_party as early
 from . import _trial_cathedral as cathedral
 from . import cronos_trial
 from . import dragon_tank
 from . import guardian
+from . import proto_dome
+from . import r_series
 
 OPENING = ["named", "home", "fair", "collided", "joined", "exhibit", "gate", "truce_canyon", "guardia",
            "upstairs", "chamber", "kidnapped"]
@@ -32,7 +36,15 @@ FUTURE = ["castle_gate", "forest_chase", "forest_back", "future", "lab16", "lab1
 GUARDIAN = guardian.PHASES[1:]
 # Past the Guardian, through its room's door to the information center.
 INFO = ["info_center", "lavos_day"]
-PHASES = OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO
+# The rat's password, the sealed doors, the storeroom and Doan's Bike Key.
+KEY = ["rat", "sealed_door", "storeroom", "bike_key"]
+# Lab 32's race to Proto Dome, Robo repaired, and the factory (their pieces
+# after their saves' loading; the factory's hall is entered here).
+LAB32 = ["lab32", "johnny", "raced"]
+PROTO = proto_dome.PHASES[1:]
+FACTORY = ["factory_hall"] + r_series.PHASES[2:]
+PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
+          + LAB32 + PROTO + FACTORY)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -74,6 +86,30 @@ INFO_CENTER_DOOR = (128, 340)  # below it, in the Guardian's room
 COMPUTER = 8                   # an object of the information center
 ARRIS_FLAGS, COMPUTER_SEEN = 0x7F00EC, 0x10
 SEED = 0xD4
+BIKE_KEY = 0xD5
+DOME_HALL, DOME_INNER, DOME_LOWER, GUARDIAN_ROOM = "d600", "d800", "dd00", "db00"
+PASSAGE, STORE_HALL, STOREROOM = "d700", "d900", "da00"
+RAT = 13                       # the room below's rat at its foot; another waits at its head
+RAT_TOLD = 0x40                # ARRIS_FLAGS: the password heard
+RAT_TRIGGER_STEPS = 6          # up from the room below's foot onto the tile that sets the rat running
+RAT_INTERCEPT = (96, 330)      # beside its run, west along the pipe, before it turns north
+TALK_REACH, RAT_PIXELS_A_FRAME, RAT_MARGIN_FRAMES = 28, 2, 1   # the party arrives with a frame to spare
+INNER_DOOR = 9                 # of the inner room's two sealed doors, the one to the storeroom's way
+STORE_DOOR = 8                 # the sealed door on the way, in the store hall
+STORY_STORE_SEEN = 0x36        # the storeroom's scene: the party sees the food is gone
+STORY_BIKE_KEY = 0x37
+LAB32_WEST, LAB32_EAST, RACE = "df00", "e100", "0f01"
+LAB32_ENTRANCE, FACTORY_ENTRANCE = 0x0DF, 0x0E4
+JOHNNY, JET_BIKE_SPOT = 13, (693, 118)   # Johnny, and below the jet bike, in Lab 32's west end
+BIKE_APPROACH = (683, 112)
+RACE_MOVIE, RACE_STARTS, RACE_ENDS = "movies/saves/events-jetbike-race-won.ctm", 3971, 8083
+DOORS_OPEN = 0x7F00A4
+ROBO = 3
+CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP = 0x7E2600, 0x50, 3
+ENERTRON = 14                   # Proto Dome's: a rest that restores HP and MP
+ARRIS_MERCHANT = 11
+ARRIS_TONIC_ROW, ARRIS_REVIVE_ROW = 3, 5     # of its list: Auto Gun, Iron Suit, Iron Helm, Tonic, Heal, Revive, Shelter
+ARRIS_COUNTER_BELOW = 24           # Arris Dome's sealed doors, a bit each
 SHADOW = 0x66                # an enemy number: Lab 16's, 1 HP, no harm from weapons
 RUN_FROM = {SHADOW}
 ENEMY_KIND_SLOTS = 4         # words at A.BATTLE_ENEMY_KINDS
@@ -88,7 +124,10 @@ def naming(run):
 
 
 def enemy_kinds(machine):
-    """The enemy numbers the open battle holds (battle_enemy_kinds)."""
+    """The enemy numbers the open battle holds (battle_enemy_kinds). The
+    battle counts only the enemies shown at its start, so a fight that opened
+    with nothing but hidden Shadows would name none and fail the route's
+    check below; none of the playthrough's fights does."""
     words = [machine.w(A.BATTLE_ENEMY_KINDS + 2 * i) for i in range(ENEMY_KIND_SLOTS)]
     return {word & 0xFF for word in words if word < 0x8000}
 
@@ -140,6 +179,149 @@ def win(run, seed=1, policy=early.early_party):
         return field_frames[0] >= 60
 
     run.fight(policy, over, party=party_size(run), seed=seed, max_frames=35000, max_tries=300)
+
+
+def catch_the_rat(run, max_nodes=2500):
+    """Set the room below's rat running from its foot, dash to RAT_INTERCEPT by
+    the shortest way (a search on copies), and talk to it as its run passes."""
+    import collections
+    machine = run.machine
+    for _ in range(RAT_TRIGGER_STEPS):
+        machine.run(4, "UP")
+    root = 3901
+    machine.mark(root)
+    queue, seen, used, found = collections.deque([(root, ())]), set(), [], None
+    try:
+        while queue and len(used) < max_nodes and found is None:
+            slot, path = queue.popleft()
+            for way in ("UP", "RIGHT", "DOWN", "LEFT"):
+                machine.restore(slot)
+                machine.probe(2, "B+" + way)
+                if run.dialog():
+                    continue
+                px, py = run.me()
+                key = (int(px) // 4, int(py) // 4)
+                if key in seen:
+                    continue
+                seen.add(key)
+                if abs(px - RAT_INTERCEPT[0]) <= 6 and abs(py - RAT_INTERCEPT[1]) <= 6:
+                    found = path + (way,)
+                    break
+                child = len(used) + 10
+                machine.mark(child)
+                used.append(child)
+                queue.append((child, path + (way,)))
+    finally:
+        machine.restore(root)
+        machine.free(root)
+        for slot in used:
+            machine.free(slot)
+    assert found is not None, "a way to where the rat's run passes"
+    for way in found:
+        machine.run(2, "B+" + way)
+    # The margin (issue #314): the rat runs west at about two pixels a frame
+    # and stays in talking reach until it is TALK_REACH pixels past the
+    # party's x. Measured in ct_native only (no recorded run of the original
+    # catching the rat is in the library), so it is asserted, not confirmed:
+    # the party arrives with about a frame to spare.
+    px, rx = run.me()[0], run.object_pos(RAT)[0]
+    margin = int((rx - (px - TALK_REACH)) // RAT_PIXELS_A_FRAME)
+    run.say("rat margin", margin, "frames: party at", run.me(), "rat at", run.object_pos(RAT))
+    assert margin >= RAT_MARGIN_FRAMES, ("the rat out of reach before the party arrives", margin)
+    machine.run(1, "LEFT")
+    for _ in range(60):
+        machine.run(1, "A")
+        machine.run(1)
+        if run.dialog():
+            break
+    run.say("rat", "caught" if run.dialog() else "missed", "at", run.me(), "rat", run.object_pos(RAT))
+    assert run.dialog(), "the rat caught"
+    assert in_hand(run)
+
+
+def password(run, door):
+    """Hold L and R and confirm beside a sealed door, from below it. True once
+    the door has answered (its flag in $7F:00A4 raised)."""
+    machine = run.machine
+    before = machine.b(DOORS_OPEN)
+    tx, ty = run.object_pos(door)
+    if run.walk(lambda m, px, py: abs(px - tx) <= 3 and abs(py - ty - 18) <= 3) is None:
+        return False
+    machine.run(2, "UP")
+    machine.run(6)
+    machine.run(10, "L+R")
+    machine.run(4, "L+R+A")
+    machine.run(10, "L+R")
+    machine.run(60)
+    assert in_hand(run, 20000)
+    return machine.b(DOORS_OPEN) != before
+
+
+def keep_the_mp(bot, state, rng, inventory):
+    """The factory's fights: Robo fights as the general policy does, the
+    others heal with Tonics and attack, keeping their MP for the R Series."""
+    character = policies.party_ids(bot)[state.member]
+    if character == ROBO:
+        return policies.party(bot, state, rng, inventory)
+    members = [slot for slot in range(bot.party) if state.max_hp(slot)]
+    for slot in members:
+        if not state.hp(slot):
+            action = policies.use(inventory, policies.REVIVE, slot)
+            if action:
+                return action
+    lowest = min(members, key=lambda slot: policies.fraction(state, slot))
+    if policies.fraction(state, lowest) < 0.5:
+        action = policies.use(inventory, policies.TONIC, lowest)
+        if action:
+            return action
+    living = policies.enemies(state)
+    return ("attack", min(living, key=state.hp) if living else None)
+
+
+def character_hp(machine, character):
+    """A character's HP and max HP from their record."""
+    at = CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * character + RECORD_HP
+    return machine.w(at), machine.w(at + 2)
+
+
+def rest_in_the_enertron(run):
+    """Rest in Proto Dome's Enertron: every member's HP and MP restored."""
+    machine = run.machine
+    run.talk(ENERTRON, done=lambda: run.dialog())
+    for _ in range(10):
+        machine.run(3, "A")
+        machine.run(50)
+    assert in_hand(run, 6000)
+    party = [c for c in machine.peek(A.PARTY_MEMBERS, 3) if c < 0x80]
+    at = lambda c: CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + RECORD_HP
+    rested = all(machine.w(at(c)) == machine.w(at(c) + 2) and machine.w(at(c) + 4) == machine.w(at(c) + 6)
+                 for c in party)
+    run.say("rested", [character_hp(machine, c) for c in party])
+    assert rested, "HP and MP restored"
+
+
+def drink_tonics(run, margin=40):
+    """From the main menu's items, Tonics for each member of the party short
+    of their max HP by more than `margin`, while there are Tonics."""
+    from .menu_sweep import ITEMS, back_to_main_menu, open_menu, open_option, press, use_item
+    machine = run.machine
+    party = list(machine.peek(A.PARTY_MEMBERS, 3))
+    open_menu(machine)
+    open_option(machine, ITEMS)
+    machine.run(20)
+    for row, character in enumerate(party):
+        if character >= 0x80:
+            continue
+        for _ in range(12):
+            hp, most = character_hp(machine, character)
+            if most - hp <= margin or not count_of(machine, policies.TONIC):
+                break
+            use_item(run, policies.TONIC, choose_member=True, extra=("DOWN",) * row)
+    back_to_main_menu(machine)
+    press(machine, "B", 60)
+    run.say("tonics drunk", [character_hp(machine, c) for c in party if c < 0x80],
+            "left", count_of(machine, policies.TONIC))
+    assert run.wait_control(), "the field after the menu"
 
 
 def in_hand(run, max_frames=12000, seed=1, policy=early.early_party):
@@ -283,8 +465,11 @@ def buy(run, merchant_spot, purchases):
             machine.run(3, "RIGHT")
             machine.run(20)
         assert press_until("A", lambda: cursor() == row), "bought"
+    # Out of the shop's screens: the field's control byte can read set while
+    # they are open (Arris Dome's), and the menu's screen byte keeps the shop's
+    # after they close, so the pad walking the party again tells.
     for _ in range(6):
-        if run.dialog() or machine.b(A.FIELD_PLAYER_CONTROL):
+        if run.dialog() or (machine.b(A.FIELD_PLAYER_CONTROL) and run.find_player() is not None):
             break
         machine.run(3, "B")
         machine.run(60)
@@ -633,6 +818,128 @@ def main():
             assert in_hand(run, 30000)
             assert machine.b(ARRIS_FLAGS) & COMPUTER_SEEN, "the Day of Lavos seen"
             run.checkpoint("lavos_day")
+        later -= len(INFO)
+        if later <= 0:
+            # The rat in the room below knows the password. Each of its two
+            # rats runs the length of the room from one end to the other
+            # when the party steps near, through pipes the party can't
+            # follow; the party catches it by waiting where its run passes
+            # and talking to it as it comes. From the room's foot (in by the
+            # inner room) the run turns north along the west pipe, which the
+            # party reaches by a dash a few frames before the rat.
+            walking(run)
+            for want in (GUARDIAN_ROOM, DOME_LOWER, DOME_INNER, DOME_LOWER):
+                assert leave_fighting(run, want), want
+            walking(run)
+            catch_the_rat(run)
+            assert machine.b(ARRIS_FLAGS) & RAT_TOLD, "the password"
+            run.checkpoint("rat")
+        if later <= 1:
+            # Hold L and R and confirm at the inner room's sealed door.
+            assert leave_fighting(run, DOME_INNER), "the inner room"
+            walking(run)
+            assert password(run, INNER_DOOR), "the inner room's door open"
+            run.checkpoint("sealed_door")
+        if later <= 2:
+            # Beyond it, the passage and the store hall, its own sealed door,
+            # and the storeroom: walking in, the party finds the food gone.
+            assert leave_fighting(run, PASSAGE), "the passage"
+            through(run, 408, 36, lambda: run.map_id() == STORE_HALL, rounds=20)
+            walking(run)
+            assert password(run, STORE_DOOR), "the store hall's door open"
+            assert leave_fighting(run, STOREROOM), "the storeroom"
+            for _ in range(60):
+                if machine.b(A.EVENT_MEMORY) >= STORY_STORE_SEEN or not machine.b(A.FIELD_PLAYER_CONTROL):
+                    break
+                machine.run(4, "UP")
+            assert in_hand(run, 30000)
+            assert machine.b(A.EVENT_MEMORY) == STORY_STORE_SEEN, "the storeroom's scene"
+            run.checkpoint("storeroom")
+        if later <= 3:
+            # Back to the hall, where Doan waits by the ladder: the Seed for
+            # the Bike Key as the party steps off it.
+            for want in (STORE_HALL, PASSAGE, DOME_INNER, DOME_HALL):
+                assert leave_fighting(run, want), want
+            for _ in range(8):
+                if machine.b(A.EVENT_MEMORY) >= STORY_BIKE_KEY:
+                    break
+                machine.run(16, "UP")
+                assert in_hand(run, 30000)
+            assert machine.b(A.EVENT_MEMORY) == STORY_BIKE_KEY and count_of(machine, BIKE_KEY), "the Bike Key"
+            run.checkpoint("bike_key")
+        later -= len(KEY)
+        if later <= 0:
+            # Tonics and Revives from the dome's merchant for the factory,
+            # then out of the dome and north to Lab 32's west end.
+            walking(run)
+            mx, my = run.object_pos(ARRIS_MERCHANT)
+            buy(run, (mx, my + ARRIS_COUNTER_BELOW), [(ARRIS_TONIC_ROW, 40, 10), (ARRIS_REVIVE_ROW, 4, 200)])
+            assert leave_fighting(run, WORLD_2300), "out of Arris Dome"
+            run.wait_world_control()
+            world_enter(run, LAB32_ENTRANCE)
+            assert run.map_id() == LAB32_WEST, "Lab 32"
+            assert in_hand(run)
+            run.checkpoint("lab32")
+        if later <= 1:
+            # Johnny's gang closes in as the party looks at the jet bike, and
+            # Johnny, spoken to, explains its boosts.
+            walking(run)
+            assert run.go(*BIKE_APPROACH, tolerance=3), "toward the jet bike"
+            machine.run(10, "UP")
+            machine.run(9, "UP+A")
+            machine.run(30)
+            spoken = False
+            for _ in range(800):
+                machine.run(3, "A")
+                machine.run(9)
+                spoken = spoken or run.dialog()
+                if spoken and machine.b(A.FIELD_PLAYER_CONTROL) and not run.dialog() and run.find_player() is not None:
+                    break
+            assert spoken, "Johnny's gang"
+            assert run.talk(JOHNNY), "Johnny"
+            assert in_hand(run)
+            run.checkpoint("johnny")
+        if later <= 2:
+            # The race down Lab 32 to its east end, steered with the winning
+            # run's input (as proto_dome's own approach does), from the frame
+            # the race begins.
+            from .. import mkmovie
+            walking(run)
+            assert run.go(*JET_BIKE_SPOT, tolerance=2), "below the jet bike"
+            machine.run(10, "UP")
+            machine.run(4, "UP+A")
+            for _ in range(60):
+                if run.map_id() == RACE:
+                    break
+                machine.run(1)
+            assert run.map_id() == RACE, "the race"
+            pads = mkmovie.load_movie_pads(os.path.join(REPO, RACE_MOVIE), RACE_ENDS)
+            for frame in range(RACE_STARTS, RACE_ENDS):
+                if run.map_id() != RACE:
+                    break
+                machine.run(1, pads[frame])
+            assert run.map_id() == LAB32_EAST, "Lab 32's east end"
+            assert in_hand(run)
+            run.checkpoint("raced")
+        later -= len(LAB32)
+        if later <= len(PROTO) - 1:
+            walking(run)
+            proto_dome.play(run, max(1, later + 1), args.seed)
+        later -= len(PROTO)
+        if later <= 0:
+            # A rest in Proto Dome's Enertron for HP and MP, then Robo leads
+            # the way to the factory across the dome's plain.
+            walking(run)
+            rest_in_the_enertron(run)
+            assert leave_fighting(run, WORLD_2300), "out of Proto Dome"
+            run.wait_world_control()
+            world_enter(run, FACTORY_ENTRANCE)
+            assert run.map_id() == r_series.HALL, "the factory's hall"
+            assert run.wait_control(), "the hall in hand"
+            run.checkpoint("factory_hall")
+        if later <= len(FACTORY) - 1:
+            walking(run)
+            r_series.play(run, max(2, later + 1), args.seed, policy=keep_the_mp, before_the_r_series=drink_tonics)
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

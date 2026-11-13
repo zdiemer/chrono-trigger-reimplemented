@@ -8,7 +8,7 @@ carry the party out of shelter. Search crossings on machine copies.
 from ..campaign import Run, route_arguments, run_route
 
 SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
-PHASES = ["loaded", "entered", "tree", "second", "after"]
+PHASES = ["loaded", "entered", "tree", "second", "wind_crossed"]
 WIND = 0x7F0218
 GUIDES = 0x7F007C
 SLOPE, LOWER = "f400", "f500"
@@ -64,6 +64,37 @@ def crossing(run, side_frames, goal, limit):
     run.say("crossing", "delay", delay, "side", side_frames, "up", elapsed, "frame", m.frame)
 
 
+def play(run, start=1):
+    """From the 2300 A.D. map outside Death Peak, the Keeper's instructions
+    followed, up the wind slope by its two trees to the field beyond;
+    `start` is the index in PHASES of the first phase to run."""
+    m = run.machine
+    if start <= 1:
+        assert run.world_exit(max_nodes=100) and run.map_id() == SLOPE
+        assert run.find_player() is not None
+        run.checkpoint("entered")
+    else:
+        assert run.find_player() is not None
+    if start <= 2:
+        crossing(run, 0, lambda: run.me()[1] <= 806, 240)
+        m.run(2, "UP+B")
+        m.run(3, "A")
+        m.run(90)
+        run.close_dialogs()
+        assert run.dialogs_until(lambda: bool(m.b(GUIDES) & 4), 2000), "the guide becomes a tree"
+        assert run.wait_control(), "control after the tree's transformation"
+        run.checkpoint("tree")
+    if start <= 3:
+        fresh_calm(run)
+        crossing(run, 12, lambda: run.map_id() == SLOPE and run.me()[1] <= 521, 360)
+        run.checkpoint("second")
+    if start <= 4:
+        fresh_calm(run, "UP+B")
+        crossing(run, 12, lambda: run.map_id() == LOWER, 400)
+        assert run.wait_control(), "the field beyond the wind in hand"
+        run.checkpoint("wind_crossed")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
@@ -83,30 +114,7 @@ def main():
             items = m.peek(0x7E2400, 242)
             assert 0xD9 in items and 0xE2 in items, "Chrono Trigger and clone"
             run.checkpoint("loaded")
-        if start <= 1:
-            assert run.world_exit(max_nodes=100) and run.map_id() == SLOPE
-            assert run.find_player() is not None
-            run.checkpoint("entered")
-        else:
-            assert run.find_player() is not None
-        if start <= 2:
-            crossing(run, 0, lambda: run.me()[1] <= 806, 240)
-            m.run(2, "UP+B")
-            m.run(3, "A")
-            m.run(90)
-            run.close_dialogs()
-            assert run.dialogs_until(lambda: bool(m.b(GUIDES) & 4), 2000), "the guide becomes a tree"
-            assert run.wait_control(), "control after the tree's transformation"
-            run.checkpoint("tree")
-        if start <= 3:
-            fresh_calm(run)
-            crossing(run, 12, lambda: run.map_id() == SLOPE and run.me()[1] <= 521, 360)
-            run.checkpoint("second")
-        if start <= 4:
-            fresh_calm(run, "UP+B")
-            crossing(run, 12, lambda: run.map_id() == LOWER, 400)
-            assert run.wait_control(), "the field beyond the wind in hand"
-            run.checkpoint("after")
+        play(run, start)
         assert run.map_id() == LOWER
         run.finish("Death Peak's wind slope climbed")
         if args.movie:

@@ -117,7 +117,7 @@ static void audio_open(Audio *a)
         return;
     }
     SDL_AudioSpec want = { 0 }, have;
-    want.freq = DSP_SAMPLE_RATE;
+    want.freq = AU_SAMPLE_RATE;
     want.format = AUDIO_S16SYS;
     want.channels = 2;
     want.samples = 1024;

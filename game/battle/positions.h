@@ -101,6 +101,11 @@ uint8_t battle_direction(GameState *g, BattlePoint from, BattlePoint to);
 void battle_keep_direction_points(GameState *g, BattlePoint from, BattlePoint to);
 void battle_note_direction(GameState *g, uint8_t angle);
 
+/* Work out a combatant's box around `at` for the reach tests. A slot past the
+ * combatants (a target of nobody, $FF) has its place kept past the table, as
+ * the original's indexed stores do. */
+void battle_place_box(GameState *g, uint8_t slot, BattlePoint at);
+
 /* Whether a combatant's box is within `reach` of a point, as the reach tests
  * measure between two boxes (an enemy's spot, battle/enemy_movement.c). */
 bool battle_box_within_reach_of(GameState *g, uint8_t slot, BattlePoint at, uint16_t reach);
