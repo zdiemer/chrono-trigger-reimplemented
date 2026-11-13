@@ -158,6 +158,9 @@ route plays the 4400-frame `events-blackbird` opening, recovers Marle's,
 Robo's and Lucca's equipment and the inventory, clears the corridor patrols,
 and returns through the ducts to the cell. A Shelter restores the party;
 the normal save-point screen writes slot 1. Preparation took 74786 frames.
+Run again, the route writes the cartridge's battery RAM to `<prefix>.srm` in
+its scratch directory, as every route does; `route_check` fails a route that
+changes anything under `saves/` or leaves the working tree otherwise changed.
 No memory edits or machine state are needed to load it.
 
 The save is in the cell (`$173`), story `$7F:0000 = $CF`, with equipment

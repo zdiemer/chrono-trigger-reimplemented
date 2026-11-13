@@ -1,7 +1,7 @@
 """Deliver the supplies and defeat Zombor on Zenan Bridge."""
 from .. import bfs, policies
 from ..campaign import Run, route_arguments, run_route
-from . import _early_bosses as early
+from . import _trial_party as early
 
 SAVE = "saves/fantasyanime/ctsave04-masamune.srm"
 SLOT = 0

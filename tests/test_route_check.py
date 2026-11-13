@@ -71,6 +71,25 @@ class NativeModeTest(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertIn("overlay crossed: menu_shop_tab_cursor", result["what"])
 
+    def test_a_route_that_writes_under_saves_fails(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as where:
+            os.makedirs(os.path.join(root, "saves", "recorded"))
+            kept = os.path.join(root, "saves", "recorded", "kept.srm")
+            with open(kept, "wb") as f:
+                f.write(b"before")
+
+            def start(command, **kwargs):
+                with open(kept, "wb") as f:
+                    f.write(b"written by the route")
+                kwargs["stdout"].write("outcome reached test frame 20\n")
+                process = unittest.mock.Mock()
+                process.wait.return_value = 0
+                return process
+            with patch.object(route_check, "REPO", root), patch.object(route_check, "run_stamp", return_value="test"),                     patch.object(route_check.subprocess, "Popen", side_effect=start):
+                result = route_check.run_one("test", where, "rom", "native.exe", 10)
+        self.assertFalse(result["passed"])
+        self.assertIn(os.path.join("saves", "recorded", "kept.srm"), result["what"])
+
     def test_timeout_stops_the_route_process_tree(self):
         with tempfile.TemporaryDirectory() as where, patch.object(route_check, "run_stamp", return_value="test"), \
                 patch.object(route_check.subprocess, "Popen") as start, \

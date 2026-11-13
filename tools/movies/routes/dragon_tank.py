@@ -1,7 +1,7 @@
 """Defeat the Dragon Tank during the escape from Guardia Castle."""
 from .. import policies
 from ..campaign import Run, route_arguments, run_route
-from . import _early_bosses as early
+from . import _trial_party as early
 
 SAVE = "saves/fantasyanime/ctsave02-future.srm"
 SLOT = 0
