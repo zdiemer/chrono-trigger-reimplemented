@@ -116,6 +116,32 @@ static const Row *row_of(uint8_t opcode)
     return &rows[opcode];
 }
 
+/* A hash of every row's name, form and parameters: the language the text is
+ * written in, which changes when the event table does. */
+static uint32_t language(void)
+{
+    uint32_t h = 0x811C9DC5u;
+#define MIX(v) (h = (h ^ (uint32_t)(v)) * 0x01000193u)
+    for (unsigned op = 0; op < OPCODES; op++) {
+        const Row *row = row_of((uint8_t)op);
+        MIX(row->known);
+        for (const char *c = row->known ? row->name : ""; *c; c++)
+            MIX(*c);
+        MIX(row->length), MIX(row->jump), MIX(row->back), MIX(row->params);
+        for (unsigned i = 0; i < row->params; i++) {
+            const Param *p = &row->param[i];
+            for (const char *c = p->name; *c; c++)
+                MIX(*c);
+            for (const char *c = p->prefix; *c; c++)
+                MIX(*c);
+            MIX(p->form), MIX(p->operand), MIX(p->bytes), MIX(p->shift), MIX(p->mask), MIX(p->add);
+            MIX(p->constant);
+        }
+    }
+#undef MIX
+    return h;
+}
+
 /* The bytes the command at `p` takes, `available` there; 0 where it can't be told. */
 static uint16_t length_of(const Row *row, const uint8_t *p, uint32_t available)
 {
@@ -1104,5 +1130,5 @@ const DecodedKind script_text = {
     "# map's places: its exits, events, halts and event scripts, a record a line.\n"
     "# Edited, a resource is packed again as it is read, and must fit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end, forget,
+    decodes, write_resource, read_line, read_end, forget, language,
 };

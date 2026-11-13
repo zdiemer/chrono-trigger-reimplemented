@@ -40,6 +40,10 @@ static uint32_t rows_hash(const DecodedKind *kind)
         h = hashed(h, length, sizeof length);
         h = hashed(h, &named, 1);
     }
+    if (kind->language) {
+        uint32_t language = kind->language();
+        h = hashed(h, &language, sizeof language);
+    }
     return h;
 }
 

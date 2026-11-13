@@ -75,6 +75,11 @@ typedef struct {
     const char *(*read_end)(Decoded *d, DecodedReading *r);
     /* NULL, or let go of r->own once the text is read */
     void (*forget)(DecodedReading *r);
+    /* NULL, or a hash of what the text's lines are written in beyond the
+     * catalogue's rows (a script's command names and parameters, from the
+     * event table): the stamp changes with it, so a text written in an older
+     * one is set aside rather than misread */
+    uint32_t (*language)(void);
 } DecodedKind;
 
 /* The catalogue's row of a name (`len` bytes of it), looked for from *hint on:

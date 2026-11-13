@@ -456,5 +456,5 @@ const DecodedKind tile_text = {
     "# then 01-FF. A packed resource says how it packs\n"
     "# first; edited, it is packed again as it is read, and must still fit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end, NULL,
+    decodes, write_resource, read_line, read_end, NULL, NULL,
 };

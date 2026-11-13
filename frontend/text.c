@@ -555,5 +555,5 @@ const DecodedKind game_text = {
     "# in braces ({line}, {page read}, {Crono}, {wait 0A}, or any bytes in hex: {F3});\n"
     "# names in quotes; the dictionary a word a line. An edited string must fit its\n"
     "# slot. Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end, NULL,
+    decodes, write_resource, read_line, read_end, NULL, NULL,
 };

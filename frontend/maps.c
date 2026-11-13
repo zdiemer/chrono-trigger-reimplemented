@@ -661,5 +661,5 @@ const DecodedKind map_text = {
     "# and bit 1 BG2's, take its look from the tile set's second 256.\n"
     "# Edited, a resource is packed again as it is read, and must fit.\n"
     "# Edit and start the game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end, NULL,
+    decodes, write_resource, read_line, read_end, NULL, NULL,
 };

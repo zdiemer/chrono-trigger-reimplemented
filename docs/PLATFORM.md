@@ -126,7 +126,8 @@ read the decoded resources with `game/` unchanged. A text it can't read or
 write leaves the pack's own bytes to play, after a warning, and so does a
 text written from other rows of the catalogue than its kind decodes now
 (its opening comment stamps them, `# rows XXXXXXXX`, a hash of those rows'
-names, types, codecs and lengths), whose names and forms may no longer be
+names, types, codecs and lengths, and for scripts of the event table's
+rows the commands are written in), whose names and forms may no longer be
 these; the warning says the file's edits aren't applied and to move it
 away, have it written afresh and make them again. A change to other rows
 leaves a kind's text and its edits good. A text that is
