@@ -595,6 +595,14 @@ void sprites_all_to_build_afresh(GameState *g)
     sprites_free_every_frame_area(g);
 }
 
+enum { FREE_4_AREAS = 0xC0E9E2, FREE_8_AREAS = 0xC0E9FF, FREE_12_AREAS = 0xC0EA1F };
+
+/* The original's routine for freeing a layout's areas, which the work is timed as. */
+static uint32_t freeing_routine(SpriteLayout layout)
+{
+    return layout == LAYOUT_4 ? FREE_4_AREAS : layout == LAYOUT_8 ? FREE_8_AREAS : FREE_12_AREAS;
+}
+
 // $C0:E9E2 (4), $C0:E9FF (8), $C0:EA1F (12)
 static void free_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout)
 {
@@ -680,7 +688,7 @@ static RecordsOutcome bring_records_up_to_date(GameState *g, FieldObject obj)
         return RECORDS_NONE_TO_DRAW;
     bool shows = place_layout(g, obj, layout, work == RECORDS_REBUILD);
     if (work == RECORDS_REBUILD) {
-        free_frame_areas(g, obj, layout);
+        TIMED_AS(g, freeing_routine(layout), free_frame_areas(g, obj, layout));
         object_mark_records_built(g, obj);
     }
     return shows ? RECORDS_READY : RECORDS_NONE_TO_DRAW;
