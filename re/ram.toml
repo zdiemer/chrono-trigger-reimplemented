@@ -25727,8 +25727,7 @@ meaning = "The bottom right quarter's entry"
 
 [[var]]
 name = "field_bg3_tile_looks"
-host_module = "field"
-overlays = ["battle_window_line_mode", "battle_window_line_screens", "battle_window_lines_values", "battle_window_top_lines_values", "battle_fade_line_data", "battle_window_line_bg3_scroll"]
+host_alias = ["battle_fade_line_data", "battle_window_line_bg3_scroll", "battle_window_line_mode", "battle_window_line_screens", "menu_gate_palette_copy", "menu_hundreds_tiles", "scene_matrix_code"]
 addr = "7E:C000"
 stride = 8
 count = 0x100

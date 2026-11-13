@@ -110,8 +110,10 @@ to the top and its context: on Windows x86-64 a stack pointer, the registers
 pushed by a short assembly switch; elsewhere the `ucontext_t` kept in the
 slot. A snapshot copies those bytes and a restore copies them back to the same
 addresses. The bytes hold pointers -- return addresses, frames, the game's
-state, the asset pack's data -- so the pool, the game's state and the pack are
-taken from an arena reserved at a fixed address (`runtime/port/arena.h`), and
+state, the asset pack's data, the sound player a command was being handed to
+when the frame's time ran out -- so the pool, the game's state, the pack and
+the sound player are taken from an arena reserved at a fixed address
+(`runtime/port/arena.h`), and
 on Windows ct_native links at a fixed image base. A run that makes the same
 allocations lays them out the same, so on Windows a snapshot file loads in a
 later run of the same build; `tools/player_check.py` proves it there. Each
