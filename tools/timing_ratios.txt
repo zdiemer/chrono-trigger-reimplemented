@@ -180,3 +180,15 @@ C25E36 13580 177178 13.05  # events-end-of-time-gate 12.81 events-epoch-lavos 13
 # work, under the original's by 2.7-4.3 in 9 of 11 movies (7.9 and 9.5 in two with few objects); they take the pooled ratio:
 C2051D 5435 20019 3.68  # attract-demo 3.75 events-epoch-lavos 3.50 events-fair-rescue 3.27 menus-epoch 4.13
 C20405 3545 12943 3.65  # attract-demo 3.60 events-epoch-lavos 4.03 events-fair-rescue 4.30 menus-epoch 4.03
+
+# With the port's own checks no longer counted as the game's time anywhere (issue #349), the field's and the battle's
+# rates measured again. The field (the 25 movies): two rates move more than 10%:
+C021E1 6772 12312 1.82  # field 2.02 menu 2.03 events-fair-rescue 2.14 attract-demo 1.43 (its checks had stood for most of its time)
+C0A810 4979 4217 0.85  # field 0.96 attract-demo 0.88 events-epoch-lavos 0.80 menus-shop-inn 0.76
+# The battle (the three fights again; the 40 handler rates above stay within 10%), where at least two fights agree:
+C1AC46 6781 8931 1.32  # dalton 1.33 giga 1.31
+CD2F4E 1578 19918 12.62  # dalton 16.27 giga 12.05
+CD2F61 1533 12417 8.10  # dalton 9.99 giga 7.80
+CD303B 2215 28749 12.98  # dalton 10.60 giga 13.24
+# $C1:C92A (the long division) reads 0.69 in Dalton's and the Golem Twins' fights against 1.0 in the battle setup it
+# was calibrated from; the evidence doesn't say one rate, so it keeps 258605.

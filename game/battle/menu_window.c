@@ -34,6 +34,7 @@
 #include "battle/window_data.h"
 #include "charge.h"
 #include "core/sprite_table.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The menu window's tilemap ---------------------------------------------------------- */
@@ -766,7 +767,7 @@ static void call_off_combos(GameState *g)
 bool battle_menu_window_drawn(GameState *g, Platform *pf)
 {
     (void)pf;
-    if (!battle_menu_window_fits(g))
+    if (!PORT_CHECK(battle_menu_window_fits(g)))
         return battle_contract_broken(g, 0xC10C2D, "a menu state the window's port doesn't take");
     return draw_menu_window(g);
 }
@@ -777,7 +778,7 @@ bool battle_menu_window_drawn(GameState *g, Platform *pf)
  * menu's state is one the window's port takes. */
 bool battle_update_combo_members(GameState *g, Platform *pf)
 {
-    if (!battle_window_fits(g))
+    if (!PORT_CHECK(battle_window_fits(g)))
         return battle_contract_broken(g, 0xC1B575, "a menu state the combinations' port doesn't take");
     find_combo_partners(g);
     call_off_combos(g);
@@ -789,7 +790,7 @@ bool battle_update_combo_members(GameState *g, Platform *pf)
 bool battle_menu_cursors_placed(GameState *g, Platform *pf)
 {
     (void)pf;
-    if (!battle_window_fits(g))
+    if (!PORT_CHECK(battle_window_fits(g)))
         return battle_contract_broken(g, 0xC117DD, "a menu state the cursors' port doesn't take");
     return place_menu_cursors(g);
 }

@@ -31,6 +31,7 @@
 #include "battle/script_language.h"
 #include "charge.h"
 #include "platform/audio.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- Before the animation --------------------------------------------------------------------- */
@@ -329,7 +330,7 @@ static bool showing_fits(const GameState *g) { return battle_names_combatant(bat
 
 bool battle_show_action(GameState *g, Platform *pf)
 {
-    if (!showing_fits(g))
+    if (!PORT_CHECK(showing_fits(g)))
         return battle_contract_broken(g, 0xC14058, "an action shown whose actor is past the combatants");
     return show_the_action(g, pf);
 }

@@ -426,7 +426,7 @@ bool field_load_the_script(GameState *g)
     uint16_t script = the_locations_script(g);
     unpack(g, field_packed_script(g, script), SCRIPT_BUFFER);
     // $C0:5CC7
-    if (script_validity(g) != SCRIPT_VALID) {
+    if (!PORT_CHECK(script_validity(g) == SCRIPT_VALID)) {
         program_breaks_a_contract(g, 0xC05CC7, "a text or oversized field script");
         return false;
     }
@@ -544,7 +544,7 @@ static bool gathering_can_be_finished(const GameState *g);
 
 bool field_set_up_again(GameState *g, Platform *pf)
 {
-    if (!gathering_can_be_finished(g)) {
+    if (!PORT_CHECK(gathering_can_be_finished(g))) {
         program_breaks_a_contract(g, FIELD_SET_UP_AGAIN_ENTRY, "a gathering cut short the port doesn't finish");
         return false;
     }
