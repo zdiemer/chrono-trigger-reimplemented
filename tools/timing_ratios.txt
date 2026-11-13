@@ -119,3 +119,9 @@ FDCCB8 8347 19725 2.36  # menus-end-of-time 2.36 events-ocean-palace-lavos 2.37 
 FDE437 5821 12594 2.16  # field-factory-switch 2.28 menus-end-of-time 2.05 attract-demo 2.06 events-end-of-time-gate 2.03
 FDE82C 11081 16607 1.50  # events-ocean-palace-lavos 1.54 attract-demo 1.53 events-epoch-lavos 1.47
 FDE8D7 5228 5865 1.12  # events-ocean-palace-lavos 1.11 events-epoch-lavos 1.12 attract-demo 1.14
+
+# Rechecked with the corrected sum (the timing report's milli clocks hold its charged clocks; #353's script added
+# them again, which only moved C101A9, 0.90 to 1.01). Over every frame of the 25 movies and the three fights the
+# frame's input reads at 0.61 of the battle setup's figure, which its 90 frames had wrong:
+C284EC 15905 9697 0.61  # attract-demo 0.63 events-end-of-time-gate 0.60 events-fair-rescue 0.61 golem twins 4480-4670 0.67
+C285AE 2392 2845 1.19  # attract-demo 1.22 events-end-of-time-gate 1.18 events-fair-rescue 1.18 golem twins 4480-4670 1.27
