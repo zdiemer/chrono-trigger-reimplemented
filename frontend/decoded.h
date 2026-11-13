@@ -49,6 +49,8 @@ typedef struct {
     uint32_t most;   /* the most bytes the kind will make of it, once it knows */
     uint8_t *made;
     uint32_t made_len, made_room;
+    /* set by read_end: what is wrong is on the resource's last line, not its [name] line */
+    bool wrong_at_its_last_line;
 } DecodedReading;
 
 /* `more` bytes, 0, added to the reading's own bytes: where they start, or NULL
@@ -90,12 +92,14 @@ bool decoded_word(const char **s, const char *end, const char *word);
 
 /* Every resource of the kind `store` serves, as text: malloc'd, *len bytes
  * (and a NUL after them); NULL with *why when the store lacks one. Its opening
- * comment says the catalogue it was written from. */
+ * comment stamps the rows of the catalogue the kind decodes. */
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why);
 
-/* Whether a text's opening comment says it was written from this catalogue:
- * one of another (an older one's names, codecs and forms) isn't read. */
-bool decoded_of_this_catalogue(const char *text, size_t len);
+/* Whether a text's opening comment says it was written from the rows of the
+ * catalogue the kind decodes as they are now: one written from others (an
+ * older catalogue's names, codecs and lengths for them) isn't read. A change
+ * to rows the kind doesn't decode leaves its texts good. */
+bool decoded_of_these_rows(const DecodedKind *kind, const char *text, size_t len);
 
 /* Resources read from text, served over `base`: NULL with *why and the line
  * (from 1) where the text is wrong; what is wrong with a resource as a whole

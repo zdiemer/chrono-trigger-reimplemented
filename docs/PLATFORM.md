@@ -110,8 +110,12 @@ other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
 read the decoded resources with `game/` unchanged. A text it can't read or
 write leaves the pack's own bytes to play, after a warning, and so does a
-text written from another catalogue (its opening comment says which, `#
-catalogue XXXXXXXX`), whose names and forms may no longer be this one's; a text that is
+text written from other rows of the catalogue than its kind decodes now
+(its opening comment stamps them, `# rows XXXXXXXX`, a hash of those rows'
+names, types, codecs and lengths), whose names and forms may no longer be
+these; the warning says the file's edits aren't applied and to move it
+away, have it written afresh and make them again. A change to other rows
+leaves a kind's text and its edits good. A text that is
 wrong stops the start, naming its line (a resource that is wrong as a whole,
 too short or too big to pack, at its `[name]` line).
 
@@ -330,7 +334,10 @@ two words alike would be ambiguous and are written in hex.
 
 Read back, a string may be no longer than the cartridge's slot for it, its
 end included; a shorter one is ended there and the rest of its slot is
-zero. A name table has as many names as the cartridge's, and the
+zero. An edited string may not end in a code the typesetter takes the next
+byte with (`{01}`, `{02}`, `{03}`, `{12}`), which would take its end as
+that byte and set on into what follows; some of the cartridge's strings do,
+and are kept as they are. A name table has as many names as the cartridge's, and the
 dictionary's words must fit its slot. `decoded_beneath` asks the store
 under a text for each resource once, which keeps reading the strings'
 words from the dictionary quick.
@@ -341,7 +348,8 @@ with two words alike; serves a string written afresh (a word, a name, a
 wait, a two-byte glyph, a tech) and an edited name, and only what a text
 names; and refuses wrong text at its line (a code that isn't one, braces
 not closed, a word that isn't the dictionary's or is ambiguous, a sign that
-isn't a glyph, a string too long, a short name, too few names, a word given
+isn't a glyph, a string too long, an edited string ending in a code wanting
+its byte (at its last line), a short name, too few names, a word given
 twice or missing). With the ROM staged every text resource reads back as
 its bytes. Changing Crono's mother's first line in `<pack>.text` shows at
 frame 6500 of `movies/new-game.ctm`.

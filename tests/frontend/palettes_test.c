@@ -21,6 +21,15 @@ static int failures;
         }                                                               \
     } while (0)
 
+/* A kind that decodes every row the palettes don't, for its stamp. */
+static bool not_a_palette(const AssetEntry *e, bool *named)
+{
+    bool palette_named;
+    *named = true;
+    return !palette_text.decodes(e, &palette_named);
+}
+static const DecodedKind not_palettes = { "others", "", not_a_palette, NULL, NULL, NULL };
+
 static uint8_t *made_up_bytes;
 static uint32_t made_up_at[0x10000];
 
@@ -110,15 +119,17 @@ int main(void)
     if (!text || !e)
         return 1;
     /* The text says the catalogue it was written from; one of another isn't read. */
-    CHECK(decoded_of_this_catalogue(text, len));
-    char *stamp = strstr(text, "# catalogue ");
+    CHECK(decoded_of_these_rows(&palette_text, text, len));
+    char *stamp = strstr(text, "# rows ");
     CHECK(stamp != NULL);
     if (stamp) {
-        char kept = stamp[12];
-        stamp[12] = kept == '0' ? '1' : '0';
-        CHECK(!decoded_of_this_catalogue(text, len));
-        stamp[12] = kept;
+        char kept = stamp[7];
+        stamp[7] = kept == '0' ? '1' : '0';
+        CHECK(!decoded_of_these_rows(&palette_text, text, len));
+        stamp[7] = kept;
     }
+    /* The stamp is the palettes' rows': a kind decoding other rows has another. */
+    CHECK(!decoded_of_these_rows(&not_palettes, text, len));
     char header[96];
     snprintf(header, sizeof header, "[%s]\n", e->name);
     char *at = strstr(text, header);

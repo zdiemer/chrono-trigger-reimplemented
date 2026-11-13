@@ -6,13 +6,52 @@
 
 enum { NOT_HERE = 0xFFFFFFFFu };
 
-/* The comment a text's opening says its catalogue's version in. */
-static const char CATALOGUE_STAMP[] = "# catalogue ";
+/* The comment a text's opening names the catalogue's rows it was written
+ * from in: a hash of the rows its kind decodes, their names, types, codecs
+ * and lengths, which are what its names and forms mean. A change to other
+ * rows leaves it, so a text's edits stay good through changes that aren't
+ * its kind's. */
+static const char ROWS_STAMP[] = "# rows ";
 
-bool decoded_of_this_catalogue(const char *text, size_t len)
+enum { FNV_OFFSET = 0x811C9DC5u, FNV_PRIME = 0x01000193u };
+
+static uint32_t hashed(uint32_t h, const void *bytes, size_t n)
+{
+    const uint8_t *p = bytes;
+    for (size_t i = 0; i < n; i++)
+        h = (h ^ p[i]) * FNV_PRIME;
+    return h;
+}
+
+static uint32_t rows_hash(const DecodedKind *kind)
+{
+    uint32_t h = FNV_OFFSET;
+    for (uint16_t i = 0; i < asset_catalogue_count; i++) {
+        const AssetEntry *e = &asset_catalogue[i];
+        bool named;
+        if (!kind->decodes(e, &named))
+            continue;
+        const char *type = asset_type_names[e->type], *codec = asset_codec_names[e->codec];
+        uint8_t length[4] = { (uint8_t)e->length, (uint8_t)(e->length >> 8), (uint8_t)(e->length >> 16),
+                              (uint8_t)(e->length >> 24) };
+        h = hashed(h, e->name, strlen(e->name) + 1);
+        h = hashed(h, type, strlen(type) + 1);
+        h = hashed(h, codec, strlen(codec) + 1);
+        h = hashed(h, length, sizeof length);
+        h = hashed(h, &named, 1);
+    }
+    return h;
+}
+
+static int stamp_line(const DecodedKind *kind, char *out, size_t n)
+{
+    return snprintf(out, n, "%s%08X\n", ROWS_STAMP, (unsigned)rows_hash(kind));
+}
+
+bool decoded_of_these_rows(const DecodedKind *kind, const char *text, size_t len)
 {
     char stamp[64];
-    int n = snprintf(stamp, sizeof stamp, "%s%08X\n", CATALOGUE_STAMP, (unsigned)asset_catalogue_version);
+    int n = stamp_line(kind, stamp, sizeof stamp);
     for (const char *s = text, *end = text + len; s < end && *s == '#';) {
         const char *newline = memchr(s, '\n', (size_t)(end - s));
         if (!newline)
@@ -71,7 +110,7 @@ char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *l
 {
     DecodedText t = { 0 };
     char stamp[64];
-    snprintf(stamp, sizeof stamp, "%s%08X\n", CATALOGUE_STAMP, (unsigned)asset_catalogue_version);
+    stamp_line(kind, stamp, sizeof stamp);
     decoded_put(&t, kind->header);
     decoded_put(&t, stamp);
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
@@ -221,6 +260,7 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
     DecodedReading r = { .entry = -1 };
     const char *wrong = NULL;
     unsigned header = 0;   /* the [name] line of the resource being read: where its end is found wrong */
+    unsigned last = 0;     /* its last line, where read_end may say instead */
     for (const char *s = text, *stop = text + len; s < stop && !wrong;) {
         const char *newline = memchr(s, '\n', (size_t)(stop - s));
         const char *end = newline ? newline : stop, *next = newline ? newline + 1 : stop;
@@ -235,10 +275,10 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
             bool named = false;
             int entry = close && close + 1 == end ? decoded_entry(s + 1, (size_t)(close - s - 1), &d->hint) : -1;
             if (r.entry >= 0 && (wrong = kind->read_end(d, &r)) != NULL) {
-                *line = header;
+                *line = r.wrong_at_its_last_line ? last : header;
                 break;
             }
-            header = *line;
+            header = last = *line;
             if (!close || close + 1 != end)
                 wrong = "a resource's name is [name]";
             else if (entry < 0 || !kind->decodes(&asset_catalogue[entry], &named) || !named)
@@ -252,11 +292,12 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
             wrong = "a line before any [name]";
         } else {
             wrong = kind->read_line(d, &r, s, end);
+            last = *line;
         }
         s = next;
     }
     if (!wrong && r.entry >= 0 && (wrong = kind->read_end(d, &r)) != NULL)
-        *line = header;
+        *line = r.wrong_at_its_last_line ? last : header;
     free(r.made);
     if (wrong)
         return refuse(d, wrong, why);

@@ -219,9 +219,10 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     const char *why = "";
     bool missing = false;
     char *text = (char *)files_read(path, len, true, &missing);
-    if (text && !decoded_of_this_catalogue(text, *len)) {
-        fprintf(stderr, "ct_native: %s is of another catalogue of resources; playing the pack's own %s "
-                        "(move it away to write it afresh)\n", path, kind->what);
+    if (text && !decoded_of_these_rows(kind, text, *len)) {
+        fprintf(stderr, "ct_native: %s was written for another catalogue's %s, so its edits are not applied "
+                        "and the pack's own %s play. To keep them, move the file away, start again to have "
+                        "it written afresh, and make the edits again there.\n", path, kind->what, kind->what);
         free(text);
         return NULL;
     }

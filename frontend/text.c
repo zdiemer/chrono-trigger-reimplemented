@@ -503,9 +503,24 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
     return read_string_line(d, r, s, end);
 }
 
+/* Whether a string's last code is one the typesetter takes the next byte
+ * with (game/menu/typeset.c): a two-byte glyph, a wait or a name, which
+ * would take the string's end as its byte and set on past it. */
+static bool ends_wanting_an_operand(const uint8_t *s, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        uint8_t b = s[i];
+        if (b == 0x01 || b == 0x02 || b == CODE_WAIT || b == CODE_NAMED) {
+            if (i + 1 == n)
+                return true;
+            i++;
+        }
+    }
+    return false;
+}
+
 static const char *read_end(Decoded *d, DecodedReading *r)
 {
-    (void)d;
     const AssetEntry *e = &asset_catalogue[r->entry];
     Form f = TEXT_DIALOG;
     unsigned glyphs = 0;
@@ -521,6 +536,14 @@ static const char *read_end(Decoded *d, DecodedReading *r)
     }
     if (r->made_len >= e->length)
         return "the string is longer than the cartridge's, its end included";
+    /* The cartridge has strings that do (their byte is the end, and the next
+     * string's bytes follow), which are kept as they are; an edit may not. */
+    const uint8_t *was = decoded_beneath(d, r->entry);
+    bool as_it_was = was && !memcmp(was, r->made, r->made_len) && was[r->made_len] == CODE_END;
+    if (!as_it_was && ends_wanting_an_operand(r->made, r->made_len)) {
+        r->wrong_at_its_last_line = true;
+        return "the string ends in a code that takes the byte after it ({01}, {02}, {03} or {12}): give it one";
+    }
     memcpy(r->bytes, r->made, r->made_len);   /* then its end, and nothing after it */
     return NULL;
 }
