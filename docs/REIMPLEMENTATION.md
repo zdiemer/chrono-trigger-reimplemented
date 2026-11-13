@@ -132,13 +132,16 @@ Giga Gaia), it showed where native battle time fell short:
   `$C2:85AE`) have their scopes back; with them most rates match the original
   within 10%. The long arithmetic (`$C1:C90B`, `$C1:C92A`), the name converter
   (`$C1:01A9`) and the empty place's pass (`$FD:B01C`) are charged their
-  routines' time. The rest is issue-tracked.
+  routines' time. The field's are the next stretch (below); the rest is
+  issue #349's.
 - The handlers took ~65k clocks a frame against the original's ~160k. A
   handler's wait for a line (the frame work's wait for line 64 while effects
   run, `$CD:3B82`) now holds the frame until the beam is there, and a
   handler's transfers are charged; 40 handler routines' rates are recalibrated
   by the ratio of the original's clocks a call to native's, which agreed
-  within ±15% across the three fights. Most ratios are 1.2 to 2.8; seven fall
+  within ±15% across the three fights for all but `$FD:FFFD` (2.72 in
+  Dalton's and the Golem Twins' fights, 2.07 in Giga Gaia's; its rate takes
+  the mean, 2.59). Most ratios are 1.2 to 2.8; seven fall
   outside: `$CD:05B2` 3.38, `$CD:0ADE` 3.16, `$CD:0AEE` 4.28, `$CD:2DD6` 4.54
   and `$CD:2EB5` 3.75 are small routines of a few hundred clocks a call whose
   ports keep in locals what the original reads and writes in memory, so few
@@ -149,7 +152,34 @@ Giga Gaia), it showed where native battle time fell short:
 - Ten more rates are calibrated from the battle setup's profile
   (`$CC:ED87` ×2.72, `$CD:088D` ×15, `$CD:09F1` ×46, `$C1:C90B` ×2.38,
   `$C1:C92A` ×3.2, `$C2:84EC` ×2.27, `$FD:AF80` ×3.42, `$C1:C96A` ×0.49,
-  `$C1:CA1A` ×0.52, `$C1:1C55` ×1.2).
+  `$C1:CA1A` ×0.52, `$C1:1C55` ×1.2). The frame's input `$C2:84EC` was
+  wrong there: over every frame of 25 movies and the three fights it reads at
+  0.61 of that figure, and `$C2:85AE` at 1.19, which their rates now take.
+  The script that summed native's time added a routine's charged clocks to
+  its milli clocks, which already hold them; rechecked with the sum
+  corrected, the handlers' 40 rates stay within 0.89-1.10 of the original,
+  and only the name converter's figure moves (0.90 to 1.01).
+- The field (issue #349). The scopes of 25 field routines the original calls
+  every frame are back: the line effects' builders for each table set
+  (`$FD:C2EB`-`$FD:D27E`, the scroll sends, BG2's and window 2's tables, the
+  wave), the party's steps (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`), the step's
+  start and look ahead (`$C0:ACFD`, `$C0:5B95`), the walk animations
+  (`$C0:5614`, `$C0:568B`), the freed sprite areas and the dialog shading.
+  Over whole runs of the 25 gate movies whose field follows the reference
+  (each routine's calls within 10% of the original's), 62 field and event
+  rates take the ratio of the original's clocks a call to native's, each
+  steady across the movies (no movie's ratio more than 1.35 times another's);
+  the ratios are in `tools/timing_ratios.txt`. Most are 1.2 to 2.4; the line
+  effects' setup in the vblank (`$FD:C1EE`) is 21.7, its register writes
+  being a service call in the port. Left as they are: the frame's wait
+  (`$C0:EC60`), the layer streaming (`$C0:93E1` with `$C0:7F9A`, 1.07 together;
+  the original reaches `$C0:7F9A` without a call), routines whose ratio
+  differs from movie to movie (`$C0:AA07`, `$C0:A810`, `$C0:B1B2`,
+  `$C0:1F87`) and the song changes, where the original waits 1-10 frames on
+  the sound processor. Across the 84 movies native_check runs, places on time
+  go from 589 to 598 and in the reference's order from 689 to 696 (the gate's
+  58: 394 to 394, 476 to 478); four move away, each with its measured lag in
+  `tools/outcomes_exceptions.txt`.
 - A lag frame gets the main thread time its own handlers leave (issue #321),
   so a frame whose handlers made a load's sends no longer shortens every lag
   frame after it.
@@ -165,9 +195,8 @@ The turn timers' first tick, frames before the original's, before and after:
 | Bucket's Lavos | 11 | 1 |
 | Lavos game over | 24 | 15 |
 
-The Lavos game over's 15 and the Golem Twins' last 3 are the field's before the
-fight: the field's main routines run 2 to 5 times under the original, about
-54k clocks a frame, which is its own follow-up.
+The Lavos game over's 15 and the Golem Twins' last 3 stay as they were with the
+field's rates calibrated, so they are not the field's main routines' time.
 
 ### Warp as the subsystem pattern
 
