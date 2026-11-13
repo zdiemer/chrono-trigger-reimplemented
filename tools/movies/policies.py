@@ -266,6 +266,78 @@ def party_with_ethers(bot, state, rng, inventory):
     return party_with_lapis(bot, state, rng, inventory)
 
 
+def holding_out(bot, state, rng, inventory):
+    """For a long fight against an enemy that hits the whole party hard each
+    turn (Lavos): keep everyone up first, then hit. The fallen are raised with
+    Revives; two or more hurt (or one badly) are healed, by Robo's Heal Beam
+    where he has the MP, else a Lapis for two or more and a Mid Tonic for one;
+    a member short of MP drinks an Ether; and the rest attack the weakest enemy,
+    whose defence a weapon still gets through where most magic barely does."""
+    member = state.member
+    members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
+    ids = party_ids(bot)
+    alive = [slot for slot in members if state.hp(slot) > 0]
+    for slot in members:
+        if state.hp(slot) == 0:
+            action = use(inventory, REVIVE, slot)
+            if action:
+                return action
+    hurt = [slot for slot in alive if fraction(state, slot) < 0.6]
+    if len(hurt) >= 2 or any(fraction(state, slot) < 0.35 for slot in alive):
+        heal_all = CHARACTER_TECHS.get(ids[member], {}).get("heal_all")
+        if heal_all and len(hurt) >= 2 and state.mp(member) >= heal_all[1] and tech_known(bot, member, heal_all[0]):
+            return ("tech", heal_all[0], None)
+        worst = min(hurt or alive, key=lambda slot: fraction(state, slot))
+        for item, target in ((LAPIS, None), (FULL_TONIC, worst), (MID_TONIC, worst)) if len(hurt) >= 2 else                 ((FULL_TONIC, worst), (MID_TONIC, worst)):
+            action = use(inventory, item, target)
+            if action:
+                return action
+    if state.mp(member) < 5 and ids[member] == 3:
+        for item in (FULL_ETHER, MID_ETHER, ETHER):
+            action = use(inventory, item, member)
+            if action:
+                return action
+    living = enemies(state)
+    return ("attack", min(living, key=lambda slot: state.hp(slot)) if living else None)
+
+
+LAVOS_SHELL, LAVOS_SHELL_HP = 3, 10000
+MARLE, HASTE, HASTE_MP = 1, 4, 6        # Marle's tech list entry and its cost
+ROBO, SHOCK, SHOCK_MP = 3, 7, 17        # Robo's lightning on all, which takes Nizbel's guard down
+NIZBEL_IMITATION_HP = 4200
+STATUS_3, HASTED = 0x20 - 0x03, 0x80    # the stat block's third status byte (from its HP word), haste's bit
+
+
+def hasten(bot, state):
+    """Marle's Haste on the first member of the party not yet hasted (the
+    others before herself), while she has the MP: everyone's turns come
+    twice as fast."""
+    member = state.member
+    if party_ids(bot)[member] != MARLE or state.mp(member) < HASTE_MP or not tech_known(bot, member, HASTE):
+        return None
+    slots = [slot for slot in range(bot.party) if slot != member] + [member]
+    for slot in slots:
+        hasted = bot.machine.b(A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE + STATUS_3) & HASTED
+        if state.hp(slot) > 0 and not hasted:
+            return ("tech", HASTE, slot)
+    return None
+
+
+def lavos_shell(bot, state, rng, inventory):
+    """Lavos's shell on the Day of Lavos: its imitations of the earlier bosses
+    with `party_with_ethers` (their tricks want the members' techs), then the
+    shell's own form, which hits everyone hard each turn, with `holding_out`."""
+    if enemies(state) == [LAVOS_SHELL] and state.max_hp(LAVOS_SHELL) == LAVOS_SHELL_HP:
+        haste = hasten(bot, state)
+        return haste or holding_out(bot, state, rng, inventory)
+    action = party_with_ethers(bot, state, rng, inventory)
+    member = state.member
+    nizbel = enemies(state) == [LAVOS_SHELL] and state.max_hp(LAVOS_SHELL) == NIZBEL_IMITATION_HP
+    if nizbel and party_ids(bot)[member] == ROBO and action[0] in ("attack", "tech") and             state.mp(member) >= SHOCK_MP and tech_known(bot, member, SHOCK):
+        return ("tech", SHOCK, None)
+    return action
+
+
 def r_series(bot, state, rng, inventory):
     """Crono and Lucca against the factory's two columns of R Series robots.
 
@@ -563,6 +635,8 @@ POLICIES = {
     "party_lavos_core": party_lavos_core,
     "party_with_lapis": party_with_lapis,
     "party_with_ethers": party_with_ethers,
+    "holding_out": holding_out,
+    "lavos_shell": lavos_shell,
     "r_series": r_series,
     "motherbrain": motherbrain,
     "nizbel_ii": nizbel_ii,

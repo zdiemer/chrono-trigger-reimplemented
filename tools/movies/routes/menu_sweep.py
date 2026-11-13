@@ -91,13 +91,18 @@ def count_of(machine, item):
 
 def to_item(run, item):
     """Move the items list's cursor onto `item`: page down with L (the shoulder that pages down here)
-    while the item lies past the rows shown, then a row at a time."""
+    while the item lies past the rows shown, or up with R while it lies above them, then a row at a
+    time."""
     machine = run.machine
     place = machine.peek(INVENTORY_ITEMS, 0xF2).index(bytes([item]))
     for _ in range(30):
         if machine.b(ITEM_LIST_TOP) + 9 >= place:
             break
         press(machine, "L", 30)
+    for _ in range(30):
+        if machine.b(ITEM_LIST_TOP) <= place:
+            break
+        press(machine, "R", 30)
     for _ in range(40):
         here = machine.b(ITEM_LIST_TOP) + machine.b(CURSOR)
         if here == place:

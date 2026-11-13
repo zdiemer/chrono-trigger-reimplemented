@@ -191,12 +191,18 @@ and items, and plays on through `play()` of `blackbird_save`, `dalton`,
 instead of flying), the Black Omen's rising, Gaspar's Chrono Trigger, Gato's
 silver points and Bekkler's clone (`fair_clone`; the clone is delivered to
 Crono's room), Belthasar in the Keeper's Dome, Death Peak (`death_peak_wind`,
-`death_peak`, `death_peak_return`; a Shelter before the last Spawn), Crono
-joining in Lucca's place, and the bucket into Lavos (`other_endings`), whose
-imitations of the earlier bosses it beats. It ends where the shell's own form
-stands (frame 359416): at levels 34-38 the party takes 400-500 HP a member
-from each of its blows and deals it some 40, so an ending waits on a party
-grown by the Black Omen or by fighting. The
+`death_peak`, `death_peak_return`; a Shelter before the last Spawn), and the
+bucket into Lavos (`other_endings`). The save's party, at levels 34-38, is
+no match for Lavos (its shell's blows take 400-500 HP a member, and its inner
+form wipes a party at 45 before anyone acts), so the leg grows it at Death
+Peak, where crossing between the slope's top and the lower field brings back
+the monsters by the way in, healing from the bag and Robo's Heal Beam between
+rounds, until everyone is at level 52. Crono, back at the End of Time, stays
+there at the level he died at. The grown purse buys Full and Mid Tonics in
+the 12000 B.C. village's shop, and the fights take the `lavos_shell` policy:
+the imitations with the party's techs (Robo's Shock takes the Nizbel
+imitation's guard down), healed from the bag between them, and the shell's own
+form with Marle's Haste and `holding_out`, which keeps everyone up first. The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
 `playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest

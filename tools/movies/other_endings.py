@@ -3,6 +3,7 @@
 These routes keep their movies in scratch storage: each fight and ending is
 too long to replay in every gate. Checkpoints contain only the winning input.
 """
+from . import addresses as A
 from .campaign import Run, route_arguments
 from .routes.telepod_lavos import to_the_shell
 
@@ -10,6 +11,7 @@ from .routes.telepod_lavos import to_the_shell
 TELEPOD_PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending"]
 BUCKET_PHASES = ["eot", "dayoflavos", "shell", "cavern", "inner", "core", "ending"]
 BUCKET = 9                      # the End of Time's object 9
+INSIDE_LAVOS = "da01"           # the cavern inside the shell, once it is beaten
 
 
 def bucket_to_shell(run, start):
@@ -89,12 +91,25 @@ def watch_ending(run, *, selected, done, max_frames=48000, settle_frames=120):
     raise AssertionError("ending did not finish: maps %s, selection seen %s" % (seen, selection_seen))
 
 
-def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None):
-    """The shell, cavern and two inner fights, shared by the ending routes."""
-    policy = "crono_and_marle" if party == 2 else "party"
+def walking_into_lavos(run, between=None):
+    """The fight's idle step between the shell's imitations: the party walks
+    into Lavos again, readied first by `between(run)` where given."""
+    def walk_on(bot):
+        if between and run.machine.b(A.FIELD_PLAYER_CONTROL) and run.find_player() is not None:
+            between(run)
+            bot.step(0)
+        bot.step(22, "UP")
+    return walk_on
+
+
+def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None, policy=None, between=None):
+    """The shell, cavern and two inner fights, shared by the ending routes.
+    `between(run)`, where given, readies the party on the field between the
+    shell's imitations, before it walks into Lavos again."""
+    policy = policy or ("crono_and_marle" if party == 2 else "party")
     if start <= 3:
         run.fight(policy, lambda r, s: r.map_id() == "da01", party=party, seed=seed,
-                  idle=lambda bot: bot.step(22, "UP"))
+                  idle=walking_into_lavos(run, between))
         run.checkpoint("cavern")
     if start <= 4:
         assert run.wait_control(), "control inside Lavos"
@@ -107,7 +122,7 @@ def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None):
         def core_beaten(r, state):
             return (state.max_hp(9) == 30000 and state.hp(9) == 0
                     and any(state.hp(slot) for slot in range(party)))
-        run.fight(core_policy or ("crono_and_marle_core" if party == 2 else "party"), core_beaten,
+        run.fight(core_policy or ("crono_and_marle_core" if party == 2 else policy), core_beaten,
                   party=party, seed=seed + core_seed_offset)
         run.checkpoint("ending")
 
