@@ -1,5 +1,6 @@
 """Carried fight routes' retries and facts (tools/movies/fight_facts.py); no ROM."""
 import unittest
+from unittest.mock import patch
 
 from tools import outcomes
 from tools.movies import fight_facts as F, route_check
@@ -36,22 +37,29 @@ class FightFactsTest(unittest.TestCase):
     def expected(self, start, end):
         a, b = F.from_state(start), F.from_state(end)
         out = {k: b[k] for k in ("levels", "experience", "gold", "events")}
-        out["items"] = F.items_text(F.won_items(a["items"], b["items"]))
+        out["items"] = F.items_text(F.kept_items(b["items"]))
         return out
 
     def test_a_run_that_ends_as_the_reference_passes(self):
-        start, end = state(items={0x10: 1}), state(levels=(2,) * 7, gold=300, items={0x10: 1, 0x20: 2}, event=5)
+        start = state(items={0x10: 1, 0xBD: 5})
+        end = state(levels=(2,) * 7, gold=300, items={0x10: 1, 0x20: 2, 0xBD: 3}, event=5)
         expected = self.expected(start, end)
-        self.assertEqual(expected["items"], "20:2")
+        self.assertEqual(expected["items"], "10:1,20:2")
         self.assertEqual(F.verdict("r", self.report(end), 0, expected), [])
+        # a fight's tonics go with its course: not a fact
+        used_more = state(levels=(2,) * 7, gold=300, items={0x10: 1, 0x20: 2, 0xBD: 1}, event=5)
+        self.assertEqual(F.verdict("r", self.report(used_more), 0, expected), [])
 
     def test_lost_rewards_retries_and_story_fail(self):
-        start, end = state(), state(levels=(2,) * 7, gold=300, items={0x20: 2}, event=5)
+        start, end = state(items={0x30: 1}), state(levels=(2,) * 7, gold=300, items={0x20: 2, 0x30: 1}, event=5)
         expected = self.expected(start, end)
-        for run, tries, word in ((state(levels=(2,) * 7, gold=100, items={0x20: 2}, event=5), (0,), "gold"),
-                                 (state(levels=(2,) * 7, gold=300, items={0x20: 1}, event=5), (0,), "item 20"),
-                                 (state(levels=(1,) * 7, gold=300, items={0x20: 2}, event=5), (0,), "levels"),
-                                 (state(levels=(2,) * 7, gold=300, items={0x20: 2}, event=6), (0,), "events"),
+        for run, tries, word in ((state(levels=(2,) * 7, gold=100, items={0x20: 2, 0x30: 1}, event=5), (0,), "gold"),
+                                 (state(levels=(2,) * 7, gold=300, items={0x20: 1, 0x30: 1}, event=5), (0,), "item 20"),
+                                 (state(levels=(2,) * 7, gold=300, items={0x20: 2}, event=5), (0,), "item 30"),
+                                 (state(levels=(2,) * 7, gold=300, items={0x20: 2, 0x30: 1, 0x40: 1}, event=5), (0,),
+                                  "item 40"),
+                                 (state(levels=(1,) * 7, gold=300, items={0x20: 2, 0x30: 1}, event=5), (0,), "levels"),
+                                 (state(levels=(2,) * 7, gold=300, items={0x20: 2, 0x30: 1}, event=6), (0,), "events"),
                                  (end, (0, 3), "retries")):
             with self.subTest(word=word):
                 problems = F.verdict("r", self.report(run, tries), 2, expected)
@@ -68,6 +76,8 @@ class FightFactsTest(unittest.TestCase):
     def test_only_carried_routes_are_held_to_their_facts(self):
         self.assertEqual(route_check.carried_fight("new_game_plus", []), [])
         self.assertEqual(route_check.carried_fight("son_of_sun", []), ["no fight report"])
+        with patch.object(F, "read_expected", return_value={}):
+            self.assertEqual(route_check.carried_fight("son_of_sun", []), ["no expected facts in tools/fight_facts.txt"])
 
 
 if __name__ == "__main__":
