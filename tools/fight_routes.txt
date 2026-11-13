@@ -12,6 +12,7 @@
 battle-black-tyrano black_tyrano  # Azala and the Black Tyrano, won; Lavos's fall after
 battle-castle-flea castle_flea  # the Flea decoy and Flea, won; the field in hand
 battle-castle-slash castle_slash  # both rounds of Slash, won; the field in hand
+battle-dalton dalton  # Golem Boss and Dalton Plus, won; the winged Epoch on the world map
 battle-dragon-tank dragon_tank  # the Dragon Tank, destroyed; the field in hand
 battle-giga-gaia giga_gaia  # Giga Gaia, won; Melchior freed and Mt. Woe fallen
 battle-golem-twins golem_twins  # the Golem Twins, won; the save point's slot saved

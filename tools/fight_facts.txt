@@ -4,102 +4,108 @@
 # playing the movie with the original's code (--native off), whose saved game
 # matches the movie's `game` digest in tools/outcomes.txt -- never a native
 # run. levels and experience are the seven characters' (Crono to Magus);
-# items are those the reference ended with more of than its save started
-# with, at the reference's counts; events is the start of the SHA-256 of
+# items are the reference's whole inventory but the consumables
+# (fight_facts.CONSUMABLES), held both ways; events is the start of the SHA-256 of
 # event memory, $7F:0000-$7F:01FF.
 
 black_tyrano levels 27,27,25,24,26,27,37  # battle-black-tyrano
 black_tyrano experience 43084,42347,35138,32211,35994,41095,97780  # battle-black-tyrano
 black_tyrano gold 33885  # battle-black-tyrano
-black_tyrano items -  # battle-black-tyrano
+black_tyrano items 05:1,06:1,14:1,23:1,31:1,32:1,3C:1,5D:1,60:2,61:3,62:3,79:1,7D:1,7E:2,7F:2,80:2,81:1,95:1,96:1,98:1,99:2,AB:2,AD:2,B3:1,CB:2,D0:19,D1:42,D2:30,D3:39,D5:1,D6:1,D7:1,DD:1  # battle-black-tyrano
 black_tyrano events 12a672918dabc4a7  # battle-black-tyrano
 
 castle_flea levels 22,22,21,19,20,22,37  # battle-castle-flea
 castle_flea experience 22038,21301,18928,16443,17538,23179,97780  # battle-castle-flea
 castle_flea gold 14290  # battle-castle-flea
-castle_flea items -  # battle-castle-flea
+castle_flea items 05:1,14:1,23:1,31:1,3C:1,5D:1,60:2,61:2,79:1,7D:1,7E:2,7F:1,80:2,81:1,95:1,96:1,98:1,99:1,AB:2,AD:1,B3:1,D0:18,D1:38,D2:30,D3:34,D5:1,D6:1,D7:1,DD:1  # battle-castle-flea
 castle_flea events 59be56506a987e02  # battle-castle-flea
 
 castle_slash levels 22,22,21,19,20,22,37  # battle-castle-slash
 castle_slash experience 22098,21361,18973,16488,17598,23224,97780  # battle-castle-slash
 castle_slash gold 15240  # battle-castle-slash
-castle_slash items -  # battle-castle-slash
+castle_slash items 05:1,14:1,23:1,31:1,3C:1,5D:1,60:2,61:2,79:1,7D:1,7E:2,7F:1,80:2,81:1,95:1,96:1,98:1,99:1,AB:2,AD:1,B3:1,D0:18,D1:38,D2:30,D3:34,D5:1,D6:1,D7:1,DD:1  # battle-castle-slash
 castle_slash events daeffbb5ff382ee4  # battle-castle-slash
 
 cyrus levels 46,48,47,44,43,44,45  # events-cyrus
 cyrus experience 197251,214252,203181,178732,168606,173707,180731  # events-cyrus
 cyrus gold 99216  # events-cyrus
-cyrus items C2:31  # events-cyrus
+cyrus items 05:1,06:1,0C:1,0F:1,10:1,14:1,15:1,23:1,24:1,27:1,2F:1,31:1,32:1,36:1,3C:1,41:1,4D:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,69:3,75:2,76:2,77:2,79:1,7D:1,7E:3,7F:2,80:2,81:3,82:1,84:1,85:1,8B:1,8C:2,8D:2,96:1,97:1,98:2,99:3,9B:1,A4:1,A5:1,A6:1,A9:1,AA:1,AB:2,AD:2,B3:1,B4:1,BA:1,CB:6,CC:6,CD:1,CF:1,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,D8:1,DD:1,DF:1,E1:1  # events-cyrus
 cyrus events d7e609d24d62ee0c  # events-cyrus
 
 death_peak_return levels 42,44,42,41,39,40,41  # events-death-peak
 death_peak_return experience 148339,164830,151457,138370,129820,134921,141945  # events-death-peak
 death_peak_return gold 63430  # events-death-peak
-death_peak_return items -  # events-death-peak
+death_peak_return items 05:1,06:1,0F:1,10:1,14:1,15:1,23:1,24:1,2F:1,31:1,32:1,3C:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,69:1,79:1,7D:1,7E:3,7F:2,80:2,81:2,82:1,84:1,96:1,97:1,98:2,99:2,9F:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # events-death-peak
 death_peak_return events 9f24c554722f3cd8  # events-death-peak
+
+dalton levels 37,37,35,33,34,35,37  # battle-dalton
+dalton experience 100512,101781,89965,80976,81993,87094,97780  # battle-dalton
+dalton gold 4000  # battle-dalton
+dalton items 05:1,06:1,0F:1,10:1,14:1,15:1,23:1,27:1,2F:1,31:1,32:1,3C:1,5D:1,60:3,61:3,62:2,63:1,64:1,79:1,7D:1,7E:3,7F:2,80:2,81:2,84:1,95:1,96:1,97:1,98:1,99:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,CE:1,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # battle-dalton
+dalton events 490233425ce315f2  # battle-dalton
 
 dragon_tank levels 7,7,7,10,8,18,37  # battle-dragon-tank
 dragon_tank experience 905,673,839,1840,979,11520,97780  # battle-dragon-tank
 dragon_tank gold 7770  # battle-dragon-tank
-dragon_tank items -  # battle-dragon-tank
+dragon_tank items 02:1,03:1,1F:1,3B:1,5C:2,95:1,98:1,AD:1,D6:1,D7:1  # battle-dragon-tank
 dragon_tank events 7ecdab600431eaa2  # battle-dragon-tank
 
 fionas_forest levels 44,46,44,42,41,42,43  # events-fionas-forest
 fionas_forest experience 168380,186447,172118,157112,146030,151131,158155  # events-fionas-forest
 fionas_forest gold 81030  # events-fionas-forest
-fionas_forest items 0B:1,CA:26  # events-fionas-forest
+fionas_forest items 05:1,06:1,0B:1,0F:1,10:1,14:1,15:1,23:1,24:1,2F:1,31:1,32:1,36:1,3C:1,41:1,4D:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,69:1,79:1,7D:1,7E:3,7F:2,80:2,81:2,82:1,84:1,8C:1,8D:1,96:1,97:1,98:2,99:3,9B:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # events-fionas-forest
 fionas_forest events 1034c77ce1f3642b  # events-fionas-forest
 
 giga_gaia levels 31,31,30,28,29,30,37  # battle-giga-gaia
 giga_gaia experience 63457,63128,55919,47793,51576,56677,97780  # battle-giga-gaia
 giga_gaia gold 37790  # battle-giga-gaia
-giga_gaia items -  # battle-giga-gaia
+giga_gaia items 05:1,06:1,0F:1,14:1,23:1,31:1,32:1,3C:1,5D:1,60:2,61:3,62:2,64:1,65:1,79:1,7D:1,7E:2,7F:2,80:2,81:2,95:1,96:1,97:1,98:1,99:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # battle-giga-gaia
 giga_gaia events 1564561887a64cb3  # battle-giga-gaia
 
 golem_twins levels 35,35,34,31,32,33,37  # battle-golem-twins
 golem_twins experience 89975,88856,82437,67673,71456,76557,97780  # battle-golem-twins
 golem_twins gold 73690  # battle-golem-twins
-golem_twins items -  # battle-golem-twins
+golem_twins items 05:1,06:1,0F:1,10:1,14:1,15:1,23:1,27:1,31:1,32:1,36:1,3C:1,5D:1,60:2,61:3,62:2,63:1,64:1,65:1,79:1,7D:1,7E:2,7F:2,80:2,81:2,84:1,8E:1,95:1,96:1,97:1,98:1,99:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1,E0:1  # battle-golem-twins
 golem_twins events 89102a9910ca4cfe  # battle-golem-twins
 
 heckran levels 13,13,13,12,12,18,37  # battle-heckran
 heckran experience 4882,4379,4816,3602,3945,11520,97780  # battle-heckran
 heckran gold 10605  # battle-heckran
-heckran items -  # battle-heckran
+heckran items 02:1,03:1,04:1,11:1,1F:1,20:1,21:1,2E:1,3B:1,5B:1,5C:2,5D:1,5E:1,5F:1,7C:1,7D:2,95:1,98:1,AB:1,AD:1,D5:1,D6:1,D7:1,DD:1  # battle-heckran
 heckran events 5c6a77c919f23244  # battle-heckran
 
 lavos_lost levels 49,49,49,49,49,50,51  # battle-lavos-gameover
 lavos_lost experience 244741,233337,230393,234894,236521,249060,253697  # battle-lavos-gameover
 lavos_lost gold 400  # battle-lavos-gameover
-lavos_lost items -  # battle-lavos-gameover
+lavos_lost items 01:1,11:1,28:1,38:1,39:1,4E:1,5B:2,6A:2,6B:5,6E:6,70:1,71:1,72:1,73:1,74:1,75:1,76:1,77:1,78:1,7C:2,85:2,88:1,89:1,8A:2,8C:2,8D:2,8E:1,8F:2,91:1,95:1,96:1,97:1,98:1,99:3,9B:2,9C:2,9D:1,9E:1,9F:3,A0:1,A1:4,A3:2,A5:1,A6:1,A7:1,A9:1,AB:2,AD:2,AE:1,AF:1,B0:1,B1:1,B2:1,B4:3,B6:1,B7:2,BA:1,BB:1,CB:14,CC:16,CD:15,CE:15,CF:12,D0:15,D1:17,D2:11,D3:14,D6:1  # battle-lavos-gameover
 lavos_lost events bfff5445a6883903  # battle-lavos-gameover
 
 mud_imp levels 28,28,26,25,26,27,37  # battle-mud-imp
 mud_imp experience 45785,45048,37839,34233,38016,43117,97780  # battle-mud-imp
 mud_imp gold 22190  # battle-mud-imp
-mud_imp items -  # battle-mud-imp
+mud_imp items 05:1,06:1,0F:1,14:1,23:1,31:1,32:1,3C:1,5D:1,60:2,61:3,62:2,65:1,79:1,7D:1,7E:2,7F:2,80:2,81:1,95:1,96:1,98:1,99:2,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:2,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # battle-mud-imp
 mud_imp events eeb7c50ab5e91c8c  # battle-mud-imp
 
 north_cape levels 38,38,36,34,34,35,37  # battle-magus-north-cape
 north_cape experience 106424,110417,98227,82445,87905,93006,97780  # battle-magus-north-cape
 north_cape gold 17230  # battle-magus-north-cape
-north_cape items -  # battle-magus-north-cape
+north_cape items 05:1,06:1,0F:1,10:1,14:1,15:1,23:1,24:1,2F:1,31:1,32:1,3C:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,79:1,7D:1,7E:3,7F:2,80:2,81:2,82:1,84:1,95:1,96:1,98:2,99:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,CE:1,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # battle-magus-north-cape
 north_cape events 23335b6980aaebe4  # battle-magus-north-cape
 
 rust_tyrano levels 45,47,46,43,42,43,44  # battle-rust-tyrano
 rust_tyrano experience 183077,198550,187771,169770,157050,162151,169175  # battle-rust-tyrano
 rust_tyrano gold 99066  # battle-rust-tyrano
-rust_tyrano items -  # battle-rust-tyrano
+rust_tyrano items 05:1,06:1,0C:1,0F:1,10:1,14:1,15:1,23:1,24:1,2F:1,31:1,32:1,36:1,3C:1,41:1,4D:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,69:2,75:2,76:2,77:2,79:1,7D:1,7E:3,7F:2,80:2,81:3,82:1,84:1,85:1,8B:1,8C:1,8D:2,96:1,97:1,98:2,99:3,9B:1,A4:1,A5:1,A6:1,A9:1,AA:1,AB:2,AD:2,B3:1,B4:1,CB:6,CC:5,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,DD:1  # battle-rust-tyrano
 rust_tyrano events c1d7c2f9efb92ddb  # battle-rust-tyrano
 
 son_of_sun levels 46,48,47,44,43,44,45  # battle-son-of-sun
 son_of_sun experience 193515,210516,199445,175931,165805,170906,177930  # battle-son-of-sun
 son_of_sun gold 105726  # battle-son-of-sun
-son_of_sun items -  # battle-son-of-sun
+son_of_sun items 05:1,06:1,0C:1,0F:1,10:1,14:1,15:1,23:1,24:1,2F:1,31:1,32:1,36:1,3C:1,41:1,4D:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,69:3,75:2,76:2,77:2,79:1,7D:1,7E:3,7F:2,80:2,81:3,82:1,84:1,85:1,8B:1,8C:2,8D:2,96:1,97:1,98:2,99:3,9B:1,A4:1,A5:1,A6:1,A9:1,AA:1,AB:2,AD:2,B3:1,B4:1,CB:6,CC:6,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,D8:1,DD:1,E1:1  # battle-son-of-sun
 son_of_sun events 7ace1e6cca5dd91c  # battle-son-of-sun
 
 zombor levels 14,13,14,12,12,18,37  # battle-zombor
 zombor experience 5504,5001,5438,4067,4410,11520,97780  # battle-zombor
 zombor gold 7890  # battle-zombor
-zombor items 80:1  # battle-zombor
+zombor items 04:1,13:1,5F:2,60:1,80:1,95:1,96:1,98:1,AB:1,AD:1,D5:1,D6:1,D7:1,DD:1  # battle-zombor
 zombor events 0b35332b9c6bebbd  # battle-zombor

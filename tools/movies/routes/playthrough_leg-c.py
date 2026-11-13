@@ -248,7 +248,7 @@ def leave_fighting(run, want, max_rounds=12, seed=1):
 
 
 def through(run, x, y, arrived, seed=1, rounds=10):
-    playthrough.through(run, x, y, arrived, seed, rounds, party_policy)
+    playthrough.through(run, x, y, arrived, seed, rounds, policy=party_policy)
 
 
 def stuck_in_hand(run, max_frames=30000, seed=1):
