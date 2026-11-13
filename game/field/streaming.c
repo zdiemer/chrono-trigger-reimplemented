@@ -676,9 +676,24 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
  * leave the layer out past it (vid_show_a_layer_across): a streamed layer the
  * columns its margins were built over; a layer drawn whole its tile map's
  * span of the map, once -- a map one screen across fills only half the tile
- * map, which shows its tiles again -- and not past the map's edges. Kept for
- * the battle, which is fought over the field's layers. */
+ * map, which shows its tiles again -- and not past the map's edges. A veil is
+ * the exception: a layer drawn whole that the color math lays over the
+ * picture at half strength, or that lies on the sub screen alone for the
+ * picture's math to take in (a forest's shade, a peak's drifting fog). It is
+ * a pattern the original repeats as it drifts, so it goes on across the map
+ * as the picture under it does, rather than ending in an edge. Kept for the
+ * battle, which is fought over the field's layers. */
 enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS, ONE_SCREEN_TILES = 16 };
+
+static bool veils_the_picture(const GameState *g, unsigned layer)
+{
+    VidColorMath math = { 0 };
+    vid_color_math_decode(&math, VID_MATH_LAYERS, field_color_math_layers(g));
+    uint8_t bit = (uint8_t)(1u << layer);
+    bool blended = math.half && (math.layers & bit);
+    bool beneath = (field_sub_screen(g) & bit) && !(field_main_screen(g) & bit);
+    return blended || beneath;
+}
 
 static int around_the_ring(int pixels)
 {
@@ -692,7 +707,7 @@ static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int
     uint16_t scroll = field_layer_scroll_h(g, layer);
     unsigned map_columns = field_map_layer_sizes_width(g, layer) * FIELD_ENTRIES_A_MAP_TILE;
     if (layer != FIELD_BG1 && drawn_whole(g, layer)) {
-        if (map_columns > ONE_SCREEN_TILES * FIELD_ENTRIES_A_MAP_TILE)
+        if (map_columns > ONE_SCREEN_TILES * FIELD_ENTRIES_A_MAP_TILE || veils_the_picture(g, layer))
             return (FieldLayerSpan){ vid_view_left(view), vid_view_right(view), scroll };
         int left = around_the_ring(-(int)scroll);
         return (FieldLayerSpan){ (int16_t)left, (int16_t)(left + ONE_SCREEN_TILES * FIELD_MAP_TILE_PIXELS), scroll };
@@ -740,12 +755,14 @@ void field_show_the_layers_across(GameState *g, Platform *pf)
         if (still && m->span[layer].right > map.right)
             m->span[layer].right = map.right;
         m->held[layer] = shown;
+        m->taken[layer] = false;
         vid_show_a_layer_across(pf, (VidLayer)layer, m->span[layer].left, m->span[layer].right);
     }
     charge_uncounted_end(g, mark);
 }
 
-void field_battle_takes_its_own_layer(GameState *g, unsigned layer) { field_margins(g)->held[layer] = false; }
+void field_battle_takes_its_own_layer(GameState *g, unsigned layer) { field_margins(g)->taken[layer] = true; }
+void field_battle_gives_the_layer_back(GameState *g, unsigned layer) { field_margins(g)->taken[layer] = false; }
 
 void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint16_t scroll[FIELD_LAYERS])
 {
@@ -753,7 +770,7 @@ void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint
         return;
     const FieldMargins *m = field_margins(g);
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
-        if (!m->held[layer])
+        if (!m->held[layer] || m->taken[layer])
             continue;
         int moved = around_the_ring(scroll[layer] - m->span[layer].scroll);
         vid_show_a_layer_across(pf, (VidLayer)layer, (int16_t)(m->span[layer].left - moved),
