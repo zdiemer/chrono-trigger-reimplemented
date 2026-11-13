@@ -15,7 +15,11 @@ from ..campaign import Run, route_arguments, run_route
 from ._trial_walk import world_enter
 from .ozzies_fort import fly_to, land
 from .playthrough import in_hand, leave_fighting, naming, through, win
+from ._zeal_navigation import approach
 from . import black_tyrano
+from . import menu_sweep as menus
+from . import giga_gaia
+from . import mud_imp
 from . import zeal_palace
 
 SAVE = "saves/fantasyanime/ctsave08-zeal.srm"
@@ -53,6 +57,10 @@ EPOCH_DIAL = 0x7E0C52       # the era the Epoch's dial points at
 DIAL_12KBC = 5
 TERRA_CAVE, TERRA_CAVE_DOOR = 0x182, (424, 472)
 ALGETTY = "7c01"
+BEAST_NEST, WOE_FOOT, WOE_MIDDLE, WOE_SAVE_POINT = "8401", "8a01", "8801", "8901"
+WOE_FOOT_EXIT = (576, 544)      # $18A's way on to $188
+WOE_SAVE_SPOT = (440, 118)      # on $189's save point
+ON_A_SAVE_POINT = (0x7F01CF, 0x80)
 TYRANO = black_tyrano.PHASES[1:]
 # Out of the scene onto the 65,000,000 B.C. map, into the Lair Ruins and
 # through the Gate there to 12000 B.C., out onto the snowfield's map.
@@ -68,7 +76,12 @@ EXILE = ["queen_door", "golem", "golem_won", "exiled"]
 EPOCH = ["dactyl", "mystic_mts", "mystic_gate", "end_of_time", "proto_dome", "lab32", "sewer", "sewer_lower",
          "sewer_switch", "sewer_out", "keepers_dome", "hangar", "belthasar", "epoch_dial", "epoch_12kbc",
          "algetty"]
-PHASES = ["loaded"] + TYRANO + GATE + ZEAL + EXILE + EPOCH
+MUD_IMP = mud_imp.PHASES[1:]
+# Up the chain from the nest onto Mt. Woe and across its islands to the
+# last save point, where a Shelter restores the party the climb wore down.
+WOE = ["woe_chain", "woe_ambush", "woe_middle", "woe_save_point", "woe_rested"]
+GIGA_GAIA = giga_gaia.PHASES[1:]
+PHASES = ["loaded"] + TYRANO + GATE + ZEAL + EXILE + EPOCH + MUD_IMP + WOE + GIGA_GAIA
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg C of the playthrough (route playthrough_leg-c): from Tyrano Lair to the Ocean Palace's Lavos.
@@ -358,6 +371,59 @@ def to_the_epoch(run, ahead, seed):
         run.checkpoint("algetty")
 
 
+def rest(run):
+    """On a save point: a Shelter from the items screen restores the party."""
+    machine = run.machine
+    flag, bit = ON_A_SAVE_POINT
+    assert machine.b(flag) & bit, "standing on the save point"
+    count = menus.count_of(machine, menus.SHELTER)
+    assert count, "a Shelter for the party"
+    menus.open_menu(machine)
+    menus.open_option(machine, menus.ITEMS)
+    menus.use_item(run, menus.SHELTER, choose_member=True)
+    machine.run(180)
+    assert menus.count_of(machine, menus.SHELTER) == count - 1, "the Shelter used"
+    menus.back_to_main_menu(machine)
+    menus.press(machine, "B", 60)
+    assert run.wait_control(), "the field after resting"
+
+
+def mt_woe(run, ahead, seed):
+    """Up the chain from the Beasts' nest onto Mt. Woe, and over its islands
+    to the save point before the summit."""
+    machine = run.machine
+    if ahead("woe_chain"):
+        # The vine at the nest's top, then the chain up from it.
+        assert in_hand(run)
+        for _ in range(10):
+            machine.run(15, "UP+RIGHT")
+        for _ in range(20):
+            machine.run(15, "UP")
+            if run.map_id() != BEAST_NEST:
+                break
+        assert run.dialogs_until(lambda: run.map_id() == WOE_FOOT, 3000) and in_hand(run), "Mt. Woe"
+        run.checkpoint("woe_chain")
+    if ahead("woe_ambush"):
+        # The islands' monsters jump the party long before a walk arrives:
+        # head for the way on, fight, and search again from where it ends.
+        ambushed = lambda m: not m.b(A.FIELD_PLAYER_CONTROL) and m.peek(A.MAP_ID, 2).hex() == WOE_FOOT
+        approach(run, *WOE_FOOT_EXIT, stop=ambushed)
+        assert in_hand(run, 30000, seed), "the ambush fought"
+        run.checkpoint("woe_ambush")
+    if ahead("woe_middle"):
+        assert leave_fighting(run, WOE_MIDDLE, seed=seed), "Mt. Woe's middle"
+        run.checkpoint("woe_middle")
+    if ahead("woe_save_point"):
+        assert leave_fighting(run, WOE_SAVE_POINT, max_rounds=20, seed=seed), "the last save point"
+        assert in_hand(run)
+        run.checkpoint("woe_save_point")
+    if ahead("woe_rested"):
+        x, y = WOE_SAVE_SPOT
+        assert walk_fighting(run, lambda px, py: abs(px - x) < 4 and abs(py - y) < 4, seed), "the save point"
+        rest(run)
+        run.checkpoint("woe_rested")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -398,6 +464,11 @@ def main():
             zeal_palace.play(run, within(ZEAL))
         exile(run, ahead, args.seed)
         to_the_epoch(run, ahead, args.seed)
+        if within(MUD_IMP):
+            mud_imp.play(run, within(MUD_IMP), args.seed)
+        mt_woe(run, ahead, args.seed)
+        if within(GIGA_GAIA):
+            giga_gaia.play(run, within(GIGA_GAIA), args.seed)
         run.finish("the leg's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

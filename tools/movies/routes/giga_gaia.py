@@ -7,9 +7,10 @@ its northern exit needs UP held after reaching the end of the chain.
 from .. import addresses as A, policies
 from ..campaign import Run, route_arguments, run_route
 from ._zeal_navigation import approach
+from .playthrough import leave_fighting
 
 SAVE = "saves/fantasyanime/ctsave09-epoch.srm"
-PHASES = ["loaded", "bridge", "summit", "battle", "won", "after"]
+PHASES = ["loaded", "woe_bridge", "woe_summit", "giga_gaia", "giga_gaia_won", "woe_fallen"]
 HEADER = """\
 # Mt. Woe: from the last save point over the bridges to Giga Gaia; defeat the head and arms,
 # free Melchior, watch the mountain fall, then the Terra Cave conversation until control returns (route giga_gaia).
@@ -36,6 +37,45 @@ def fight_policy(bot, state, rng, inventory):
     return policies.use(inventory, policies.ETHER, member) or ("attack", 6)
 
 
+def play(run, start=1, seed=1):
+    """From Mt. Woe's last save point to Giga Gaia beaten and Terra Cave in
+    hand; `start` is the index in PHASES of the first phase to run."""
+    machine = run.machine
+    if start <= 1:
+        # Mt. Woe's monsters jump a party that comes up from below.
+        assert leave_fighting(run, "8b01", seed=seed), "the bridge"
+        assert run.wait_control()
+        run.checkpoint("woe_bridge")
+    if start <= 2:
+        approach(run, 968, 32)
+        machine.run(120, "UP")
+        assert run.map_id() == "8d01"
+        assert run.wait_control()
+        run.checkpoint("woe_summit")
+    if start <= 3:
+        assert run.wait_control()
+        machine.run(100, "UP")
+        machine.run(3, "A")
+        assert run.dialogs_until(lambda: A.battle_menu_open(machine)
+                                 and machine.w(A.BATTLE_STATS + 6 * 128 + 2) == 9500, 8000)
+        run.checkpoint("giga_gaia")
+    if start <= 4:
+        seen = []
+
+        def won(r, state):
+            living = policies.enemies(state)
+            if living:
+                seen.append(True)
+            return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
+
+        run.fight(fight_policy, won, seed=seed, max_frames=28000, max_tries=100)
+        run.checkpoint("giga_gaia_won")
+    if start <= 5:
+        assert run.wait_control(16000), "the field after Mt. Woe's fall"
+        assert run.map_id() == "7e01" and machine.b(0x7F0000) == 0xBA
+        run.checkpoint("woe_fallen")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -54,38 +94,7 @@ def main():
             assert not machine.b(0x7F01A0) & 8, "Giga Gaia still ahead"
             assert run.wait_control()
             run.checkpoint("loaded")
-        if start <= 1:
-            assert run.exit_to("8b01")
-            assert run.wait_control()
-            run.checkpoint("bridge")
-        if start <= 2:
-            approach(run, 968, 32)
-            machine.run(120, "UP")
-            assert run.map_id() == "8d01"
-            assert run.wait_control()
-            run.checkpoint("summit")
-        if start <= 3:
-            assert run.wait_control()
-            machine.run(100, "UP")
-            machine.run(3, "A")
-            assert run.dialogs_until(lambda: A.battle_menu_open(machine)
-                                     and machine.w(A.BATTLE_STATS + 6 * 128 + 2) == 9500, 8000)
-            run.checkpoint("battle")
-        if start <= 4:
-            seen = []
-
-            def won(r, state):
-                living = policies.enemies(state)
-                if living:
-                    seen.append(True)
-                return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
-
-            run.fight(fight_policy, won, seed=args.seed, max_frames=28000, max_tries=100)
-            run.checkpoint("won")
-        if start <= 5:
-            assert run.wait_control(16000), "the field after Mt. Woe's fall"
-            assert run.map_id() == "7e01" and machine.b(0x7F0000) == 0xBA
-            run.checkpoint("after")
+        play(run, start, args.seed)
         run.finish("Giga Gaia beaten, Melchior freed and Mt. Woe fallen")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
