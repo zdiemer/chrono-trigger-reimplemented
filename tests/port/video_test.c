@@ -382,6 +382,67 @@ static void wider_view(void)
     vid_host_stop(&pf);
 }
 
+/* A panel over the picture: partway down, BG1 -- held past the screen --
+ * switches to a one-screen map (the dialog window over the field). The panel
+ * keeps to the original's screen, and beside it the margins go on showing
+ * the picture as the lines above it show it. */
+static void panel_over_the_picture(void)
+{
+    enum { WIDTH = 320, LEFT = (256 - WIDTH) / 2, PANEL_LINE = 100, MAP = 0x0800, PANEL = 0x1800, CHARS = 0x1000 };
+    Platform pf = {0};
+    vid_host_start(&pf, NULL, NULL);
+    vid_host_frame_begins(&pf);
+    vid_host_set_view(&pf, (VidView){ WIDTH, 224 });
+    vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
+    vid_set_mode(&pf, PF_AT(0), &(VidMode){ .mode = 1 });
+    vid_set_screens(&pf, PF_AT(0), VID_BG1_BIT, 0, VID_SCREEN_MAIN);
+    vid_set_bg_map(&pf, PF_AT(0), VID_BG1, &(VidBg){ VID_TILEMAP(MAP, 64, 32) });
+    vid_set_bg_chars(&pf, PF_AT(0), VID_BG1, CHARS, CHARS);
+    vid_set_palette_color(&pf, PF_AT(0), 0, 31);
+    vid_set_palette_color(&pf, PF_AT(0), 1, 31 << 5);
+    vid_set_palette_color(&pf, PF_AT(0), 2, 31 << 10);
+    uint8_t tile[2][32] = { { 0 } };
+    for (unsigned row = 0; row < 8; row++) {
+        tile[0][2 * row] = 0xFF;       /* every pixel colour 1 */
+        tile[1][2 * row + 1] = 0xFF;   /* every pixel colour 2 */
+    }
+    vid_send_vram(&pf, PF_AT(0), CHARS + 16, (PfData){ .ptr = tile[0] }, sizeof tile[0], VID_VRAM_WORD_PORT);
+    vid_send_vram(&pf, PF_AT(0), CHARS + 32, (PfData){ .ptr = tile[1] }, sizeof tile[1], VID_VRAM_WORD_PORT);
+    static uint8_t map[64 * 32 * 2], panel[32 * 32 * 2];
+    for (unsigned i = 0; i < sizeof map; i += 2)
+        map[i] = 1;
+    for (unsigned i = 0; i < sizeof panel; i += 2)
+        panel[i] = 2;
+    vid_send_vram(&pf, PF_AT(0), MAP, (PfData){ .ptr = map }, sizeof map, VID_VRAM_WORD_PORT);
+    vid_send_vram(&pf, PF_AT(0), PANEL, (PfData){ .ptr = panel }, sizeof panel, VID_VRAM_WORD_PORT);
+    vid_show_a_layer_across(&pf, VID_BG1, LEFT, LEFT + WIDTH);
+    /* the line effect's switch, as the picture keeps it: a second span */
+    static VidFrame frame;
+    frame = *vid_host_picture(&pf);
+    CHECK(frame.span_count == 1);
+    frame.spans[1] = frame.spans[0];
+    frame.spans[1].line = PANEL_LINE;
+    frame.spans[1].state.bg[VID_BG1].map_base = PANEL;
+    frame.spans[1].state.bg[VID_BG1].map_w = 32;
+    frame.span_count = 2;
+    const VidFrame *f = &frame;
+
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = calloc(VID_RENDER_MAX_PIXELS, sizeof *pixels);
+    uint32_t one = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 5, 15));
+    uint32_t two = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 10, 15));
+    for (int frame = 0; frame < 2; frame++) {   /* and again, the lines kept from the first */
+        vid_render_frame(r, f, pixels, NULL);
+        const uint32_t *above = pixels + 10 * WIDTH, *beside = pixels + 200 * WIDTH;
+        CHECK(above[0] == one && above[-LEFT] == one && above[WIDTH - 1] == one);
+        CHECK(beside[0] == one && beside[-LEFT - 1] == one && beside[256 - LEFT] == one && beside[WIDTH - 1] == one);
+        CHECK(beside[-LEFT] == two && beside[255 - LEFT] == two);
+    }
+    free(pixels);
+    vid_render_destroy(r);
+    vid_host_stop(&pf);
+}
+
 /* A one-screen map laid out across a wider view: each 8-dot column shows the
  * map's column the layout names, or nothing; a window's edges move with the
  * side of the parting they are on; a sprite placed with a move is drawn that
@@ -473,6 +534,7 @@ int main(void)
 {
     view_size();
     wider_view();
+    panel_over_the_picture();
     laid_out_panel();
     resource_transfers();
     view_sends();

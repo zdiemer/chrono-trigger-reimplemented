@@ -570,8 +570,8 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
  * staging buffers, its reads of the map left out of the game's time and its
  * sends made in the vblank, which the original's time doesn't charge -- so
  * the game runs the same at any view. The screen's edges, which decide which
- * objects run, stay the original's. Past the map's edges a margin's column is
- * built from the edge's (clamp_to_the_map).
+ * objects run, stay the original's. Past the room's edges a margin's column is
+ * built from the edge's (clamp_to_the_room).
  *
  * A layer's tile map is 64 columns round: the screen's 33 and a margin of up
  * to 15 columns either side fit, which is what holds the view to
@@ -580,19 +580,43 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
  * both are left alone. */
 enum { RING_ROWS = FIELD_TILE_MAP_ROWS, MOST_MARGIN_COLUMNS = (FIELD_TILE_MAP_COLUMNS - FIELD_SCREEN_COLUMNS - 1) / 2 };
 
-/* The map's own columns, which its tables hold (past them they repeat it),
- * whatever the screen's limits within it: a margin shows what lies beside
- * the screen on the map. A column past the map's edge is built as the edge's,
- * which the layer shows only where the edge is a uniform void (below). */
+/* The map's own columns, which its tables hold (past them they repeat it). */
 static int map_columns_of(const GameState *g, unsigned layer)
 {
     return field_map_layer_sizes_width(g, layer) * FIELD_ENTRIES_A_MAP_TILE;
 }
 
-static uint8_t clamp_to_the_map(const GameState *g, unsigned layer, int column)
+/* The room the screen is held to: the columns between the map's edges that
+ * the screen doesn't scroll past (field_map_edges), which in an interior are
+ * one room of the several the map lays side by side -- the original's screen
+ * never shows its neighbours beside it, so the margins don't either. A screen
+ * a script has moved past them takes its own columns in; a layer that keeps
+ * its own edges at half the pace (a far backdrop) goes by the whole map. A
+ * column past the room's edge is built as the edge's, which the layer shows
+ * only where the edge is a uniform void (below). */
+typedef struct {
+    int first, past;   /* the room's first column, and the one past its last */
+} RoomColumns;
+
+static RoomColumns room_of(const GameState *g, unsigned layer)
 {
-    int last = map_columns_of(g, layer) - 1;
-    return (uint8_t)(column < 0 ? 0 : column > last ? last : column);
+    int columns = map_columns_of(g, layer);
+    if (keeps_own_edges(g, layer))
+        return (RoomColumns){ 0, columns };
+    ScreenEdges e = screen_edges(g, false);
+    int first = field_map_edges_left(g) * FIELD_ENTRIES_A_MAP_TILE;
+    int past = (field_map_edges_right(g) + 1) * FIELD_ENTRIES_A_MAP_TILE;
+    first = first < e.left ? first : e.left;
+    past = past > e.right ? past : e.right;
+    first = first < 0 ? 0 : first > columns - 1 ? columns - 1 : first;
+    past = past > columns ? columns : past <= first ? first + 1 : past;
+    return (RoomColumns){ first, past };
+}
+
+static uint8_t clamp_to_the_room(const GameState *g, unsigned layer, int column)
+{
+    RoomColumns room = room_of(g, layer);
+    return (uint8_t)(column < room.first ? room.first : column >= room.past ? room.past - 1 : column);
 }
 
 /* A column of the map's entries, down from the row above the screen. */
@@ -600,11 +624,11 @@ static void build_a_margin_column(GameState *g, unsigned layer, int column, uint
 {
     ScreenEdges e = screen_edges(g, keeps_own_edges(g, layer));
     Staging out = { 0, line };
-    build_line(g, layer, (Line){ DOWN_A_COLUMN, clamp_to_the_map(g, layer, column), (uint8_t)(e.top - 1), RING_ROWS / 2 },
+    build_line(g, layer, (Line){ DOWN_A_COLUMN, clamp_to_the_room(g, layer, column), (uint8_t)(e.top - 1), RING_ROWS / 2 },
                &out);
 }
 
-/* Whether a map's edge column is one entry all the way down: a void. */
+/* Whether a room's edge column is one entry all the way down: a void. */
 static bool edge_is_a_void(GameState *g, unsigned layer, int column)
 {
     uint8_t line[(RING_ROWS + 2) * ENTRY_BYTES];
@@ -661,8 +685,9 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
             continue;
         ScreenEdges e = screen_edges(g, keeps_own_edges(g, layer));
         uint8_t x = field_layer_position_x(g, layer);
-        m->void_left[layer] = edge_is_a_void(g, layer, 0);
-        m->void_right[layer] = edge_is_a_void(g, layer, map_columns_of(g, layer) - 1);
+        RoomColumns room = room_of(g, layer);
+        m->void_left[layer] = edge_is_a_void(g, layer, room.first);
+        m->void_right[layer] = edge_is_a_void(g, layer, room.past - 1);
         for (int k = 1; k <= margin; k++) {
             send_a_margin_column(g, pf, layer, e.left - k, (uint8_t)((x - k) & (FIELD_TILE_MAP_COLUMNS - 1)));
             send_a_margin_column(g, pf, layer, e.right + k,
@@ -716,25 +741,33 @@ static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int
     ScreenEdges e = screen_edges(g, own);
     int fine = around_the_ring(scroll - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
     int first = e.left - margin, last = e.right + margin + 1;   /* the columns built, the last one past */
-    int map_last = map_columns_of(g, layer);
-    if (first < 0 && !m->void_left[layer])
-        first = 0;
-    if (last > map_last && !m->void_right[layer])
-        last = map_last;
+    RoomColumns room = room_of(g, layer);
+    if (first < room.first && !m->void_left[layer])
+        first = room.first;
+    if (last > room.past && !m->void_right[layer])
+        last = room.past;
     int left = (first - e.left) * FIELD_ENTRY_PIXELS - fine, right = (last - e.left) * FIELD_ENTRY_PIXELS - fine;
     return (FieldLayerSpan){ (int16_t)left, (int16_t)(right > left ? right : left), scroll };
 }
 
-/* The map's edges on the screen, by BG1, which the screen goes by: a layer
+/* The room's edges on the screen, by BG1, which the screen goes by: a layer
  * drawn whole (a still or drifting layer over the map) shows nothing past
- * them, where the map has no picture for it to be over. */
-static FieldLayerSpan maps_span(const GameState *g)
+ * them, where the room has no picture for it to be over. */
+static FieldLayerSpan rooms_span(const GameState *g)
 {
     int fine = around_the_ring(field_layer_scroll_h(g, FIELD_BG1) -
                                field_layer_position_x(g, FIELD_BG1) * FIELD_ENTRY_PIXELS);
     int screen_left = field_screen_left(g) * FIELD_ENTRY_PIXELS + fine;   /* the map's pixel at the screen's left */
-    int right = map_columns_of(g, FIELD_BG1) * FIELD_ENTRY_PIXELS - screen_left;
-    return (FieldLayerSpan){ (int16_t)-screen_left, (int16_t)right, 0 };
+    RoomColumns room = room_of(g, FIELD_BG1);
+    return (FieldLayerSpan){ (int16_t)(room.first * FIELD_ENTRY_PIXELS - screen_left),
+                             (int16_t)(room.past * FIELD_ENTRY_PIXELS - screen_left), 0 };
+}
+
+void field_rooms_span(const GameState *g, int16_t *left, int16_t *right)
+{
+    FieldLayerSpan room = rooms_span(g);
+    *left = room.left;
+    *right = room.right;
 }
 
 void field_show_the_layers_across(GameState *g, Platform *pf)
@@ -744,7 +777,7 @@ void field_show_the_layers_across(GameState *g, Platform *pf)
         return;
     FieldMargins *m = field_margins(g);
     uint32_t mark = charge_uncounted_begin(g);
-    FieldLayerSpan map = maps_span(g);
+    FieldLayerSpan map = rooms_span(g);
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         bool shown = ((field_main_screen(g) | field_sub_screen(g)) >> layer) & 1;
         m->span[layer] = shown ? layer_span(g, layer, view, margin_columns(view))
