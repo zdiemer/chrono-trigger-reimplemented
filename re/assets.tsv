@@ -7,7 +7,9 @@
 # FONT's glyphs from $XX on, as frontend/fonts.h's text; `tiles:2bpp`, `tiles:4bpp`: 8x8 tiles
 # of two or four bitplanes, and `lz:2bpp`, `lz:4bpp` the same packed, as frontend/tiles.h's
 # text; `lz:field-map`, `lz:looks`, `lz:tilemap:N`, `lz:bytes:N`, `lz:nibbles:N`, `lz:colors:N`:
-# packed maps, looks and grids, and `lz`, `lz:event` other packed streams, as frontend/maps.h's).
+# packed maps, looks and grids, and `lz`, `lz:event` other packed streams, as frontend/maps.h's;
+# `text:dialog` a string, `text:names:N` names of N glyphs, `text:dialog-dictionary` the
+# dictionary's words, as frontend/text.h's).
 # name	type	at	end	codec	found by
 menu_scene_scroll_pattern	bytes	C0:0000	C0:01BF	raw	accessor menu_scene_scroll_pattern_byte
 built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor built_in_command_byte
@@ -59,7 +61,7 @@ menu_item_category_start	bytes	C2:88A7	C2:88AC	raw	accessor menu_item_category_s
 menu_slot_first_item	bytes	C2:89DC	C2:89E3	raw	accessor menu_slot_first_item
 menu_clearing_zero	bytes	C2:9510	C2:9511	raw	accessor menu_clearing_zero
 menu_character_element	bytes	C2:A2C6	C2:A2CC	raw	accessor menu_character_element
-text_c2a3ba	text	C2:A3BA	C2:A3E1	text:menu	read
+text_c2a3ba	text	C2:A3BA	C2:A3E1	text:names:10	read
 menu_slot_record_place	bytes	C2:A4AB	C2:A4AE	raw	accessor menu_slot_record_place
 menu_equipment_figure_shown	bytes	C2:A642	C2:A64C	raw	accessor menu_equipment_figure_shown
 menu_slots_bands_at_rest_byte	bytes	C2:AA06	C2:AA18	raw	accessor menu_slots_bands_at_rest_byte
@@ -510,8 +512,8 @@ song_ptrs.80	spc700	CB:E13E	CB:E88E	raw	read
 song_ptrs.81	spc700	CB:E88F	CB:EE20	raw	read
 song_ptrs.82	spc700	CB:EE21	CB:F163	raw	song_ptrs entry
 area_rule_count	mixed	CC:0000	CC:0B5D	raw	accessor area_rule_count
-battle_item_name_char	text	CC:0B5E	CC:15C3	text:names	accessor battle_item_name_char
-battle_tech_name_char	text	CC:15C4	CC:1ACA	text:names	accessor battle_tech_name_char
+battle_item_name_char	text	CC:0B5E	CC:15C3	text:names:11	accessor battle_item_name_char
+battle_tech_name_char	text	CC:15C4	CC:1ACA	text:names:11	accessor battle_tech_name_char
 party_tech_aim	mixed	CC:1ACB	CC:2EB0	raw	accessor party_tech_aim
 menu_item_descriptions	ptr16	CC:2EB1	CC:3094	raw	accessor menu_item_descriptions
 menu_item_descriptions.0	text	CC:3095	CC:3095	text:dialog	read
@@ -644,7 +646,7 @@ menu_item_descriptions.208	text	CC:36DF	CC:36DF	text:dialog	read
 menu_item_descriptions.221	text	CC:36E0	CC:36F2	text:dialog	read
 menu_item_descriptions.222	text	CC:36F3	CC:36F3	text:dialog	read
 enemy_stats_record	mixed	CC:36F4	CC:64FF	raw	accessor enemy_stats_record
-setup_enemy_name_char	text	CC:6500	CC:6FC8	text:names	accessor setup_enemy_name_char
+setup_enemy_name_char	text	CC:6500	CC:6FC8	text:names:11	accessor setup_enemy_name_char
 action_record_place	mixed	CC:6FC9	CC:8B07	raw	accessor action_record_place
 enemy_scripts	script	CC:8B08	CC:CBC8	script:enemy-ai	accessor enemy_script_start
 mixed_cccbc9	mixed	CC:CBC9	CC:DFFF	raw	read

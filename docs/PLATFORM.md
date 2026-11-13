@@ -96,7 +96,7 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.text`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
@@ -258,6 +258,44 @@ attributes, a map too big for its slot); with the ROM staged every map of
 the cartridge reads back as its bytes. The lean gate runs on the decoded
 maps. Clearing eight rows of BG1 in map 60 changes Crono's house at frame
 6000 of `movies/new-game.ctm`, the map packed again.
+
+### Text
+
+The dialog's and the menus' strings (`text:dialog`, 4695 of them), the
+battle's names and the equipment screen's slot labels (`text:names:11`,
+`text:names:10`) and the dictionary the strings share words from
+(`text:dialog-dictionary`) are the text kind, `frontend/text.c`, kept as
+`<pack>.text`. A string is written as the typesetter reads it
+(`game/menu/typeset.c`): a glyph its letter, digit or sign (the dialog
+font's `“ ” ♪ ♥ … ∞` in UTF-8), a word of the dictionary its glyphs in angle
+brackets, and a control code its name in braces (`{line indent}`, `{page
+read}`, `{wait 0A}`, `{Crono}`, `{member 2}`, `{tech}`), each break ending
+a line of the text; anything else, and a space at a line's ends, in braces
+too (`{F3}`, `{01 7F}`, `{space}`), so every byte has a spelling. A name is
+its glyphs in quotes, in the small font, whose signs past `%` differ from
+the dialog font's and are written in hex. The dictionary is its 128 words a
+line, `XX "glyphs"`, in the order they are kept. A word in a string is the
+word the store under the text has with those glyphs (the pack's), so an
+edited dictionary changes every string that uses the word, as in the game;
+two words alike would be ambiguous and are written in hex.
+
+Read back, a string may be no longer than the cartridge's slot for it, its
+end included; a shorter one is ended there and the rest of its slot is
+zero. A name table has as many names as the cartridge's, and the
+dictionary's words must fit its slot. `decoded_beneath` asks the store
+under a text for each resource once, which keeps reading the strings'
+words from the dictionary quick.
+
+Measured: `text_test` (ROM-free) writes and reads back made-up strings of
+every code, words, signs and bytes no glyph spells, names and a dictionary
+with two words alike; serves a string written afresh (a word, a name, a
+wait, a two-byte glyph, a tech) and an edited name, and only what a text
+names; and refuses wrong text at its line (a code that isn't one, braces
+not closed, a word that isn't the dictionary's or is ambiguous, a sign that
+isn't a glyph, a string too long, a short name, too few names, a word given
+twice or missing). With the ROM staged every text resource reads back as
+its bytes. Changing Crono's mother's first line in `<pack>.text` shows at
+frame 6500 of `movies/new-game.ctm`.
 
 ## Further targets
 

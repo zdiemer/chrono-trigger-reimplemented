@@ -13,6 +13,7 @@ typedef struct {
     char fonts[1024];     /* the pack's fonts as text (frontend/fonts.h): beside it, .fonts */
     char graphics[1024];  /* the pack's graphics as text (frontend/tiles.h): beside it, .graphics */
     char maps[1024];      /* the pack's maps as text (frontend/maps.h): beside it, .maps */
+    char text[1024];      /* the pack's text as text (frontend/text.h): beside it, .text */
     const char *movie;    /* the movie being recorded, or NULL */
 } Files;
 

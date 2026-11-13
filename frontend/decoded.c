@@ -83,6 +83,7 @@ struct Decoded {
     uint8_t *bytes;   /* every decoded resource's, one after another */
     uint32_t *at;     /* where each row of the catalogue's are in `bytes`, or NOT_HERE */
     uint8_t *given;   /* whether the text gave the row */
+    const uint8_t **beneath;   /* what the store beneath serves for each row, once asked: NULL before */
     uint16_t hint;
 };
 
@@ -92,7 +93,12 @@ uint8_t *decoded_bytes(Decoded *d, int entry)
     return d->bytes + d->at[entry];
 }
 
-const uint8_t *decoded_beneath(const Decoded *d, int entry) { return served(d->base, &asset_catalogue[entry]); }
+const uint8_t *decoded_beneath(const Decoded *d, int entry)
+{
+    if (!d->beneath[entry])
+        d->beneath[entry] = served(d->base, &asset_catalogue[entry]);
+    return d->beneath[entry];
+}
 
 static bool space(char c) { return c == ' ' || c == '\t'; }
 
@@ -173,8 +179,9 @@ Decoded *decoded_import(const DecodedKind *kind, const char *text, size_t len, c
     if (d) {
         d->at = malloc(sizeof *d->at * asset_catalogue_count);
         d->given = calloc(asset_catalogue_count, 1);
+        d->beneath = calloc(asset_catalogue_count, sizeof *d->beneath);
     }
-    if (!d || !d->at || !d->given)
+    if (!d || !d->at || !d->given || !d->beneath)
         return refuse(d, "out of memory", why);
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         bool named;
@@ -254,6 +261,7 @@ void decoded_close(Decoded *d)
         free(d->bytes);
         free(d->at);
         free(d->given);
+        free(d->beneath);
         free(d);
     }
 }

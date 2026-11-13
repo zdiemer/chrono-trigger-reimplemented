@@ -37,8 +37,8 @@ const char *const asset_codec_names[] = {
     "struct:sprite-records",
     "text:dialog",
     "text:dialog-dictionary",
-    "text:menu",
-    "text:names",
+    "text:names:10",
+    "text:names:11",
     "tiles:2bpp",
     "tiles:4bpp",
 };
@@ -7132,4 +7132,4 @@ AssetServed asset_served[7082];
 
 const uint16_t asset_catalogue_count = 7082;
 
-const uint32_t asset_catalogue_version = 0x5D8B7C8Cu;
+const uint32_t asset_catalogue_version = 0x44BD1774u;

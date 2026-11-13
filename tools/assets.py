@@ -37,7 +37,9 @@ TILE_BYTES = {"tiles:2bpp": 16, "tiles:4bpp": 32}
 PACKED_CODEC = re.compile(r"lz(:event|:2bpp|:4bpp|:field-map|:looks|:(tilemap|bytes|colors):[1-9][0-9]*"
                           r"|:nibbles:([2468]|[1-9][0-9]*[02468]))?")
 
-
+# Text's codecs: a string, names of N glyphs each, the dictionary
+# (frontend/text.h writes and reads them as text).
+TEXT_CODEC = re.compile(r"text:(dialog|dialog-dictionary|names:[1-9][0-9]*)")
 
 class Row:
     __slots__ = ("name", "type", "at", "end", "codec", "found")
@@ -102,6 +104,10 @@ def problems_of(rows: list[Row]) -> list[str]:
             out.append(f"{r.name}: tiles are gfx, whole tiles of {TILE_BYTES[r.codec]} bytes")
         if (r.codec.startswith("lz") or r.type == "lz") and (not PACKED_CODEC.fullmatch(r.codec) or r.type != "lz"):
             out.append(f"{r.name}: a packed stream is lz, its codec lz or lz: and its kind (frontend/maps.h)")
+        if (r.codec.startswith("text") or r.type == "text") and (not TEXT_CODEC.fullmatch(r.codec) or r.type != "text"
+                or (r.codec.startswith("text:names:") and size % int(r.codec.split(":")[2]))):
+            out.append(f"{r.name}: text is text, its codec text:dialog, text:dialog-dictionary or text:names:N, "
+                       f"whole names of N glyphs")
         if i and rows[i - 1].end >= r.at:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out
