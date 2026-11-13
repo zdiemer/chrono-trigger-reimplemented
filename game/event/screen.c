@@ -439,9 +439,26 @@ static bool restart_the_game(GameState *g, Platform *pf)
     return false;
 }
 
+/* The commands opening a circle say where and how wide in three bytes after
+ * the command's number; the others are the opcode and the number alone, and
+ * nothing reads on past them (the last command of a script is often one,
+ * and past the script lie whatever bytes were there before it). */
+static const EventOpcode circle_opening = {
+    0xFF, .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 5
+};
+
+/* The work of the three operand reads the command's decode made when it took
+ * a circle's place after every screen command, kept as the command's time
+ * where it isn't one: the work rates the game was measured at include it. */
+enum { CIRCLE_OPERANDS = 3 };
+
 bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0xFF), at);
+    bool opens_a_circle = c.screen_command >= FIRST_SCREEN_COMMAND
+                          && screen_commands[screen_command_index(c.screen_command)].kind == OPENS_A_CIRCLE;
+    if (!opens_a_circle)
+        charge_accesses(g, CIRCLE_OPERANDS);
     if (c.screen_command < FIRST_SCREEN_COMMAND)
         return end_the_field_for_a_scene(g, pf, c.screen_command);
     unsigned i = screen_command_index(c.screen_command);
@@ -451,6 +468,12 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
         TIMED_AS(g, MENUS_SERVICES, (party_note_the_game_finished(pf), party_wear_it_shows(g)));
         *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
         return true;
+    }
+    if (opens_a_circle) {
+        EventCommand circle = event_decode(g, pf, &circle_opening, at);
+        c.x = circle.x;
+        c.y = circle.y;
+        c.radius = circle.radius;
     }
     bool done;
     TIMED_AS(g, screen_entries[i].entry,
@@ -503,5 +526,5 @@ EVENT_OPCODES(event_screen_opcodes,
     { 0x29, .credits_text = OPERAND_BITS(1, 0, 0x7F), .two_screens_tall = OPERAND_BITS(1, 7, 0x01), .length = 2 },
     { 0xFE, OPERATION(move_searchlight), .frames = OPERAND(1), .searchlight = SEARCHLIGHT_MOVE(2), .length = 18,
       CHECK(searchlight_moves_over_frames) },
-    { 0xFF, .screen_command = OPERAND(1), .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 2,
-      CHECK(a_screen_command), MEASURED(measure_screen_command) });
+    { 0xFF, .screen_command = OPERAND(1), .length = 2, CHECK(a_screen_command),
+      MEASURED(measure_screen_command) });

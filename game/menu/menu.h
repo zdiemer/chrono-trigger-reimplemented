@@ -74,6 +74,7 @@ typedef struct {
     Tasks tasks;
     bool closed;
     MenuModeContext *running;
+    int8_t fade_step;   /* the step every fade under way takes (menu/fades.c) */
 } MenuCoroutines;
 MenuCoroutines *menu_coroutines(GameState *g);
 
