@@ -273,7 +273,7 @@ def magic_cave_scene(run):
 
 
 def cave_out(run):
-    main_leg.through(run, *MAGIC_CAVE_EXIT, lambda: run.map_id() == WORLD_600, rounds=20)
+    search_walk(run, WORLD_600, MAGIC_CAVE_EXIT)
     world_toward(run, *CASTLE_DOOR, near=8)
 
 
@@ -416,7 +416,7 @@ def search_through(run, want, aim, max_places=3000, wait=False):
 
 def settle_fight(run):
     """A fight on the way: run from it, the party holding L and R, and only where that fails
-    (a fight the castle won't let it leave) fight it with castle_fights. The castle's inner
+    (a fight the game won't let it leave) fight it with castle_fights. The Magic Cave's and the castle's inner
     rooms are full of foes the party's blows hardly touch, and nothing on the way needs them
     beaten."""
     if not early.battle_ready(run):
@@ -432,7 +432,7 @@ def settle_fight(run):
         machine.free(FLEE_SLOT)
 
 
-def castle_walk(run, want, aim, rounds=20):
+def search_walk(run, want, aim, rounds=20):
     """search_through to map `want`, the fights on the way run from (settle_fight)."""
     for _ in range(rounds):
         if run.map_id() == want:
@@ -493,7 +493,7 @@ def ozzies_corridor(run):
 
 def inner_room(name):
     want, aim = INNER_WAY[name]
-    return lambda run: castle_walk(run, want, aim)
+    return lambda run: search_walk(run, want, aim)
 
 
 STEPS = {

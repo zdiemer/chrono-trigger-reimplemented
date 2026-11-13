@@ -181,7 +181,7 @@ Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
 Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 `castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
 corridor and the inner rooms (a search that plays ladders and stairs through)
-to Magus's door (frame about 387000). Ozzie waits there behind a barrier the
+to Magus's door (frame 385447). Ozzie waits there behind a barrier the
 party's blows barely touch; the leg stops before him, its MP spent.
 
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
