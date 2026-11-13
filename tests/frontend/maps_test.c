@@ -61,7 +61,8 @@ static const char *codec_of(const AssetEntry *e) { return asset_codec_names[e->c
 static bool is_map_kind(const AssetEntry *e)
 {
     const char *c = codec_of(e);
-    return !strncmp(c, "lz", 2) && strcmp(c, "lz:2bpp") && strcmp(c, "lz:4bpp");
+    return !strncmp(c, "lz", 2) && strcmp(c, "lz:2bpp") && strcmp(c, "lz:4bpp") && strcmp(c, "lz:8bpp") &&
+           strcmp(c, "lz:4bpp-chunky") && strcmp(c, "lz:event") && strcmp(c, "lz:place-lists");
 }
 
 /* A made-up location's map, 16x16 layers (BG3's where `bg3`): its bytes. */

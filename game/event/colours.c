@@ -212,6 +212,6 @@ EVENT_CHECK(screen_colours_reachable, colour_effect)
 EVENT_OPCODES(event_colours_opcodes,
     { 0x33, OPERATION(take_palette_slot), .palette = OPERAND_BITS(1, 0, 0x07), .length = 2 },
     { 0x88, OPERATION(change_object_colours), .colour_effect = OBJECT_COLOUR_EFFECT(1), .length = 2,
-      CHECK(object_colours_reachable) },
+      CHECK(object_colours_reachable), MEASURED(event_measure_object_colours) },
     { 0x2E, OPERATION(change_screen_colours), .colour_effect = SCREEN_COLOUR_EFFECT(1), .length = 2,
-      CHECK(screen_colours_reachable) });
+      CHECK(screen_colours_reachable), MEASURED(event_measure_screen_colours) });

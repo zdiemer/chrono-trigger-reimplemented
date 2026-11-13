@@ -26,6 +26,23 @@ PHASES = ["loaded", "mountain", "forest", "bridge"]
 MOUNTAIN, FOREST, BRIDGE = "a300", "7700", "8700"
 
 
+def play(run, start=1):
+    """From the world map beside the mountain to the flashback's first lines on the bridge;
+    `start` is the index in PHASES of the first phase to run."""
+    if start <= 1:
+        assert run.world_exit(), "a location on the world map"
+        assert run.map_id() == MOUNTAIN, "the mountainside"
+        run.checkpoint("mountain")
+    if start <= 2:
+        assert run.dialogs_until(lambda: run.map_id() == FOREST, 4000), "the forest of Frog's memory"
+        run.checkpoint("forest")
+    if start <= 3:
+        assert run.dialogs_until(lambda: run.map_id() == BRIDGE, 6000), "Glenn and Cyrus on the bridge"
+        assert run.dialogs_until(run.dialog, 2000), "the flashback's first line"
+        run.close_dialogs(1200)
+        run.checkpoint("bridge")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -45,18 +62,7 @@ def main():
         machine.run(120)
         run.say("loaded map", run.map_id(), "frame", machine.frame)
         run.checkpoint("loaded")
-    if start <= 1:
-        assert run.world_exit(), "a location on the world map"
-        assert run.map_id() == MOUNTAIN, "the mountainside"
-        run.checkpoint("mountain")
-    if start <= 2:
-        assert run.dialogs_until(lambda: run.map_id() == FOREST, 4000), "the forest of Frog's memory"
-        run.checkpoint("forest")
-    if start <= 3:
-        assert run.dialogs_until(lambda: run.map_id() == BRIDGE, 6000), "Glenn and Cyrus on the bridge"
-        assert run.dialogs_until(run.dialog, 2000), "the flashback's first line"
-        run.close_dialogs(1200)
-        run.checkpoint("bridge")
+    play(run, start)
     machine.screenshot(run.prefix + "_end.png")
     run.finish("Frog's flashback")
     if args.movie:

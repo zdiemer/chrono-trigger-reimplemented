@@ -45,6 +45,15 @@ uint16_t rom_read16(const GameState *g, uint32_t at)
 {
     return (uint16_t)(rom_read8(g, at) | rom_read8(g, at + 1) << 8);
 }
+/* A named resource's reads, by the address the catalogue keeps it at. */
+uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
+{
+    return rom_read8(g, asset_catalogue[resource].at + offset);
+}
+uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset)
+{
+    return (uint16_t)(asset_read8(g, resource, offset) | asset_read8(g, resource, offset + 1) << 8);
+}
 
 /* New Game+ party operations are outside this save-format test. */
 void party_equip(GameState *g, uint8_t c, uint8_t item) { (void)g; (void)c; (void)item; abort(); }

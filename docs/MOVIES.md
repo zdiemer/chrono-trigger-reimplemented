@@ -92,9 +92,9 @@ place after it, follow the time model rather than the game. A route from the
 same save chooses its commands by game state and wins (or, for the Lavos
 game over, loses) whatever the frames. `tools/fight_routes.txt` names the gate
 movies whose fight such a route carries, each movie's own route, the one its
-header names: 16 movies, from Giga Gaia, the Golem Twins, the Black Tyrano,
-Son of Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's
-forest and Death Peak's summit. The gate runs those routes beside the fast
+header names: 17 movies, from Dalton, Giga Gaia, the Golem Twins, the Black
+Tyrano, Son of Sun, Magus at North Cape and the Lavos game over to Cyrus,
+Fiona's forest and Death Peak's summit. The gate runs those routes beside the fast
 pair (`routes` in the gate's `times:` line). For those movies the outcome check
 (`tools/outcomes.py`) still holds every protected match in
 `tools/outcomes_baseline.txt`, and `tools/places_baseline.txt` still counts
@@ -110,21 +110,24 @@ reports, as it finishes, each fight's retries and the facts the fights leave
 took more retries than its line in `tools/fight_routes.txt` allows (none,
 unless the line says why: Magus at North Cape changes his barrier element and
 may take up to 24; main took 16), or where its levels, experience, gold,
-items won or event memory differ from `tools/fight_facts.txt`. Those values
+inventory or event memory differ from `tools/fight_facts.txt`, or where the
+file has no facts for it. The inventory is held both ways, every item but the
+consumables, Tonic to Lapis, whose use goes with a fight's course. Those values
 are each movie's reference end state, the frozen `emulator-oracle` tag's
 development build playing the movie with the original's code, whose saved
 game matches the movie's
-`game` digest in `tools/outcomes.txt`. All 16 match exactly.
+`game` digest in `tools/outcomes.txt`. All 17 match exactly.
 
-Dalton isn't carried. Its route wins, but the Golem Boss on the Blackbird's
-wing leaves before it is beaten, so the party gets neither its 2,000 gold nor
-its 2,500 experience (the reference has both, at frame 22087). Damage isn't
-the difference: the first round takes the boss from 15,000 to 13,206 HP in
-both plays. The boss leaves by frame 20259 with about 3,488 HP left (20981 with
-2,268 when Robo punches instead of trying Uzzi Punch); the reference was
-still hitting it at frame 21921, when it fell. The boss's countdown runs out
-sooner in native (issue #320's battle timing, or the countdown itself), so
-the movie keeps its pinned exceptions until that is found.
+Dalton's Golem Boss counts down once its turns pass a point and leaves when
+the count runs out, without its 2,000 gold and 2,500 experience. Played beside
+the reference, native's count went up on the same turn (the 286th tick of its
+turn timer) and every blow did the same damage; what differed was the route's
+play. It asked Robo for tech 5, Uzzi Punch, which this save's Robo hasn't
+learned: his list's entry 5 is a double tech past the blank row, which the
+menu refused or held for its partner, so his turns went by without a blow
+and the boss left first. The route now takes the single techs only
+(`policies.single_tech_known`), Robo Tackle beats the boss, and Dalton is
+carried again.
 
 Measured with the time-model change of issue #321 (each lag frame gets its
 own handlers' time) on a throwaway branch: all 17 fight routes then carried still win,
@@ -164,7 +167,25 @@ which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
 The other legs of the playthrough start from cartridge saves so the whole
-game is played in parallel. `playthrough_leg-d` starts from ctsave11 slot 1,
+game is played in parallel. `playthrough_leg-c` starts from ctsave08 slot 1,
+Crono, Ayla and Marle at Tyrano Lair's save point, and plays through `play()`
+of `black_tyrano`, `zeal_palace`, `mud_imp`, `giga_gaia`, `golem_twins` and
+`ocean_palace_lavos`, with its own phases between them: the Lair Ruins' Gate,
+the Golem and the exile, a dactyl to the Mystic Mountains' Gate, the End of
+Time's 2300 A.D. pillar, Lab 32, the Sewer Access's switch, Belthasar's Epoch
+to Algetty, Mt. Woe's islands, Dalton, the Ocean Palace's buttons, platforms,
+elevator and floor switches. It ends as Lavos rises from the Mammon Machine
+(frame 568835). The save's bag has no Tonics by Zeal, so its fights heal
+with Lapis, Marle's Cure 2 and Revives, and use weapons (the Ocean Palace's
+Scouts drink the element they are hit with); Shelters at Algetty's, Mt. Woe's
+and the Ocean Palace's save points restore the party before Mud Imp, Giga
+Gaia, Dalton and the Twins. No level or purchase was needed. The Ocean
+Palace's platform statues take the field's control a moment at a time while
+the pad still walks the party, so that stretch walks by position (measured in
+ct_native only). The palace's elevator stands still after its first fight
+until the orb on its left is confirmed, as the original does: checked with the
+frozen `emulator-oracle` oracle from ctsave10 slot 2.
+`playthrough_leg-d` starts from ctsave11 slot 1,
 the party held in the Blackbird after Crono is gone, with the save's party
 and items, and plays on through `play()` of `blackbird_save`, `dalton`,
 `north_cape` (Magus joins; until he is met the Epoch shows Marle's resolve
@@ -179,6 +200,17 @@ from each of its blows and deals it some 40, so an ending waits on a party
 grown by the Black Omen or by fighting. The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
+`playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest
+Maze, 65,000,000 B.C.) with the save's party and items: the maze and the
+Reptite Lair (`nizbel`'s piece), the Mystic Mountains' Gate, Melchior forging
+the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
+Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
+Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
+`castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
+corridor and the inner rooms (a search that plays ladders and stairs through)
+to Magus's door (frame 385447). Ozzie waits there behind a barrier the
+party's blows barely touch; the leg stops before him, its MP spent.
+
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check
 (`tools/wide_check.py`, docs/PLATFORM.md) as a non-blocking batch. Findings

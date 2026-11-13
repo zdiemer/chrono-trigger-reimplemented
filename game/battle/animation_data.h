@@ -91,13 +91,16 @@ static inline uint32_t battle_at(uint8_t bank, uint16_t offset) { return (uint32
 
 static inline bool battle_status_pose_ends(const GameState *g, uint16_t entry)
 {
-    return rom_read8(g, 0xCCF77Fu + entry * BATTLE_STATUS_POSE_BYTES) & BATTLE_STATUS_POSES_END;
+    return asset_read8(g, ASSET_BATTLE_STATUS_POSE_ENDS, entry * BATTLE_STATUS_POSE_BYTES) & BATTLE_STATUS_POSES_END;
 }
 
 static inline BattleStatusPose battle_status_pose(const GameState *g, uint16_t entry)
 {
-    uint32_t at = 0xCCF77Fu + entry * BATTLE_STATUS_POSE_BYTES;
-    return (BattleStatusPose){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+    uint32_t at = entry * BATTLE_STATUS_POSE_BYTES;
+    return (BattleStatusPose){ asset_read8(g, ASSET_BATTLE_STATUS_POSE_ENDS, at),
+                               asset_read8(g, ASSET_BATTLE_STATUS_POSE_ENDS, at + 1),
+                               asset_read8(g, ASSET_BATTLE_STATUS_POSE_ENDS, at + 2),
+                               asset_read8(g, ASSET_BATTLE_STATUS_POSE_ENDS, at + 3) };
 }
 
 /* A byte of an object's frame list or delay list, wherever its pointer puts
@@ -109,43 +112,44 @@ static inline uint8_t battle_frame_list_byte(const GameState *g, uint32_t at) { 
  * ($CC:FBCE: a fifth of it, 0 ending the list). */
 static inline uint8_t battle_enemy_animation_part(const GameState *g, uint8_t animation)
 {
-    return rom_read8(g, 0xCCFB91u + animation);
+    return asset_read8(g, ASSET_BATTLE_ENEMY_ANIMATION_PART, animation);
 }
 
 static inline uint8_t battle_enemy_frame_time(const GameState *g, uint8_t stored)
 {
-    return rom_read8(g, 0xCCFBCEu + stored);
+    return asset_read8(g, ASSET_BATTLE_ENEMY_FRAME_TIME, stored);
 }
 
 /* Which of the per-animation effects an enemy's animation runs ($CC:FBAB, by
  * animation). */
 static inline uint8_t battle_enemy_animation_effect(const GameState *g, uint8_t animation)
 {
-    return rom_read8(g, 0xCCFBABu + animation);
+    return asset_read8(g, ASSET_BATTLE_ENEMY_ANIMATION_EFFECT, animation);
 }
 
 /* The facing a direction between two points gives ($C0:F700, by the
  * direction $C1:0222 finds). */
 static inline uint8_t battle_facing_of_direction(const GameState *g, uint16_t direction)
 {
-    return rom_read8(g, 0xC0F700u + direction);
+    return asset_read8(g, ASSET_DIRECTION_FACINGS, direction);
 }
 
 static inline uint32_t battle_script_subroutine(const GameState *g, uint8_t number)
 {
-    return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 | rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
+    return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 |
+           asset_read16(g, ASSET_BATTLE_ANIMATION_CALLS, (uint8_t)(number * 2));
 }
 
 /* The eight speeds the scripts set a mover to by number: its period
  * ($CC:F5BC) and its steps a period ($CC:F4BC). */
 static inline uint8_t battle_script_speed_period(const GameState *g, uint8_t speed)
 {
-    return rom_read8(g, 0xCCF5BCu + speed);
+    return asset_read8(g, ASSET_BATTLE_SCRIPT_SPEED_PERIOD, speed);
 }
 
 static inline uint8_t battle_script_speed_steps(const GameState *g, uint8_t speed)
 {
-    return rom_read8(g, 0xCCF4BCu + speed);
+    return asset_read8(g, ASSET_BATTLE_SCRIPT_SPEED_STEPS, speed);
 }
 
 /* ---- Building an object's sprite graphics ------------------------------------------------- */
@@ -165,28 +169,28 @@ static inline bool battle_sprite_graphics_storage(uint32_t source)
  * as many bytes as $CC:F4FC gives. */
 static inline uint16_t battle_frame_tile_list_bytes(const GameState *g, uint8_t kind)
 {
-    return rom_read16(g, 0xCCF40Au + kind * 2u);
+    return asset_read16(g, ASSET_BATTLE_FRAME_TILE_LIST_BYTES, kind * 2u);
 }
 
 static inline uint8_t battle_frame_part_offset_bytes(const GameState *g, uint8_t kind)
 {
-    return rom_read8(g, 0xCCF4FCu + kind);
+    return asset_read8(g, ASSET_BATTLE_FRAME_PART_OFFSET_BYTES, kind);
 }
 
 static inline BattleSpriteLayout battle_sprite_layout(const GameState *g, uint16_t at)
 {
     BattleSpriteLayout layout;
     for (unsigned row = 0; row < BATTLE_LAYOUT_ROWS; row++)
-        layout.row_offset[row] = rom_read16(g, 0xCCF3B6u + at + row * 2u);
-    layout.tiles_per_row = rom_read8(g, 0xCCF3C2u + at);
-    layout.rows = rom_read8(g, 0xCCF3C3u + at);
+        layout.row_offset[row] = asset_read16(g, ASSET_BATTLE_SPRITE_LAYOUT, at + row * 2u);
+    layout.tiles_per_row = asset_read8(g, ASSET_BATTLE_SPRITE_LAYOUT_F3C2, at);
+    layout.rows = asset_read8(g, ASSET_BATTLE_SPRITE_LAYOUT_F3C2, 0x1u + at);
     return layout;
 }
 
 /* Where in bank $7E each object's tile buffer starts ($CC:F941, by object). */
 static inline uint16_t battle_object_tile_buffer(const GameState *g, unsigned object)
 {
-    return rom_read16(g, 0xCCF941u + object * 2u);
+    return asset_read16(g, ASSET_BATTLE_OBJECT_TILE_BUFFER, object * 2u);
 }
 
 /* A word of a frame's tile list, or a byte of its part offsets, wherever the
@@ -202,7 +206,10 @@ static inline uint8_t battle_sprite_graphics_byte(const GameState *g, uint32_t a
 
 /* Every byte with its bits in the other order ($C0:FD00): a row of a tile's
  * bit plane mirrored left to right. */
-static inline uint8_t battle_mirrored_byte(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
+static inline uint8_t battle_mirrored_byte(const GameState *g, uint8_t b)
+{
+    return asset_read8(g, ASSET_MIRRORED_BYTES, b);
+}
 
 static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16_t table, uint16_t frame)
 {
@@ -218,7 +225,7 @@ static inline uint16_t battle_palette_set_color(const GameState *g, bool seven, 
 
 static inline uint16_t battle_flash_color(const GameState *g, uint8_t set, unsigned color)
 {
-    return rom_read16(g, 0xD14D90u + (set * BATTLE_FLASH_SET_COLORS + color) * 2u);
+    return asset_read16(g, ASSET_BATTLE_FLASH_COLORS, (set * BATTLE_FLASH_SET_COLORS + color) * 2u);
 }
 
 /* ---- Effect records and bitmap sprites ---------------------------------------------------- */
@@ -242,12 +249,12 @@ static inline BattleEffectFrame battle_effect_frame_record(const GameState *g, u
  * by set), and the position of a bitmap shape's column or row ($CC:F820). */
 static inline uint16_t battle_sprite_set_start(const GameState *g, uint16_t set)
 {
-    return rom_read16(g, 0xCCF7C0u + set * 2u);
+    return asset_read16(g, ASSET_BATTLE_SPRITE_SET_START, set * 2u);
 }
 
 static inline uint8_t battle_bitmap_cell_position(const GameState *g, uint16_t cell)
 {
-    return rom_read8(g, 0xCCF820u + cell);
+    return asset_read8(g, ASSET_BATTLE_BITMAP_CELL_POSITION, cell);
 }
 
 /* ---- The battlefield's tiles ------------------------------------------------------------- */
@@ -262,38 +269,45 @@ static inline uint16_t battle_tile_descriptor(const GameState *g, uint16_t at)
 
 static inline uint16_t battle_tile_row_palette_word(const GameState *g, uint16_t at)
 {
-    return rom_read16(g, 0xCFE000u + at);
+    return asset_read16(g, ASSET_BATTLE_TILE_ROW_PALETTES, at);
 }
 
 /* A word of the battlefield's tile graphics ($D0:0000: two bit planes, and a
  * third for tiles that have one). */
 static inline uint16_t battle_field_graphics_word(const GameState *g, uint32_t at)
 {
-    return rom_read16(g, 0xD00000u + at);
+    return asset_read16(g, ASSET_BATTLEFIELD_TILE_POOL, at);
 }
 
 /* The mask that gives a tile's upper two bit planes the palette it takes
  * ($CD:1300, by palette * 2). */
 static inline uint16_t battle_palette_plane_mask(const GameState *g, uint8_t palette)
 {
-    return rom_read16(g, 0xCD1300u + palette * 2u);
+    return asset_read16(g, ASSET_BATTLE_PALETTE_PLANE_MASK, palette * 2u);
 }
 
 /* ---- A beaten enemy's dissolve ------------------------------------------------------------- */
 
 /* How far a dissolve moves on through the 64 places of a tile at each step,
  * by its pace ($CE:EFEA, a byte a pace, by the pace's low three bits). */
-static inline uint8_t battle_dissolve_stride(const GameState *g, uint8_t pace) { return rom_read8(g, 0xCEEFEAu + (pace & 7u)); }
+static inline uint8_t battle_dissolve_stride(const GameState *g, uint8_t pace)
+{
+    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0xD9u + (pace & 7u));
+}
 
 static inline BattleTileRun battle_dissolve_run(const GameState *g, uint8_t layout, unsigned run)
 {
     uint16_t at = (uint16_t)((uint8_t)(layout * 8u) + run * 4u);
-    return (BattleTileRun){ rom_read16(g, 0xCEF192u + at), rom_read16(g, 0xCEF194u + at) };
+    return (BattleTileRun){ asset_read16(g, ASSET_BATTLE_DISSOLVE_RUN, at),
+                            asset_read16(g, ASSET_BATTLE_DISSOLVE_RUN_F194, at) };
 }
 
 /* How much of the object's tile buffer a dissolve sends to VRAM a frame, in
  * bytes, by the object's graphics kind ($CE:F156, a word a kind). */
-static inline uint16_t battle_dissolve_bytes(const GameState *g, uint8_t kind) { return rom_read16(g, 0xCEF156u + kind * 2u); }
+static inline uint16_t battle_dissolve_bytes(const GameState *g, uint8_t kind)
+{
+    return asset_read16(g, ASSET_BATTLE_DISSOLVE_BYTES, kind * 2u);
+}
 
 /* Commands selected by the running battle animation. */
 static inline uint8_t battle_animation_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }

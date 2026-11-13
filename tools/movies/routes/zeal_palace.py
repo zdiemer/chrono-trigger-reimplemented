@@ -46,6 +46,72 @@ def doorway(run, x, y, direction, destination):
     assert run.wait_control(12000)
 
 
+def play(run, start=1):
+    """From the 12000 B.C. snowfield's world map to the pendant charged and the
+    Mammon Machine's room back in hand; `start` is the index in PHASES of the
+    first phase to run."""
+    machine = run.machine
+    if start <= 1:
+        enter(run, 864, 688, "5101")
+        beam(run, 90, "6101")
+        outside(run, "f501")
+        run.checkpoint("island")
+    if start <= 2:
+        enter(run, 936, 600, "5001")
+        beam(run, 180, "6201")
+        outside(run, "f401")
+        run.checkpoint("snow2")
+    if start <= 3:
+        enter(run, 992, 192, "6401")
+        beam(run, 130, "6001")
+        outside(run, "f501")
+        run.checkpoint("mainland")
+    if start <= 4:
+        enter(run, 728, 496, "8501")
+        beam(run, 140, "8501")
+        assert run.me()[0] > 400
+        outside(run, "f501")
+        enter(run, 816, 456, "8501")
+        beam(run, 140, "8501")
+        assert run.me()[0] > 800
+        outside(run, "f501")
+        run.checkpoint("mountain")
+    if start <= 5:
+        enter(run, 808, 400, "9101")
+        run.checkpoint("palace")
+    if start <= 6:
+        doorway(run, 584, 176, "UP", "9201")
+        doorway(run, 968, 112, "UP", "4801")
+        assert machine.b(0x7F00F4) & 0x10
+        run.checkpoint("schala")
+    if start <= 7:
+        doorway(run, 824, 448, "DOWN", "9201")
+        doorway(run, 888, 176, "DOWN", "9101")
+        doorway(run, 328, 144, "UP", "4901")
+        machine.run(280, "UP")
+        assert run.dialogs_until(lambda: machine.b(0x7F0000) == 0xA2, 8000)
+        assert run.wait_control()
+        run.checkpoint("door")
+    if start <= 8:
+        doorway(run, 120, 464, "DOWN", "9101")
+        doorway(run, 136, 224, "UP", "4a01")
+        # The platform changes maps before a walking search can stop on
+        # its destination tile. Release UP as soon as that change starts.
+        for _ in range(100):
+            machine.run(8, "UP")
+            if run.map_id() == "4b01":
+                break
+        assert run.map_id() == "4b01"
+        machine.run(160)
+        assert run.wait_control()
+        machine.run(100, "UP")
+        machine.run(3, "A")
+        assert run.dialogs_until(lambda: machine.b(0x7F0000) == 0xA5, 8000)
+        assert run.wait_control()
+        assert run.map_id() == "4b01" and machine.b(0x7F0000) == 0xA5
+        run.checkpoint("charged")
+
+
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
@@ -62,65 +128,7 @@ def main():
             assert run.map_id() == "f401" and machine.b(0x7F0000) == 0x9F
             assert not machine.b(0x7F00F4) & 0x10, "Schala's meeting still ahead"
             run.checkpoint("loaded")
-        if start <= 1:
-            enter(run, 864, 688, "5101")
-            beam(run, 90, "6101")
-            outside(run, "f501")
-            run.checkpoint("island")
-        if start <= 2:
-            enter(run, 936, 600, "5001")
-            beam(run, 180, "6201")
-            outside(run, "f401")
-            run.checkpoint("snow2")
-        if start <= 3:
-            enter(run, 992, 192, "6401")
-            beam(run, 130, "6001")
-            outside(run, "f501")
-            run.checkpoint("mainland")
-        if start <= 4:
-            enter(run, 728, 496, "8501")
-            beam(run, 140, "8501")
-            assert run.me()[0] > 400
-            outside(run, "f501")
-            enter(run, 816, 456, "8501")
-            beam(run, 140, "8501")
-            assert run.me()[0] > 800
-            outside(run, "f501")
-            run.checkpoint("mountain")
-        if start <= 5:
-            enter(run, 808, 400, "9101")
-            run.checkpoint("palace")
-        if start <= 6:
-            doorway(run, 584, 176, "UP", "9201")
-            doorway(run, 968, 112, "UP", "4801")
-            assert machine.b(0x7F00F4) & 0x10
-            run.checkpoint("schala")
-        if start <= 7:
-            doorway(run, 824, 448, "DOWN", "9201")
-            doorway(run, 888, 176, "DOWN", "9101")
-            doorway(run, 328, 144, "UP", "4901")
-            machine.run(280, "UP")
-            assert run.dialogs_until(lambda: machine.b(0x7F0000) == 0xA2, 8000)
-            assert run.wait_control()
-            run.checkpoint("door")
-        if start <= 8:
-            doorway(run, 120, 464, "DOWN", "9101")
-            doorway(run, 136, 224, "UP", "4a01")
-            # The platform changes maps before a walking search can stop on
-            # its destination tile. Release UP as soon as that change starts.
-            for _ in range(100):
-                machine.run(8, "UP")
-                if run.map_id() == "4b01":
-                    break
-            assert run.map_id() == "4b01"
-            machine.run(160)
-            assert run.wait_control()
-            machine.run(100, "UP")
-            machine.run(3, "A")
-            assert run.dialogs_until(lambda: machine.b(0x7F0000) == 0xA5, 8000)
-            assert run.wait_control()
-            assert run.map_id() == "4b01" and machine.b(0x7F0000) == 0xA5
-            run.checkpoint("charged")
+        play(run, start)
         run.finish("Schala's sealed door opened and the pendant charged at the Mammon Driver")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

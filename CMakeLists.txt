@@ -353,7 +353,7 @@ target_link_libraries(ct_game PUBLIC ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
   frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
-  frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/text.c
+  frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/scripts.c frontend/text.c
   frontend/records.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
@@ -412,7 +412,7 @@ if(BUILD_TESTING)
   target_include_directories(native_time_test PRIVATE game runtime)
   add_executable(program_test tests/port/program_test.c game/core/program.c game/core/sprite_table.c)
   target_link_libraries(program_test PRIVATE ct_state_host)
-  add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c)
+  add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c game/data/asset_catalogue.c)
   # Preserve bounds diagnostics when an indexed variable moves into a struct.
   add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
     runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
@@ -439,6 +439,10 @@ if(BUILD_TESTING)
   add_executable(maps_test tests/frontend/maps_test.c frontend/decoded.c frontend/maps.c frontend/packed.c
     frontend/lz.c frontend/assets.c game/data/asset_catalogue.c)
   target_include_directories(maps_test PRIVATE frontend game)
+  add_executable(scripts_test tests/frontend/scripts_test.c frontend/decoded.c frontend/scripts.c frontend/packed.c
+    frontend/lz.c frontend/assets.c)
+  target_include_directories(scripts_test PRIVATE frontend game)
+  target_link_libraries(scripts_test PRIVATE ct_game)
   add_executable(text_test tests/frontend/text_test.c frontend/decoded.c frontend/text.c frontend/assets.c
     game/data/asset_catalogue.c)
   target_include_directories(text_test PRIVATE frontend game)
@@ -455,13 +459,18 @@ if(BUILD_TESTING)
   target_link_libraries(palette_sharers_test PRIVATE ct_game)
   add_executable(object_talk_test tests/port/object_talk_test.c)
   target_link_libraries(object_talk_test PRIVATE ct_game)
+  add_executable(menu_fade_test tests/port/menu_fade_test.c)
+  target_link_libraries(menu_fade_test PRIVATE ct_game)
+  add_executable(screen_command_test tests/port/screen_command_test.c)
+  target_include_directories(screen_command_test PRIVATE runtime)
+  target_link_libraries(screen_command_test PRIVATE ct_game)
   add_executable(sound_native_test tests/frontend/sound_native_test.c frontend/sound_native.c)
   target_include_directories(sound_native_test PRIVATE frontend runtime)
   target_link_libraries(sound_native_test PRIVATE ct_game)
   add_executable(enemy_movement_test tests/port/enemy_movement_test.c)
   target_include_directories(enemy_movement_test PRIVATE game runtime)
   target_link_libraries(enemy_movement_test PRIVATE ct_game)
-  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps text records sound_setting sound_native object_talk enemy_movement palette_sharers)
+  foreach(test player_files recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps scripts text records sound_setting sound_native object_talk enemy_movement menu_fade screen_command palette_sharers)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()
@@ -469,6 +478,9 @@ if(BUILD_TESTING)
     endif()
     set_tests_properties(${test} PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   endforeach()
+  # The decoded maps drawn from their texts against ct_native's pictures (with the ROM staged).
+  add_test(NAME map_pictures COMMAND ${Python3_EXECUTABLE} tests/frontend/map_pictures.py $<TARGET_FILE:ct_native>)
+  set_tests_properties(map_pictures PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   if(CT_SDL2)
     add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c frontend/bindings_config.c frontend/storage.c)
     target_include_directories(bindings_test PRIVATE frontend)

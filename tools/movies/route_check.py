@@ -107,7 +107,10 @@ def carried_fight(name, lines):
     bounds = outcomes.fight_retries()
     if name not in bounds:
         return []
-    return fight_facts.verdict(name, lines, bounds[name], fight_facts.read_expected().get(name, {}))
+    expected = fight_facts.read_expected().get(name)
+    if not expected:
+        return ["no expected facts in tools/fight_facts.txt"]
+    return fight_facts.verdict(name, lines, bounds[name], expected)
 
 
 def run_one(route, scratch, rom, drive, timeout, resume=False, protocol_log=False):

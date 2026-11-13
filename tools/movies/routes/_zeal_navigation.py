@@ -6,7 +6,10 @@ aimed at a waypoint; only the successful path is replayed into the movie.
 """
 import heapq
 
-def approach(run, x, y, *, world=False, limit=3900):
+def approach(run, x, y, *, world=False, limit=3900, stop=None):
+    """Walk to within a few pixels of (x, y). `stop(machine)`, where given,
+    ends the walk early too: Mt. Woe's ambushes take the field from a walk
+    long before it arrives, so a caller fights and searches again."""
     machine = run.machine
     if world:
         pos = lambda: run.world_pos()
@@ -46,6 +49,9 @@ def approach(run, x, y, *, world=False, limit=3900):
                 if rest:
                     machine.probe(rest)
                 px, py = pos()
+                if stop and stop(machine):
+                    found = (slot, direction)
+                    break
                 if run.map_id() != here:
                     continue
                 if abs(px - x) < 6 and abs(py - y) < 6:

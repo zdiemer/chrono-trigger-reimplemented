@@ -66,6 +66,7 @@ HEADER = """\
 
 MENU_SCREEN = 0x7E0067      # which of the menus' screens is open
 NAMING_SCREEN = 0x0D        # name entry (and, on a new game, the battle mode first)
+EXCHANGE_SCREEN = 7         # the party exchange, which a member joining a full party opens
 CURSOR = 0x7E0054
 GOLD = 0x7E2C53             # three bytes
 LEENE_SQUARE = 0x005        # the Millennial Fair's lower square
@@ -192,12 +193,13 @@ def flee(run, max_frames=3000):
     raise AssertionError("the party could not run")
 
 
-def win(run, seed=1):
+def win(run, seed=1, policy=early.early_party, max_frames=35000):
     """Fight the battle that is open to its end: every enemy down, or the
     field given back (a fight a scene ends, as the prison's guards' does,
     leaves its enemies standing). Lab 16's Shadows, which have 1 HP and take
     no harm from a weapon, are run from; any other fight with no enemy the
-    bot can wear down fails the route."""
+    bot can wear down fails the route. `policy` chooses the party's actions; a fight
+    still going after `max_frames` fails the route."""
     machine = run.machine
     kinds = enemy_kinds(machine)
     run.say("enemies", sorted(kinds))
@@ -216,7 +218,7 @@ def win(run, seed=1):
         field_frames[0] = field_frames[0] + 1 if machine.b(A.FIELD_PLAYER_CONTROL) else 0
         return field_frames[0] >= 60
 
-    run.fight(early.early_party, over, party=party_size(run), seed=seed, max_frames=35000, max_tries=300)
+    run.fight(policy, over, party=party_size(run), seed=seed, max_frames=max_frames, max_tries=300)
 
 
 def catch_the_rat(run, max_nodes=2500):
@@ -447,21 +449,28 @@ def drink_tonics(run, margin=40):
     assert run.wait_control(), "the field after the menu"
 
 
-def in_hand(run, max_frames=12000, seed=1):
+def in_hand(run, max_frames=12000, seed=1, policy=early.early_party):
     """Play on until the pad walks the party again: windows closed with
-    confirm, each name the game asks for accepted as offered (Start), and any
+    confirm, each name the game asks for accepted as offered (Start), the
+    party exchange a joining member opens left as offered (cancel), and any
     fight that starts on the way won. True once it is."""
     machine = run.machine
     start = machine.frame
     found = held = 0
     while machine.frame - start < max_frames:
         if early.battle_ready(run):
-            win(run, seed)
+            win(run, seed, policy)
             found = held = 0
+            start = machine.frame     # the wait is for the field: a long fight's own limit is win's
             continue
         if naming(run):
             machine.run(3, "START")
             machine.run(40)
+            continue
+        if machine.b(MENU_SCREEN) == EXCHANGE_SCREEN and not machine.b(A.FIELD_PLAYER_CONTROL):
+            machine.run(3, "B")
+            machine.run(90)
+            found = held = 0
             continue
         if run.dialog():
             machine.run(3, "A")
@@ -502,7 +511,7 @@ def walking(run, max_rounds=8):
     run.say("the leader is object", run.player)
 
 
-def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
+def leave_fighting(run, want, max_rounds=12, seed=1, ends=(), policy=early.early_party):
     """Walk until the screen is map `want`, winning the fights on the way (the
     field's encounters take control from the walk) and closing windows. A
     scene that carries the party on to one of the maps in `ends` ends the
@@ -510,7 +519,7 @@ def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
     machine = run.machine
     done = lambda: run.map_id() == want or run.map_id() in ends
     for _ in range(max_rounds):
-        assert in_hand(run), "the field in hand"
+        assert in_hand(run, policy=policy), "the field in hand"
         if done():
             return True
         moves = run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == want
@@ -523,22 +532,24 @@ def leave_fighting(run, want, max_rounds=12, seed=1, ends=()):
         machine.run(30)
         if early.battle_ready(run) or run.dialogs_until(lambda: early.battle_ready(run) or bool(
                 machine.b(A.FIELD_PLAYER_CONTROL)), 3000) and early.battle_ready(run):
-            win(run, seed)
+            win(run, seed, policy)
     return done()
 
 
-def through(run, x, y, arrived, seed=1, rounds=10):
-    """Head for (x, y) by the biased search (_trial_walk.toward) until
-    `arrived()`, settling the fights and scenes that stop the walk."""
+def through(run, x, y, arrived, seed=1, rounds=10, limit=1800, policy=early.early_party):
+    """Head for (x, y) by the biased search (_trial_walk.toward, searching up
+    to `limit` places) until `arrived()`, settling the fights and scenes that
+    stop the walk."""
     machine = run.machine
     for _ in range(rounds):
-        assert in_hand(run), "the field in hand"
+        assert in_hand(run, policy=policy), "the field in hand"
         if arrived():
             return
-        toward(run, x, y, lambda: arrived() or not machine.b(A.FIELD_PLAYER_CONTROL) or run.dialog())
+        toward(run, x, y, lambda: arrived() or not machine.b(A.FIELD_PLAYER_CONTROL) or run.dialog(),
+               limit=limit)
         if arrived():
             return
-        assert in_hand(run, 30000, seed), "the scene or fight ends"
+        assert in_hand(run, 30000, seed, policy), "the scene or fight ends"
     raise AssertionError(("too many stops on the way to", (x, y)))
 
 

@@ -93,8 +93,8 @@ static inline uint32_t sound_effect_set_at(uint8_t set) { return set ? 0xC75B0Bu
 /* A byte of the driver's program, boot block 0, by its SPC700 address. */
 static inline uint8_t sound_program_byte(const GameState *g, uint16_t spc)
 {
-    uint32_t block = 0xC70000u | rom_read16(g, 0xC70010u);
-    uint16_t destination = rom_read16(g, 0xC7001Cu);
+    uint32_t block = 0xC70000u | asset_read16(g, ASSET_SOUND_PROGRAM_BYTE, 0x9u);
+    uint16_t destination = asset_read16(g, ASSET_SOUND_PROGRAM_BYTE, 0x15u);
     return rom_read8(g, block + 2 + (uint16_t)(spc - destination));
 }
 
@@ -147,8 +147,8 @@ static inline uint16_t sound_boot_instrument_envelope(const GameState *g, uint8_
 /* song_ptrs: a song's sequence, as it goes to SPC700 $2000. */
 static inline uint32_t sound_song_at(const GameState *g, uint8_t song)
 {
-    uint32_t at = 0xC70D18u + 3u * song;
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = 3u * song;
+    return asset_read16(g, ASSET_SOUND_SONG_AT, at) | (uint32_t)asset_read8(g, ASSET_SOUND_SONG_AT, at + 2) << 16;
 }
 
 static inline uint16_t sound_song_length(const GameState *g, uint8_t song) { return rom_read16(g, sound_song_at(g, song)); }
@@ -161,7 +161,7 @@ static inline uint8_t sound_song_byte(const GameState *g, uint8_t song, uint16_t
 
 static inline uint8_t sound_song_instrument_block(const GameState *g, uint8_t song, uint8_t i)
 {
-    return (uint8_t)rom_read16(g, 0xC70E11u + 32u * song + 2u * i);
+    return (uint8_t)asset_read16(g, ASSET_SOUND_SONG_INSTRUMENT_BLOCK, 32u * song + 2u * i);
 }
 
 /* A block's instrument: its tuning and envelope. The index is the original's,
@@ -169,12 +169,12 @@ static inline uint8_t sound_song_instrument_block(const GameState *g, uint8_t so
  * sent it. */
 static inline uint16_t sound_instrument_tuning(const GameState *g, uint16_t block)
 {
-    return rom_read16(g, 0xC70C20u + (uint16_t)((block - 1) * 2));
+    return asset_read16(g, ASSET_SOUND_INSTRUMENT_TUNING, (uint16_t)((block - 1) * 2));
 }
 
 static inline uint16_t sound_instrument_envelope(const GameState *g, uint16_t block)
 {
-    return rom_read16(g, 0xC70C9Cu + (uint16_t)((block - 1) * 2));
+    return asset_read16(g, ASSET_SOUND_INSTRUMENT_ENVELOPE, (uint16_t)((block - 1) * 2));
 }
 
 static inline uint8_t sound_song_percussion_byte(const GameState *g, uint8_t song, uint8_t i)
@@ -187,31 +187,37 @@ static inline uint8_t sound_song_percussion_byte(const GameState *g, uint8_t son
 /* How many songs there are; and song `song`'s entry: the echo delay it plays
  * with, which is also how much sound memory it keeps free for the echo at the
  * top (the low nibble of the first byte), and the volume it starts at. */
-static inline uint8_t sound_songs(const GameState *g) { return rom_read8(g, 0xC70AE9u); }
+static inline uint8_t sound_songs(const GameState *g) { return asset_read8(g, ASSET_SOUND_SONGS, 0); }
 
 static inline uint8_t sound_song_echo_delay(const GameState *g, uint8_t song)
 {
-    return rom_read8(g, 0xC7241Du + 2u * (song & 0x7F)) & 0x0F;
+    return asset_read8(g, ASSET_SOUND_SONG_ECHO_DELAY, 2u * (song & 0x7F)) & 0x0F;
 }
 
-static inline uint8_t sound_song_volume(const GameState *g, uint8_t song) { return rom_read8(g, 0xC7241Eu + 2u * (song & 0x7F)); }
+static inline uint8_t sound_song_volume(const GameState *g, uint8_t song)
+{
+    return asset_read8(g, ASSET_SOUND_SONG_VOLUME, 2u * (song & 0x7F));
+}
 
 /* Commands $30-$3F stand for four bytes each, a command and its three
  * parameters (`i` 0-3); and the songs whose command saves the song playing
  * first, a list ended by a negative byte. */
 static inline uint8_t sound_shortcut_byte(const GameState *g, uint8_t n, uint8_t i)
 {
-    return rom_read8(g, 0xC70A98u + 4u * n + i);
+    return asset_read8(g, ASSET_SOUND_SHORTCUT_BYTE, 4u * n + i);
 }
 
-static inline uint8_t sound_song_saving_first(const GameState *g, uint16_t i) { return rom_read8(g, 0xC70AD8u + i); }
+static inline uint8_t sound_song_saving_first(const GameState *g, uint16_t i)
+{
+    return asset_read8(g, ASSET_SOUND_SHORTCUT_BYTE, 0x40u + i);
+}
 
 /* A sample block (1-62): its length and BRR bytes, and where in it the sample
  * loops from (sound_block_ptrs and the table after it, as above). */
 static inline uint32_t sound_block_data(const GameState *g, uint16_t id)
 {
-    uint32_t at = 0xC70AEAu + (uint16_t)((id - 1) * 3);
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    uint32_t at = (uint16_t)((id - 1) * 3);
+    return asset_read16(g, ASSET_SOUND_BLOCK_PTRS, at) | (uint32_t)asset_read8(g, ASSET_SOUND_BLOCK_PTRS, at + 2) << 16;
 }
 
 static inline uint16_t sound_block_length(const GameState *g, uint16_t id) { return rom_read16(g, sound_block_data(g, id)); }
@@ -223,12 +229,12 @@ static inline uint8_t sound_block_byte(const GameState *g, uint16_t id, uint16_t
 
 static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
 {
-    return rom_read16(g, 0xC70BA4u + (uint16_t)((id - 1) * 2));
+    return asset_read16(g, ASSET_SOUND_BLOCK_LOOP, (uint16_t)((id - 1) * 2));
 }
 
 static inline uint16_t sound_boot_block_to(const GameState *g, uint8_t block)
 {
-    return rom_read16(g, 0xC7001Cu + 2u * block);
+    return asset_read16(g, ASSET_SOUND_PROGRAM_BYTE, 0x15u + 2u * block);
 }
 
 static inline uint16_t sound_boot_block_length(const GameState *g, uint8_t block)

@@ -49,6 +49,11 @@ typedef struct {
     uint32_t most;   /* the most bytes the kind will make of it, once it knows */
     uint8_t *made;
     uint32_t made_len, made_room;
+    /* the line being read (from 1), and its last line so far; read_end may
+     * set wrong_at to the line what is wrong is on, or leave it 0 for the
+     * resource's [name] line */
+    unsigned line, last_line, wrong_at;
+    void *own;   /* what the kind keeps of its own as it reads, kept from resource to resource (forget) */
 } DecodedReading;
 
 /* `more` bytes, 0, added to the reading's own bytes: where they start, or NULL
@@ -68,6 +73,13 @@ typedef struct {
      * end: NULL, or what is wrong. */
     const char *(*read_line)(Decoded *d, DecodedReading *r, const char *s, const char *end);
     const char *(*read_end)(Decoded *d, DecodedReading *r);
+    /* NULL, or let go of r->own once the text is read */
+    void (*forget)(DecodedReading *r);
+    /* NULL, or a hash of what the text's lines are written in beyond the
+     * catalogue's rows (a script's command names and parameters, from the
+     * event table): the stamp changes with it, so a text written in an older
+     * one is set aside rather than misread */
+    uint32_t (*language)(void);
 } DecodedKind;
 
 /* The catalogue's row of a name (`len` bytes of it), looked for from *hint on:
@@ -90,12 +102,14 @@ bool decoded_word(const char **s, const char *end, const char *word);
 
 /* Every resource of the kind `store` serves, as text: malloc'd, *len bytes
  * (and a NUL after them); NULL with *why when the store lacks one. Its opening
- * comment says the catalogue it was written from. */
+ * comment stamps the rows of the catalogue the kind decodes. */
 char *decoded_export(const DecodedKind *kind, const AssetStore *store, size_t *len, const char **why);
 
-/* Whether a text's opening comment says it was written from this catalogue:
- * one of another (an older one's names, codecs and forms) isn't read. */
-bool decoded_of_this_catalogue(const char *text, size_t len);
+/* Whether a text's opening comment says it was written from the rows of the
+ * catalogue the kind decodes as they are now: one written from others (an
+ * older catalogue's names, codecs and lengths for them) isn't read. A change
+ * to rows the kind doesn't decode leaves its texts good. */
+bool decoded_of_these_rows(const DecodedKind *kind, const char *text, size_t len);
 
 /* Resources read from text, served over `base`: NULL with *why and the line
  * (from 1) where the text is wrong; what is wrong with a resource as a whole

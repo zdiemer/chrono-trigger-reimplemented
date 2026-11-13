@@ -7,7 +7,8 @@
 # FONT's glyphs from $XX on, as frontend/fonts.h's text; `tiles:2bpp`, `tiles:4bpp`: 8x8 tiles
 # of two or four bitplanes, and `lz:2bpp`, `lz:4bpp` the same packed, as frontend/tiles.h's
 # text; `lz:field-map`, `lz:looks`, `lz:tilemap:N`, `lz:bytes:N`, `lz:nibbles:N`, `lz:colors:N`:
-# packed maps, looks and grids, and `lz`, `lz:event` other packed streams, as frontend/maps.h's;
+# packed maps, looks and grids, and `lz` other packed streams, as frontend/maps.h's; `lz:event`
+# a location's event script and `lz:place-lists` a world map's places, as frontend/scripts.h's;
 # `text:dialog` a string, `text:names:N` names of N glyphs, `text:dialog-dictionary` the
 # dictionary's words, as frontend/text.h's; `tiles:plane-pool` the battlefield's tiles of two or
 # three bitplanes, cut by their descriptors, as frontend/tiles.h's; `struct:sprite-records:N`,
@@ -18,11 +19,20 @@ built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor buil
 command_handler	jump-table	C0:5D6E	C0:5F6D	raw	accessor command_handler
 field_window_design_graphics	bytes	C0:6EA0	C0:6EAF	raw	accessor field_window_design_graphics
 field_slope	bytes	C0:9BF5	C0:9C36	raw	accessor field_slope
-slope_angle	mixed	C0:F170	C0:FEFF	raw	accessor slope_angle
-bit_mask	bytes	C0:FF18	C0:FFAF	raw	accessor bit_mask
+mixed_c0f170	mixed	C0:F170	C0:F2FF	raw	read
+slope_angles	bytes	C0:F300	C0:F6FF	raw	accessor slope_angle, battle_arctangent
+direction_facings	bytes	C0:F700	C0:F7FF	raw	accessor battle_facing_of_direction, battle_facing_for_angle
+direction_factors	bytes	C0:F800	C0:F8FF	raw	accessor field_direction_factor
+sines	bytes	C0:F900	C0:FCFF	raw	accessor battle_sine_magnitude
+mirrored_bytes	bytes	C0:FD00	C0:FDFF	raw	accessor battle_mirrored_byte
+random_bytes	bytes	C0:FE00	C0:FEFF	raw	accessor battle_random_table
+bit_masks	bytes	C0:FF18	C0:FF2F	raw	accessor bit_mask, bit_clear_mask
+field_wave_offsets	words	C0:FF30	C0:FFAB	raw	accessor field_wave_offset
+mixed_c0ffac	mixed	C0:FFAC	C0:FFAF	raw	read
 battle_script_handler	jump-table	C1:7A6B	C1:7C20	raw	accessor battle_script_handler
 selector_routine	jump-table	C1:B8BB	C1:B92C	raw	accessor selector_routine
-battle_debugging_switch	mixed	C1:FDD3	C1:FFFF	raw	accessor battle_debugging_switch
+mixed_c1fdd3	mixed	C1:FDD3	C1:FFFE	raw	read
+battle_debugging_switch	mixed	C1:FFFF	C1:FFFF	raw	accessor battle_debugging_switch
 menu_plane_groups	words	C2:0556	C2:0567	raw	accessor menu_plane_groups
 menu_script_handler	jump-table	C2:0F91	C2:1036	raw	accessor menu_script_handler
 menu_return_flags	bytes	C2:2509	C2:250C	raw	accessor menu_return_flags
@@ -137,7 +147,8 @@ menu_scene_stream_c6fea0.15	lz	C3:DD13	C3:DD84	lz:colors:16	menu_scene_stream_c6
 menu_scene_stream_c6fea0.16	lz	C3:DD85	C3:DEB1	lz:colors:16	menu_scene_stream_c6fea0 entry
 menu_scene_stream_c6fea0.17	lz	C3:DEB2	C3:DF3D	lz:colors:16	menu_scene_stream_c6fea0 entry
 menu_scene_stream_c6fea0.18	lz	C3:DF3E	C3:DFE0	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_sprite_script_start	mixed	C3:DFE1	C3:FFFF	raw	accessor menu_sprite_script_start
+mixed_c3dfe1	mixed	C3:DFE1	C3:DFFF	raw	read
+menu_sprite_script_start	mixed	C3:E000	C3:FFFF	raw	accessor menu_sprite_script_start
 overworld_map_graphics.0	lz	C4:0000	C4:0EB7	lz:4bpp	overworld_map_graphics entry
 overworld_map_graphics.1	lz	C4:0EB8	C4:1D39	lz:4bpp	overworld_map_graphics entry
 overworld_map_graphics.2	lz	C4:1D3A	C4:2C31	lz:4bpp	overworld_map_graphics entry
@@ -190,14 +201,14 @@ menu_scene_stream.11	lz	C6:0000	C6:07B5	lz:4bpp	menu_scene_stream entry
 menu_scene_stream.12	lz	C6:07B6	C6:0E99	lz:4bpp	menu_scene_stream entry
 menu_scene_stream.13	lz	C6:0E9A	C6:1E70	lz:4bpp	menu_scene_stream entry
 mixed_c61e71	mixed	C6:1E71	C6:2410	raw	read
-overworld_place_lists.0	lz	C6:2411	C6:25DE	lz	overworld_place_lists entry
-overworld_place_lists.1	lz	C6:25DF	C6:2798	lz	overworld_place_lists entry
-overworld_place_lists.2	lz	C6:2799	C6:2833	lz	overworld_place_lists entry
-overworld_place_lists.3	lz	C6:2834	C6:28E3	lz	overworld_place_lists entry
-overworld_place_lists.4	lz	C6:28E4	C6:2921	lz	overworld_place_lists entry
-overworld_place_lists.5	lz	C6:2922	C6:2990	lz	overworld_place_lists entry
-overworld_place_lists.6	lz	C6:2991	C6:29D9	lz	overworld_place_lists entry
-overworld_place_lists.7	lz	C6:29DA	C6:29EB	lz	overworld_place_lists entry
+overworld_place_lists.0	lz	C6:2411	C6:25DE	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.1	lz	C6:25DF	C6:2798	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.2	lz	C6:2799	C6:2833	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.3	lz	C6:2834	C6:28E3	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.4	lz	C6:28E4	C6:2921	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.5	lz	C6:2922	C6:2990	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.6	lz	C6:2991	C6:29D9	lz:place-lists	overworld_place_lists entry
+overworld_place_lists.7	lz	C6:29DA	C6:29EB	lz:place-lists	overworld_place_lists entry
 overworld_tile_groups.0	lz	C6:29EC	C6:3725	lz:looks	overworld_tile_groups entry
 overworld_tile_groups.1	lz	C6:3726	C6:4111	lz:looks	overworld_tile_groups entry
 overworld_tile_groups.2	lz	C6:4112	C6:4B7C	lz:looks	overworld_tile_groups entry
@@ -344,9 +355,12 @@ overworld_place_names.111	text	C6:F34F	C6:F355	text:dialog	overworld_place_names
 overworld_place_names	ptr16	C6:F400	C6:F4DF	raw	accessor overworld_place_names
 menu_map_view_tiles	mixed	C6:F4E0	C6:F53F	raw	accessor menu_map_view_tiles
 menu_map_view_colors	words	C6:F540	C6:F55F	palette:16	accessor menu_map_view_colour_byte
-mixed_c6f560	mixed	C6:F560	C6:F61F	raw	read
+menu_cursor_path_zoom_x	mixed	C6:F560	C6:F59F	raw	accessor menu_cursor_path_zoom_x
+menu_cursor_path_zoom_y	mixed	C6:F5A0	C6:F61F	raw	accessor menu_cursor_path_zoom_y
 overworld_last_sprite_colors	words	C6:F620	C6:F63F	palette:16	accessor overworld_last_sprite_colours_byte
-mixed_c6f640	mixed	C6:F640	C6:FDEF	raw	read
+menu_scene_velocity_x	mixed	C6:F640	C6:F6FF	raw	accessor menu_scene_velocity_x
+menu_gate_pixel_pair	mixed	C6:F700	C6:FCFF	raw	accessor menu_gate_pixel_pair
+overworld_map_record_of	mixed	C6:FD00	C6:FDEF	raw	accessor overworld_map_record_of
 menu_scene_stream	ptr24	C6:FDF0	C6:FE19	raw	accessor menu_scene_stream
 overworld_map_graphics	ptr24	C6:FE20	C6:FE8E	raw	accessor overworld_map_graphics
 menu_scene_stream_c6fea0	ptr24	C6:FEA0	C6:FED8	raw	accessor menu_scene_stream
@@ -367,7 +381,9 @@ sound_instrument_envelope	words	C7:0C9C	C7:0D17	raw	accessor sound_instrument_en
 sound_song_at	mixed	C7:0D18	C7:0E10	raw	accessor sound_song_at
 sound_song_instrument_block	words	C7:0E11	C7:1870	raw	accessor sound_song_instrument_block
 sound_song_percussion_bytes	struct	C7:1871	C7:1894	raw	accessor sound_song_percussion_bytes
-sound_song_echo_delay	mixed	C7:1895	C7:730C	raw	accessor sound_song_echo_delay
+mixed_c71895	mixed	C7:1895	C7:241C	raw	read
+sound_song_echo_delay	mixed	C7:241D	C7:241D	raw	accessor sound_song_echo_delay
+sound_song_volume	mixed	C7:241E	C7:730C	raw	accessor sound_song_volume
 sound_block_ptrs.0	spc700	C7:730D	C7:81AE	raw	read
 sound_block_ptrs.1	spc700	C7:81AF	C7:8951	raw	read
 sound_block_ptrs.2	spc700	C7:8952	C7:8B81	raw	read
@@ -517,10 +533,33 @@ song_ptrs.79	spc700	CB:E040	CB:E13D	raw	read
 song_ptrs.80	spc700	CB:E13E	CB:E88E	raw	read
 song_ptrs.81	spc700	CB:E88F	CB:EE20	raw	read
 song_ptrs.82	spc700	CB:EE21	CB:F163	raw	song_ptrs entry
-area_rule_count	mixed	CC:0000	CC:0B5D	raw	accessor area_rule_count
+area_rule_count	mixed	CC:0000	CC:05CC	raw	accessor area_rule_count
+item_healing_byte	mixed	CC:05CD	CC:0ABB	raw	accessor item_healing_byte
+item_record_flags	mixed	CC:0ABC	CC:0B5D	raw	accessor item_record_flags
 battle_item_name_char	text	CC:0B5E	CC:15C3	text:names:11	accessor battle_item_name_char
 battle_tech_name_char	text	CC:15C4	CC:1ACA	text:names:11	accessor battle_tech_name_char
-party_tech_aim	mixed	CC:1ACB	CC:2EB0	raw	accessor party_tech_aim
+party_tech_aim	mixed	CC:1ACB	CC:1BB4	raw	accessor party_tech_aim
+item_aim_mode	mixed	CC:1BB5	CC:213E	raw	accessor item_aim_mode
+party_effect_bytes	mixed	CC:213F	CC:249E	raw	accessor party_effect_bytes
+tech_member_at	mixed	CC:249F	CC:24B3	raw	accessor tech_member_at
+menu_double_tech_character	mixed	CC:24B4	CC:253A	raw	accessor menu_double_tech_character
+party_effect_mp_cost	mixed	CC:253B	CC:2582	raw	accessor party_effect_mp_cost
+character_attack_tech	mixed	CC:2583	CC:2589	raw	accessor character_attack_tech
+hp_growth_step	mixed	CC:258A	CC:25C1	raw	accessor hp_growth_step
+mp_growth_step	mixed	CC:25C2	CC:2631	raw	accessor mp_growth_step
+experience_for_next_level	mixed	CC:2632	CC:26F9	raw	accessor experience_for_next_level
+tech_points_for_next	mixed	CC:26FA	CC:28DA	raw	accessor tech_points_for_next
+menu_double_tech_part	mixed	CC:28DB	CC:2934	raw	accessor menu_double_tech_part
+menu_triple_tech_part	mixed	CC:2935	CC:2952	raw	accessor menu_triple_tech_part
+menu_rock_tech_needs	mixed	CC:2953	CC:2962	raw	accessor menu_rock_tech_needs
+menu_tech_group_members	mixed	CC:2963	CC:2A04	raw	accessor menu_tech_group_members
+modifier_record	mixed	CC:2A05	CC:2AAF	raw	accessor modifier_record
+area_rules_place	mixed	CC:2AB0	CC:2BDB	raw	accessor area_rules_place
+tech_wait_tenths	mixed	CC:2BDC	CC:2BEA	raw	accessor tech_wait_tenths
+tech_wait_tenths_2beb	mixed	CC:2BEB	CC:2C6C	raw	accessor tech_wait_tenths
+menu_shop_good	mixed	CC:2C6D	CC:2D68	raw	accessor menu_shop_good
+menu_fist_power	mixed	CC:2D69	CC:2E30	raw	accessor menu_fist_power
+first_turn_wait	mixed	CC:2E31	CC:2EB0	raw	accessor first_turn_wait
 menu_item_descriptions	ptr16	CC:2EB1	CC:3094	raw	accessor menu_item_descriptions
 menu_item_descriptions.0	text	CC:3095	CC:3095	text:dialog	read
 menu_item_descriptions.5	text	CC:3096	CC:309E	text:dialog	read
@@ -651,12 +690,70 @@ menu_item_descriptions.207	text	CC:36D5	CC:36DE	text:dialog	menu_item_descriptio
 menu_item_descriptions.208	text	CC:36DF	CC:36DF	text:dialog	read
 menu_item_descriptions.221	text	CC:36E0	CC:36F2	text:dialog	read
 menu_item_descriptions.222	text	CC:36F3	CC:36F3	text:dialog	read
-enemy_stats_record	mixed	CC:36F4	CC:64FF	raw	accessor enemy_stats_record
+mixed_cc36f4	mixed	CC:36F4	CC:46FF	raw	read
+enemy_stats_records	struct	CC:4700	CC:5DFF	struct:records:23	accessor enemy_stats_record
+enemy_items	mixed	CC:5E00	CC:64FF	raw	accessor enemy_items
 setup_enemy_name_char	text	CC:6500	CC:6FC8	text:names:11	accessor setup_enemy_name_char
-action_record_place	mixed	CC:6FC9	CC:8B07	raw	accessor action_record_place
+action_record_place	mixed	CC:6FC9	CC:86C8	raw	accessor action_record_place
+enemy_tech_aim	mixed	CC:86C9	CC:8B07	raw	accessor enemy_tech_aim
 enemy_scripts	script	CC:8B08	CC:CBC8	script:enemy-ai	accessor enemy_script_start
 mixed_cccbc9	mixed	CC:CBC9	CC:DFFF	raw	read
-setup_member_tech_list_start	mixed	CC:F383	CC:FFFF	raw	accessor setup_member_tech_list_start
+mixed_ccf383	mixed	CC:F383	CC:F38B	raw	read
+setup_member_tech_list_start	mixed	CC:F38C	CC:F394	raw	accessor setup_member_tech_list_start
+setup_member_tech_records_at	mixed	CC:F395	CC:F3B5	raw	accessor setup_member_tech_records_at
+battle_sprite_layout	mixed	CC:F3B6	CC:F3C1	raw	accessor battle_sprite_layout
+battle_sprite_layout_f3c2	mixed	CC:F3C2	CC:F409	raw	accessor battle_sprite_layout
+battle_frame_tile_list_bytes	mixed	CC:F40A	CC:F413	raw	accessor battle_frame_tile_list_bytes
+battle_walk_step_heading	mixed	CC:F414	CC:F433	raw	accessor battle_walk_step_heading
+battle_walk_step_facing	mixed	CC:F434	CC:F453	raw	accessor battle_walk_step_facing
+battle_walk_probe	mixed	CC:F454	CC:F493	raw	accessor battle_walk_probe
+battle_scripted_move_dx	mixed	CC:F494	CC:F4BB	raw	accessor battle_scripted_move_dx
+battle_script_speed_steps	mixed	CC:F4BC	CC:F4C3	raw	accessor battle_script_speed_steps
+setup_sprite_x_high_bit	mixed	CC:F4C4	CC:F4CB	raw	accessor setup_sprite_x_high_bit
+setup_sprite_x_high_clear	mixed	CC:F4CC	CC:F4FB	raw	accessor setup_sprite_x_high_clear
+battle_frame_part_offset_bytes	mixed	CC:F4FC	CC:F504	raw	accessor battle_frame_part_offset_bytes
+setup_kind_sprites	mixed	CC:F505	CC:F509	raw	accessor setup_kind_sprites
+battle_frame_parts	mixed	CC:F50A	CC:F543	raw	accessor battle_frame_parts
+setup_enemy_effect_period	mixed	CC:F544	CC:F593	raw	accessor setup_enemy_effect_period
+battle_scripted_move_dy	mixed	CC:F594	CC:F5BB	raw	accessor battle_scripted_move_dy
+battle_script_speed_period	mixed	CC:F5BC	CC:F5C3	raw	accessor battle_script_speed_period
+battle_digit_sprite_offset	mixed	CC:F5C4	CC:F5FC	raw	accessor battle_digit_sprite_offset
+battle_marker_pace	mixed	CC:F5FD	CC:F603	raw	accessor battle_marker_pace
+battle_choosing_frame_corner	mixed	CC:F604	CC:F63B	raw	accessor battle_choosing_frame_corner
+battle_character_walks_up	mixed	CC:F63C	CC:F643	raw	accessor battle_character_walks_up
+setup_grid_middle_cell	mixed	CC:F644	CC:F67B	raw	accessor setup_grid_middle_cell
+battle_walk_grid_store	mixed	CC:F67C	CC:F693	raw	accessor battle_walk_grid_store
+setup_grid_edge_cell	mixed	CC:F694	CC:F6D3	raw	accessor setup_grid_edge_cell
+battle_marker_sprite	mixed	CC:F6D4	CC:F753	raw	accessor battle_marker_sprite
+battle_color_cycle_start	mixed	CC:F754	CC:F77A	raw	accessor battle_color_cycle_start
+battle_held_tint	mixed	CC:F77B	CC:F77E	raw	accessor battle_held_tint
+battle_status_pose_ends	mixed	CC:F77F	CC:F7BF	raw	accessor battle_status_pose_ends
+battle_sprite_set_start	mixed	CC:F7C0	CC:F81F	raw	accessor battle_sprite_set_start
+battle_bitmap_cell_position	mixed	CC:F820	CC:F828	raw	accessor battle_bitmap_cell_position
+battle_number_set_start	mixed	CC:F829	CC:F836	raw	accessor battle_number_set_start
+setup_name_tiles_at	mixed	CC:F837	CC:F83E	raw	accessor setup_name_tiles_at
+setup_name_at	mixed	CC:F83F	CC:F845	raw	accessor setup_name_at
+setup_character_name_at	mixed	CC:F846	CC:F8EC	raw	accessor setup_character_name_at
+battle_stat_block_place	mixed	CC:F8ED	CC:F902	raw	accessor battle_stat_block_place
+battle_digit_tile	mixed	CC:F903	CC:F90C	raw	accessor battle_digit_tile
+battle_sprite_digit_tile	mixed	CC:F90D	CC:F938	raw	accessor battle_sprite_digit_tile
+setup_enemy_record_at	mixed	CC:F939	CC:F940	raw	accessor setup_enemy_record_at
+battle_object_tile_buffer	mixed	CC:F941	CC:F956	raw	accessor battle_object_tile_buffer
+battle_queued_transfer	mixed	CC:F957	CC:F966	raw	accessor battle_queued_transfer
+battle_queued_transfer_f967	mixed	CC:F967	CC:F976	raw	accessor battle_queued_transfer
+battle_queued_transfer_f977	mixed	CC:F977	CC:F9FA	raw	accessor battle_queued_transfer
+battle_member_bit	mixed	CC:F9FB	CC:FA94	raw	accessor battle_member_bit
+battle_tech_page_column_tile	mixed	CC:FA95	CC:FAE8	raw	accessor battle_tech_page_column_tile
+battle_item_cursor_cell	mixed	CC:FAE9	CC:FAF2	raw	accessor battle_item_cursor_cell
+setup_sprite_entry_byte	mixed	CC:FAF3	CC:FB4A	raw	accessor setup_sprite_entry_byte
+battle_tech_heading_tile	mixed	CC:FB4B	CC:FB6E	raw	accessor battle_tech_heading_tile
+battle_grid_distance_squared	mixed	CC:FB6F	CC:FB7E	raw	accessor battle_grid_distance_squared
+battle_place_weights	mixed	CC:FB7F	CC:FB90	raw	accessor battle_place_weights
+battle_enemy_animation_part	mixed	CC:FB91	CC:FBAA	raw	accessor battle_enemy_animation_part
+battle_enemy_animation_effect	mixed	CC:FBAB	CC:FBC4	raw	accessor battle_enemy_animation_effect
+setup_window_layout_for_gauge	mixed	CC:FBC5	CC:FBCD	raw	accessor setup_window_layout_for_gauge
+battle_enemy_frame_time	mixed	CC:FBCE	CC:FC1D	raw	accessor battle_enemy_frame_time
+battle_character_record_place	mixed	CC:FC1E	CC:FFFF	raw	accessor battle_character_record_place
 battle_message_frames_at_speed	bytes	CD:019D	CD:01A4	raw	accessor battle_message_frames_at_speed
 battle_block_vram	words	CD:05FF	CD:0606	raw	accessor battle_block_vram
 battle_zero_byte	bytes	CD:06B2	CD:06B3	raw	accessor battle_zero_byte
@@ -664,7 +761,11 @@ battle_palette_plane_mask	words	CD:1300	CD:1313	raw	accessor battle_palette_plan
 orbit_size	words	CD:1C5B	CD:1C62	raw	accessor orbit_size
 saved_shape_offset	words	CD:26B0	CD:26BF	raw	accessor saved_shape_offset
 script_palette_slot_offset	bytes	CD:2A42	CD:2A49	raw	accessor script_palette_slot_offset
-battle_debug_frame_advance	mixed	CD:3F9E	CD:6E0B	raw	accessor battle_debug_frame_advance
+mixed_cd3f9e	mixed	CD:3F9E	CD:3FFE	raw	read
+battle_debug_frame_advance	mixed	CD:3FFF	CD:3FFF	raw	accessor battle_debug_frame_advance
+battle_weapon_animation	mixed	CD:4000	CD:4014	raw	accessor battle_weapon_animation
+battle_weapon_animation_4015	mixed	CD:4015	CD:6CEB	raw	accessor battle_weapon_animation
+setup_member_color_set	mixed	CD:6CEC	CD:6E0B	raw	accessor setup_member_color_set
 battle_animations_cd	script	CD:6E0C	CD:EE22	script:battle-animation	read
 mixed_cdee23	mixed	CD:EE23	CD:FFFF	raw	read
 battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor battle_script_subroutine
@@ -675,7 +776,17 @@ mixed_ce8870	mixed	CE:8870	CE:D427	raw	read
 battle_animation_subroutines	script	CE:D428	CE:DC19	script:battle-animation	read
 background_ripple_sway	bytes	CE:E08E	CE:E18D	raw	accessor background_ripple_sway
 battle_dissolve_fade_kind	bytes	CE:EF11	CE:F065	raw	accessor battle_dissolve_fade_kind
-palette_preset_fade	mixed	CE:F0E6	CE:FFFF	raw	accessor palette_preset_fade
+palette_preset_fade	mixed	CE:F0E6	CE:F125	raw	accessor palette_preset_fade
+palette_preset_timing	mixed	CE:F126	CE:F145	raw	accessor palette_preset_timing
+palette_preset_step	mixed	CE:F146	CE:F155	raw	accessor palette_preset_step
+battle_dissolve_bytes	mixed	CE:F156	CE:F191	raw	accessor battle_dissolve_bytes
+battle_dissolve_run	mixed	CE:F192	CE:F193	raw	accessor battle_dissolve_run
+battle_dissolve_run_f194	mixed	CE:F194	CE:F1D1	raw	accessor battle_dissolve_run
+battle_layer_wave_step	mixed	CE:F1D2	CE:F24D	raw	accessor battle_layer_wave_step
+line_arrangement_byte	mixed	CE:F24E	CE:F28D	raw	accessor line_arrangement_byte
+screen_edges	bytes	CE:F28E	CE:F48D	raw	accessor screen_edge_toward
+screen_sine_magnitudes	bytes	CE:F48E	CE:F58D	raw	accessor battle_sine_magnitude
+line_arrangement_byte_f58e	mixed	CE:F58E	CE:FFFF	raw	accessor line_arrangement_byte
 battlefield_tiles	gfx	CF:0000	CF:7FFF	tiles:2bpp	accessor battlefield_tile_graphics_byte
 battlefield_tile_set_descriptors	words	CF:8000	CF:9FFF	raw	accessor battlefield_tile_descriptor
 battle_tile_descriptors	words	CF:A000	CF:DFFF	raw	accessor battle_tile_descriptor
@@ -690,21 +801,33 @@ effect_tilemap_graphics_address.2	lz	D0:E578	D0:EAFF	lz:tilemap:32	effect_tilema
 effect_tilemap_graphics_address.3	lz	D0:EB00	D0:ED8A	lz:tilemap:32	effect_tilemap_graphics_address entry
 effect_tilemap_graphics_address.4	lz	D0:ED8B	D0:F197	lz:tilemap:32	effect_tilemap_graphics_address entry
 effect_tilemap_graphics_address.5	lz	D0:F198	D0:F98E	lz:tilemap:32	effect_tilemap_graphics_address entry
-untyped_d0f98f	untyped	D0:F98F	D0:F9FF	raw	read
+battlefield_tiles_padding	padding	D0:F98F	D0:F9FF	raw	zero, read by no accessor
 battle_screen_colors	words	D0:FA00	D0:FD5F	palette:16	accessor effect_color
-untyped_d0fd60	untyped	D0:FD60	D0:FFFF	raw	read
+battle_screen_colors_padding	padding	D0:FD60	D0:FFFF	raw	$FF to the end of the bank, read by no accessor
 battle_animation_tiles_place	mixed	D1:0000	D1:38EF	raw	accessor battle_animation_tiles_place
 battle_cursor_colors	words	D1:38F0	D1:38FF	palette:4	accessor setup_cursor_color
-mixed_d13900	mixed	D1:3900	D1:40FF	raw	read
+setup_four_plane_tiles	mixed	D1:3900	D1:40FF	raw	accessor setup_four_plane_tiles
 battle_sprite_color_sets	words	D1:4100	D1:43FF	palette:3	accessor battle_palette_set_color
 battle_sprite_large_color_sets	words	D1:4400	D1:4AFF	palette:7	accessor battle_palette_set_color
 battle_member_colors	words	D1:4B00	D1:4C7F	palette:3	accessor setup_member_color
 battle_number_font	gfx	D1:4C80	D1:4D7F	font:8x8	accessor setup_two_plane_tiles
 battle_number_colors	words	D1:4D80	D1:4D8F	palette:8	accessor setup_number_color
 battle_flash_colors	words	D1:4D90	D1:4E4F	palette:12	accessor battle_flash_color
-mixed_d14e50	mixed	D1:4E50	D1:5FFF	raw	read
+mixed_d14e50	mixed	D1:4E50	D1:50A1	raw	read
+battle_one_sprite_tile	mixed	D1:50A2	D1:50A2	raw	accessor battle_one_sprite_tile
+battle_one_sprite_attributes	mixed	D1:50A3	D1:57FF	raw	accessor battle_one_sprite_attributes
+setup_window_frames_tilemap	mixed	D1:5800	D1:597F	raw	accessor setup_window_frames_tilemap
+battle_animated_color	mixed	D1:5980	D1:59FB	raw	accessor battle_animated_color
+battle_command_frame_tile	mixed	D1:59FC	D1:5A4F	raw	accessor battle_command_frame_tile
+battle_tech_page_frames_tile	mixed	D1:5A50	D1:5BCF	raw	accessor battle_tech_page_frames_tile
+battle_item_page_frames_tile	mixed	D1:5BD0	D1:5D4F	raw	accessor battle_item_page_frames_tile
+setup_load_tilemap_start	mixed	D1:5D50	D1:5F41	raw	accessor setup_load_tilemap_start
+battle_character_falling_frame	mixed	D1:5F42	D1:5FFF	raw	accessor battle_character_falling_frame
 battle_background_color_sets	words	D1:6000	D1:623F	palette:4	accessor background_set_color
-mixed_d16240	mixed	D1:6240	D1:E709	raw	read
+battlefield_look	mixed	D1:6240	D1:646B	raw	accessor battlefield_look
+screen_script_start	mixed	D1:646C	D1:A232	raw	accessor screen_script_start
+battlefield_layout	mixed	D1:A233	D1:A574	raw	accessor battlefield_layout
+battlefield_strip_place	mixed	D1:A575	D1:E709	raw	accessor battlefield_strip_place
 gradient_set_color	words	D1:E9EF	D1:EA00	raw	accessor gradient_set_color
 gradient_row_turn	bytes	D1:EA21	D1:EA4A	raw	accessor gradient_row_turn
 shape_model_point	words	D1:EC5F	D1:ECF2	raw	accessor shape_model_point
@@ -1856,7 +1979,8 @@ setup_character_graphics.212	lz	E1:C12F	E1:C4D8	lz:4bpp	setup_character_graphics
 setup_character_graphics.213	lz	E1:C4D9	E1:C711	lz:4bpp	setup_character_graphics entry
 setup_character_graphics.226	lz	E1:C712	E1:D320	lz:4bpp	setup_character_graphics entry
 setup_character_graphics.228	lz	E1:D321	E1:DDB1	lz:4bpp	setup_character_graphics entry
-untyped_e1ddb2	untyped	E1:DDB2	E1:DDFF	raw	read
+untyped_e1ddb2	untyped	E1:DDB2	E1:DDB2	raw	read
+battle_rules_before_padding	padding	E1:DDB3	E1:DDFF	raw	zero, read by no accessor
 setup_rules	struct	E1:DE00	E1:DE37	struct:records:4	accessor setup_rule_enemy, setup_rule
 setup_rules_padding	padding	E1:DE38	E1:DE7F	raw	zero after the rules' end mark
 battle_enemy_name_hidden	bytes	E1:DE80	E1:DF7F	raw	accessor battle_enemy_name_hidden
@@ -2804,7 +2928,7 @@ field_packed_map	ptr24	F6:1E00	F6:205D	raw	accessor field_packed_map
 tile_looks_address	ptr24	F6:2100	F6:21BF	raw	accessor tile_looks_address
 bg3_tile_looks_address	ptr24	F6:21C0	F6:2204	raw	accessor bg3_tile_looks_address
 graphics_block_address	ptr24	F6:2220	F6:24B0	raw	accessor graphics_block_address
-untyped_f624b1	untyped	F6:24B1	F6:24BF	raw	read
+location_palettes_padding	padding	F6:24B1	F6:24BF	raw	zero, read by no accessor
 location_palettes	words	F6:24C0	F6:6CEF	palette:15x7	accessor location_palette_colour
 palette_animation_frames	words	F6:6CF0	F6:7B7F	palette:16	accessor palette_frame_color
 palette_animation_padding	padding	F6:7B80	F6:7FFF	raw	zero to the end of the bank
@@ -6578,7 +6702,7 @@ field_packed_script	ptr24	FC:F9F0	FC:FFF2	raw	accessor field_packed_script
 field_credits_letters_packed	lz	FD:0000	FD:0235	lz:2bpp	accessor field_credits_letters_packed
 attract_resource_ptrs.44	lz	FD:0236	FD:042C	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.45	lz	FD:042D	FD:055B	lz:bytes:16	attract_resource_ptrs entry
-attract_resource_ptrs.46	lz	FD:055C	FD:0D83	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.46	lz	FD:055C	FD:0D83	lz:4bpp-chunky	attract_resource_ptrs entry
 attract_resource_ptrs.47	lz	FD:0D84	FD:0FCD	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.48	lz	FD:0FCE	FD:241E	lz:4bpp	attract_resource_ptrs entry
 attract_resource_ptrs.49	lz	FD:241F	FD:2454	lz:2bpp	attract_resource_ptrs entry
@@ -6586,7 +6710,7 @@ attract_resource_ptrs.50	lz	FD:2455	FD:25D0	lz	attract_resource_ptrs entry
 attract_resource_ptrs.51	lz	FD:25D1	FD:2F37	lz:4bpp	attract_resource_ptrs entry
 attract_resource_ptrs.52	lz	FD:2F38	FD:2FC7	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.53	lz	FD:2FC8	FD:302E	lz:tilemap:32	attract_resource_ptrs entry
-attract_resource_ptrs.54	lz	FD:302F	FD:545D	lz:bytes:64	attract_resource_ptrs entry
+attract_resource_ptrs.54	lz	FD:302F	FD:545D	lz:8bpp	attract_resource_ptrs entry
 attract_resource_ptrs.55	lz	FD:545E	FD:57EF	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.56	lz	FD:57F0	FD:58E0	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.57	lz	FD:58E1	FD:6692	lz:bytes:64	attract_resource_ptrs entry
@@ -6606,12 +6730,22 @@ field_packed_script.17	lz	FD:9A9C	FD:9BA5	lz:event	field_packed_script entry
 field_packed_script.18	lz	FD:9BA6	FD:9CB4	lz:event	field_packed_script entry
 field_packed_script.19	lz	FD:9CB5	FD:9F2B	lz:event	field_packed_script entry
 field_packed_script.20	lz	FD:9F2C	FD:9FEA	lz:event	field_packed_script entry
-field_credits_byte	mixed	FD:9FEB	FD:A8A4	raw	accessor field_credits_byte
-demo_member_action_byte	mixed	FD:B957	FD:BFFF	raw	accessor demo_member_action_byte
+mixed_fd9feb	mixed	FD:9FEB	FD:9FFF	raw	read
+field_credits	bytes	FD:A000	FD:A80A	raw	accessor field_credits_byte
+battle_stat_block_places	words	FD:A80B	FD:A848	raw	accessor battle_stat_block_place
+battle_member_record_places	words	FD:A849	FD:A89C	raw	accessor battle_member_record_place
+character_first_single_techs	bytes	FD:A89D	FD:A8A4	raw	accessor character_first_single_tech
+demo_member_action_byte	mixed	FD:B957	FD:B99B	raw	accessor demo_member_action_byte
+demo_member	mixed	FD:B99C	FD:BA49	raw	accessor demo_member
+enemy_action_length	mixed	FD:BA4A	FD:BA60	raw	accessor enemy_action_length
+battle_random_number	mixed	FD:BA61	FD:BFFF	raw	accessor battle_random_number
 warp_circle_radius_on	bytes	FD:DD96	FD:DE14	raw	accessor warp_circle_radius_on
 warp_tunnel_red	words	FD:F001	FD:F122	raw	accessor warp_tunnel_red
 warp_pulse_reach	bytes	FD:F181	FD:F1C0	raw	accessor warp_pulse_reach
-tile_animation_set_start	mixed	FD:F290	FD:FFE4	raw	accessor tile_animation_set_start
+tile_animation_set_starts	words	FD:F290	FD:F30F	raw	accessor tile_animation_set_start
+tile_animation_sets	bytes	FD:F310	FD:F9C6	raw	accessor tile_animation_set_byte
+palette_animation_set_starts	words	FD:F9C7	FD:FA76	raw	accessor palette_animation_set_start
+palette_animation_sets	bytes	FD:FA77	FD:FFE4	raw	accessor palette_animation_set_byte
 attract_resource_ptrs	ptr24	FE:0000	FE:00DA	raw	accessor scene_resources
 attract_resource_ptrs.2	lz	FE:00E0	FE:0A4D	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.3	lz	FE:0A4E	FE:0B12	lz:chunky	attract_resource_ptrs entry
@@ -6626,7 +6760,7 @@ attract_resource_ptrs.11	lz	FE:38C4	FE:3A06	lz:tilemap:32	attract_resource_ptrs 
 attract_resource_ptrs.12	lz	FE:3A07	FE:3A47	lz:tilemap:32	attract_resource_ptrs entry
 attract_resource_ptrs.13	lz	FE:3A48	FE:3B05	lz:2bpp	attract_resource_ptrs entry
 attract_resource_ptrs.14	lz	FE:3B06	FE:4649	lz:4bpp	attract_resource_ptrs entry
-attract_resource_ptrs.15	lz	FE:464A	FE:4ACB	lz:bytes:32	attract_resource_ptrs entry
+attract_resource_ptrs.15	lz	FE:464A	FE:4ACB	lz:4bpp-chunky	attract_resource_ptrs entry
 attract_resource_ptrs.16	lz	FE:4ACC	FE:4B1A	lz:bytes:64	attract_resource_ptrs entry
 attract_resource_ptrs.17	lz	FE:4B1B	FE:4B79	lz:4bpp	attract_resource_ptrs entry
 attract_colors_fe4b7a	words	FE:4B7A	FE:4BD9	palette:16	accessor scene_copy_resource_to
@@ -7057,11 +7191,28 @@ battle_message_layer_tiles	mixed	FF:8BEA	FF:8E5F	raw	accessor battle_message_lay
 small_font	gfx	FF:8E60	FF:9C5F	font:8x8	accessor menu_screen_graphics_data
 mixed_ff9c60	mixed	FF:9C60	FF:B20F	raw	accessor battle_message_layer_tiles
 window_design_colors	words	FF:B210	FF:B28F	palette:8	accessor menu_window_design_colour
-mixed_ffb290	mixed	FF:B290	FF:C9FB	raw	read
+mixed_ffb290	mixed	FF:B290	FF:B30F	raw	read
+menu_item_kind_label	mixed	FF:B310	FF:BD5B	raw	accessor menu_item_kind_label
+menu_main_menu_icon	mixed	FF:BD5C	FF:C9AB	raw	accessor menu_main_menu_icon
+menu_name_grid_letter	mixed	FF:C9AC	FF:C9FB	raw	accessor menu_name_grid_letter
 small_font_replacements	gfx	FF:C9FC	FF:CAFB	font:8x8	accessor menu_screen_graphics_data
-mixed_ffcafc	mixed	FF:CAFC	FF:CB9B	raw	accessor battle_message_layer_tiles
+menu_small_digit_byte	mixed	FF:CAFC	FF:CB9B	raw	accessor menu_small_digit_byte
 menu_colors	words	FF:CB9C	FF:CE4F	palette:16	accessor menu_rom_colour, menu_portrait_colour
-mixed_ffce50	mixed	FF:CE50	FF:CF3A	raw	read
+mixed_ffce50	mixed	FF:CE50	FF:CE6F	raw	read
+menu_large_portrait_first_tile	mixed	FF:CE70	FF:CE77	raw	accessor menu_large_portrait_first_tile
+menu_large_portrait_colours	mixed	FF:CE78	FF:CE87	raw	accessor menu_large_portrait_colours
+menu_element_label_tile	mixed	FF:CE88	FF:CE91	raw	accessor menu_element_label_tile
+menu_element_label_colour	mixed	FF:CE92	FF:CE99	raw	accessor menu_element_label_colour
+menu_battle_mode_colour	mixed	FF:CE9A	FF:CEB9	raw	accessor menu_battle_mode_colour
+menu_amount_height	mixed	FF:CEBA	FF:CF0D	raw	accessor menu_amount_height
+menu_item_data_table	mixed	FF:CF0E	FF:CF17	raw	accessor menu_item_data_table
+menu_item_data_record_bytes	mixed	FF:CF18	FF:CF1C	raw	accessor menu_item_data_record_bytes
+menu_item_figures_table	mixed	FF:CF1D	FF:CF26	raw	accessor menu_item_figures_table
+menu_item_figures_record_bytes	mixed	FF:CF27	FF:CF2A	raw	accessor menu_item_figures_record_bytes
+menu_figure_offset	mixed	FF:CF2B	FF:CF2B	raw	accessor menu_figure_offset
+menu_stat_place	mixed	FF:CF2C	FF:CF31	raw	accessor menu_stat_place
+menu_figure_cap	mixed	FF:CF32	FF:CF32	raw	accessor menu_figure_cap
+menu_stat_cap	mixed	FF:CF33	FF:CF3A	raw	accessor menu_stat_cap
 menu_label_strings	ptr16	FF:CF3B	FF:CF48	raw	accessor menu_label_strings
 menu_label_strings.0	text	FF:CF49	FF:CF72	text:dialog	read
 menu_label_strings.1	text	FF:CF73	FF:CFA0	text:dialog	read
@@ -7099,7 +7250,7 @@ strings_ffd03e.23	text	FF:D247	FF:D259	text:dialog	read
 strings_ffd03e.24	text	FF:D25A	FF:D26D	text:dialog	read
 strings_ffd03e.25	text	FF:D26E	FF:D283	text:dialog	read
 strings_ffd03e.26	text	FF:D284	FF:D295	text:dialog	read
-menu_era_of_location	mixed	FF:D296	FF:D395	raw	accessor menu_era_of_location
+menu_era_of_location	bytes	FF:D296	FF:D395	raw	accessor menu_era_of_location
 menu_era_labels	ptr16	FF:D396	FF:D3A5	raw	accessor menu_era_labels
 menu_era_labels.0	text	FF:D3A6	FF:D3AE	text:dialog	read
 menu_era_labels.1	text	FF:D3AF	FF:D3B8	text:dialog	read
@@ -7109,7 +7260,11 @@ menu_era_labels.4	text	FF:D3CF	FF:D3DB	text:dialog	read
 menu_era_labels.5	text	FF:D3DC	FF:D3E6	text:dialog	read
 menu_era_labels.6	text	FF:D3E7	FF:D3F1	text:dialog	read
 menu_era_labels.7	text	FF:D3F2	FF:D3FD	text:dialog	read
-menu_settings_descriptions	mixed	FF:D3FE	FF:F547	raw	accessor menu_settings_descriptions
+menu_settings_descriptions	mixed	FF:D3FE	FF:D553	raw	accessor menu_settings_descriptions
+menu_button_glyph	mixed	FF:D554	FF:D561	raw	accessor menu_button_glyph
+menu_settings_option_icon	mixed	FF:D562	FF:D579	raw	accessor menu_settings_option_icon
+menu_gate_screen_setup	mixed	FF:D57A	FF:F007	raw	accessor menu_gate_screen_setup
+menu_battle_mode_screen_tile	mixed	FF:F008	FF:F547	raw	accessor menu_battle_mode_screen_tile
 menu_gate_row_first_tile	words	FF:F6F2	FF:F715	raw	accessor menu_gate_row_first_tile
 menu_gate_wave	words	FF:F759	FF:F7D8	raw	accessor menu_gate_wave
 menu_techs_before_the_lock	bytes	FF:F951	FF:F957	raw	accessor menu_techs_before_the_lock
@@ -7117,5 +7272,6 @@ menu_character_bit	bytes	FF:F9BB	FF:F9C3	raw	accessor menu_character_bit
 menu_saved_runs_byte	bytes	FF:FA7B	FF:FAA2	raw	accessor menu_saved_runs_byte
 menu_carried_runs_byte	bytes	FF:FBC1	FF:FBD2	raw	accessor menu_carried_runs_byte
 menu_saved_game_on_the_bus	words	FF:FBE1	FF:FBE6	raw	accessor menu_saved_game_on_the_bus
-menu_window_line_value	mixed	FF:FC57	FF:FF3D	raw	accessor menu_window_line_value
+menu_window_line_value	bytes	FF:FC57	FF:FC66	raw	accessor menu_window_line_value
+mixed_fffc67	mixed	FF:FC67	FF:FF3D	raw	read
 battle_screen_script_byte	undetermined	FF:FFF5	FF:FFFF	raw	accessor battle_screen_script_byte

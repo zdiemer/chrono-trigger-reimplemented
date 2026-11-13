@@ -87,13 +87,20 @@ static void take_target_channels(GameState *g)
  * at once, or at a rate, which ends the turn. No colour takes the tint away
  * and gives the picture back its own colour layers; that form of the command
  * has no rate, and is a byte shorter. */
+enum { NO_TINT_LENGTH = 2, TINT_LENGTH = 3 };
+
+static uint16_t measure_tint(const uint8_t *command, uint16_t available)
+{
+    return available < 2 ? 0 : command[1] == 0 ? NO_TINT_LENGTH : TINT_LENGTH;
+}
+
 static EventFlow tint(GameState *g, uint8_t colour, TintMix mix, uint8_t rate)
 {
     if (colour == 0) {
         set_field_fixed_color_target(g, FIELD_NO_TINT);
         set_field_fixed_color(g, FIELD_NO_TINT);
         set_field_fixed_color_math_layers(g, field_color_math_layers(g));
-        return next_command_after(2);
+        return next_command_after(NO_TINT_LENGTH);
     }
     set_field_fixed_color_target(g, colour);
     take_target_channels(g);
@@ -432,9 +439,26 @@ static bool restart_the_game(GameState *g, Platform *pf)
     return false;
 }
 
+/* The commands opening a circle say where and how wide in three bytes after
+ * the command's number; the others are the opcode and the number alone, and
+ * nothing reads on past them (the last command of a script is often one,
+ * and past the script lie whatever bytes were there before it). */
+static const EventOpcode circle_opening = {
+    0xFF, .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 5
+};
+
+/* The work of the three operand reads the command's decode made when it took
+ * a circle's place after every screen command, kept as the command's time
+ * where it isn't one: the work rates the game was measured at include it. */
+enum { CIRCLE_OPERANDS = 3 };
+
 bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     EventCommand c = event_decode(g, pf, event_opcode(0xFF), at);
+    bool opens_a_circle = c.screen_command >= FIRST_SCREEN_COMMAND
+                          && screen_commands[screen_command_index(c.screen_command)].kind == OPENS_A_CIRCLE;
+    if (!opens_a_circle)
+        charge_accesses(g, CIRCLE_OPERANDS);
     if (c.screen_command < FIRST_SCREEN_COMMAND)
         return end_the_field_for_a_scene(g, pf, c.screen_command);
     unsigned i = screen_command_index(c.screen_command);
@@ -445,11 +469,28 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
         *step = (EventStep){ (uint16_t)(at + SCREEN_COMMAND_LENGTH), false };
         return true;
     }
+    if (opens_a_circle) {
+        EventCommand circle = event_decode(g, pf, &circle_opening, at);
+        c.x = circle.x;
+        c.y = circle.y;
+        c.radius = circle.radius;
+    }
     bool done;
     TIMED_AS(g, screen_entries[i].entry,
              done = run_screen_command(g, c.screen_command, (uint8_t)c.x, (uint8_t)c.y, c.radius));
     *step = (EventStep){ done ? (uint16_t)(at + screen_commands[i].length) : at, false };
     return true;
+}
+
+/* A screen command's length, by its table; the field's end for a scene, and
+ * a command past the table, the command's own two bytes. */
+static uint16_t measure_screen_command(const uint8_t *command, uint16_t available)
+{
+    if (available < 2)
+        return 0;
+    uint8_t c = command[1];
+    return c >= FIRST_SCREEN_COMMAND && c < FIRST_SCREEN_COMMAND + SCREEN_COMMANDS
+               ? screen_commands[screen_command_index(c)].length : SCREEN_COMMAND_LENGTH;
 }
 
 /* The port runs only a command the original's table has (past it the table
@@ -467,7 +508,7 @@ EVENT_OPCODES(event_screen_opcodes,
     { 0xF2, OPERATION(wait_for_screen), .changes = CONSTANT(FIELD_FADING), .length = 1 },
     { 0xF3, OPERATION(wait_for_screen), .changes = CONSTANT(FIELD_TINTING), .length = 1 },
     { 0xF1, OPERATION(tint), .colour = OPERAND(1), .mix = OPERAND_BITS(2, 7, 0x01), .rate = OPERAND_BITS(2, 0, 0x7F),
-      .length = 3 },
+      .length = TINT_LENGTH, MEASURED(measure_tint) },
     { 0xF4, OPERATION(shake_screen), .shaking = OPERAND(1), .length = 2 },
     { 0xE5, OPERATION(queue_tile_copy), .from = OPERAND_WORD(1), .to = OPERAND_WORD(3),
       .destination = OPERAND_WORD(5), .maps = OPERAND(7), .length = 8 },
@@ -485,5 +526,5 @@ EVENT_OPCODES(event_screen_opcodes,
     { 0x29, .credits_text = OPERAND_BITS(1, 0, 0x7F), .two_screens_tall = OPERAND_BITS(1, 7, 0x01), .length = 2 },
     { 0xFE, OPERATION(move_searchlight), .frames = OPERAND(1), .searchlight = SEARCHLIGHT_MOVE(2), .length = 18,
       CHECK(searchlight_moves_over_frames) },
-    { 0xFF, .screen_command = OPERAND(1), .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 2,
-      CHECK(a_screen_command) });
+    { 0xFF, .screen_command = OPERAND(1), .length = 2, CHECK(a_screen_command),
+      MEASURED(measure_screen_command) });

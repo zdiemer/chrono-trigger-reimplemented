@@ -71,17 +71,11 @@ void assets_use(const AssetStore *s)
         asset_served[i] = (AssetServed){ NULL, 0 };
 }
 
-/* The store's copy of the cartridge byte at `at`, or NULL: the address is in
- * no resource (counted), there is no store, or it hasn't the resource. A
- * resource is asked for once, by name and type, and what the store answers
- * kept. */
-static const uint8_t *served(uint32_t at)
+/* A resource's bytes from the store, or NULL where there is no store or it
+ * hasn't the resource. A resource is asked for once, by name and type, and
+ * what the store answers kept. */
+static const uint8_t *resource_bytes(AssetId id)
 {
-    AssetId id = asset_containing(at);
-    if (id == ASSET_NONE) {
-        asset_note_outside(at);
-        return NULL;
-    }
     if (!store)
         return NULL;
     const AssetEntry *e = &asset_catalogue[id];
@@ -93,10 +87,40 @@ static const uint8_t *served(uint32_t at)
             s->bytes = NULL;
         s->asked = 1;
     }
-    return s->bytes ? s->bytes + (cartridge_address(at) - e->at) : NULL;
+    return s->bytes;
+}
+
+/* The store's copy of the cartridge byte at `at`, or NULL: the address is in
+ * no resource (counted), there is no store, or it hasn't the resource. */
+static const uint8_t *served(uint32_t at)
+{
+    AssetId id = asset_containing(at);
+    if (id == ASSET_NONE) {
+        asset_note_outside(at);
+        return NULL;
+    }
+    const uint8_t *bytes = resource_bytes(id);
+    return bytes ? bytes + (cartridge_address(at) - asset_catalogue[id].at) : NULL;
 }
 
 uint8_t rom_read8(const GameState *g, uint32_t at) { return rom_cartridge_read(g, at, served(at)); }
+
+/* The read is the same one the address would make: timed as a cartridge
+ * read at the address the original keeps the byte at. */
+uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
+{
+    const AssetEntry *e = &asset_catalogue[resource];
+    if (offset >= e->length)
+        return rom_read8(g, e->at + offset);
+    const uint8_t *bytes = resource_bytes(resource);
+    return rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
+}
+
+uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset)
+{
+    uint8_t low = asset_read8(g, resource, offset);
+    return (uint16_t)(low | asset_read8(g, resource, offset + 1) << 8);
+}
 
 uint16_t rom_read16(const GameState *g, uint32_t at)
 {
