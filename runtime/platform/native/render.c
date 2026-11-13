@@ -1388,6 +1388,82 @@ static void span_key(VidRenderer *r, const SpanCtx *sp)
     }
 }
 
+/* ---- the picture beside a panel ------------------------------------------------------------ */
+
+/* Whether a span's lines lay a one-screen panel over the picture the frame
+ * holds past the screen: a layer the frame says goes on into the margins
+ * (VidFrame.layer_left/right) is switched on these lines to a tilemap one
+ * screen across that no layout spreads -- the dialog window, which the
+ * field's line effects draw with BG1 and BG3 over a band of the screen. The
+ * panel keeps to the original's screen, so the margins beside it would show
+ * the backdrop alone. */
+static bool lays_a_panel_over_the_picture(const VidFrame *f, const VidSpan *span)
+{
+    const VidLineState *st = &span->state;
+    if (st->display.blank || st->mode.mode == 7)
+        return false;
+    for (int bg = 0; bg < 4; bg++) {
+        bool held_past = f->layer_left[bg] < 0 || f->layer_right[bg] > SCREEN_W;
+        bool shown = ((st->main_layers | st->sub_layers) >> bg) & 1;
+        if (!held_past || !shown || st->bg[bg].map_w != 32)
+            continue;
+        bool laid_out = false;
+        for (int n = 0; n < f->layout_count && !(st->bg[bg].hofs & 0xFF); n++)
+            laid_out |= f->layout_map[n] == st->bg[bg].map_base;
+        if (!laid_out)
+            return true;
+    }
+    return false;
+}
+
+/* Beside such a panel the margins show the picture as the nearest lines
+ * without one show it -- the lines above it, or below a panel at the top --
+ * drawn at the panel's own lines, so the map goes on behind the window across
+ * the view. Only the margins are taken from it: the original's screen is the
+ * game's as drawn. The lines are drawn afresh each frame, and drawing them
+ * again sets none of the frame's sprite flags. */
+static void show_the_picture_beside_the_panels(VidRenderer *r, const VidFrame *f, uint32_t *out)
+{
+    if (r->left == 0)
+        return;
+    int width = r->width, screen_from = -r->left, screen_to = -r->left + SCREEN_W;
+    bool range_over = r->range_over, time_over = r->time_over;
+    for (int i = 0; i < f->span_count; i++) {
+        if (!lays_a_panel_over_the_picture(f, &f->spans[i]))
+            continue;
+        int source = -1;
+        for (int k = i - 1; k >= 0 && source < 0; k--)
+            if (!f->spans[k].state.display.blank && !lays_a_panel_over_the_picture(f, &f->spans[k]))
+                source = k;
+        for (int k = i + 1; k < f->span_count && source < 0; k++)
+            if (!f->spans[k].state.display.blank && !lays_a_panel_over_the_picture(f, &f->spans[k]))
+                source = k;
+        int from = f->spans[i].line < 1 ? 1 : f->spans[i].line;
+        int to = i + 1 < f->span_count ? f->spans[i + 1].line - 1 : H;
+        if (to > H)
+            to = H;
+        if (source < 0 || from > to)
+            continue;
+        const VidSpan *beside = &f->spans[source];
+        const uint8_t *vram = beside->vram ? beside->vram : f->vram;
+        span_begin(r, beside, f, vram != r->span.vram);
+        SpanCtx *sp = &r->span;
+        static uint32_t picture[W];
+        for (int line = from; line <= to; line++) {
+            if (sp->parting && parting_row(line) != sp->parted_row)
+                span_windows(sp, line);
+            LineCtx c = { .sp = sp, .line = line };
+            draw_line(r, &c, picture);
+            uint32_t *row = out + (size_t)(line - 1) * width;
+            memcpy(row, picture, sizeof *row * (size_t)screen_from);
+            memcpy(row + screen_to, picture + screen_to, sizeof *row * (size_t)(width - screen_to));
+            r->lines[line].valid = false;
+        }
+    }
+    r->range_over = range_over;
+    r->time_over = time_over;
+}
+
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
     r->range_over = r->time_over = false;
@@ -1505,6 +1581,7 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
             r->time_over |= time_over;
         }
     }
+    show_the_picture_beside_the_panels(r, f, out);
     if (flags) {
         flags->range_over = r->range_over;
         flags->time_over = r->time_over;

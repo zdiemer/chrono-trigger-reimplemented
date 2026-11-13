@@ -57,6 +57,10 @@ void field_margins_due(GameState *g);
  * there: from a battlefield's change until the battle puts the field's layer
  * back. */
 void field_show_the_layers_across(GameState *g, Platform *pf);
+/* Where the room the screen is held to lies across the screen: from screen X
+ * `left` to short of `right`. A wider view shows nothing of the map past it,
+ * nor the people standing there. */
+void field_rooms_span(const GameState *g, int16_t *left, int16_t *right);
 void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint16_t scroll[3]);
 void field_battle_takes_its_own_layer(GameState *g, unsigned layer);
 void field_battle_gives_the_layer_back(GameState *g, unsigned layer);
