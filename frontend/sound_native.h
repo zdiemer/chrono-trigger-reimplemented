@@ -23,6 +23,8 @@ typedef struct SoundNative SoundNative;
 
 /* The player for the game `g` on `pf`, its hooks put in pf->audio. */
 SoundNative *sound_native_create(GameState *g, Platform *pf);
+/* Take the player's hooks back from its platform; its memory is the
+ * arena's and stays until the process ends. */
 void sound_native_destroy(SoundNative *n);
 /* The driver, its held commands and ports, the mixer and the samples not yet
  * taken, as bytes for a snapshot, and put back from them; a restore keeps

@@ -1,12 +1,12 @@
 #include "sound_native.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 #include "charge.h"
 #include "core/sound_commands.h"
 #include "platform/native/mixer.h"
 #include "platform/time_model.h"
+#include "port/arena.h"
 #include "sound/sound.h"
 
 /* The driver's time is the SPC700's, whose timers count at 8 kHz: the
@@ -294,9 +294,13 @@ static uint8_t read_port(void *ctx, uint8_t port)
     return n->out[port & 3];
 }
 
+/* The player lives in the arena (port/arena.h), at the same address in every
+ * run of the build: the game's call that hands it a command can be where a
+ * fiber stops for the frame, and a snapshot of that fiber's stack holds the
+ * player's address, which a later run that loads the snapshot returns to. */
 SoundNative *sound_native_create(GameState *g, Platform *pf)
 {
-    SoundNative *n = calloc(1, sizeof *n);
+    SoundNative *n = arena_take(sizeof *n);
     if (!n)
         return NULL;
     n->game = g;
@@ -312,7 +316,6 @@ void sound_native_destroy(SoundNative *n)
         return;
     if (n->pf->audio.ctx == n)
         n->pf->audio = (AuHost){ 0 };
-    free(n);
 }
 
 size_t sound_native_snapshot_bytes(void) { return sizeof(SoundNative); }
