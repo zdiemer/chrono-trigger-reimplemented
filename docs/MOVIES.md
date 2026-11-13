@@ -217,8 +217,8 @@ winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest
 Maze, 65,000,000 B.C.) with the save's party and items: the maze and the
 Reptite Lair (`nizbel`'s piece), the Mystic Mountains' Gate, Melchior forging
-the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
-Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
+the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, 30 Mid Tonics
+and 2 Revives from Dorino (the save has no Mid Tonics), the Cursed Woods, where Frog joins, the Magic
 Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 `castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
 corridor and the inner rooms (a search that plays ladders and stairs through),

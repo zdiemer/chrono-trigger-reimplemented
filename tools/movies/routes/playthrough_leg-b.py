@@ -108,7 +108,7 @@ SLASH_BACK = ["slash_back", "tended_for_flea"]
 FLEA = castle_flea.PHASES[len(castle.APPROACH):]
 INNER = ["hall_again", "trapdoor", "ozzies_corridor", "corridor_end", "tower", "tower_top", "rested", "bridge_room",
          "gallery", "antechamber", "magus_door", "ozzie_falls", "rested_for_magus", "magus_stairs",
-         "magus_chamber"]
+         "magus_chamber", "magus_fight", "magus"]
 PHASES = START + NIZBEL + HOME + FLASHBACK + CAVE + CASTLE + ["tended_for_slash"] + SLASH + SLASH_BACK + FLEA + INNER
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 
@@ -228,7 +228,7 @@ def dorino(run):
     machine = run.machine
     run.wait_world_control()
     world_enter(run, DORINO_SHOP)
-    main_leg.buy(run, DORINO_COUNTER, [(DORINO_MID_TONIC_ROW, 30, 100), (DORINO_REVIVE_ROW, 2, 200)])
+    main_leg.buy(run, DORINO_COUNTER, [(DORINO_MID_TONIC_ROW, 50, 100), (DORINO_REVIVE_ROW, 2, 200)])
     run.say("supplies", "mid tonics", menus.count_of(machine, policies.MID_TONIC),
             "revives", menus.count_of(machine, policies.REVIVE))
     main_leg.walking(run)
@@ -327,12 +327,13 @@ def tend(run):
 MARLE, FROG_CHARACTER = 1, 4
 AURA, CURE, SLURP = 0, 3, 0     # their places in Marle's and Frog's battle tech lists
 CURE_MP, AURA_MP, SLURP_MP = 2, 1, 1
+CRITICAL = 0.25                 # of a member's max HP: a Mid Tonic rather than a Tonic
 
 
 def castle_fights(bot, state, rng, inventory):
-    """The castle routes' fights (castle.castle_policy), with this party's own healing: the
-    save has no Mid Tonics, so Marle's Cure and Aura and Frog's Slurp heal whoever is lowest,
-    and then a Tonic."""
+    """The castle routes' fights (castle.castle_policy), with this party's own healing: Marle's
+    Cure and Aura and Frog's Slurp heal whoever is lowest, and then a Tonic, the Mid Tonics kept
+    for Magus where Tonics are left unless a member is near to falling."""
     member = state.member
     character = policies.party_ids(bot)[member]
     alive = [i for i in range(3) if state.hp(i)]
@@ -346,7 +347,9 @@ def castle_fights(bot, state, rng, inventory):
                 return "tech", AURA, low
             if character == FROG_CHARACTER and mp >= SLURP_MP and policies.tech_known(bot, member, SLURP):
                 return "tech", SLURP, low
-            action = policies.use(inventory, policies.MID_TONIC, low) or policies.use(inventory, policies.TONIC, low)
+            first, then = ((policies.MID_TONIC, policies.TONIC) if policies.fraction(state, low) < CRITICAL
+                           else (policies.TONIC, policies.MID_TONIC))
+            action = policies.use(inventory, first, low) or policies.use(inventory, then, low)
             if action:
                 return action
     return castle.castle_policy(bot, state, rng, inventory)
@@ -361,7 +364,7 @@ PUSHES = tuple("PUSH " + way for way in WAYS)   # a way held a while, against wh
 def hold(way):
     """A move's frames and buttons."""
     return (PUSH_FRAMES, way[len("PUSH "):]) if way in PUSHES else (STEP_FRAMES, way)
-FLEE_SLOT = 3980
+FLEE_SLOT, FLEE_FRAMES = 3980, 6000
 LONG_FIGHT = 250000     # frames: the four statues before Magus's hall take the party's blows a few points at a time
 
 
@@ -426,7 +429,7 @@ def settle_fight(run):
     machine = run.machine
     machine.mark(FLEE_SLOT)
     try:
-        main_leg.flee(run)
+        main_leg.flee(run, FLEE_FRAMES)
     except AssertionError:
         machine.restore(FLEE_SLOT)
         main_leg.win(run, policy=castle_fights, max_frames=LONG_FIGHT)
@@ -558,9 +561,9 @@ def ozzie_falls(run):
     machine.run(3, "A")
     assert run.dialogs_until(lambda: early.battle_ready(run), 12000), "Ozzie's fight"
     for _ in range(8):
-        if story(run) >= STORY_OZZIE_FALLS and main_leg.in_hand(run, 6000, policy=levers):
+        in_hand = main_leg.in_hand(run, 30000, policy=levers)
+        if in_hand and story(run) >= STORY_OZZIE_FALLS:
             break
-        main_leg.in_hand(run, 30000, policy=levers)
     assert story(run) == STORY_OZZIE_FALLS, "Ozzie gone"
 
 
@@ -586,6 +589,87 @@ def magus_chamber(run):
     search_walk(run, MAGUS_CHAMBER, MAGUS_CHAMBER_DOOR)
 
 
+# Magus: his barrier leaves him open to one element at a time, which his record's four
+# elemental affinities say (bit 7 absorbs; the low bits the scale's divisor, the least the
+# weakest), and a blow moves it on. Lightning (Crono's) and water (Marle's Ice) are this party's.
+COMBATANT_RECORDS = 0x7E5E2D          # battle/combatant.h's records: A.BATTLE_STATS less STAT_HP
+STAT_ELEMENT_AFFINITY, ABSORBS, DIVISOR = 0x3F, 0x80, 0x3F
+LIGHTNING_ELEMENT, WATER_ELEMENT = 0, 2   # their places among the four
+BATTLE_MENU_QUEUE = 0x7E95D6          # the members whose menus wait to open: ready for a double tech
+CRONO_CHARACTER = 0
+LIGHTNING_TECH, ICE_TECH, AURA_WHIRL_TECH, X_STRIKE_TECH = 3, 11, 57, 66   # tech ids
+MAGUS_SPOT = (120, 230)               # below Magus in his chamber
+MAGUS_FIGHT, MAGUS_TRIES = 400000, 5000   # frames, and tries back over wipes
+
+
+def affinities(machine, slot):
+    at = COMBATANT_RECORDS + slot * A.BATTLE_STAT_STRIDE + STAT_ELEMENT_AFFINITY
+    return list(machine.peek(at, 4))
+
+
+def magus_policy(bot, state, rng, inventory):
+    """Magus's fight: the spell his barrier is open to when it is this party's, Crono and Frog's
+    X-Strike (or Crono and Marle's Aura Whirl, to heal all) when the partner is ready too, Marle's
+    Cure and Haste, Mid Tonics and Revives; otherwise blows, which turn his barrier on."""
+    machine = bot.machine
+    member = state.member
+    ids = list(policies.party_ids(bot))
+    character = ids[member]
+    living = policies.enemies(state)
+    target = living[0] if living else None
+    alive = [i for i in range(3) if state.hp(i)]
+    entries = dict((tech, entry) for entry, tech in policies.tech_list_entries(bot, member))
+    waiting = machine.peek(BATTLE_MENU_QUEUE, 4)
+    ready = lambda who: who in ids and ids.index(who) in waiting
+    mp = state.mp(member)
+    for slot in range(3):
+        if not state.hp(slot):
+            action = policies.use(inventory, policies.REVIVE, slot)
+            if action:
+                return action
+    low = min(alive, key=lambda i: policies.fraction(state, i))
+    hurt = sum(1 for i in alive if policies.fraction(state, i) < 0.6)
+    if (character == CRONO_CHARACTER and hurt >= 2 and len(alive) == 3 and ready(MARLE)
+            and AURA_WHIRL_TECH in entries and mp >= 2):
+        return "tech", entries[AURA_WHIRL_TECH], None
+    if policies.fraction(state, low) < 0.5:
+        if character == MARLE and mp >= CURE_MP:
+            return "tech", CURE, low
+        action = policies.use(inventory, policies.MID_TONIC, low) or policies.use(inventory, policies.TONIC, low)
+        if action:
+            return action
+    if target is not None:
+        open_to = min(range(4), key=lambda e: (affinities(machine, target)[e] & ABSORBS,
+                                               affinities(machine, target)[e] & DIVISOR))
+        if character == CRONO_CHARACTER and open_to == LIGHTNING_ELEMENT and LIGHTNING_TECH in entries and mp >= 2:
+            return "tech", entries[LIGHTNING_TECH], target
+        if character == MARLE and open_to == WATER_ELEMENT and ICE_TECH in entries and mp >= 2:
+            return "tech", entries[ICE_TECH], target
+    if character == CRONO_CHARACTER and ready(FROG_CHARACTER) and X_STRIKE_TECH in entries and mp >= 2:
+        return "tech", entries[X_STRIKE_TECH], target
+    if character == MARLE and mp >= 6 and rng.random() < 0.2:
+        return "tech", 4, rng.choice([0, 1])
+    return "attack", target
+
+
+def magus_fight(run):
+    """Up to Magus, and his words, to the fight's first command."""
+    machine = run.machine
+    main_leg.walking(run)
+    stop = lambda: early.battle_ready(run) or run.dialog() or not machine.b(A.FIELD_PLAYER_CONTROL)
+    for _ in range(6):
+        early.advance(run, "UP", stop)
+        machine.run(3, "A")
+        if run.dialogs_until(lambda: early.battle_ready(run), 30000):
+            break
+        main_leg.walking(run)
+    assert early.battle_ready(run), "Magus's fight"
+
+
+def magus(run):
+    main_leg.win(run, policy=magus_policy, max_frames=MAGUS_FIGHT, max_tries=MAGUS_TRIES)
+
+
 def inner_room(name):
     want, aim = INNER_WAY[name]
     return lambda run: search_walk(run, want, aim)
@@ -601,7 +685,7 @@ STEPS = {
     "tended_for_slash": tend, "tended_for_flea": tend,
     "hall_again": hall_again, "trapdoor": trapdoor, "ozzies_corridor": ozzies_corridor, "rested": rested,
     "ozzie_falls": ozzie_falls, "rested_for_magus": rested_for_magus, "magus_stairs": magus_stairs,
-    "magus_chamber": magus_chamber,
+    "magus_chamber": magus_chamber, "magus_fight": magus_fight, "magus": magus,
 }
 STEPS.update({name: inner_room(name) for name in INNER_WAY})
 
