@@ -9,6 +9,7 @@ from .routes.telepod_lavos import to_the_shell
 
 TELEPOD_PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending"]
 BUCKET_PHASES = ["eot", "dayoflavos", "shell", "cavern", "inner", "core", "ending"]
+BUCKET = 9                      # the End of Time's object 9
 
 
 def bucket_to_shell(run, start):
@@ -36,6 +37,10 @@ def bucket_to_shell(run, start):
             machine.run(40)
             if run.dialog():
                 break
+        if not run.dialog():
+            # Where the party stands differently from the New Game+ saves'
+            # (a leg of the playthrough), the bucket is spoken to as an object.
+            assert run.talk(BUCKET), "the bucket"
         run.dialogs_until(lambda: not run.dialog(), 3000)
         machine.run(30)
         machine.run(3, "A")

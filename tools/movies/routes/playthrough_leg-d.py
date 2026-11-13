@@ -6,14 +6,20 @@ The main playthrough (playthrough.py) plays the early game from a blank
 cartridge; the legs start from cartridge saves so the whole game is played in
 parallel. This one plays the end of the game with the save's party and items:
 the Blackbird's equipment recovery and Dalton (blackbird_save, dalton); Magus
-at North Cape, whom the party lets join (north_cape), after which the winged
-Epoch flies and the Black Omen rises; Gaspar's Chrono Trigger at the End of
-Time; ... Each phase ends at a checkpoint and the route goes on only past
-checkpoints that succeeded; where another route already plays a stretch, its
-`play(run, start)` plays it from the state this route reached.
+at North Cape, who joins (north_cape), after which the winged Epoch flies and
+the Black Omen rises; Gaspar's Chrono Trigger at the End of Time; silver
+points from Gato and Bekkler's clone at the Millennial Fair (fair_clone);
+Belthasar's message in the Keeper's Dome; Death Peak and Crono's return
+(death_peak_wind, death_peak, death_peak_return); and, Crono in the party,
+the bucket to the Day of Lavos and the fights inside it (other_endings).
+Each phase ends at a checkpoint and the route goes on only past checkpoints
+that succeeded; where another route already plays a stretch, its
+`play(run, start)` plays it from the state this route reached. The Epoch's
+flying is routes/_epoch.py's.
 """
 from .. import addresses as A
-from .. import bfs, policies
+from .. import policies
+from .. import other_endings
 from ..campaign import Run, route_arguments, run_route
 from . import blackbird_save
 from . import dalton
@@ -23,6 +29,8 @@ from . import death_peak_wind
 from . import _fair as fair
 from . import fair_clone
 from . import north_cape
+from ._epoch import (CHOICE_ACTIVE, CHOICE_READY, CHOICE_ROW, DISEMBARK, END_OF_TIME_DOCK, PERIOD_1000, PERIOD_2300,
+                     PERIOD_END_OF_TIME, board, dial, dial_from_the_dock, go_through_time, land_by)
 from ._trial_walk import world_enter
 from .menu_sweep import ITEMS, SHELTER, back_to_main_menu, count_of, open_menu, open_option, use_item
 from .save_point import press
@@ -51,8 +59,17 @@ CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
+# Crono back, the bucket at the End of Time leads to the Day of Lavos and
+# into Lavos's shell (other_endings), whose imitations of the bosses before
+# it this party beats one after another. The shell's own form (10000 HP,
+# blows of 400-500 HP on each member) is more than it can take at levels
+# 34-38: the leg ends where that form stands.
+# Crono joins first, in Lucca's place: the shell's Nizbel imitation gives
+# way only to his lightning. The End of Time's light restores the party.
+REUNITED = ["crono_joins"]
+LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + CAVES
-          + SUMMIT)
+          + SUMMIT + REUNITED + LAVOS)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg D of the playthrough, from the Blackbird to an ending (route playthrough_leg-d).
@@ -64,29 +81,24 @@ HEADER = """\
 STORY = A.EVENT_MEMORY
 OMEN_RISEN = 0xD4
 WORLD_12000 = "f601"
-END_OF_TIME, END_OF_TIME_DOCK = "d001", "d901"
-TRAVEL_IN_THE_EPOCH = 2
-DIAL_PERIOD = 0x7E0C52          # the period the time dial stands at (menu/epoch.c)
-PERIOD_END_OF_TIME, PERIOD_2300, PERIOD_1000 = 0, 1, 3
-CHOICE_ACTIVE, CHOICE_ROW = 0x7E0162, 0x7E0163
-CHOICE_READY = 2                # the choice takes the pad
-FULL_SPEED, DISEMBARK = 0, 1    # the docked Epoch's choice
+END_OF_TIME = "d001"
 KEEPER_FLAGS = 0x7F007C         # bit 0 the Chrono Trigger given, bit 1 Belthasar heard with the clone
 CHRONO_TRIGGER, CRONOS_CLONE = 0xD9, 0xE2
 # Gaspar dozes under the lamp at the End of Time; he is spoken to from his
 # left. The first talk is about Crono; called back as the party leaves, the
 # second gives the Chrono Trigger.
 BESIDE_GASPAR = (448, 360)
-WORLD_EXITS, WORLD_EXIT_BYTES, WORLD_EXIT_COUNT = 0x7E7E00, 7, 128   # the map's exit records
-# Where to try to come down about an entrance, nearest first: the Epoch comes
-# down only on open ground, which beside a town is often a few tiles off.
-LANDING_SPOTS = sorted(((dx, dy) for dx in range(-96, 97, 16) for dy in range(-96, 97, 16)),
-                       key=lambda d: abs(d[0]) + abs(d[1]))
-LANDING_SLOT = 3990
 LEENE_SQUARE, BELL_PLAZA, GATOS_RING = 0x005, "b701", "0600"
 GATO, GATO_POINTS = 8, 15       # the ring's object 8; each win
 SILVER_POINTS = 0x7F0052        # the fair's points (tools/movies/routes/_fair.py)
 CLONE_PRICE = 40
+MENU_CURSOR, RESERVE_TOP, EXCHANGE_ROWS = 0x7E0054, 0x7E0080, 0x7E0F02   # the party exchange (menu/exchange.c)
+ACTIVE_ROWS, ROW_PLACE = 3, 0x3F
+CRONO, LUCCA = 0, 2             # character numbers
+CRONO_AT_THE_GATE = 29          # the End of Time's object 29 once he is back, spoken to from below
+BELOW_CRONO = (472, 400)
+SHELL_SLOT, SHELL_HP = 3, 10000
+RESTORING_LIGHT = 12            # the End of Time's light by the stair: HP and MP restored
 CHARACTER_RECORDS, CHARACTER_RECORD_BYTES = 0x7E2600, 0x50   # a word of HP at +3, its most at +5
 CRONOS_HOUSE, CRONOS_HOUSE_DOWNSTAIRS, CRONOS_ROOM = 0x001, "0100", "0200"
 DELIVERED_CLONE = 19            # Crono's room's object 19, the clone, once Bekkler has made it
@@ -100,61 +112,6 @@ BELTHASAR = 16                  # the hangar's object 16, his recorded message, 
 
 def has(machine, item):
     return item in machine.peek(A.INVENTORY_ITEMS, A.INVENTORY_SIZE)
-
-
-def board(run):
-    """On a world map on foot: walk up to the Epoch and board it."""
-    machine = run.machine
-    run.wait_world_control()
-    moves, _ = bfs.ow_bfs(machine, lambda m, px, py: m.b(A.OVERWORLD_TRAVEL) != 0,
-                          lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), run._map(), confirm=True, max_nodes=3000)
-    assert moves is not None, "the Epoch to board"
-    for _ in range(60):
-        machine.run(10)
-        if machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH:
-            break
-    assert machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, "aboard the Epoch"
-    # With its wings it rises first, and takes the pad once in the air.
-    machine.run(30)
-    assert run.wait_world_control(), "the Epoch in hand"
-
-
-def dial(run, period):
-    """In the Epoch: open the time dial (Y) and turn it to `period`."""
-    machine = run.machine
-    machine.run(4, "Y")
-    machine.run(100)
-    for _ in range(8):
-        if machine.b(DIAL_PERIOD) == period:
-            break
-        machine.run(4, "UP" if machine.b(DIAL_PERIOD) > period else "DOWN")
-        machine.run(56)
-    assert machine.b(DIAL_PERIOD) == period, ("the dial at period", period)
-
-
-def dial_from_the_dock(run, period):
-    """In the Epoch docked at the End of Time: Full speed ahead! opens the dial."""
-    machine = run.machine
-    assert run.dialogs_until(lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 3000), "the Epoch's choice"
-    machine.run(60)
-    assert machine.b(CHOICE_ROW) == FULL_SPEED, "Full speed ahead!"
-    machine.run(3, "A")
-    machine.run(150)
-    for _ in range(8):
-        if machine.b(DIAL_PERIOD) == period:
-            break
-        machine.run(4, "UP" if machine.b(DIAL_PERIOD) > period else "DOWN")
-        machine.run(56)
-    assert machine.b(DIAL_PERIOD) == period, ("the dial at period", period)
-
-
-def go_through_time(run, world):
-    """Travel (A) with the dial set, through the departure's lines, until the
-    party flies the Epoch over `world`."""
-    machine = run.machine
-    machine.run(4, "A")
-    assert run.dialogs_until(lambda: run.map_id() == world, 8000), ("arrived over", world)
-    run.wait_world_control()
 
 
 def speak_to_gaspar(run):
@@ -183,54 +140,6 @@ def decline_the_epoch(run):
         machine.run(20)
         machine.run(3, "A")
         machine.run(40)
-
-
-def entrance(run, location):
-    """Where a place's entrance is on this world map, from the map's exit records."""
-    records = run.machine.peek(WORLD_EXITS, WORLD_EXIT_BYTES * WORLD_EXIT_COUNT)
-    for offset in range(0, len(records), WORLD_EXIT_BYTES):
-        record = records[offset:offset + WORLD_EXIT_BYTES]
-        if record[0] & 0x80 and int.from_bytes(record[3:5], "little") & 0x1FF == location:
-            return (record[0] & 0x7F) * 16, (record[1] & 0x3F) * 16
-    raise AssertionError(("no entrance", hex(location)))
-
-
-def fly_to(run, x, y, near=6):
-    """In the air: steer the Epoch over (x, y)."""
-    machine = run.machine
-    for _ in range(600):
-        px, py = run.world_pos()
-        if abs(px - x) <= near and abs(py - y) <= near:
-            return
-        across = "" if abs(px - x) <= near else ("RIGHT" if px < x else "LEFT")
-        down = "" if abs(py - y) <= near else ("DOWN" if py < y else "UP")
-        machine.run(4, "+".join(b for b in (down, across) if b))
-    raise AssertionError(("flying to", (x, y), "stuck at", run.world_pos()))
-
-
-def land_by(run, location, enter=True):
-    """Fly over a place's entrance, come down on open ground beside it, and
-    walk in (unless not `enter`)."""
-    machine = run.machine
-    x, y = entrance(run, location)
-    for dx, dy in LANDING_SPOTS:
-        fly_to(run, x + dx, y + dy)
-        machine.run(20)
-        machine.mark(LANDING_SLOT)
-        machine.run(3, "A")
-        for _ in range(40):
-            machine.run(10)
-            if machine.b(A.OVERWORLD_TRAVEL) == 0:
-                break
-        if machine.b(A.OVERWORLD_TRAVEL) == 0:
-            machine.free(LANDING_SLOT)
-            break
-        machine.restore(LANDING_SLOT)
-        machine.free(LANDING_SLOT)
-    assert machine.b(A.OVERWORLD_TRAVEL) == 0, ("landed by", hex(location))
-    run.wait_world_control()
-    if enter:
-        world_enter(run, location)
 
 
 def won_against_all(run, state):
@@ -270,6 +179,56 @@ def rest_at_the_save_point(run):
     for member in machine.peek(A.PARTY_MEMBERS, 3):
         record = CHARACTER_RECORDS + member * CHARACTER_RECORD_BYTES
         assert machine.w(record + 3) == machine.w(record + 5), "rested"
+
+
+def the_shells_own_form(run, state):
+    """Lavos's shell stands alone, its imitations beaten."""
+    return policies.enemies(state) == [SHELL_SLOT] and state.max_hp(SHELL_SLOT) == SHELL_HP
+
+
+def press_until_choice(run):
+    """Confirm until a choice takes the pad."""
+    machine = run.machine
+    for _ in range(6):
+        machine.run(3, "A")
+        machine.run(40)
+        if machine.b(CHOICE_ACTIVE) == CHOICE_READY:
+            return True
+    return False
+
+
+def member_under_the_cursor(machine):
+    """Who the party exchange's cursor is on: its place is an active row, or
+    one of the reserve's four shown from the reserve's top row."""
+    place = machine.b(MENU_CURSOR)
+    row = place + machine.b(RESERVE_TOP) if place >= ACTIVE_ROWS else place
+    return machine.b(A.PARTY_MEMBERS + (machine.b(EXCHANGE_ROWS + row) & ROW_PLACE))
+
+
+def exchange(run, joining, leaving):
+    """On the party exchange's screen: choose the member `leaving` the active
+    party, then the reserve's `joining`; the two change places."""
+    machine = run.machine
+    def choose(member, keys):
+        for _ in range(8):
+            if member_under_the_cursor(machine) == member:
+                break
+            machine.run(4, keys[0] if machine.b(MENU_CURSOR) < ACTIVE_ROWS else keys[1])
+            machine.run(30)
+        assert member_under_the_cursor(machine) == member, ("the exchange's cursor on", member)
+        machine.run(4, "A")
+        machine.run(60)
+    choose(leaving, ("DOWN", "LEFT"))
+    machine.run(4, "RIGHT")
+    machine.run(30)
+    choose(joining, ("RIGHT", "DOWN"))
+    assert joining in machine.peek(A.PARTY_MEMBERS, 3), ("in the party", joining)
+    for _ in range(6):
+        if machine.b(A.FIELD_PLAYER_CONTROL):
+            break
+        machine.run(4, "B")
+        machine.run(90)
+    assert run.wait_control(), "the field after the exchange"
 
 
 def beat_gato(run, seed=1):
@@ -440,7 +399,32 @@ def main():
         if later < len(SUMMIT):
             death_peak_return.play(run, max(1, later), args.seed)
         later -= len(SUMMIT)
-        run.finish("leg D's last checkpoint")
+        if later <= 0:
+            assert run.wait_control(), "the End of Time in hand"
+            assert run.go(*BELOW_CRONO, tolerance=3), "below Crono"
+            machine.run(2, "UP")
+            machine.run(8)
+            assert press_until_choice(run), "Will you take Crono?"
+            machine.run(30)
+            machine.run(3, "A")                     # Yes
+            machine.run(120)
+            exchange(run, CRONO, LUCCA)
+            assert run.talk(RESTORING_LIGHT), "the End of Time's light"
+            for member in machine.peek(A.PARTY_MEMBERS, 3):
+                record = CHARACTER_RECORDS + member * CHARACTER_RECORD_BYTES
+                assert machine.w(record + 3) == machine.w(record + 5), "restored"
+            run.checkpoint("crono_joins")
+        later -= len(REUNITED)
+        if later < 2:
+            other_endings.bucket_to_shell(run, later + 1)
+        if later <= 2:
+            # Between imitations the party walks into Lavos again. The bag is
+            # the middle game's: Lapis, Mid Tonics and Ethers.
+            run.fight("party_with_ethers", the_shells_own_form, party=3, seed=args.seed,
+                      idle=lambda bot: bot.step(22, "UP"))
+            run.checkpoint("imitations")
+        later -= len(LAVOS)
+        run.finish("Lavos's imitations beaten, its shell's own form reached")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
     except (AssertionError, RuntimeError):

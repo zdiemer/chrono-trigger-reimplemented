@@ -8,7 +8,7 @@ from ..campaign import Run, route_arguments, run_route
 from .death_peak import arrive, spawn, walk_to
 
 SAVE = "saves/routes/death-peak-summit.srm"
-PHASES = ["loaded", "spawn", "shell", "climbed", "summit", "frozen", "returned"]
+PHASES = ["loaded", "spawn", "spawn_shell", "climbed", "summit", "frozen", "returned"]
 HEADER = """\
 # Death Peak, 2300 A.D.: beat the final Lavos Spawn, push its shell into place and climb to the summit.
 # Use the Time Egg, exchange the clone for Crono in the frozen Ocean Palace, and return to field control.
@@ -43,7 +43,7 @@ def play(run, start=1, seed=1):
         walk_to(run, sx, sy + 40, limit=400)
         m.run(180, "UP")
         assert m.peek(0x7F0065, 2) == bytes((16, 15)), "shell under the ladder"
-        run.checkpoint("shell")
+        run.checkpoint("spawn_shell")
     if start <= 3:
         m.run(30, "A")
         # At the top of the shell only UP is possible. find_player needs
