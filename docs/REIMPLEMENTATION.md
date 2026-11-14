@@ -209,6 +209,22 @@ Giga Gaia), it showed where native battle time fell short:
   3000-6000; 74.4k before). Across the 84 movies, places on time stay 599
   and in order go 694 to 695 (the gate's 58: 395 to 395, 476 to 478); one
   moves away, the Black Omen's Zeal fight, with its evidence on its line.
+- The location's load (issues #349, #376). The routines a location's load
+  and its scripts' setup run once or a few times a load were left out of
+  the field's calibration, which took routines of 1000 calls and more; 76
+  of them take the ratio of the original's clocks a call to native's over
+  the 25 movies (`tools/timing_ratios.txt`): the load (`$C0:00F4` ×4.1),
+  the screen's setup (`$C0:286C` ×2.3), the objects' start (`$C0:5709`
+  ×1.8), the map's unpacking (`$C0:A33B` ×1.5) and the event commands that
+  set objects up (×1.1-1.8). Left as they were: the song starts, the
+  transfers the port charges outside the routines and the routines the port
+  prices from their own work. The trial's load now lags as long as the
+  original's. Across the 84 movies, places on time go 606 to 609 and in
+  order 705 to 709 (the gate's 59: 408 to 411, 492 to 496); the End of
+  Time's gate (the original's 8-frame stall at 3121 in `$1D0`, ct_native's
+  1) and Fiona's forest (its Retinite fight, carried by its route) move
+  away, and Arris Dome's movie now meets a save point's prompt, each with its
+  evidence on its line.
 - The checks outside the menus (issue #349). The field's, the events', the
   scenes', the world map's and the time gates' checks are looks too:
   measured again, the field's rates stay within 2% of the original's but
