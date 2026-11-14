@@ -704,9 +704,12 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   size the original draws them. Where the frames have a border between
   windows, those left of it (the enemies' list, a member's command window
   over it, the tech page's list) go to the view's left side and the one right
-  of it (the party's, the tech page's MP) to its right side, with their text;
-  the gap between shows nothing, as the original's lines there show only the
-  window. A command window drawn over the enemies' list stands alone: the
+  of it (the party's, the tech page's MP) to its right side, with their text.
+  Between them the renderer shows the battlefield the window hides on the
+  original's screen: the nearest lines without the window, drawn at the
+  window's own lines, wherever every laid-out layer shows nothing; where that
+  picture has nothing of its own (an arena drawn only above the window) the
+  gap stays black. A command window drawn over the enemies' list stands alone: the
   rest of the list, whose names it covers, is left out rather than shown as
   an empty piece of a window. The item list and the message window, a screen
   across, stay in the middle. What the window's rows and frames show is noted as the vblank sends them

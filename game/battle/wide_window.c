@@ -28,7 +28,11 @@
 /* The window's map, its text rows and its frames' rows. The message window's
  * rows (24 to 30) stay as the original lays them out. */
 enum { WINDOW_MAP = 0x7800 };
-static const PanelRows TEXT_ROWS = { 1, 6 }, FRAME_ROWS = { 16, 6 };
+static const PanelRows TEXT_ROWS = { 1, 6 };
+/* All the window's rows above the message window's, the frames' and the
+ * blank rows round them among them: parted alike, so the gap between the
+ * windows holds nothing of the window on any line it shows. */
+static const PanelRows WINDOW_ROWS = { 0, 24 };
 
 /* ---- Noting what is sent -------------------------------------------------------------- */
 
@@ -83,8 +87,11 @@ void battle_lay_out_the_window_across(GameState *g, Platform *pf)
     const BattleWideWindow *w = battle_wide_window(g);
     PanelLayout *l = panel_layout_begin(g, view);
     uint8_t left = w->command ? (uint8_t)(w->command + 1) : (uint8_t)(w->divider + (w->shared ? 1 : 0));
-    split_at_the_border(l, FRAME_ROWS, w->divider, left);
-    if (w->shows == WINDOW_SHOWS_PARTY || w->shows == WINDOW_SHOWS_TECHS)
-        split_at_the_border(l, TEXT_ROWS, w->divider, left);
+    split_at_the_border(l, WINDOW_ROWS, w->divider, left);
+    bool parted_text = w->shows == WINDOW_SHOWS_PARTY || w->shows == WINDOW_SHOWS_TECHS;
+    if (w->divider && !parted_text) {   /* a list across the window: its text as the original lays it out */
+        panel_show_nothing(l, TEXT_ROWS, (int8_t)-l->margin, (uint8_t)(PANEL_COLUMNS + 2 * l->margin));
+        panel_show_columns(l, TEXT_ROWS, 0, PANEL_COLUMNS, 0);
+    }
     panel_layout_send(l, pf, WINDOW_MAP);
 }
