@@ -30,8 +30,9 @@ from . import death_peak_wind
 from . import _fair as fair
 from . import fair_clone
 from . import north_cape
-from ._epoch import (CHOICE_ACTIVE, CHOICE_READY, CHOICE_ROW, DISEMBARK, END_OF_TIME_DOCK, PERIOD_1000, PERIOD_2300,
-                     PERIOD_END_OF_TIME, board, dial, dial_from_the_dock, go_through_time, land_by, wait_until)
+from ._epoch import (TRAVEL_IN_THE_EPOCH, CHOICE_ACTIVE, CHOICE_READY, CHOICE_ROW, DISEMBARK, END_OF_TIME_DOCK, PERIOD_1000, PERIOD_2300,
+                     PERIOD_END_OF_TIME, board, dial, dial_from_the_dock, fly_to, go_through_time, land_by,
+                     wait_until)
 from ._trial_walk import world_enter
 from .menu_sweep import EQUIPMENT, ITEMS, LAPIS, SHELTER, TECHS, back_to_main_menu, count_of, open_menu, open_option, use_item
 from .save_point import press
@@ -99,8 +100,10 @@ SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
-# form to healing first (holding_out).
-REUNITED = ["restored", "crono_joins"]
+# form to healing first (holding_out). Crono comes back 48 tech points short
+# of Luminaire, his spell on every enemy, and the Black Omen's first fight
+# pays them: the party flies in from 1000 A.D., wins it and leaves.
+REUNITED = ["restored", "crono_joins", "luminaire"]
 GROWN = ["stocked", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + GRIND + CAVES
@@ -155,6 +158,10 @@ CRONOS_HOUSE, CRONOS_HOUSE_DOWNSTAIRS, CRONOS_ROOM = 0x001, "0100", "0200"
 DELIVERED_CLONE = 19            # Crono's room's object 19, the clone, once Bekkler has made it
 KEEPERS_DOME, KEEPERS_HANGAR = 0x0F1, "f200"
 WORLD_1000, WORLD_2300 = "f001", "f201"
+BLACK_OMEN = 0x7E02A2           # where the Omen stands on the world map: x, then y (overworld_black_omen)
+OMEN_DOCK = "c101"              # the Omen's first room, where the Epoch docks
+OMEN_FIRST_FIGHT_Y = 170        # past the monsters at the dock's head
+ALL_SINGLE_TECHS = 8
 BEFORE_THE_SEALED_DOOR = 330    # the dome's hall, below the door the pendant opens
 DEATH_PEAK = 0x0F4             # its wind slope, entered from the 2300 A.D. map
 DEATH_PEAK_SAVE_POINT = (856, 448)   # on the mountain's lower field ($0F6), where death_peak starts
@@ -527,6 +534,21 @@ def leave_the_end_of_time(run, period, world):
     go_through_time(run, world)
 
 
+def leave_the_omen(run, door):
+    """From the Black Omen's dock, where the party came in at `door`: down to
+    the Epoch, and Yes to leaving; the Epoch is in hand over 1000 A.D."""
+    machine = run.machine
+    assert run.walk(lambda m, px, py: abs(px - door[0]) < 6 and py >= door[1] - 4) is not None, "the Omen's door"
+    for _ in range(30):
+        machine.run(4, "DOWN")
+        if run.dialog():
+            break
+    machine.run(3, "A")
+    assert wait_until(machine, lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 300), "Leave the Omen?"
+    machine.run(3, "A")                     # Yes
+    assert run.dialogs_until(lambda: run.map_id() == WORLD_1000 and machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, 3000),         "the Epoch over 1000 A.D."
+
+
 def beat_gato(run, seed=1):
     """Gato, the singing robot at the fair: each win is 15 silver points."""
     machine = run.machine
@@ -724,6 +746,22 @@ def main():
             machine.run(120)
             exchange(run, (CRONO, MARLE))
             run.checkpoint("crono_joins")
+        if later <= 2:
+            assert run.wait_control(), "the End of Time in hand"
+            leave_the_end_of_time(run, PERIOD_1000, WORLD_1000)
+            fly_to(run, machine.w(BLACK_OMEN), machine.w(BLACK_OMEN + 2))
+            machine.run(20)
+            machine.run(3, "A")
+            assert run.dialogs_until(lambda: run.map_id() == OMEN_DOCK and machine.b(A.FIELD_PLAYER_CONTROL), 8000),                 "into the Black Omen"
+            assert run.wait_control() and run.find_player() is not None, "the Omen's field in hand"
+            door = run.me()
+            fight_through(run, lambda m, px, py: py <= OMEN_FIRST_FIGHT_Y, "the Omen's first fight", args.seed)
+            assert machine.b(A.PARTY_SINGLE_TECHS_KNOWN + CRONO) == ALL_SINGLE_TECHS, "Crono's Luminaire"
+            leave_the_omen(run, door)
+            dial(run, PERIOD_END_OF_TIME)
+            machine.run(4, "A")
+            disembark_at_the_end_of_time(run)
+            run.checkpoint("luminaire")
         later -= len(REUNITED)
         if later <= 0:
             assert run.wait_control(), "the End of Time in hand"

@@ -172,6 +172,10 @@ game/battle/menu_lists.c). The tech-sweep policy (policies.py) walks this to
 find every tech a member's list can show, singles first, then doubles and
 triples, without needing to know the party's combination techs by name."""
 
+PARTY_SINGLE_TECHS_KNOWN = 0x7E2830
+"""How many single techs each character knows, a byte a character by number
+(party_single_techs_known in re/ram.toml); eight is all of them."""
+
 BATTLE_TECH_RECORDS = 0x7E1A80
 BATTLE_TECH_RECORD_BYTES = 7
 BATTLE_TECHS_LISTED = 20
