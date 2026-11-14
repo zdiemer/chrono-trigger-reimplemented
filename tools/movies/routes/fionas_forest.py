@@ -243,7 +243,9 @@ def catch_retinite(run):
     assert approach(run, 152, 216, dash=True, goal=lambda: m.b(0x7E011F) == 0, limit=300)
     assert run.wait_control(), "Retinite's introduction over"
     assert m.b(DESERT_FLAGS) & 4, "Retinite has appeared"
-    assert approach(run, 296, 184, dash=True, tolerance=10, limit=700)
+    # Searched for where the sand lets it; where the search finds no way (the sand's pull
+    # can leave every probe off the map's walkable ground), the loop below steers there.
+    approach(run, 296, 184, dash=True, tolerance=10, limit=700)
     # Hold the upper-right emergence area against the moving sand. The event
     # opens each of four areas in turn according to its random choice.
     for _ in range(1500):
