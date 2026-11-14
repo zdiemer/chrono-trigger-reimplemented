@@ -66,7 +66,18 @@ WIND = death_peak_wind.PHASES[1:]
 # its ledges drop one way (the original's own code stops at them too, played
 # with the frozen emulator-oracle oracle from ctsave12 slot 1).
 GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 52
+GRIND_LEVEL = 58
+# The growing heals from the bag (Lapis, tonics, Ethers for Robo's Heal
+# Beam), and the field above the slope has no shop: it stops with enough left
+# to reach the mountain's save point, where a Shelter restores everyone.
+GRIND_RESERVE = 8
+# Then Marle wears the Wallet, which pays each fight's experience as gold,
+# until the purse holds PURSE. At stock_up's prices, in its order, 200,000
+# buys two Aeon Suits and two Aeon Helms (33,600), Full Tonics to 99 (at most
+# 69,300) and Mid Ethers with what is left (some 48 from an empty bag, 96,000);
+# the Mid Tonics and Ethers after them take only the change. Filling the bag
+# with all four to 99 from empty would cost about 390,000.
+PURSE = 200000
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
@@ -118,6 +129,7 @@ WEAPON, HELM, ARMOUR, ACCESSORY = 0, 1, 2, 3                 # its slots' rows
 SLOT_RECORD = {HELM: 0x27, ARMOUR: 0x28, WEAPON: 0x29, ACCESSORY: 0x2A}   # character_records' gear
 FIRST_LIST_ROW = 4                                           # its cursor on the list's first row
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
+WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
 BEST_GEAR = [(MARLE, ARMOUR, AEON_SUIT), (MARLE, HELM, AEON_HELM), (LUCCA, ARMOUR, AEON_SUIT),
              (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
@@ -343,13 +355,19 @@ def grind_a_round(run, seed=1):
     assert run.exit_to(lower), "the lower field"
 
 
+def healing_left(machine):
+    """The bag's Lapis, Full and Mid Tonics and Ethers, all told."""
+    return sum(count_of(machine, item) for item in (LAPIS, FULL_TONIC, MID_TONIC, ETHER, MID_ETHER, FULL_ETHER))
+
+
 def gold(machine):
     return int.from_bytes(machine.peek(GOLD, 3), "little")
 
 
 def stock_up(run, merchant, purchases):
-    """Speak to a merchant and buy each (place in the shop's list, how many,
-    the price), as many as the gold pays for: the list scrolls, so the
+    """Speak to a merchant and buy each (place in the shop's list, the item,
+    how many the bag should hold, the price), as many as the gold pays for
+    and the bag's 99 of an item take: the list scrolls, so the
     cursor is counted from its top rather than read; the count starts at
     one, Up adds ten and Right one."""
     machine = run.machine
@@ -358,8 +376,8 @@ def stock_up(run, merchant, purchases):
     machine.run(3, "A")
     machine.run(60)
     at = 0
-    for place, count, price in purchases:
-        count = min(count, gold(machine) // price)
+    for place, item, want, price in purchases:
+        count = max(0, min(want - count_of(machine, item), gold(machine) // price))
         if count == 0:
             continue
         while at != place:
@@ -374,6 +392,7 @@ def stock_up(run, merchant, purchases):
         for _ in range((count - 1) % 10):
             machine.run(3, "RIGHT")
             machine.run(20)
+        machine.run(20)                     # the count takes no press at once
         before = gold(machine)
         machine.run(3, "A")
         machine.run(60)
@@ -652,11 +671,18 @@ def main():
             # monsters that stand in the way.
             fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
             run.checkpoint("lower_field")
-        if later <= 1:
-            while min(levels(machine)) < GRIND_LEVEL:
+        if later <= 2:
+            equip(run, MARLE, ACCESSORY, MAGIC_SCARF)      # resumed with the Wallet on, it would earn no levels
+            while min(levels(machine)) < GRIND_LEVEL and healing_left(machine) > GRIND_RESERVE:
                 grind_a_round(run, args.seed)
                 run.say("levels", levels(machine), "experience", experience(machine))
                 machine.save_state("%s_grinding.st" % run.prefix)
+            equip(run, MARLE, ACCESSORY, WALLET)
+            while gold(machine) < PURSE:
+                grind_a_round(run, args.seed)
+                run.say("gold", gold(machine))
+                machine.save_state("%s_grinding.st" % run.prefix)
+            equip(run, MARLE, ACCESSORY, MAGIC_SCARF)
             run.checkpoint("ground")
         later -= len(GRIND)
         if later <= 0:
@@ -694,8 +720,9 @@ def main():
             leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
             land_by(run, COMMONS_SHOP)
             assert run.wait_control(), "the shop in hand"
-            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, 2, 9000), (AEON_HELMS, 2, 7800), (FULL_TONICS, 99, 700),
-                                             (MID_ETHERS, 45, 2000), (MID_TONICS, 99, 100), (ETHERS, 25, 800)])
+            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 2, 7800),
+                                             (FULL_TONICS, FULL_TONIC, 99, 700), (MID_ETHERS, MID_ETHER, 99, 2000),
+                                             (MID_TONICS, MID_TONIC, 99, 100), (ETHERS, ETHER, 99, 800)])
             run.checkpoint("stocked")
         if later <= 1:
             # The party's armour and helms, the best the shops have by now

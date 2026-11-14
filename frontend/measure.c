@@ -40,8 +40,9 @@ typedef struct {
 } ModeTotals;
 
 struct Measure {
-    const AssetStore *inner;
-    AssetStore store;
+    const AssetSource *inner;
+    AssetSource source;
+    uint8_t *seen;              /* the resources this stay has read, a byte a row */
     Mode mode;
     uint64_t episode;           /* resource bytes this stay has read */
     ModeTotals modes[MODES];
@@ -63,25 +64,32 @@ uint64_t measure_now_ns(void)
 #endif
 }
 
-/* The store the game reads through: the same answers, each counted once a
- * stay (the game asks for a resource once until assets_use starts afresh). */
-static const uint8_t *counted_find(void *ctx, const char *name, const char *type, uint32_t *length)
+/* The source the game reads through: the same answers, each resource counted
+ * the first time a stay reads it. */
+static const uint8_t *counted_resource(void *ctx, AssetId id, uint32_t *length)
 {
     Measure *m = ctx;
-    const uint8_t *bytes = m->inner->find(m->inner->ctx, name, type, length);
-    if (bytes)
+    const uint8_t *bytes = m->inner->resource(m->inner->ctx, id, length);
+    if (bytes && !m->seen[id]) {
+        m->seen[id] = 1;
         m->episode += *length;
+    }
     return bytes;
 }
 
-Measure *measure_create(const AssetStore *inner, AssetStore *out)
+Measure *measure_create(const AssetSource *inner, AssetSource *out)
 {
     Measure *m = calloc(1, sizeof *m);
-    if (!m)
+    uint8_t *seen = calloc(asset_catalogue_count, 1);
+    if (!m || !seen) {
+        free(m);
+        free(seen);
         return NULL;
+    }
     m->inner = inner;
-    m->store = (AssetStore){ counted_find, m };
-    *out = m->store;
+    m->seen = seen;
+    m->source = (AssetSource){ counted_resource, m };
+    *out = m->source;
     return m;
 }
 
@@ -92,6 +100,7 @@ void measure_destroy(Measure *m)
     for (unsigned i = 0; i < MODES; i++)
         for (unsigned k = 0; k < 4; k++)
             free(m->modes[i].times[k]);
+    free(m->seen);
     free(m);
 }
 
@@ -156,7 +165,7 @@ void measure_frame(Measure *m, GameState *g, uint64_t game_ns, uint64_t sound_ns
     if (now != m->mode) {
         end_stay(m);
         m->mode = now;
-        assets_use(&m->store);      /* the next stay's reads, each seen again */
+        memset(m->seen, 0, asset_catalogue_count);   /* the next stay's reads, each seen again */
     }
 }
 

@@ -1,4 +1,9 @@
-"""Validate the native asset catalogue or regenerate its C table; no ROM required."""
+"""Validate the native asset catalogue or regenerate its C table; no ROM required.
+
+`crc ROM` records the CRC-32 of every resource's bytes in the catalogue's order,
+read from the cartridge by its own file offsets: the reference an imported pack
+is checked against (frontend/assets.c), made independently of the importer.
+With the ROM staged, `check` holds the recorded value to the catalogue."""
 import argparse
 import binascii
 import re
@@ -12,6 +17,10 @@ TSV = ROOT / "re" / "assets.tsv"
 C_OUT = ROOT / "game" / "data" / "asset_catalogue.c"
 NAMES_OUT = ROOT / "game" / "data" / "asset_names.h"
 VIEWS = ROOT / "re" / "asset_views.toml"
+ROM = ROOT / "roms" / "ct-usa.sfc"
+
+# The catalogue's line recording the CRC-32 of its resources' bytes.
+BYTES_CRC = re.compile(r"^# bytes crc32 ([0-9A-F]{8})$", re.M)
 
 # The types re/assets.tsv spells, MD2's and the analysis' jump tables, in the
 # order game/data/assets.h's indices take them.
@@ -126,6 +135,27 @@ def problems_of(rows: list[Row]) -> list[str]:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out
 
+def recorded_bytes_crc() -> int:
+    m = BYTES_CRC.search(TSV.read_text(encoding="utf-8"))
+    if not m:
+        raise SystemExit(f"{TSV}: no `# bytes crc32 XXXXXXXX` line: run tools/assets.py crc ROM")
+    return int(m[1], 16)
+
+
+def bytes_crc(rows: list[Row], rom: bytes) -> int:
+    """The CRC-32 of the rows' bytes, one after another in the catalogue's order."""
+    crc = 0
+    for r in rows:
+        at = bus_to_offset(r.at)
+        crc = binascii.crc32(rom[at:at + r.end - r.at + 1], crc)
+    return crc & 0xFFFFFFFF
+
+
+def cartridge(path: Path) -> bytes:
+    data = path.read_bytes()
+    return data[len(data) % 0x8000:]   # a copier's header, if it has one
+
+
 def catalogue_version(rows: list[Row]) -> int:
     return binascii.crc32("\n".join(r.line().rsplit("\t", 1)[0] for r in rows).encode()) & 0xFFFFFFFF
 
@@ -142,9 +172,10 @@ def generate_c(rows: list[Row]) -> str:
     for r in rows:
         out.append(f'    {{ 0x{r.at:06X}u, {r.end - r.at + 1}u, "{r.name}", {TYPES.index(r.type)}, '
                    f'{codecs.index(r.codec)} }},')
-    out += ["};", "", f"AssetServed asset_served[{len(rows)}];", "",
+    out += ["};", "",
             f"const uint16_t asset_catalogue_count = {len(rows)};", "",
-            f"const uint32_t asset_catalogue_version = 0x{catalogue_version(rows):08X}u;", ""]
+            f"const uint32_t asset_catalogue_version = 0x{catalogue_version(rows):08X}u;", "",
+            f"const uint32_t asset_catalogue_bytes_crc32 = 0x{recorded_bytes_crc():08X}u;", ""]
     return "\n".join(out)
 
 
@@ -176,13 +207,24 @@ def check() -> list[str]:
         out.append(f"{C_OUT.relative_to(ROOT)} isn't what re/assets.tsv generates: run tools/assets.py generate")
     if not NAMES_OUT.exists() or NAMES_OUT.read_text(encoding="utf-8") != generate_names(rows):
         out.append(f"{NAMES_OUT.relative_to(ROOT)} isn't what re/assets.tsv generates: run tools/assets.py generate")
+    if ROM.exists() and bytes_crc(rows, cartridge(ROM)) != recorded_bytes_crc():
+        out.append(f"{TSV.relative_to(ROOT)}: the recorded bytes crc32 isn't the catalogue's: run tools/assets.py crc ROM")
     return out
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('command', choices=('check', 'generate'))
+    ap.add_argument('command', choices=('check', 'generate', 'crc'))
+    ap.add_argument('rom', nargs='?', type=Path, default=ROM)
     args = ap.parse_args()
+    if args.command == 'crc':
+        crc = bytes_crc(load(), cartridge(args.rom))
+        text = TSV.read_text(encoding="utf-8")
+        line = f"# bytes crc32 {crc:08X}"
+        text = BYTES_CRC.sub(line, text) if BYTES_CRC.search(text) else text.replace("# name\t", line + "\n# name\t", 1)
+        TSV.write_text(text, encoding="utf-8", newline="\n")
+        print(line)
+        return 0
     if args.command == 'generate':
         rows = load()
         errors = problems_of(rows)

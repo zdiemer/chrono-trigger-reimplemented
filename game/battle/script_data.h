@@ -14,12 +14,6 @@
 #include "rom.h"
 #include "state.h"
 
-/* ---- The runner ------------------------------------------------------------------------------ */
-
-/* The original's handler for a command byte, in bank C1: its dispatch table
- * ($C1:7A6B, a word a command byte). */
-enum { SCRIPT_HANDLER_BANK = 0xC1 };
-
 /* ---- Places ------------------------------------------------------------------------------- */
 
 /* A place part way from one point to another: how many eighths of the way
@@ -36,11 +30,6 @@ typedef struct {
 typedef enum {
     TWO_AHEAD = 0x00, DIAGONAL_ONE_WAY = 0x01, DIAGONAL_OTHER_WAY = 0x02, CORNER_ONE_WAY = 0x21, CORNER_OTHER_WAY = 0x22
 } WalkProbe;
-
-static inline uint32_t battle_script_handler(const GameState *g, uint8_t command)
-{
-    return (uint32_t)SCRIPT_HANDLER_BANK << 16 | asset_read16(g, ASSET_BATTLE_SCRIPT_HANDLER, 2u * command);
-}
 
 static inline PlaceWeights battle_place_weights(const GameState *g, uint8_t entry)
 {

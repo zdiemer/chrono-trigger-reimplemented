@@ -13,8 +13,8 @@
  *   bytes as the catalogue keeps them.
  *
  * Measuring changes nothing the game does: the resources are served by the
- * same store through a counting wrapper, its cache started afresh where the
- * mode changes so each stay's reads are seen (data/assets.h, assets_use). */
+ * same source through a counting wrapper, which counts each resource once a
+ * stay, starting afresh where the mode changes (data/assets.h, assets_use). */
 #ifndef CT_FRONTEND_MEASURE_H
 #define CT_FRONTEND_MEASURE_H
 
@@ -27,9 +27,9 @@
 
 typedef struct Measure Measure;
 
-/* A measure over the store the game reads from; *out is the store to give
+/* A measure over the source the game reads from; *out is the source to give
  * the game (assets_use) in its place. */
-Measure *measure_create(const AssetStore *inner, AssetStore *out);
+Measure *measure_create(const AssetSource *inner, AssetSource *out);
 void measure_destroy(Measure *m);
 
 /* The host's monotonic clock, in nanoseconds. */

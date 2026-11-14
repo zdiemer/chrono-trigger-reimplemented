@@ -308,6 +308,11 @@ static uint8_t *load_pack(const Files *files, const char *rom_path, bool fresh, 
     const char *why = "";
     uint8_t *bytes = fresh ? NULL : files_read(files->assets, &len, false, NULL);
     *pack = bytes ? asset_pack_open(bytes, len, &why) : NULL;
+    if (*pack && !asset_pack_is_the_cartridges(*pack)) {
+        asset_pack_close(*pack);
+        *pack = NULL;
+        why = "its resources aren't the cartridge's";
+    }
     if (*pack) return serve_decoded(files, &bytes, &len, pack) ? lasting(bytes, len, pack) : NULL;
     if (bytes) fprintf(stderr, "ct_native: %s: %s; importing again\n", files->assets, why);
     free(bytes);
@@ -1011,10 +1016,10 @@ int main(int argc, char **argv)
     if (movie_path && movie.has_sram && !sram_path &&
         ct_sram_find(movie.sram_crc, movie_path, identity, found_sram, sizeof found_sram) == 0)
         sram_path = found_sram;
-    static AssetStore store, counted;
-    asset_pack_store(pack, &store);
-    Measure *measure = measuring ? measure_create(&store, &counted) : NULL;
-    assets_use(measure ? &counted : &store);
+    static AssetSource source, counted;
+    asset_pack_source(pack, &source);
+    Measure *measure = measuring ? measure_create(&source, &counted) : NULL;
+    assets_use(measure ? &counted : &source);
     bool fixed_sram = sram_path != NULL;
     if (windowed && !sram_path && !movie_path && !record_path) sram_path = files.sram;
     long sram_len = 0;

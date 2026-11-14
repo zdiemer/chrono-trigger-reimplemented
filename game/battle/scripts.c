@@ -31,18 +31,52 @@
 /* The last command byte the language has: a byte past it holds the channel. */
 enum { LAST_COMMAND = 0xDA };
 
-/* The original's handler for a command, which a refusal names and the
- * commands' timing goes by (battle/script_data.h). The runner's read of its
- * dispatch table is the runner's own time, which the channels' estimate was
- * calibrated without, so it is left out of it. */
-static uint32_t handler_of(GameState *g, uint8_t command)
-{
-    uint32_t mark = 0;
-    mark = charge_uncounted_begin(g);
-    uint32_t handler = battle_script_handler(g, command);
-    charge_uncounted_end(g, mark);
-    return handler;
-}
+/* The original's handler for each command byte ($C1:7A6B, its dispatch
+ * table), which a refusal names and the commands' timing goes by: the keys
+ * the work rates are kept under (runtime/port/time_rates.c). The runner's
+ * read of the table was its own time, which the channels' estimate was
+ * calibrated without, so knowing it costs nothing. */
+static const uint32_t COMMAND_HANDLERS[LAST_COMMAND + 1] = {
+    0xC14CF0, 0xC14CF7, 0xC14D04, 0xC14E22, 0xC14EA2, 0xC14EA2,
+    0xC14EA2, 0xC14F1A, 0xC14F54, 0xC14F54, 0xC14F54, 0xC14F54,
+    0xC14F54, 0xC14F54, 0xC14F54, 0xC14F54, 0xC14FBF, 0xC14FD1,
+    0xC14FE3, 0xC151EE, 0xC15205, 0xC1521C, 0xC15409, 0xC1541B,
+    0xC1542D, 0xC15611, 0xC1566C, 0xC1567D, 0xC15694, 0xC156BB,
+    0xC156CC, 0xC156FB, 0xC15714, 0xC15722, 0xC1572C, 0xC15743,
+    0xC15756, 0xC15769, 0xC1577D, 0xC15806, 0xC15840, 0xC15844,
+    0xC15879, 0xC1587D, 0xC158AB, 0xC158DC, 0xC158E4, 0xC14CF7,
+    0xC158EC, 0xC158FE, 0xC1590C, 0xC1591A, 0xC15931, 0xC15940,
+    0xC1594B, 0xC15956, 0xC15965, 0xC15970, 0xC1597B, 0xC15991,
+    0xC159A3, 0xC159B9, 0xC159B9, 0xC159B9, 0xC159B9, 0xC159E4,
+    0xC159FA, 0xC15A0C, 0xC15A3E, 0xC159B9, 0xC159B9, 0xC1623C,
+    0xC1623C, 0xC15A70, 0xC15A99, 0xC14CF7, 0xC14CF7, 0xC15A99,
+    0xC15AAF, 0xC15AC5, 0xC15ADB, 0xC15ADB, 0xC15ADB, 0xC15ADB,
+    0xC15ADB, 0xC15ADB, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC15CF1, 0xC15D12, 0xC15D18,
+    0xC15D1D, 0xC15D93, 0xC15D93, 0xC15D93, 0xC15D93, 0xC15DC1,
+    0xC15DC1, 0xC15DC1, 0xC15DC1, 0xC15DD3, 0xC15E87, 0xC15EDF,
+    0xC15F13, 0xC15F9A, 0xC15FA5, 0xC15FB3, 0xC15FC1, 0xC15FD3,
+    0xC15FDE, 0xC16059, 0xC1605F, 0xC16093, 0xC160E6, 0xC16154,
+    0xC1619E, 0xC1619E, 0xC161C1, 0xC161C1, 0xC161EB, 0xC161F5,
+    0xC14CF7, 0xC14CF7, 0xC1621B, 0xC1623C, 0xC1623C, 0xC1623C,
+    0xC1623C, 0xC16258, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC16299, 0xC1672E, 0xC16743, 0xC1674A,
+    0xC16299, 0xC1672E, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC16751, 0xC14CF7, 0xC1691B, 0xC169BA, 0xC14CF7, 0xC14CF7,
+    0xC169C3, 0xC16AF0, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC16CF3, 0xC16F31, 0xC16F53, 0xC16F75, 0xC16F9A, 0xC16FEF,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7,
+    0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC14CF7, 0xC16FFC, 0xC1702B,
+    0xC1705A, 0xC1720E, 0xC17349, 0xC173AD, 0xC17364, 0xC1740B,
+    0xC174B4, 0xC1753A, 0xC17579,
+};
+
+static uint32_t handler_of(uint8_t command) { return command <= LAST_COMMAND ? COMMAND_HANDLERS[command] : 0; }
 
 static uint32_t channel_place(const GameState *g, unsigned channel) { return battle_script_pointers(g, channel); }
 static void set_channel_place(GameState *g, unsigned channel, uint32_t at) { set_battle_script_pointers(g, channel, at); }
@@ -78,7 +112,7 @@ static bool take_up_channel(GameState *g, unsigned channel)
  * it takes. */
 static void run_operation(GameState *g, uint8_t command, const ScriptOpcode *row)
 {
-    TIMED_AS(g, handler_of(g, command), script_move_on(g, row, script_operate(g, row)));
+    TIMED_AS(g, handler_of(command), script_move_on(g, row, script_operate(g, row)));
 }
 
 /* How a command the channel comes to runs: its operation, its sound (the
@@ -100,9 +134,9 @@ static bool run_elsewhere(GameState *g, Platform *pf, uint8_t command, const Scr
     if (runs == THE_OPERATION_RAN)
         return true;
     if (runs != RUN_THE_SOUND)
-        return battle_contract_broken(g, handler_of(g, command), "an animation script's command the port doesn't run");
+        return battle_contract_broken(g, handler_of(command), "an animation script's command the port doesn't run");
     ScriptCommand decoded = script_decode(g, row);
-    TIMED_AS(g, handler_of(g, command), script_play_the_sound(g, pf, command, &decoded));
+    TIMED_AS(g, handler_of(command), script_play_the_sound(g, pf, command, &decoded));
     script_move_on(g, row, SCRIPT_NEXT);
     return true;
 }

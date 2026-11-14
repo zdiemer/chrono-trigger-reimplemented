@@ -5,9 +5,10 @@
 
 /* ---- The ROM ----------------------------------------------------------------------------------- */
 
-static uint32_t crc32_of(const uint8_t *p, size_t n)
+/* A CRC-32 carried on over more bytes (0 to start). */
+static uint32_t crc32_on(uint32_t crc, const uint8_t *p, size_t n)
 {
-    uint32_t c = 0xFFFFFFFFu;
+    uint32_t c = ~crc;
     while (n--) {
         c ^= *p++;
         for (int k = 0; k < 8; k++)
@@ -15,6 +16,8 @@ static uint32_t crc32_of(const uint8_t *p, size_t n)
     }
     return ~c;
 }
+
+static uint32_t crc32_of(const uint8_t *p, size_t n) { return crc32_on(0, p, n); }
 
 const uint8_t *asset_rom_image(const uint8_t *file, size_t len, size_t *size)
 {
@@ -45,6 +48,24 @@ static const uint8_t *rom_find(void *ctx, const char *name, const char *type, ui
         return NULL;
     *length = e->length;
     return r->rom + image_offset(e->at);
+}
+
+static const uint8_t *rom_resource(void *ctx, AssetId id, uint32_t *length)
+{
+    const AssetRom *r = ctx;
+    const AssetEntry *e = &asset_catalogue[id];
+    if (image_offset(e->at) + e->length > r->size)
+        return NULL;
+    *length = e->length;
+    return r->rom + image_offset(e->at);
+}
+
+void asset_source_rom(AssetSource *source, AssetRom *ctx, const uint8_t *rom, size_t size)
+{
+    ctx->rom = rom;
+    ctx->size = size;
+    source->resource = rom_resource;
+    source->ctx = ctx;
 }
 
 void asset_store_rom(AssetStore *store, AssetRom *ctx, const uint8_t *rom, size_t size)
@@ -128,7 +149,16 @@ uint8_t *asset_pack_import(const uint8_t *rom, size_t size, size_t *len, const c
     AssetRom ctx;
     AssetStore store;
     asset_store_rom(&store, &ctx, rom, size);
-    return asset_pack_build(&store, ASSET_ROM_CRC32, len, why);
+    uint8_t *pack = asset_pack_build(&store, ASSET_ROM_CRC32, len, why);
+    AssetPack *opened = pack ? asset_pack_open(pack, *len, why) : NULL;
+    bool the_cartridges = opened && asset_pack_is_the_cartridges(opened);
+    asset_pack_close(opened);
+    if (pack && !the_cartridges) {
+        free(pack);
+        *why = "the resources imported aren't the cartridge's: the import read them from the wrong places";
+        return NULL;
+    }
+    return pack;
 }
 
 typedef struct {
@@ -143,6 +173,8 @@ struct AssetPack {
     uint16_t next;   /* the entry after the one found last: a pack is read in its order */
     PackEntry *entries;
 };
+
+static int same(const char *s, uint8_t n, const char *z) { return strlen(z) == n && !memcmp(s, z, n); }
 
 AssetPack *asset_pack_open(const uint8_t *bytes, size_t len, const char **why)
 {
@@ -183,6 +215,17 @@ AssetPack *asset_pack_open(const uint8_t *bytes, size_t len, const char **why)
         e->bytes = bytes + data;
         e->length = n;
     }
+    /* a row of the catalogue is its entry: the directory in the catalogue's order */
+    for (uint16_t i = 0; i < count; i++) {
+        const AssetEntry *row = &asset_catalogue[i];
+        if (count != asset_catalogue_count || !same(entries[i].name, entries[i].name_len, row->name) ||
+            !same(entries[i].type, entries[i].type_len, asset_type_names[row->type])) {
+            free(entries);
+            free(pack);
+            *why = "a pack of another format or catalogue: import the ROM again";
+            return NULL;
+        }
+    }
     pack->count = count;
     pack->entries = entries;
     return pack;
@@ -193,7 +236,6 @@ cut:
     return NULL;
 }
 
-static int same(const char *s, uint8_t n, const char *z) { return strlen(z) == n && !memcmp(s, z, n); }
 
 static const uint8_t *pack_find(void *ctx, const char *name, const char *type, uint32_t *length)
 {
@@ -218,10 +260,37 @@ void asset_pack_store(AssetPack *pack, AssetStore *store)
     store->ctx = pack;
 }
 
+/* The pack's directory is in the catalogue's order (asset_pack_open holds it
+ * to the catalogue's names and types), so a row is its entry. */
+static const uint8_t *pack_resource(void *ctx, AssetId id, uint32_t *length)
+{
+    const AssetPack *pack = ctx;
+    if (id >= pack->count)
+        return NULL;
+    *length = pack->entries[id].length;
+    return pack->entries[id].bytes;
+}
+
+void asset_pack_source(AssetPack *pack, AssetSource *source)
+{
+    source->resource = pack_resource;
+    source->ctx = pack;
+}
+
 void asset_pack_close(AssetPack *pack)
 {
     if (pack) {
         free(pack->entries);
         free(pack);
     }
+}
+
+bool asset_pack_is_the_cartridges(const AssetPack *pack)
+{
+    if (pack->count != asset_catalogue_count)
+        return false;
+    uint32_t crc = 0;
+    for (uint16_t i = 0; i < pack->count; i++)
+        crc = crc32_on(crc, pack->entries[i].bytes, pack->entries[i].length);
+    return crc == asset_catalogue_bytes_crc32;
 }
