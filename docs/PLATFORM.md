@@ -78,7 +78,13 @@ the data's own pointers lead to (a stream a table points to, a script's
 text, a bank and a 16-bit place the data gives) is still read by the
 address the original keeps it at, 174 call sites, the address a key the
 catalogue's rows are looked up by: a pack can't move those resources until
-it moves the pointers to them too. A region the catalogue hasn't
+it moves the pointers to them too. A pointer in the data may name RAM (a
+script or text the game copied or built in work RAM, `$7E:2C35`,
+`$7F:8020`): those reads are the game's RAM's (`wram_data_read8`,
+`game/wram.h`), sent there by `rom_read8` before any cartridge store is
+asked, at the time a cartridge read takes, so a backing's cartridge read
+answers only the cartridge (`runtime/port/rom_host.c`); `assets_test` holds
+a work-RAM and a low-RAM read to it. A region the catalogue hasn't
 typed is cut where each accessor's table starts, the piece named for its
 accessor, so a read names its own table rather than the region it shares;
 then typed as its readers show it: `bytes` where every read of it is a

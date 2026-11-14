@@ -42,7 +42,7 @@ add_library(ct_platform_native STATIC
   runtime/platform/native/mixer.c runtime/platform/native/snapshot.c runtime/port/fiber.c runtime/port/arena.c)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_library(ct_state_host STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
-  runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
+  runtime/port/state_host.c runtime/port/rom_host.c runtime/port/rom_ram.c runtime/port/time_rates.c)
 target_include_directories(ct_state_host PUBLIC game)
 target_link_libraries(ct_state_host PUBLIC ct_platform_native)
 
@@ -423,7 +423,7 @@ if(BUILD_TESTING)
   add_executable(vars_host_test tests/port/vars_host_test.c game/menu/saves.c game/data/asset_catalogue.c)
   # Preserve bounds diagnostics when an indexed variable moves into a struct.
   add_library(ct_state_host_checked STATIC runtime/port/vars_ram.c runtime/port/vars_host.c
-    runtime/port/state_host.c runtime/port/rom_host.c runtime/port/time_rates.c)
+    runtime/port/state_host.c runtime/port/rom_host.c runtime/port/rom_ram.c runtime/port/time_rates.c)
   target_compile_definitions(ct_state_host_checked PRIVATE CT_ACCESSOR_CHECKS)
   target_include_directories(ct_state_host_checked PUBLIC game)
   target_link_libraries(ct_state_host_checked PUBLIC ct_platform_native)
