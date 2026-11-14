@@ -2,8 +2,12 @@
 
 Every live map variable has module-owned C storage, and 2,143 of the 2,213 have
 typed storage; the other 70 are still blob-backed. `GameState` has no work-RAM
-image; the generated address view serializes the owning fields directly. Generated
-files come only from `tools/ram_map.py` and `re/ram.toml`.
+image; the generated address view serializes the owning fields directly. It
+resolves each of work RAM's bytes once, when the first state is made, to the byte
+of the storage that keeps it (`place_byte`, from each owner field's place), or to
+each owner's byte where owners keep it beside each other (Overlays, below), so a
+read or write by address costs a table's load and the byte's, not a decode.
+Generated files come only from `tools/ram_map.py` and `re/ram.toml`.
 
 ## Storage measure
 
@@ -223,9 +227,11 @@ deleted; the overlays at their bytes name each other instead.
 A build configured `-DCT_FLAT_STATE=ON` keeps the state as the original lays
 out its work RAM instead of the typed records: 128 KiB, a byte at each
 address. `tools/ram_map.py accessors` writes `runtime/port/vars_flat.c`
-beside `vars_ram.c`, every accessor in its address form, and the runs of
-addresses no owner keeps (`vars_flat_owned`), which read 0 as the address
-view's do. The backing keeps the two banks (`vars_flat_host.c`, or a
+beside `vars_ram.c`, and a bit for each address an owner keeps
+(`vars_flat_owned`); the others read 0 as the address view's do. An accessor
+every byte of which an owner keeps reads and writes them where the banks keep
+them (`get16`, `put16`), charging the whole value's time at once; an index out
+of range, and the unchecked pairs, go by address. The backing keeps the two banks (`vars_flat_host.c`, or a
 target's own: the GBA's, PLATFORM.md "The GBA build, as built"). Owners kept
 apart by `overlays` share the one byte, so there is no last writer and no
 crossing to count; since no gate movie crosses, a flat build plays them as
