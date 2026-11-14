@@ -271,7 +271,11 @@ become fixes; the batch never blocks a commit, merge or push. Its stage logs,
 route logs and `findings.json` live under `build/suite-long`. At most two native
 processes run at once; individual routes retain their six-hour timeout.
 A route must report its reached outcome and exit successfully. Timeouts stop
-only that route's process tree. `--protocol-log` records requests and replies.
+only that route's process tree. A route that makes no progress (a checkpoint,
+a fight won, or a fight's retry) for 15 minutes ends itself with a `STALL`
+line naming where it last moved on (`tools/movies/campaign.py`,
+`CT_ROUTE_STALL` to change it), so a walk that goes back and forth for ever
+fails rather than holding the batch until its timeout. `--protocol-log` records requests and replies.
 
 ## Native program checkpoints
 

@@ -200,15 +200,18 @@ STORY_HILT, BENT_HILT = 0x69, 0x51
 TRUCE_CANYON_NEAR, TRUCE_CANYON = (440, 248), 0x070
 CANYON_GATE_SPOT = (114, 124)               # left of the Gate, facing it
 STORY_MELCHIOR = 0x6C
-PILLAR_65M, MYSTIC_MOUNTAIN_TOP, WORLD_65M = (200, 203), "1001", "f301"
+PILLAR_65M, MYSTIC_MOUNTAIN_TOP, WORLD_65M = (200, 199), "1001", "f301"
 MOUNTAIN_WAY_DOWN = ("1101", "1201", WORLD_65M)
 STORY_PREHISTORY = 0x6F
-CHIEFS_HUT, FEAST, AYLA_IN_THE_HUT = 0x113, "1801", 6
-FEAST_FRIENDS, FEAST_AYLA = (3, 5), 6        # Marle and Lucca, who must be spoken to before Ayla races
-SOUP_RACING = 0x0E                          # event variable: the race on
+CHIEFS_HUT, CHIEFS_HUT_MAP, FEAST, AYLA_IN_THE_HUT = 0x113, "1301", "1801", 6
+FEAST_AYLA = 6
+# Whom the party speaks to at the feast, a round at a time, before Ayla's
+# challenge: found by playing it (the talks count in the objects' scripts).
+FEAST_TALKS = ((3, 4, 5, FEAST_AYLA), (FEAST_AYLA,), (3, 5))
+SOUP_RACE_WINDOWS = 9                       # the challenge's windows, to "Push A Button much times!"
 STORY_SOUP, STORY_DREAMSTONE, STORY_AYLA = 0x72, 0x75, 0x78
 DREAMSTONE_ITEM, GATE_KEY = 0xDC, 0xD7
-AYLA_ASLEEP_REACH = (212, 189)              # the party walks up (to y 212) and right (x 189) to wake her
+AYLA_ASLEEP_REACH = (171, 191)              # up to her row, then right until she stops the party
 AYLA = 5
 CRONO, MARLE, LUCCA = 0, 1, 2
 SLASH, ICE, FIRE, AURA = 1, 2, 2, 0   # their places in Crono's, Marle's and Lucca's tech lists
@@ -1525,7 +1528,16 @@ def main():
             run.walk_here(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN))
             assert in_hand(run), "Frog's greeting"
             walking(run)
-            assert speak(run, FROG_IN_THE_BURROW), "Frog"
+            fx, fy = run.object_pos(FROG_IN_THE_BURROW)
+            assert run.go(fx, fy, tolerance=6), "beside Frog"   # against him, below his basket
+            machine.run(3, "UP")
+            machine.run(5)
+            for _ in range(3):
+                machine.run(3, "A")
+                machine.run(30)
+                if run.dialog():
+                    break
+            assert run.dialog(), "Frog"
             read_through(run)
             assert in_hand(run)
             walking(run)
@@ -1569,26 +1581,25 @@ def main():
             assert dialogs_until_in_hand(run, FEAST), "the feast"
             run.checkpoint("ioka_feast")
         if later <= 5:
-            # Spoken to after Marle and Lucca have joined in, Ayla races
-            # Crono for her red rock, the Dreamstone: A pressed as fast as
-            # the race counts it (the questions' "No way!" is on the second
+            # The feast's talk, in the order that brings on Ayla's soup race
+            # for her red rock, the Dreamstone: Marle, Lucca's neighbour,
+            # Lucca and Ayla; Ayla again; Marle and Lucca; then Ayla, whose
+            # challenge is accepted (the first row). In the race A is pressed
+            # as fast as it counts (its "give up?" has "No way!" on the second
             # row, so Down goes with it). The party wakes in the hut to find
             # the Gate Key gone.
-            for _ in range(8):
-                if event_variable(machine, SOUP_RACING):
-                    break
-                for friend in FEAST_FRIENDS:
-                    walking(run)
-                    speak(run, friend)
-                    read_through(run)
+            for talks in FEAST_TALKS:
                 walking(run)
-                speak(run, FEAST_AYLA)
-                for _ in range(30):
-                    if event_variable(machine, SOUP_RACING) or not run.dialog():
-                        break
+                for obj in talks:
+                    speak(run, obj)
+                    read_through(run)
+                assert in_hand(run), "the feast in hand"
+            walking(run)
+            assert speak(run, FEAST_AYLA), "Ayla's challenge"
+            for _ in range(SOUP_RACE_WINDOWS):
+                machine.run(40)
+                if run.dialog():
                     machine.run(3, "A")
-                    machine.run(37)
-            assert event_variable(machine, SOUP_RACING), "the soup race"
             for _ in range(3000):
                 if machine.b(A.EVENT_MEMORY) >= STORY_SOUP:
                     break
@@ -1597,28 +1608,37 @@ def main():
                 machine.run(1, "DOWN")
                 machine.run(1)
             assert machine.b(A.EVENT_MEMORY) >= STORY_SOUP, "the race won"
-            assert settle_the_scene(run, STORY_DREAMSTONE), "the night"
+            # The night: windows confirmed until the party is in the hut in
+            # the morning (where Ayla's snores open windows of their own).
+            assert run.dialogs_until(lambda: machine.b(A.EVENT_MEMORY) >= STORY_DREAMSTONE
+                                     and run.map_id() == CHIEFS_HUT_MAP, 20000), "the night"
             assert count_of(machine, DREAMSTONE_ITEM) and not count_of(machine, GATE_KEY), "the Dreamstone; the Gate Key gone"
             run.checkpoint("soup_race")
         if later <= 6:
-            # Ayla snores by the door while the party is still, a window at
-            # a time; walked up and across the hut, the party wakes her and
-            # she joins it to go after the Gate Key, with Marle; out to the
-            # world map.
+            # Ayla snores, a window at a time, which holds the party still
+            # while it is open. Walked up to her row and across the hut to her,
+            # the windows confirmed, the party speaks to her, she wakes and
+            # joins it to go after the Gate Key, with Marle, and the
+            # party goes out to the world map.
             wx, wy = AYLA_ASLEEP_REACH
+            run.player = machine.w(A.FIELD_PARTY_OBJECTS) // 2   # the windows keep find_player from it
             for way, reached in (("UP", lambda: run.me()[1] <= wy), ("RIGHT", lambda: run.me()[0] >= wx)):
                 for _ in range(600):
                     if reached():
                         break
                     machine.run(1, way)
             for _ in range(400):
-                if machine.b(A.EVENT_MEMORY) >= STORY_AYLA or not machine.b(A.FIELD_PLAYER_CONTROL):
+                if machine.b(A.EVENT_MEMORY) >= STORY_AYLA:
                     break
                 if run.dialog():
-                    machine.run(1)
-                else:
-                    machine.run(2, "UP")
-                    machine.run(2, "A")
+                    machine.run(3, "A")
+                machine.run(30)
+            # The menus ask who Ayla replaces: cancelled, the party asks
+            # whether it stays as it is (Crono, Ayla, Marle), confirmed.
+            assert run.dialogs_until(lambda: machine.b(MENU_SCREEN) == EXCHANGE_SCREEN, 6000), "who Ayla replaces"
+            machine.run(60)
+            machine.run(3, "B")
+            assert run.dialogs_until(lambda: bool(machine.b(A.FIELD_PLAYER_CONTROL)), 3000), "the party as it is"
             assert in_hand(run, 30000), "Ayla's choice"
             assert machine.b(A.EVENT_MEMORY) == STORY_AYLA and AYLA in machine.peek(A.PARTY_MEMBERS, 3), "Ayla joins"
             assert leave_fighting(run, WORLD_65M), "out of the hut"
