@@ -23,7 +23,7 @@
 *(.text.asset_containing .text.asset_containing.*)
 *(.text.asset_read8 .text.asset_read8.*)
 *(.text.cartridge_address .text.cartridge_address.*)
-*(.text.__muldi3)
+*libgcc.a:_muldi3.o(.text .text.*)
 *libgcc.a:_udivsi3.o(.text)
 *libc.a:libc_a-memcpy-stub.o(.text)
 *libc.a:libc_a-memset.o(.text)

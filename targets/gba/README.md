@@ -24,8 +24,9 @@ platform services' backends. Nothing here is included from `game/`.
     fibers' stacks and the driver's stack in fast RAM (IWRAM).
   - `fast_code.ld`: the functions copied to fast RAM, chosen from
     `run.py --profile`. `check_fast_code.cmake` fails the build where a
-    line places nothing (a function renamed or gone), so hot code can't
-    drop back to the cartridge unnoticed.
+    line names a function the sources no longer define, so hot code can't
+    drop back to the cartridge unnoticed, and warns where this compiler
+    inlined one away or didn't need a library's.
   - `start.s`: the cartridge's header and the processor's start: the
     cartridge's waits (3 and 1, with the prefetch), the copies and zeroing,
     then `main`.

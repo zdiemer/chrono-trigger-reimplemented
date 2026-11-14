@@ -62,7 +62,7 @@ set_target_properties(ct_gba PROPERTIES SUFFIX ".elf"
   LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/toolchain/gba.ld;${CMAKE_CURRENT_SOURCE_DIR}/toolchain/fast_code.ld")
 add_custom_command(TARGET ct_gba POST_BUILD
   COMMAND ${CMAKE_COMMAND} -DLIST=${CMAKE_CURRENT_SOURCE_DIR}/toolchain/fast_code.ld -DMAP=ct_gba.map
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/toolchain/check_fast_code.cmake
+    -DROOT=${CT_ROOT} -P ${CMAKE_CURRENT_SOURCE_DIR}/toolchain/check_fast_code.cmake
   COMMAND ${CMAKE_OBJCOPY} -O binary ct_gba.elf ct_gba.bin
   COMMAND ${CMAKE_SIZE} -A ct_gba.elf
   BYPRODUCTS ct_gba.bin)
