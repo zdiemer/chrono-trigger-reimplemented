@@ -57,7 +57,7 @@ KEEPER = ["clone", "keepers_dome", "belthasar"]
 # Spawn to the last save point (death_peak), the last Spawn and the summit,
 # where the Chrono Trigger brings Crono back (death_peak_return).
 # On the way, the 12000 B.C. village's shop: Ethers for Robo's Heal Beam and
-# tonics, what the purse holds, for the long growing ahead.
+# tonics, what the purse holds (4,000 here), for the long growing ahead.
 TO_THE_PEAK = ["supplied", "peak"]
 WIND = death_peak_wind.PHASES[1:]
 # The party that comes this far (levels 34-38) is no match for Lavos: its
@@ -70,7 +70,7 @@ WIND = death_peak_wind.PHASES[1:]
 # its ledges drop one way (the original's own code stops at them too, played
 # with the frozen emulator-oracle oracle from ctsave12 slot 1).
 GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 70
+GRIND_LEVEL = 70                # aimed at; the bag's healing gives out first, near 59
 # The growing heals from the bag (Lapis, tonics, Ethers for Robo's Heal
 # Beam), and the field above the slope has no shop: it stops with enough left
 # to reach the mountain's save point, where a Shelter restores everyone.
@@ -837,7 +837,6 @@ def main():
             other_endings.lavos(run, max(4, later + 1), party=3, seed=args.seed, policy="lavos_inner",
                                 core_policy="lavos_core")
         later -= len(LAVOS)
-        # Not reached yet: the core's fight wipes the party (docs/MOVIES.md).
         run.finish("Lavos beaten")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

@@ -230,9 +230,12 @@ no match for Lavos (its shell's blows take 400-500 HP a member, and its inner
 form wipes a party at 45 before anyone acts), so the leg grows it at Death
 Peak on the way up, where crossing between the slope's top and the lower
 field brings back the monsters by the way in, healing from the bag and Robo's
-Heal Beam between rounds, until everyone is at level 58 or the bag's
-healing is down to 8 (those in reserve take a share, at most a level a
-fight, so Crono comes back at 54); then Marle wears the Wallet, which pays
+Heal Beam between rounds, until everyone is at level 70 or the bag's
+healing is down to 8 (it gives out first, at 59, 58 and 58, after Ethers
+and tonics bought in 12000 B.C. on the way with the 4,000 the purse holds
+there; a round of the crossing is some 3,200 experience in 10,000 to 13,000
+frames, about 1,200 a minute); those in reserve take a share, at most a
+level a fight. Then Marle wears the Wallet, which pays
 each fight's experience as gold, until the purse holds 200,000: at the
 route's prices, two Aeon Suits and Helms (33,600), Full Tonics to 99 (up to
 69,300) and some 48 Mid Ethers (96,000), with change for Mid Tonics and
@@ -288,12 +291,14 @@ lower in the moment one falls, when it is hit), and leaves some choices to
 chance so the bot's retries can vary. The core's stats in ct_native are the
 ROM's enemy records' ($CC:4700: the center's attack 100 and defence 127,
 the right bit's defence 255). With two or more members low it spends a
-MegaElixir. Measured before the Omen's treasure: Crono, with Luminaire,
-Lucca and Robo beat the inner form in 12 seconds of the bot's search; in 753
-retries of the core the deepest line reached its 31st decision, with the
-right bit at 26,237 of 30,000 at best. Without Luminaire this party reached
-its 55th decision and 23,236, and Crono, Marle and Lucca 19,622 (issue
-#340).
+MegaElixir. The 12000 B.C. shop comes before the Omen, whose fights the bag
+must last through, and the Omen's treasure goes on at the End of Time.
+Measured end, played on this branch: Crono (57), Lucca (60) and Robo (60),
+with Luminaire, the Haste Helm, the Nova Armor, the Vigil Hat and the Magic
+Seal, beat the shell, the inner form at the first try and the core after
+425 retries: the ending's checkpoint at frame 1,833,317 (issue #340). Before
+the Omen's treasure, the same party at 58 reached the right bit's 26,237
+of 30,000 at best.
 The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
