@@ -14,9 +14,10 @@
  *   palettes are the GBA's background palettes 0-7; a 2bpp layer's eight
  *   palettes of four are 8-15, their first four colours each; the sprites'
  *   eight are the GBA's sprite palettes 0-7.
- * - VRAM is converted in blocks of 512 bytes, the ones the game wrote and,
- *   where the settings change, all of them, each as what the settings make
- *   it: 4bpp tiles (bitplanes to the GBA's packed nibbles) at the same place
+ * - VRAM is converted 32 bytes at a time, the units whose bytes the game
+ *   changed (much of what it sends, VRAM already holds) and, where the
+ *   settings change, all of them, each as what the settings make it: 4bpp
+ *   tiles (bitplanes to the GBA's packed nibbles) at the same place
  *   in the GBA's background VRAM, a map (each entry's palette, flips and
  *   tile moved to the GBA's bits) at the same place too, 2bpp tiles widened
  *   to 4bpp in a 16 KiB block of their own, and sprite tiles into sprite
@@ -62,6 +63,7 @@ enum {
     BLD_DARKEN = 0x00C0, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
     CAMERA_X = 8, CAMERA_Y = 32,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
+    UNIT_BYTES = 32, UNITS = VRAM_BYTES / UNIT_BYTES,
     TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
     OBJ_TABLE_BYTES = 256 * 32, SPRITES = 128,
 };
@@ -80,7 +82,7 @@ typedef struct {
 enum { NO_PLACE = 0xFFFF };
 
 typedef struct {
-    uint8_t vram[VRAM_BYTES];
+    uint8_t vram[VRAM_BYTES] __attribute__((aligned(4)));
     uint16_t cgram[256];
     uint8_t oam[544];
     VidVramPort port;
@@ -98,15 +100,15 @@ typedef struct {
     /* the maps the line effects show part of the way down, beside the layers' own */
     LineMap line_maps[6];
     uint8_t line_map_count;
-    uint32_t written[BLOCKS / 32];    /* blocks the game wrote since the picture was made */
-    bool palette_written, settings_changed;
+    uint32_t changed[UNITS / 32];     /* the 32-byte units the game changed since the picture was made */
+    bool palette_written, settings_changed, sprites_changed;
     PfReadGame *read;
     void *ctx;
 } Snes;
 
 static Snes snes;
 
-static void block_written(uint32_t byte) { snes.written[byte / BLOCK_BYTES / 32] |= 1u << (byte / BLOCK_BYTES % 32); }
+static void unit_changed(uint32_t byte) { snes.changed[byte / UNIT_BYTES / 32] |= 1u << (byte / UNIT_BYTES % 32); }
 
 static uint16_t vram_mapped(void)
 {
@@ -154,18 +156,51 @@ static uint8_t data_byte(PfData src, uint32_t i)
 }
 
 /* The sends' bytes come through here a piece at a time, kept off the fibers'
- * small stacks. */
+ * small stacks; word-aligned, with room to start a piece at VRAM's own
+ * alignment. */
 enum { PIECE = 256 };
-static uint8_t piece[PIECE];
+static uint32_t piece_words[PIECE / 4 + 1];
+#define piece ((uint8_t *)piece_words)
 
-/* A byte through the VRAM port, as the SNES's PPU takes it. */
+/* A byte through the VRAM port, as the SNES's PPU takes it. Only a byte that
+ * changes is converted again. */
 static void vram_put(bool high, uint8_t v)
 {
     uint16_t at = (uint16_t)((vram_mapped() << 1) + (high ? 1 : 0));
-    snes.vram[at] = v;
-    block_written(at);
+    if (snes.vram[at] != v) {
+        snes.vram[at] = v;
+        unit_changed(at);
+    }
     if (snes.port.after_high == high)
         snes.vram_addr = (uint16_t)(snes.vram_addr + snes.port.step);
+}
+
+typedef uint32_t __attribute__((may_alias)) Word;
+
+/* `n` bytes into VRAM from `at` (not past its end), marking the units they
+ * change: the game sends much of its VRAM again as it was. `bytes` has the
+ * same alignment to a word as `at` (and `snes.vram`, a word's). */
+static void vram_take(uint32_t at, const uint8_t *bytes, uint32_t n)
+{
+    while (n) {
+        uint32_t k = UNIT_BYTES - at % UNIT_BYTES;
+        if (k > n)
+            k = n;
+        uint8_t *to = &snes.vram[at];
+        uint32_t i = 0;
+        while (i < k && (at + i) % 4 && to[i] == bytes[i])
+            i++;
+        if ((at + i) % 4 == 0)
+            while (k - i >= 4 && *(const Word *)(to + i) == *(const Word *)(bytes + i))
+                i += 4;
+        while (i < k && to[i] == bytes[i])
+            i++;
+        if (i < k) {
+            memcpy(to + i, bytes + i, k - i);
+            unit_changed(at);
+        }
+        at += k, bytes += k, n -= k;
+    }
 }
 
 /* `len` bytes of `src` through the VRAM port: words, low byte first (half
@@ -181,9 +216,10 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
             uint32_t n = (len - i) & ~1u;
             if (n > VRAM_BYTES - at)
                 n = VRAM_BYTES - at;
-            data_bytes(src, i, &snes.vram[at], n);
-            for (uint32_t b = at - at % BLOCK_BYTES; b < at + n; b += BLOCK_BYTES)
-                block_written(b);
+            if (n > PIECE)
+                n = PIECE;
+            data_bytes(src, i, piece + at % 4, n);
+            vram_take(at, piece + at % 4, n);
             snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
             i += n;
         }
@@ -215,6 +251,7 @@ static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill,
 
 static void oam_put(uint8_t v)
 {
+    snes.sprites_changed = true;
     if (snes.oam_addr & 0x200) {
         snes.oam[0x200 + (snes.oam_addr & 0x1F)] = v;
     } else if (!(snes.oam_addr & 1)) {
@@ -228,12 +265,15 @@ static void oam_put(uint8_t v)
 
 /* ---- The host half ------------------------------------------------------------------------------ */
 
+static void fill_spread(void);
+
 void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
     (void)pf;
     snes.read = read;
     snes.ctx = ctx;
-    snes.settings_changed = snes.palette_written = true;
+    snes.settings_changed = snes.palette_written = snes.sprites_changed = true;
+    fill_spread();
     DISPCNT = DISPCNT_FORCED_BLANK;
 }
 
@@ -414,6 +454,8 @@ void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c)
     (void)pf, (void)o;
     if (c->base != snes.obj.base || c->name_select != snes.obj.name_select)
         snes.settings_changed = true;
+    if (c->size_select != snes.obj.size_select)
+        snes.sprites_changed = true;
     snes.obj = *c;
 }
 
@@ -618,7 +660,14 @@ void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, 
 void vid_send_oam(Platform *pf, PfOrigin o, PfData oam, const VidSpritePlace *places)
 {
     (void)pf, (void)o, (void)places;
-    data_bytes(oam, 0, snes.oam, sizeof snes.oam);
+    for (uint32_t i = 0; i < sizeof snes.oam; i += PIECE) {
+        uint32_t n = sizeof snes.oam - i < PIECE ? sizeof snes.oam - i : PIECE;
+        data_bytes(oam, i, piece, n);
+        if (memcmp(piece, &snes.oam[i], n) != 0) {
+            memcpy(&snes.oam[i], piece, n);
+            snes.sprites_changed = true;
+        }
+    }
 }
 
 void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)
@@ -709,7 +758,10 @@ typedef enum {
  * name them, each converted (bitplanes to the GBA's packed nibbles, 2bpp
  * widened to 4bpp) as it is given its place and again as the game writes it.
  * A tile no place is left for shows blank; the next layout, a second on at
- * most, starts the caches afresh from what the maps name then. */
+ * most, starts the caches afresh from what the maps name then. Where the
+ * maps name more tiles than a cache has places, the layout itself misses
+ * some; it is made again only once a tile misses after it, since starting
+ * afresh from the same maps would miss the same tiles. */
 enum { CACHES = 3, CACHE_TILES = 1024, NO_SLOT = 0xFFFF, PLACES = VRAM_BYTES / 32 };
 typedef struct {
     bool used;
@@ -732,7 +784,8 @@ static Layer layers[4];
 static Cache caches[CACHES];
 static uint8_t roles[BLOCKS];
 static uint8_t taken[PLACES / 8];   /* the 32-byte places of background VRAM a map or a tile has */
-static uint16_t misses, frames_since_layout;
+static uint32_t misses, layout_misses;
+static uint16_t frames_since_layout;
 
 static bool is_taken(uint32_t place) { return (taken[place / 8] >> (place % 8)) & 1; }
 static void take(uint32_t place) { taken[place / 8] |= (uint8_t)(1u << (place % 8)); }
@@ -764,17 +817,25 @@ static uint32_t sprite_table(unsigned table)
     return ((uint32_t)snes.obj.base << 1) + (table ? 0x2000u + ((uint32_t)snes.obj.name_select << 1) : 0);
 }
 
-/* A SNES tile, converted into its place in a cache's window. */
+/* A bitplane's byte spread out as the first bit of each of a row's eight
+ * packed nibbles, its leftmost dot (the byte's top bit) in the lowest:
+ * filled at the start, in fast RAM, for the tiles' conversion. */
+static uint32_t spread[256] __attribute__((section(".iwram_bss")));
+
+static void fill_spread(void)
+{
+    for (unsigned byte = 0; byte < 256; byte++) {
+        uint32_t row = 0;
+        for (unsigned x = 0; x < 8; x++)
+            row |= (uint32_t)((byte >> (7 - x)) & 1) << (4 * x);
+        spread[byte] = row;
+    }
+}
+
+/* A row of a SNES tile's four bitplanes as the GBA's packed nibbles. */
 static uint32_t packed_row(uint8_t p0, uint8_t p1, uint8_t p2, uint8_t p3)
 {
-    uint32_t row = 0;
-    for (unsigned x = 0; x < 8; x++) {
-        unsigned bit = 7 - x;
-        uint32_t pixel = (uint32_t)((p0 >> bit) & 1) | (uint32_t)((p1 >> bit) & 1) << 1 |
-                         (uint32_t)((p2 >> bit) & 1) << 2 | (uint32_t)((p3 >> bit) & 1) << 3;
-        row |= pixel << (4 * x);
-    }
-    return row;
+    return spread[p0] | spread[p1] << 1 | spread[p2] << 2 | spread[p3] << 3;
 }
 
 static void convert_4bpp(volatile uint32_t *to, const uint8_t *tile)
@@ -915,11 +976,11 @@ static const Layer *map_layer(uint32_t byte)
     return NULL;
 }
 
-/* A block of a map, converted for a layer into the GBA's VRAM at `to`. */
+/* A unit of a map, converted for a layer into the GBA's VRAM at `to`. */
 static void convert_map(uint32_t first, const Layer *l, uint32_t to)
 {
     volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + to / 2;
-    for (uint32_t i = 0; i < BLOCK_BYTES; i += 2)
+    for (uint32_t i = 0; i < UNIT_BYTES; i += 2)
         gba[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
 }
 
@@ -935,10 +996,11 @@ static int sprite_slot(uint32_t byte)
     return (int)(((unsigned)table * 16 + tile / 16) * 32 + tile % 16);
 }
 
-static void convert_block(unsigned k)
+/* A unit of VRAM the game changed, as what the settings make it. */
+static void convert_unit(unsigned u)
 {
-    uint32_t first = (uint32_t)k * BLOCK_BYTES;
-    uint8_t role = roles[k];
+    uint32_t first = (uint32_t)u * UNIT_BYTES;
+    uint8_t role = roles[first / BLOCK_BYTES];
     if (role & LINE_MAP)
         for (unsigned m = 0; m < snes.line_map_count; m++) {
             const LineMap *lm = &snes.line_maps[m];
@@ -953,19 +1015,18 @@ static void convert_block(unsigned k)
             uint32_t bytes = tile_bytes(cache->bpp);
             if (!cache->used || !within(first, cache->char_byte, CACHE_TILES * bytes))
                 continue;
-            for (uint32_t t = 0; t < BLOCK_BYTES; t += bytes) {
+            for (uint32_t t = 0; t < UNIT_BYTES; t += bytes) {
                 uint16_t tile = (uint16_t)(((first + t - cache->char_byte) & (VRAM_BYTES - 1)) / bytes);
                 uint16_t slot = cache->slot_of[tile & (CACHE_TILES - 1)];
                 if (slot != NO_SLOT)
                     convert_tile(cache, tile, slot);
             }
         }
-    if (role & SPRITE_TILES)
-        for (uint32_t t = 0; t < BLOCK_BYTES; t += 32) {
-            int slot = sprite_slot(first + t);
-            if (slot >= 0)
-                convert_4bpp(OBJ_VRAM + (uint32_t)slot * 8, &snes.vram[first + t]);
-        }
+    if (role & SPRITE_TILES) {
+        int slot = sprite_slot(first);
+        if (slot >= 0)
+            convert_4bpp(OBJ_VRAM + (uint32_t)slot * 8, &snes.vram[first]);
+    }
 }
 
 static void present_palettes(void)
@@ -1036,8 +1097,10 @@ static void present_sprites(void)
  * its black edges are windows and layers switched on and off part of the way
  * down. Once a frame those tables are read as the native backend's observer
  * reads them, from the frame's top, and what each of the GBA's 160 lines
- * should show is kept; an interrupt at each line's horizontal blank sets the
- * next line's registers from it. */
+ * should show is kept, as the lines where it changes. The registers are set
+ * only there: the line counter's interrupt fires a line before each change
+ * and the horizontal blank's at its end sets the change's registers, so a
+ * frame takes two interrupts a change rather than one a line. */
 
 #define VCOUNT REG16(0x04000006)
 #define DISPSTAT REG16(0x04000004)
@@ -1053,7 +1116,8 @@ static void present_sprites(void)
 #define IRQ_HANDLER (*(void (*volatile *)(void))0x03007FFC)
 #define BIOS_IF REG16(0x03007FF8)
 enum {
-    GBA_LINES = 160, SNES_LINES = 224, IRQ_HBLANK = 2, DISPSTAT_HBLANK_IRQ = 0x10,
+    GBA_LINES = 160, SNES_LINES = 224, IRQ_HBLANK = 2, IRQ_VCOUNT = 4,
+    DISPSTAT_HBLANK_IRQ = 0x10, DISPSTAT_VCOUNT_IRQ = 0x20,
     DISPCNT_WIN0 = 0x2000, DISPCNT_WIN1 = 0x4000, WIN_EFFECTS = 0x20,
 };
 
@@ -1063,8 +1127,13 @@ typedef struct {
     uint16_t backdrop, bldalpha;
 } LineRegisters;
 
-static LineRegisters lines[GBA_LINES];
-static volatile bool by_line;     /* whether the interrupt sets each line's registers */
+/* The frame's changes down the picture: the first line's registers, then
+ * each line whose registers differ from the line above's. */
+static LineRegisters change_registers[GBA_LINES];
+static uint8_t change_line[GBA_LINES];
+static volatile uint8_t changes;
+static uint8_t next_change;       /* the interrupts' place in the changes */
+static volatile bool by_line;     /* whether the interrupts set the changes' registers */
 
 /* The registers the line effects change, as they stand. */
 typedef struct {
@@ -1078,14 +1147,37 @@ typedef struct {
     bool blank;
 } LineState;
 
-/* A slot's progress through its table, as HDMA's. */
+/* A slot's progress through its table, as HDMA's, and the line it next
+ * does anything at (an entry's lines between its one transfer and the next
+ * entry are passed over). */
 typedef struct {
     bool active, transfer;
     uint8_t bank, count;
-    uint16_t cursor, indirect;
+    uint16_t cursor, indirect, wakes;
 } Slot;
 
-static uint8_t line_read(uint32_t addr) { return game_byte(addr); }
+/* The tables are read 32 bytes at a time, kept for the frame's reading of
+ * them (the game's memory doesn't change while the picture is made). */
+enum { READ_LINES = 8, READ_LINE_BYTES = 32 };
+typedef struct {
+    uint32_t tag;    /* the line's address / READ_LINE_BYTES, plus one; 0: none */
+    uint8_t bytes[READ_LINE_BYTES];
+} ReadLine;
+static ReadLine read_lines[READ_LINES];
+
+static uint8_t line_read(uint32_t addr)
+{
+    uint32_t line = addr / READ_LINE_BYTES;
+    ReadLine *r = &read_lines[line % READ_LINES];
+    if (r->tag != line + 1) {
+        r->tag = line + 1;
+        if (snes.read)
+            snes.read(snes.ctx, line * READ_LINE_BYTES, r->bytes, READ_LINE_BYTES);
+        else
+            memset(r->bytes, 0, READ_LINE_BYTES);
+    }
+    return r->bytes[addr % READ_LINE_BYTES];
+}
 
 static void slot_entry(Slot *sl, const VidLineEffect *e)
 {
@@ -1328,7 +1420,8 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     return r;
 }
 
-static void set_line(const LineRegisters *r)
+/* In ARM, in fast RAM, as the interrupts are; a long call from the cartridge. */
+__attribute__((target("arm"), section(".iwram"), long_call, noinline)) static void set_line(const LineRegisters *r)
 {
     DISPCNT = r->dispcnt;
     for (unsigned n = 0; n < 3; n++) {
@@ -1346,31 +1439,62 @@ static void set_line(const LineRegisters *r)
     BG_PALETTE[0] = r->backdrop;
 }
 
-/* At each line's horizontal blank, the next line's registers; in the
- * vertical blank, the first line's. In ARM, in fast RAM. */
-__attribute__((target("arm"), section(".iwram"), noinline)) static void on_hblank(void)
+/* The line counter's interrupt for the line above the next change, or for
+ * the vertical blank once the frame has no more. */
+__attribute__((target("arm"), section(".iwram"))) static void await_change(void)
 {
-    uint16_t line = (uint16_t)(VCOUNT + 1);
-    if (line >= 228)
-        line = 0;
-    if (by_line && line < GBA_LINES)
-        set_line(&lines[line]);
-    REG_IF = IRQ_HBLANK;
-    BIOS_IF |= IRQ_HBLANK;
+    uint16_t line = next_change < changes ? (uint16_t)(change_line[next_change] - 1) : GBA_LINES;
+    DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | line << 8);
+}
+
+/* In the vertical blank, the first line's registers; on the line above a
+ * change, its horizontal blank's interrupt; at that, the change's registers,
+ * keeping the horizontal blank's interrupt where the next change is the
+ * next line. In ARM, in fast RAM. */
+__attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(void)
+{
+    uint16_t raised = REG_IF & (IRQ_VCOUNT | IRQ_HBLANK);
+    uint16_t line = VCOUNT;
+    if (by_line && (raised & IRQ_VCOUNT)) {
+        if (line >= GBA_LINES) {
+            set_line(&change_registers[0]);
+            next_change = 1;
+            await_change();
+        } else {
+            REG_IF = IRQ_HBLANK;
+            DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
+        }
+    } else if (by_line && (raised & IRQ_HBLANK) && line < GBA_LINES) {
+        while (next_change < changes && change_line[next_change] <= line)
+            next_change++;
+        if (next_change < changes && change_line[next_change] == line + 1)
+            set_line(&change_registers[next_change++]);
+        if (!(next_change < changes && change_line[next_change] == line + 2))
+            await_change();
+    }
+    REG_IF = raised;
+    BIOS_IF |= raised;
 }
 
 /* The frame's lines: the line effects read down the picture from its top,
- * the line handler's changes below its line, each GBA line's registers. */
+ * the line handler's changes below its line, and the GBA's registers where
+ * what a line shows changes. */
 static void present_lines(Platform *pf, uint16_t layers_enabled)
 {
     const VidHost *v = &pf->video;
-    LineState st = { .windows = snes.windows, .main_layers = snes.main_layers, .sub_layers = snes.sub_layers,
-                     .math = snes.math,
-                     .fixed_color = snes.fixed_color,
-                     .brightness = (uint8_t)(v->display.brightness & 15), .blank = v->display.blank };
+    LineState st, shown;
+    memset(&st, 0, sizeof st);
+    st.windows = snes.windows;
+    st.main_layers = snes.main_layers;
+    st.sub_layers = snes.sub_layers;
+    st.math = snes.math;
+    st.fixed_color = snes.fixed_color;
+    st.brightness = (uint8_t)(v->display.brightness & 15);
+    st.blank = v->display.blank;
     for (unsigned n = 0; n < 3; n++)
         st.hofs[n] = snes.bg[n].hofs, st.vofs[n] = snes.bg[n].vofs, st.map[n] = map_byte_of(&snes.bg[n]);
     uint8_t enabled = v->line_effects;
+    memset(read_lines, 0, sizeof read_lines);
     Slot slots[8];
     for (unsigned i = 0; i < 8; i++) {
         slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
@@ -1378,24 +1502,44 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
         if (slots[i].active)
             slot_entry(&slots[i], &snes.slot[i]);
     }
-    bool varies = false;
+    uint8_t count = 0;
+    bool touched = true;   /* whether what the lines' registers come from may have changed */
+    uint16_t quiet_until = 0;   /* the next line any slot does anything at */
     for (unsigned line = 0; line < SNES_LINES; line++) {
         if (line && v->below_display && line == v->display_from) {
             st.brightness = (uint8_t)(v->display_below.brightness & 15);
             st.blank = v->display_below.blank;
+            touched = true;
         }
         if (line && v->below_line_effects && line == v->effects_from)
-            enabled = v->line_effects_below;
+            enabled = v->line_effects_below, quiet_until = 0;
+        /* A line's registers are worked out again only where what the
+         * effects set has changed, and kept only where they differ. */
         if (line > CAMERA_Y && line <= CAMERA_Y + GBA_LINES) {
-            LineRegisters *r = &lines[line - CAMERA_Y - 1];
-            *r = line_registers(&st, layers_enabled);
-            varies |= line > CAMERA_Y + 1 && memcmp(r, r - 1, sizeof *r) != 0;
+            unsigned at = line - CAMERA_Y - 1;
+            if (at == 0 || (touched && memcmp(&st, &shown, sizeof st) != 0)) {
+                LineRegisters r = line_registers(&st, layers_enabled);
+                memcpy(&shown, &st, sizeof st);
+                if (at == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0) {
+                    change_registers[count] = r;
+                    change_line[count++] = (uint8_t)at;
+                }
+            }
+            touched = false;
         }
+        if (line < quiet_until)
+            continue;
+        quiet_until = SNES_LINES;
         for (unsigned i = 0; i < 8; i++) {
             Slot *sl = &slots[i];
             const VidLineEffect *e = &snes.slot[i];
             if (!sl->active || !((enabled >> i) & 1))
                 continue;
+            if (line < sl->wakes) {
+                quiet_until = sl->wakes < quiet_until ? sl->wakes : quiet_until;
+                continue;
+            }
+            touched |= sl->transfer;
             if (sl->transfer)
                 for (unsigned k = 0, n = unit_bytes(e->target); k < n; k++) {
                     uint32_t src = e->indirect ? (uint32_t)e->indirect_bank << 16 | sl->indirect++
@@ -1406,8 +1550,16 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
             sl->transfer = (sl->count & 0x80) != 0;
             if (!(sl->count & 0x7F))
                 slot_entry(sl, e);
+            else if (!sl->transfer && (sl->count & 0x7F) > 1) {
+                sl->wakes = (uint16_t)(line + (sl->count & 0x7F));
+                sl->count = 1;
+            }
+            uint16_t next = sl->wakes > line ? sl->wakes : (uint16_t)(line + 1);
+            if (sl->active && next < quiet_until)
+                quiet_until = next;
         }
     }
+    changes = count;
     /* What the effects leave stands, as the SNES's registers do. */
     snes.windows = st.windows;
     snes.math = st.math;
@@ -1418,15 +1570,21 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
         snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
     WIN0V = GBA_LINES;
     WIN1V = GBA_LINES;
-    if (!varies) {
-        by_line = false;
-        set_line(&lines[0]);
+    if (count == 1) {
+        if (by_line) {
+            by_line = false;
+            REG_IE = (uint16_t)(REG_IE & ~(IRQ_VCOUNT | IRQ_HBLANK));
+            DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
+        }
+        set_line(&change_registers[0]);
         return;
     }
     if (!by_line) {
-        IRQ_HANDLER = on_hblank;
-        DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
-        REG_IE = (uint16_t)(REG_IE | IRQ_HBLANK);
+        IRQ_HANDLER = on_line;
+        next_change = count;
+        DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | DISPSTAT_VCOUNT_IRQ | GBA_LINES << 8);
+        REG_IF = IRQ_VCOUNT | IRQ_HBLANK;
+        REG_IE = (uint16_t)(REG_IE | IRQ_VCOUNT | IRQ_HBLANK);
         REG_IME = 1;
         by_line = true;
     }
@@ -1434,24 +1592,33 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
 
 void gba_video_present(Platform *pf)
 {
-    /* Tiles that found no place have the caches started afresh, a second on. */
-    if (misses && ++frames_since_layout >= 60)
+    /* Tiles that found no place since the layout have the caches started
+     * afresh, a second on. */
+    if (misses > layout_misses && ++frames_since_layout >= 60)
         snes.settings_changed = true;
-    if (snes.settings_changed) {
+    bool laid_out = snes.settings_changed;
+    if (laid_out) {
         lay_out();
-        for (unsigned i = 0; i < BLOCKS / 32; i++)
-            snes.written[i] = 0xFFFFFFFFu;
+        memset(snes.changed, 0xFF, sizeof snes.changed);
         snes.settings_changed = false;
     }
-    for (unsigned k = 0; k < BLOCKS; k++)
-        if (snes.written[k / 32] & 1u << (k % 32))
-            convert_block(k);
-    memset(snes.written, 0, sizeof snes.written);
+    for (unsigned w = 0; w < UNITS / 32; w++) {
+        uint32_t bits = snes.changed[w];
+        for (unsigned b = 0; bits; b++, bits >>= 1)
+            if (bits & 1)
+                convert_unit(w * 32 + b);
+        snes.changed[w] = 0;
+    }
+    if (laid_out)
+        layout_misses = misses;
     if (snes.palette_written) {
         present_palettes();
         snes.palette_written = false;
     }
-    present_sprites();
+    if (snes.sprites_changed) {
+        present_sprites();
+        snes.sprites_changed = false;
+    }
 
     uint16_t layers_enabled = 0;
     for (unsigned n = 0; n < 4; n++) {
