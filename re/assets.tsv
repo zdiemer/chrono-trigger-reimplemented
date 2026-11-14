@@ -20,7 +20,7 @@ built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor buil
 command_handler	jump-table	C0:5D6E	C0:5F6D	raw	accessor command_handler
 field_window_design_graphics	bytes	C0:6EA0	C0:6EAF	raw	accessor field_window_design_graphics
 field_slope	bytes	C0:9BF5	C0:9C36	raw	accessor field_slope
-mixed_c0f170	mixed	C0:F170	C0:F2FF	raw	read
+mixed_c0f170	mixed	C0:F170	C0:F2FF	raw	unread
 slope_angles	bytes	C0:F300	C0:F6FF	raw	accessor slope_angle, battle_arctangent
 direction_facings	bytes	C0:F700	C0:F7FF	raw	accessor battle_facing_of_direction, battle_facing_for_angle
 direction_factors	bytes	C0:F800	C0:F8FF	raw	accessor field_direction_factor
@@ -29,10 +29,10 @@ mirrored_bytes	bytes	C0:FD00	C0:FDFF	raw	accessor battle_mirrored_byte
 random_bytes	bytes	C0:FE00	C0:FEFF	raw	accessor battle_random_table
 bit_masks	bytes	C0:FF18	C0:FF2F	raw	accessor bit_mask, bit_clear_mask
 field_wave_offsets	words	C0:FF30	C0:FFAB	raw	accessor field_wave_offset
-mixed_c0ffac	mixed	C0:FFAC	C0:FFAF	raw	read
+mixed_c0ffac	mixed	C0:FFAC	C0:FFAF	raw	unread
 battle_script_handler	jump-table	C1:7A6B	C1:7C20	raw	accessor battle_script_handler
 selector_routine	jump-table	C1:B8BB	C1:B92C	raw	accessor selector_routine
-mixed_c1fdd3	mixed	C1:FDD3	C1:FFFE	raw	read
+mixed_c1fdd3	mixed	C1:FDD3	C1:FFFE	raw	unread
 battle_debugging_switch	bytes	C1:FFFF	C1:FFFF	raw	accessor battle_debugging_switch
 menu_plane_groups	words	C2:0556	C2:0567	raw	accessor menu_plane_groups
 menu_script_handler	jump-table	C2:0F91	C2:1036	raw	accessor menu_script_handler
@@ -124,7 +124,7 @@ menu_new_game_setting	bytes	C2:FBCE	C2:FCB1	raw	accessor menu_new_game_setting
 scene_matrix_table	words	C3:09D9	C3:09E8	raw	accessor scene_matrix_table
 attract_resource_ptrs.0	lz	C3:1200	C3:1312	lz	attract_resource_ptrs entry
 attract_resource_ptrs.1	lz	C3:1313	C3:7A2B	lz	attract_resource_ptrs entry
-mixed_c37a2c	mixed	C3:7A2C	C3:7FFF	raw	read
+mixed_c37a2c	mixed	C3:7A2C	C3:7FFF	raw	unread
 stream_c38000	lz	C3:8000	C3:8B6B	lz	read
 scene_script_ptrs.0	lz	C3:8B6C	C3:97D6	lz:object	scene_script_ptrs entry
 scene_script_ptrs.1	lz	C3:97D7	C3:9F40	lz:object	scene_script_ptrs entry
@@ -207,7 +207,7 @@ overworld_sprite_graphics.10	lz	C5:ED14	C5:F364	lz:4bpp	overworld_sprite_graphic
 overworld_sprite_graphics.11	lz	C6:0000	C6:07B5	lz:4bpp	overworld_sprite_graphics entry
 overworld_sprite_graphics.12	lz	C6:07B6	C6:0E99	lz:4bpp	overworld_sprite_graphics entry
 overworld_sprite_graphics.13	lz	C6:0E9A	C6:1E70	lz:4bpp	overworld_sprite_graphics entry
-mixed_c61e71	mixed	C6:1E71	C6:1FFF	raw	read
+mixed_c61e71	mixed	C6:1E71	C6:1FFF	raw	unread
 stream_c62000	lz	C6:2000	C6:2410	lz	read
 overworld_place_lists.0	lz	C6:2411	C6:25DE	lz:place-lists	overworld_place_lists entry
 overworld_place_lists.1	lz	C6:25DF	C6:2798	lz:place-lists	overworld_place_lists entry
@@ -361,7 +361,7 @@ overworld_place_names.109	text	C6:F336	C6:F343	text:dialog	overworld_place_names
 overworld_place_names.110	text	C6:F344	C6:F34E	text:dialog	overworld_place_names entry
 overworld_place_names.111	text	C6:F34F	C6:F355	text:dialog	overworld_place_names entry
 overworld_place_names	ptr16	C6:F400	C6:F4DF	raw	accessor overworld_place_names
-mixed_c6f4e0	mixed	C6:F4E0	C6:F4FF	raw	read
+mixed_c6f4e0	mixed	C6:F4E0	C6:F4FF	raw	unread
 menu_map_view_tiles	gfx	C6:F500	C6:F53F	tiles:4bpp	accessor menu_map_view_tiles
 menu_map_view_colors	words	C6:F540	C6:F55F	palette:16	accessor menu_map_view_colour_byte
 menu_cursor_path_zoom_x	words	C6:F560	C6:F59F	raw	accessor menu_cursor_path_zoom_x
@@ -549,7 +549,7 @@ song_ptrs.81	spc700	CB:E88F	CB:EE20	raw	read
 song_ptrs.82	spc700	CB:EE21	CB:F163	raw	song_ptrs entry
 character_start_records	struct	CC:0000	CC:0261	raw	accessor character_start_record_byte
 weapon_records	struct	CC:0262	CC:0423	struct:records:5	accessor weapon_record_byte
-mixed_cc0424	mixed	CC:0424	CC:047D	raw	read
+mixed_cc0424	mixed	CC:0424	CC:047D	raw	unread
 armor_records	struct	CC:047E	CC:04E0	struct:records:3	accessor armor_record_byte
 helmet_records	struct	CC:04E1	CC:052B	struct:records:3	accessor helmet_record_byte
 accessory_records	struct	CC:052C	CC:05CB	struct:records:4	accessor accessory_record_byte
@@ -557,7 +557,7 @@ other_item_records	struct	CC:05CC	CC:06A3	struct:records:4	accessor item_use
 weapon_boost_records	struct	CC:06A4	CC:08BF	struct:records:6	accessor boost_record_byte
 armor_boost_records	struct	CC:08C0	CC:0985	struct:records:6	accessor boost_record_byte
 helmet_boost_records	struct	CC:0986	CC:0A1B	struct:records:6	accessor boost_record_byte
-mixed_cc0a1c	mixed	CC:0A1C	CC:0ABB	raw	read
+mixed_cc0a1c	mixed	CC:0A1C	CC:0ABB	raw	unread
 item_record_flags	bytes	CC:0ABC	CC:0B5D	raw	accessor item_record_flags
 battle_item_name_char	text	CC:0B5E	CC:15C3	text:names:11	accessor battle_item_name_char
 battle_tech_name_char	text	CC:15C4	CC:1ACA	text:names:11	accessor battle_tech_name_char
@@ -577,13 +577,13 @@ tech_points_for_next	words	CC:26FA	CC:2769	raw	accessor tech_points_for_next
 character_techs	bytes	CC:276A	CC:2777	raw	accessor character_techs
 combination_records	struct	CC:2778	CC:27F9	struct:records:5	accessor combination_record
 combination_tech_asks	bytes	CC:27FA	CC:288D	raw	accessor combination_tech_asks
-mixed_cc288e	mixed	CC:288E	CC:28DA	raw	read
+mixed_cc288e	mixed	CC:288E	CC:28DA	raw	unread
 menu_double_tech_part	bytes	CC:28DB	CC:2934	raw	accessor menu_double_tech_part
 menu_triple_tech_part	bytes	CC:2935	CC:2952	raw	accessor menu_triple_tech_part
 menu_rock_tech_needs	bytes	CC:2953	CC:2962	raw	accessor menu_rock_tech_needs
 menu_tech_group_members	bytes	CC:2963	CC:29D6	raw	accessor menu_tech_group_members
 stat_boosts	struct	CC:29D7	CC:2A02	struct:records:2	accessor stat_boost
-stat_setup_spare_table	mixed	CC:2A03	CC:2A04	raw	named by the stat setup, read by nothing
+stat_setup_spare_table	mixed	CC:2A03	CC:2A04	raw	unread (named by the stat setup)
 modifier_record	bytes	CC:2A05	CC:2AAF	raw	accessor modifier_record
 area_rules_place	words	CC:2AB0	CC:2BDB	raw	accessor area_rules_place
 tech_wait_tenths	bytes	CC:2BDC	CC:2BEA	raw	accessor tech_wait_tenths
@@ -721,9 +721,9 @@ menu_item_descriptions.207	text	CC:36D5	CC:36DE	text:dialog	menu_item_descriptio
 menu_item_descriptions.208	text	CC:36DF	CC:36DF	text:dialog	read
 menu_item_descriptions.221	text	CC:36E0	CC:36F2	text:dialog	read
 menu_item_descriptions.222	text	CC:36F3	CC:36F3	text:dialog	read
-mixed_cc36f4	mixed	CC:36F4	CC:3A08	raw	read
+mixed_cc36f4	mixed	CC:36F4	CC:3A08	raw	unread
 battle_descriptions	ptr16	CC:3A09	CC:3B08	raw	accessor battle_descriptions
-mixed_cc3a09_3b09	mixed	CC:3B09	CC:3B0C	raw	read
+mixed_cc3a09_3b09	mixed	CC:3B09	CC:3B0C	raw	unread
 battle_descriptions.0	text	CC:3B0D	CC:3B0D	text:dialog	battle_descriptions entry
 battle_descriptions.1	text	CC:3B0E	CC:3B20	text:dialog	battle_descriptions entry
 battle_descriptions.2	text	CC:3B21	CC:3B2A	text:dialog	battle_descriptions entry
@@ -845,20 +845,20 @@ battle_descriptions.117	text	CC:4386	CC:4392	text:dialog	battle_descriptions ent
 battle_descriptions.118	text	CC:4393	CC:439B	text:dialog	battle_descriptions entry
 battle_descriptions.119	text	CC:439C	CC:43A3	text:dialog	battle_descriptions entry
 battle_descriptions.120	text	CC:43A4	CC:43AE	text:dialog	battle_descriptions entry
-mixed_cc3a09_43af	mixed	CC:43AF	CC:46FF	raw	read
+mixed_cc3a09_43af	mixed	CC:43AF	CC:46FF	raw	unread
 enemy_stats_records	struct	CC:4700	CC:5DFF	struct:records:23	accessor enemy_stats_record
 enemy_items	struct	CC:5E00	CC:64FF	struct:records:7	accessor enemy_items
 setup_enemy_name_char	text	CC:6500	CC:6FC8	text:names:11	accessor setup_enemy_name_char
-mixed_cc6fc9	mixed	CC:6FC9	CC:6FC9	raw	read
+mixed_cc6fc9	mixed	CC:6FC9	CC:6FC9	raw	unread
 enemy_tech_records	struct	CC:6FCA	CC:7ABE	struct:records:11	accessor action_record
-mixed_cc7abf	mixed	CC:7ABF	CC:7AC8	raw	read
+mixed_cc7abf	mixed	CC:7ABF	CC:7AC8	raw	unread
 enemy_tech_effects	struct	CC:7AC9	CC:86C8	struct:records:12	accessor effect_record_byte
 enemy_tech_aim	bytes	CC:86C9	CC:88C9	raw	accessor enemy_tech_aim
 enemy_attack_records	struct	CC:88CA	CC:89C5	raw	accessor action_record
 enemy_attack_effects	struct	CC:89C6	CC:8B07	raw	accessor effect_record_byte
 enemy_scripts	script	CC:8B08	CC:CBC8	script:enemy-ai	accessor enemy_script_start
 enemy_messages	ptr16	CC:CBC9	CC:CD90	raw	accessor enemy_messages
-mixed_cccbc9_cd91	mixed	CC:CD91	CC:CDA2	raw	read
+mixed_cccbc9_cd91	mixed	CC:CD91	CC:CDA2	raw	unread
 enemy_messages.2	text	CC:CDA3	CC:CDB6	text:dialog	enemy_messages entry
 enemy_messages.3	text	CC:CDB7	CC:CDCE	text:dialog	enemy_messages entry
 enemy_messages.4	text	CC:CDCF	CC:CDE4	text:dialog	enemy_messages entry
@@ -914,7 +914,7 @@ enemy_messages.53	text	CC:D0FE	CC:D11B	text:dialog	enemy_messages entry
 enemy_messages.54	text	CC:D11C	CC:D13B	text:dialog	enemy_messages entry
 enemy_messages.55	text	CC:D13C	CC:D15A	text:dialog	enemy_messages entry
 enemy_messages.56	text	CC:D15B	CC:D179	text:dialog	enemy_messages entry
-mixed_cccbc9_d17a	mixed	CC:D17A	CC:D17A	raw	read
+mixed_cccbc9_d17a	mixed	CC:D17A	CC:D17A	raw	unread
 enemy_messages.57	text	CC:D17B	CC:D193	text:dialog	enemy_messages entry
 enemy_messages.58	text	CC:D194	CC:D1A2	text:dialog	enemy_messages entry
 enemy_messages.59	text	CC:D1A3	CC:D1BA	text:dialog	enemy_messages entry
@@ -926,10 +926,10 @@ enemy_messages.64	text	CC:D20D	CC:D223	text:dialog	enemy_messages entry
 enemy_messages.65	text	CC:D224	CC:D225	text:dialog	enemy_messages entry
 enemy_messages.66	text	CC:D226	CC:D227	text:dialog	enemy_messages entry
 enemy_messages.67	text	CC:D228	CC:D239	text:dialog	enemy_messages entry
-mixed_cccbc9_d23a	mixed	CC:D23A	CC:D23A	raw	read
+mixed_cccbc9_d23a	mixed	CC:D23A	CC:D23A	raw	unread
 enemy_messages.68	text	CC:D23B	CC:D252	text:dialog	enemy_messages entry
 enemy_messages.69	text	CC:D253	CC:D260	text:dialog	enemy_messages entry
-mixed_cccbc9_d261	mixed	CC:D261	CC:D261	raw	read
+mixed_cccbc9_d261	mixed	CC:D261	CC:D261	raw	unread
 enemy_messages.70	text	CC:D262	CC:D26C	text:dialog	enemy_messages entry
 enemy_messages.71	text	CC:D26D	CC:D27F	text:dialog	enemy_messages entry
 enemy_messages.72	text	CC:D280	CC:D287	text:dialog	enemy_messages entry
@@ -977,7 +977,7 @@ enemy_messages.113	text	CC:D580	CC:D59D	text:dialog	enemy_messages entry
 enemy_messages.114	text	CC:D59E	CC:D5AF	text:dialog	enemy_messages entry
 enemy_messages.115	text	CC:D5B0	CC:D5BD	text:dialog	enemy_messages entry
 enemy_messages.116	text	CC:D5BE	CC:D5CF	text:dialog	enemy_messages entry
-mixed_cccbc9_d5d0	mixed	CC:D5D0	CC:D5D0	raw	read
+mixed_cccbc9_d5d0	mixed	CC:D5D0	CC:D5D0	raw	unread
 enemy_messages.117	text	CC:D5D1	CC:D5E6	text:dialog	enemy_messages entry
 enemy_messages.118	text	CC:D5E7	CC:D5FA	text:dialog	enemy_messages entry
 enemy_messages.119	text	CC:D5FB	CC:D611	text:dialog	enemy_messages entry
@@ -1047,13 +1047,13 @@ enemy_messages.182	text	CC:DA2B	CC:DA3A	text:dialog	enemy_messages entry
 enemy_messages.183	text	CC:DA3B	CC:DA57	text:dialog	enemy_messages entry
 enemy_messages.184	text	CC:DA58	CC:DA78	text:dialog	enemy_messages entry
 enemy_messages.185	text	CC:DA79	CC:DA93	text:dialog	enemy_messages entry
-mixed_cccbc9_da94	mixed	CC:DA94	CC:DA94	raw	read
+mixed_cccbc9_da94	mixed	CC:DA94	CC:DA94	raw	unread
 enemy_messages.186	text	CC:DA95	CC:DA9C	text:dialog	enemy_messages entry
 enemy_messages.187	text	CC:DA9D	CC:DAA5	text:dialog	enemy_messages entry
 enemy_messages.188	text	CC:DAA6	CC:DAAF	text:dialog	enemy_messages entry
 enemy_messages.189	text	CC:DAB0	CC:DABD	text:dialog	enemy_messages entry
 enemy_messages.190	text	CC:DABE	CC:DADB	text:dialog	enemy_messages entry
-mixed_cccbc9_dadc	mixed	CC:DADC	CC:DADE	raw	read
+mixed_cccbc9_dadc	mixed	CC:DADC	CC:DADE	raw	unread
 enemy_messages.191	text	CC:DADF	CC:DAF0	text:dialog	enemy_messages entry
 enemy_messages.192	text	CC:DAF1	CC:DB0C	text:dialog	enemy_messages entry
 enemy_messages.193	text	CC:DB0D	CC:DB16	text:dialog	enemy_messages entry
@@ -1076,7 +1076,7 @@ enemy_messages.209	text	CC:DC3C	CC:DC57	text:dialog	enemy_messages entry
 enemy_messages.210	text	CC:DC58	CC:DC75	text:dialog	enemy_messages entry
 enemy_messages.211	text	CC:DC76	CC:DC85	text:dialog	enemy_messages entry
 enemy_messages.212	text	CC:DC86	CC:DC89	text:dialog	enemy_messages entry
-mixed_cccbc9_dc8a	mixed	CC:DC8A	CC:DC8A	raw	read
+mixed_cccbc9_dc8a	mixed	CC:DC8A	CC:DC8A	raw	unread
 enemy_messages.213	text	CC:DC8B	CC:DC98	text:dialog	enemy_messages entry
 enemy_messages.214	text	CC:DC99	CC:DCB6	text:dialog	enemy_messages entry
 enemy_messages.215	text	CC:DCB7	CC:DCD2	text:dialog	enemy_messages entry
@@ -1091,11 +1091,11 @@ enemy_messages.223	text	CC:DD8E	CC:DD9B	text:dialog	enemy_messages entry
 enemy_messages.224	text	CC:DD9C	CC:DDA9	text:dialog	enemy_messages entry
 enemy_messages.225	text	CC:DDAA	CC:DDB7	text:dialog	enemy_messages entry
 enemy_messages.226	text	CC:DDB8	CC:DDC5	text:dialog	enemy_messages entry
-mixed_cccbc9_ddc6	mixed	CC:DDC6	CC:DFFF	raw	read
-mixed_ccf383	mixed	CC:F383	CC:F38B	raw	read
+mixed_cccbc9_ddc6	mixed	CC:DDC6	CC:DFFF	raw	unread
+mixed_ccf383	mixed	CC:F383	CC:F38B	raw	unread
 setup_member_tech_list_start	bytes	CC:F38C	CC:F394	raw	accessor setup_member_tech_list_start
 setup_member_tech_records_at	words	CC:F395	CC:F3B4	raw	accessor setup_member_tech_records_at
-mixed_ccf3b5	mixed	CC:F3B5	CC:F3B5	raw	read
+mixed_ccf3b5	mixed	CC:F3B5	CC:F3B5	raw	unread
 battle_sprite_layout	words	CC:F3B6	CC:F3C1	raw	accessor battle_sprite_layout
 battle_sprite_layout_f3c2	bytes	CC:F3C2	CC:F409	raw	accessor battle_sprite_layout
 battle_frame_tile_list_bytes	words	CC:F40A	CC:F413	raw	accessor battle_frame_tile_list_bytes
@@ -1121,7 +1121,7 @@ battle_walk_grid_store	bytes	CC:F67C	CC:F693	raw	accessor battle_walk_grid_store
 setup_grid_edge_cell	bytes	CC:F694	CC:F6D3	raw	accessor setup_grid_edge_cell
 battle_marker_sprite	bytes	CC:F6D4	CC:F753	raw	accessor battle_marker_sprite
 battle_color_cycle_start	words	CC:F754	CC:F779	raw	accessor battle_color_cycle_start
-mixed_ccf77a	mixed	CC:F77A	CC:F77A	raw	read
+mixed_ccf77a	mixed	CC:F77A	CC:F77A	raw	unread
 battle_held_tint	words	CC:F77B	CC:F77E	raw	accessor battle_held_tint
 battle_status_pose_ends	bytes	CC:F77F	CC:F7BF	raw	accessor battle_status_pose_ends
 battle_sprite_set_start	words	CC:F7C0	CC:F81F	raw	accessor battle_sprite_set_start
@@ -1161,7 +1161,7 @@ battle_palette_plane_mask	words	CD:1300	CD:1313	raw	accessor battle_palette_plan
 orbit_size	words	CD:1C5B	CD:1C62	raw	accessor orbit_size
 saved_shape_offset	words	CD:26B0	CD:26BF	raw	accessor saved_shape_offset
 script_palette_slot_offset	bytes	CD:2A42	CD:2A49	raw	accessor script_palette_slot_offset
-mixed_cd3f9e	mixed	CD:3F9E	CD:3FFE	raw	read
+mixed_cd3f9e	mixed	CD:3F9E	CD:3FFE	raw	unread
 battle_debug_frame_advance	bytes	CD:3FFF	CD:3FFF	raw	accessor battle_debug_frame_advance
 battle_weapon_animation	bytes	CD:4000	CD:4014	raw	accessor battle_weapon_animation
 battle_weapon_animation_4015	struct	CD:4015	CD:45A5	raw	accessor battle_weapon_animation
@@ -1187,14 +1187,14 @@ battle_weapon_swing_sounds	bytes	CD:6D4C	CD:6DAB	raw	accessor battle_weapon_soun
 battle_weapon_hit_sounds	bytes	CD:6DAC	CD:6E0B	raw	accessor battle_weapon_sound
 battle_animations_cd	script	CD:6E0C	CD:EE22	script:battle-animation	read
 battle_palette_frames	bytes	CD:EE23	CD:F18A	raw	accessor battle_palette_frame
-mixed_cdf18b	mixed	CD:F18B	CD:F9C8	raw	read
+mixed_cdf18b	mixed	CD:F18B	CD:F9C8	raw	unread
 padding_cdf9c9	padding	CD:F9C9	CD:FFFF	raw	$FF to the end of the bank
 battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor battle_script_subroutine
 battle_color_cycle_color	words	CE:0100	CE:036B	palette:16	accessor battle_color_cycle_color
 padding_ce036c	padding	CE:036C	CE:037F	raw	read
 battle_animations_ce	script	CE:0380	CE:886F	script:battle-animation	read
 battle_effect_frames	struct	CE:8870	CE:D167	struct:records:4	accessor battle_effect_frame_record
-mixed_ced168	mixed	CE:D168	CE:D427	raw	read
+mixed_ced168	mixed	CE:D168	CE:D427	raw	unread
 battle_animation_subroutines	script	CE:D428	CE:DC19	script:battle-animation	read
 background_ripple_sway	bytes	CE:E08E	CE:E18D	raw	accessor background_ripple_sway
 battle_messages	ptr16	CE:EF11	CE:EF2C	raw	accessor battle_messages
@@ -1203,12 +1203,9 @@ battle_messages.1	text	CE:EF44	CE:EF55	text:dialog	battle_messages entry
 battle_messages.2	text	CE:EF56	CE:EF5D	text:dialog	battle_messages entry
 battle_messages.3	text	CE:EF5E	CE:EF67	text:dialog	battle_messages entry
 battle_messages.4	text	CE:EF68	CE:EF73	text:dialog	battle_messages entry
-battle_messages.5	text	CE:EF74	CE:EF7D	text:dialog	battle_messages entry
-mixed_ceef11_ef7e	mixed	CE:EF7E	CE:EF7F	raw	read
-battle_messages.6	text	CE:EF80	CE:EF90	text:dialog	battle_messages entry
-mixed_ceef11_ef91	mixed	CE:EF91	CE:EF92	raw	read
-battle_messages.7	text	CE:EF93	CE:EFA6	text:dialog	battle_messages entry
-mixed_ceef11_efa7	mixed	CE:EFA7	CE:EFA8	raw	read
+battle_messages.5	text	CE:EF74	CE:EF7F	text:dialog	battle_messages entry
+battle_messages.6	text	CE:EF80	CE:EF92	text:dialog	battle_messages entry
+battle_messages.7	text	CE:EF93	CE:EFA8	text:dialog	battle_messages entry
 battle_messages.8	text	CE:EFA9	CE:EFB0	text:dialog	battle_messages entry
 battle_messages.9	text	CE:EFB1	CE:EFBA	text:dialog	battle_messages entry
 battle_messages.10	text	CE:EFBB	CE:EFC2	text:dialog	battle_messages entry
@@ -1220,9 +1217,9 @@ battle_dissolve_fade	bytes	CE:EFE2	CE:EFE9	raw	accessor battle_dissolve_fade
 battle_dissolve_stride	bytes	CE:EFEA	CE:EFF1	raw	accessor battle_dissolve_stride
 battlefield_tile_set_vram	words	CE:EFF2	CE:EFF9	raw	accessor battlefield_tile_set_vram
 battlefield_fade_kind	bytes	CE:EFFA	CE:EFFB	raw	accessor battlefield_fade_kind
-mixed_ceeffc	mixed	CE:EFFC	CE:EFFD	raw	read
+mixed_ceeffc	mixed	CE:EFFC	CE:EFFD	raw	unread
 battlefield_fades	struct	CE:EFFE	CE:F02D	struct:records:8	accessor battlefield_fade
-mixed_cef02e	mixed	CE:F02E	CE:F03D	raw	read
+mixed_cef02e	mixed	CE:F02E	CE:F03D	raw	unread
 battlefield_palette_bit_mask	bytes	CE:F03E	CE:F045	raw	accessor battlefield_palette_bit_mask
 battlefield_column_place	bytes	CE:F046	CE:F065	raw	accessor battlefield_column_place
 palette_preset_fade	bytes	CE:F0E6	CE:F125	raw	accessor palette_preset_fade
@@ -1391,7 +1388,7 @@ battle_member_colors	words	D1:4B00	D1:4C7F	palette:3	accessor setup_member_color
 battle_number_font	gfx	D1:4C80	D1:4D7F	font:8x8	accessor setup_two_plane_tiles
 battle_number_colors	words	D1:4D80	D1:4D8F	palette:8	accessor setup_number_color
 battle_flash_colors	words	D1:4D90	D1:4E4F	palette:12	accessor battle_flash_color
-mixed_d14e50	mixed	D1:4E50	D1:50A1	raw	read
+mixed_d14e50	mixed	D1:4E50	D1:50A1	raw	unread
 battle_one_sprite_tile	bytes	D1:50A2	D1:50A2	raw	accessor battle_one_sprite_tile
 battle_one_sprite_attributes	bytes	D1:50A3	D1:57FF	raw	accessor battle_one_sprite_attributes
 setup_window_frames_tilemap	bytes	D1:5800	D1:597F	raw	accessor setup_window_frames_tilemap
@@ -2561,7 +2558,7 @@ setup_character_graphics.212	lz	E1:C12F	E1:C4D8	lz:4bpp	setup_character_graphics
 setup_character_graphics.213	lz	E1:C4D9	E1:C711	lz:4bpp	setup_character_graphics entry
 setup_character_graphics.226	lz	E1:C712	E1:D320	lz:4bpp	setup_character_graphics entry
 setup_character_graphics.228	lz	E1:D321	E1:DDB1	lz:4bpp	setup_character_graphics entry
-untyped_e1ddb2	untyped	E1:DDB2	E1:DDB2	raw	read
+untyped_e1ddb2	untyped	E1:DDB2	E1:DDB2	raw	unread
 battle_rules_before_padding	padding	E1:DDB3	E1:DDFF	raw	zero, read by no accessor
 setup_rules	struct	E1:DE00	E1:DE37	struct:records:4	accessor setup_rule_enemy, setup_rule
 setup_rules_padding	padding	E1:DE38	E1:DE7F	raw	zero after the rules' end mark
@@ -2644,7 +2641,7 @@ setup_character_graphics	ptr24	E4:2000	E4:22E7	raw	accessor setup_character_grap
 setup_tile_lists	ptr24	E4:2300	E4:25B4	raw	accessor setup_tile_lists
 setup_frame_lists	ptr16	E4:2600	E4:27FF	raw	accessor setup_frame_lists
 setup_delay_lists	ptr16	E4:2800	E4:29FF	raw	accessor setup_delay_lists
-untyped_e42a00	untyped	E4:2A00	E4:2FFF	raw	read
+untyped_e42a00	untyped	E4:2A00	E4:2FFF	raw	unread
 setup_frame_lists.0	bytes	E4:3000	E4:349F	raw	read
 setup_frame_lists.1	bytes	E4:34A0	E4:387F	raw	read
 setup_frame_lists.2	bytes	E4:3880	E4:3CEF	raw	read
@@ -3500,9 +3497,9 @@ field_packed_map.197	lz	F5:E5CD	F5:E792	lz:field-map	field_packed_map entry
 field_packed_map.198	lz	F5:E793	F5:EA0C	lz:field-map	field_packed_map entry
 field_packed_map.199	lz	F5:EA0D	F5:EC7B	lz:field-map	field_packed_map entry
 field_packed_map.200	lz	F5:EC7C	F5:EE01	lz:field-map	field_packed_map entry
-untyped_f5ee02	untyped	F5:EE02	F5:EFFF	raw	read
+untyped_f5ee02	untyped	F5:EE02	F5:EFFF	raw	unread
 field_location_chests	struct	F5:F000	F5:F7E5	struct:location-chests	accessor field_location_chest_run, field_chest_at
-untyped_f5f7e6	untyped	F5:F7E6	F5:FE03	raw	read
+untyped_f5f7e6	untyped	F5:F7E6	F5:FE03	raw	unread
 field_chests_padding	padding	F5:FE04	F5:FFFF	raw	zero to the end of the bank
 location_records	struct	F6:0000	F6:1BFF	raw	accessor palette_frame_color
 tile_set_blocks	struct	F6:1C00	F6:1DFF	struct:records:8	accessor tile_set_block
@@ -3771,7 +3768,7 @@ strings_f6b230.139	text	F6:C6F8	F6:C758	text:dialog	read
 strings_f6b230.140	text	F6:C759	F6:C78C	text:dialog	read
 strings_f6b230.141	text	F6:C78D	F6:C7BB	text:dialog	read
 strings_f6b230.142	text	F6:C7BC	F6:C7E4	text:dialog	read
-untyped_f6c7e5	untyped	F6:C7E5	F6:C82F	raw	read
+untyped_f6c7e5	untyped	F6:C7E5	F6:C82F	raw	unread
 field_packed_script.75	lz	F6:C830	F6:CA54	lz:event	field_packed_script entry
 field_packed_script.76	lz	F6:CA55	F6:CE5F	lz:event	field_packed_script entry
 field_packed_script.77	lz	F6:CE60	F6:D48E	lz:event	field_packed_script entry
@@ -6624,7 +6621,8 @@ strings_f9b000.439	text	F9:FA24	F9:FA36	text:dialog	strings_f9b000 entry
 strings_f9b000.440	text	F9:FA37	F9:FA46	text:dialog	strings_f9b000 entry
 strings_f9b000.441	text	F9:FA47	F9:FA53	text:dialog	strings_f9b000 entry
 strings_f9b000.442	text	F9:FA54	F9:FA66	text:dialog	strings_f9b000 entry
-untyped_f9fa67	untyped	F9:FA67	F9:FFFF	raw	read
+strings_f9fa67	text	F9:FA67	F9:FA75	text:dialog	read
+untyped_f9fa76	untyped	F9:FA76	F9:FFFF	raw	unread
 field_packed_script.215	lz	FA:0000	FA:020A	lz:event	field_packed_script entry
 field_packed_script.216	lz	FA:020B	FA:032E	lz:event	field_packed_script entry
 field_packed_script.217	lz	FA:032F	FA:065E	lz:event	field_packed_script entry
@@ -7312,7 +7310,7 @@ field_packed_script.17	lz	FD:9A9C	FD:9BA5	lz:event	field_packed_script entry
 field_packed_script.18	lz	FD:9BA6	FD:9CB4	lz:event	field_packed_script entry
 field_packed_script.19	lz	FD:9CB5	FD:9F2B	lz:event	field_packed_script entry
 field_packed_script.20	lz	FD:9F2C	FD:9FEA	lz:event	field_packed_script entry
-mixed_fd9feb	mixed	FD:9FEB	FD:9FFF	raw	read
+mixed_fd9feb	mixed	FD:9FEB	FD:9FFF	raw	unread
 field_credits	bytes	FD:A000	FD:A80A	raw	accessor field_credits_byte
 battle_stat_block_places	words	FD:A80B	FD:A848	raw	accessor battle_stat_block_place
 battle_member_record_places	words	FD:A849	FD:A89C	raw	accessor battle_member_record_place
@@ -7771,25 +7769,25 @@ strings_ff8400.34	text	FF:8B2A	FF:8B58	text:dialog	strings_ff8400 entry
 strings_ff8400.35	text	FF:8B59	FF:8B85	text:dialog	strings_ff8400 entry
 strings_ff8400.36	text	FF:8B86	FF:8BB0	text:dialog	strings_ff8400 entry
 strings_ff8400.37	text	FF:8BB1	FF:8BE9	text:dialog	strings_ff8400 entry
-mixed_ff8bea	mixed	FF:8BEA	FF:8C5F	raw	read
+mixed_ff8bea	mixed	FF:8BEA	FF:8C5F	raw	unread
 battle_message_layer_tiles	gfx	FF:8C60	FF:8E5F	raw	accessor battle_load_graphics
 small_font	gfx	FF:8E60	FF:9C5F	font:8x8	accessor menu_screen_graphics_data
-mixed_ff9c60	mixed	FF:9C60	FF:9C67	raw	read
+mixed_ff9c60	mixed	FF:9C60	FF:9C67	raw	unread
 window_colours	words	FF:9C68	FF:9CEF	raw	accessor menu_rom_colour
 window_tiles	gfx	FF:9CF0	FF:9DEF	raw	accessor battle_load_graphics
 screen_colours	words	FF:9DF0	FF:9E0F	raw	accessor setup_fixed_color
 menu_window_designs	gfx	FF:9E10	FF:B20F	raw	accessor menu_screen_graphics_data
 window_design_colors	words	FF:B210	FF:B28F	palette:8	accessor menu_window_design_colour
-mixed_ffb290	mixed	FF:B290	FF:B30F	raw	read
+mixed_ffb290	mixed	FF:B290	FF:B30F	raw	unread
 menu_item_kind_label	words	FF:B310	FF:BD5B	raw	accessor menu_item_kind_label
 menu_main_menu_icon	bytes	FF:BD5C	FF:C456	raw	accessor menu_main_menu_icon
 menu_window_strings	ptr16	FF:C457	FF:C4D6	raw	accessor menu_window_string
-menu_window_string_bytes	mixed	FF:C4D7	FF:C9AB	raw	menu_window_strings entry
+menu_window_string_bytes	script	FF:C4D7	FF:C9AB	raw	menu_window_byte, menu_text_byte: the window command lists and their strings
 menu_name_grid_letter	bytes	FF:C9AC	FF:C9FB	raw	accessor menu_name_grid_letter
 small_font_replacements	gfx	FF:C9FC	FF:CAFB	font:8x8	accessor menu_screen_graphics_data
 menu_small_digit_byte	bytes	FF:CAFC	FF:CB9B	raw	accessor menu_small_digit_byte
 menu_colors	words	FF:CB9C	FF:CE4F	palette:16	accessor menu_rom_colour, menu_portrait_colour
-mixed_ffce50	mixed	FF:CE50	FF:CE6F	raw	read
+mixed_ffce50	mixed	FF:CE50	FF:CE6F	raw	unread
 menu_large_portrait_first_tile	bytes	FF:CE70	FF:CE77	raw	accessor menu_large_portrait_first_tile
 menu_large_portrait_colours	words	FF:CE78	FF:CE87	raw	accessor menu_large_portrait_colours
 menu_element_label_tile	words	FF:CE88	FF:CE91	raw	accessor menu_element_label_tile
@@ -7899,5 +7897,5 @@ menu_saved_runs_byte	bytes	FF:FA7B	FF:FAA2	raw	accessor menu_saved_runs_byte
 menu_carried_runs_byte	bytes	FF:FBC1	FF:FBD2	raw	accessor menu_carried_runs_byte
 menu_saved_game_on_the_bus	words	FF:FBE1	FF:FBE6	raw	accessor menu_saved_game_on_the_bus
 menu_window_line_value	bytes	FF:FC57	FF:FC66	raw	accessor menu_window_line_value
-mixed_fffc67	mixed	FF:FC67	FF:FF3D	raw	read
-battle_screen_script_byte	undetermined	FF:FFF5	FF:FFFF	raw	accessor battle_screen_script_byte
+mixed_fffc67	mixed	FF:FC67	FF:FF3D	raw	unread
+battle_screen_script_byte	undetermined	FF:FFF5	FF:FFFF	raw	unread

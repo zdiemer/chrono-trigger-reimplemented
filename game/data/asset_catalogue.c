@@ -1254,12 +1254,9 @@ const AssetEntry asset_catalogue[] = {
     { 0xCEEF56u, 8u, "battle_messages.2", 8, 49 },
     { 0xCEEF5Eu, 10u, "battle_messages.3", 8, 49 },
     { 0xCEEF68u, 12u, "battle_messages.4", 8, 49 },
-    { 0xCEEF74u, 10u, "battle_messages.5", 8, 49 },
-    { 0xCEEF7Eu, 2u, "mixed_ceef11_ef7e", 5, 29 },
-    { 0xCEEF80u, 17u, "battle_messages.6", 8, 49 },
-    { 0xCEEF91u, 2u, "mixed_ceef11_ef91", 5, 29 },
-    { 0xCEEF93u, 20u, "battle_messages.7", 8, 49 },
-    { 0xCEEFA7u, 2u, "mixed_ceef11_efa7", 5, 29 },
+    { 0xCEEF74u, 12u, "battle_messages.5", 8, 49 },
+    { 0xCEEF80u, 19u, "battle_messages.6", 8, 49 },
+    { 0xCEEF93u, 22u, "battle_messages.7", 8, 49 },
     { 0xCEEFA9u, 8u, "battle_messages.8", 8, 49 },
     { 0xCEEFB1u, 10u, "battle_messages.9", 8, 49 },
     { 0xCEEFBBu, 8u, "battle_messages.10", 8, 49 },
@@ -6675,7 +6672,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xF9FA37u, 16u, "strings_f9b000.440", 8, 49 },
     { 0xF9FA47u, 13u, "strings_f9b000.441", 8, 49 },
     { 0xF9FA54u, 19u, "strings_f9b000.442", 8, 49 },
-    { 0xF9FA67u, 1433u, "untyped_f9fa67", 15, 29 },
+    { 0xF9FA67u, 15u, "strings_f9fa67", 8, 49 },
+    { 0xF9FA76u, 1418u, "untyped_f9fa76", 15, 29 },
     { 0xFA0000u, 523u, "field_packed_script.215", 7, 14 },
     { 0xFA020Bu, 292u, "field_packed_script.216", 7, 14 },
     { 0xFA032Fu, 816u, "field_packed_script.217", 7, 14 },
@@ -7835,7 +7833,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFB310u, 2636u, "menu_item_kind_label", 1, 29 },
     { 0xFFBD5Cu, 1787u, "menu_main_menu_icon", 0, 29 },
     { 0xFFC457u, 128u, "menu_window_strings", 2, 29 },
-    { 0xFFC4D7u, 1237u, "menu_window_string_bytes", 5, 29 },
+    { 0xFFC4D7u, 1237u, "menu_window_string_bytes", 9, 29 },
     { 0xFFC9ACu, 80u, "menu_name_grid_letter", 0, 29 },
     { 0xFFC9FCu, 256u, "small_font_replacements", 10, 2 },
     { 0xFFCAFCu, 160u, "menu_small_digit_byte", 0, 29 },
@@ -7954,8 +7952,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-AssetServed asset_served[7886];
+AssetServed asset_served[7884];
 
-const uint16_t asset_catalogue_count = 7886;
+const uint16_t asset_catalogue_count = 7884;
 
-const uint32_t asset_catalogue_version = 0x6E072DC5u;
+const uint32_t asset_catalogue_version = 0xC764AC1Bu;
