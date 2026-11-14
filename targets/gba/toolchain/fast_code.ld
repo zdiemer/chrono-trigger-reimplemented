@@ -4,14 +4,11 @@
  * `run.py --profile` over new-game and gato-battle. Names are the
  * optimized build's (a suffix after the name is the compiler's copy of it);
  * a name the build no longer has places nothing. */
-*(.text.state_host_game_access .text.state_host_game_access.*)
 *(.text.charge_time_as_begin .text.charge_time_as_begin.*)
 *(.text.charge_time_as_end .text.charge_time_as_end.*)
 *(.text.charge_as .text.charge_as.*)
 *(.text.state_host_read8 .text.state_host_read8.*)
 *(.text.state_host_write8 .text.state_host_write8.*)
-*(.text.get8 .text.get8.* .text.get16 .text.get16.* .text.put8 .text.put8.* .text.put16 .text.put16.*)
-*(.text.r8 .text.r8.*)
 *(.text.row_of .text.row_of.*)
 *(.text.note_if_unread .text.note_if_unread.*)
 *(.text.event_script_byte .text.event_script_byte.*)

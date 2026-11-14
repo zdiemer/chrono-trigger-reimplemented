@@ -974,26 +974,25 @@ Sampled, the claim falls from 5% of the field's and the menus' game frame to
 0-1%, from 14% of the battle's to 6%, and from 9-11% of a scene's to 6-7%.
 The flat state, a small target's, has no claim at all (below).
 
-**The time model in 32-bit sums** (issue #426). The account an access is
-charged to (`StateHostAccount`) follows the storage at the front of the
-state, so `state_host_game_access` is inline in every accessor. It holds the
-work as whole master clocks plus thousandths of one, and the current rate
-split the same way. An access adds its clocks times each part, which is
-exactly the sum the 64-bit product in thousandths gave, without the
-C library's 64-bit multiply. The thousandths are made whole as they pass 2^30, and once more
-when the timing backend takes the work. Anything the inline path can't
-bound goes through the out-of-line path, which saturates where the old
-64-bit sum clamped: an uncounted stretch, the per-routine report, an
-access over 65,535 clocks, or an account near full. A scope finds its row
-in a 128-entry table of the rows named lately (`row_of`), with the rate
-already split, instead of a binary search of all 2,318 rows. Every movie
-plays to the same lag frames and end states (the gate). In mGBA the game's
-frame falls from 2.6, 3.8 and 5.5 GBA frames to 2.3, 3.2 and 4.6
-(`title-start`, `new-game`, `gato-battle`; in all from 4.7, 7.2 and 10.5 to
-4.4, 6.6 and 9.6). The
-time model's own functions fall from 13% of the `new-game` run to about 7%.
-Only the timing report's totals (`StateHostTime`, outside the lean build)
-are still 64-bit.
+**The time model, priced a stretch at a time** (issue #426). The account
+an access is charged to (`StateHostAccount`) follows the storage at the
+front of the state, so `state_host_game_access` is inline in every
+accessor, and all it does is count the access's bus clocks. The count is
+priced where its price could change (`price_accesses`): as a `TIMED_AS`
+scope begins or ends, as an uncounted or retired stretch begins (its end
+puts the count back where it began), and as the timing backend takes the
+work, at the rate the accesses were made at. The work is whole master
+clocks plus thousandths of one, and the rate is split the same way, so a
+stretch's clocks times each part is exactly the sum each access's 64-bit
+product in thousandths gave, in 32-bit sums; the thousandths are made whole
+as they pass 2^30, and once more when the backend takes the work. A scope
+finds its row in a 128-entry table of the rows named lately (`row_of`),
+with the rate already split, instead of a binary search of all 2,318 rows.
+Every movie plays to the same lag frames and end states (the gate,
+`tools/lean_check.py`). Priced at every access, the time model was 15-20%
+of the GBA's samples, its pricing out of line at the accessors' 6,400 call
+sites; counted inline, the program grows by 210 KiB. Only the timing
+report's totals (`StateHostTime`, outside the lean build) are still 64-bit.
 
 **The interpreters decode what a row names, and reads go on through a run**
 (issue #429). The field's event engine and the menus' scripts decode a
@@ -1264,7 +1263,7 @@ main thread past 3 KiB at -O2 (3,048 bytes in `gato-battle`); at -O3 it is
 1,792. Fast RAM's 32-bit bus with no waits fetches an instruction in one
 cycle where the cartridge's takes two to four; `toolchain/fast_code.ld` lists the
 functions with the most of the work a byte (`host/run.py --profile` over
-`new-game` and `gato-battle`): the time model's charges, the state's reads
+`new-game` and `gato-battle`): the time model's scopes, the state's reads
 and writes, the event interpreter's decoding, the cartridge's reads and the
 C library's copies, about 40% of the samples in 4.3 KiB. The event
 interpreter's decoding (`decode`, `names_what_it_says`) was there too, but
