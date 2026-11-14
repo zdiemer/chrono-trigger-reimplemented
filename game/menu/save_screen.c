@@ -309,7 +309,7 @@ static void make_room_for_the_slot(GameState *g)
 }
 
 /* The slot's tilemap and the era label queued for the next vblank. */
-static void queue_the_slot(GameState *g, const uint16_t order[3])
+static void queue_the_slot(GameState *g, const AssetId order[3])
 {
     for (unsigned i = 0; i < 3; i++)
         menu_queue_fixed_upload(g, order[i]);
@@ -321,9 +321,9 @@ static void queue_the_slot(GameState *g, const uint16_t order[3])
  * (menu_send_upload_queue), and the three parts go to places of their own in
  * video memory, none overlapping another. The orders are the original's two
  * routines', kept because the queue's records in work RAM are compared. */
-static const uint16_t LOAD_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP, MENU_UPLOAD_SLOT_TILEMAP_2,
+static const AssetId LOAD_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP, MENU_UPLOAD_SLOT_TILEMAP_2,
                                                  MENU_UPLOAD_SLOT_TILEMAP_3 };
-static const uint16_t SAVE_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP_2, MENU_UPLOAD_SLOT_TILEMAP,
+static const AssetId SAVE_SCREEN_UPLOADS[3] = { MENU_UPLOAD_SLOT_TILEMAP_2, MENU_UPLOAD_SLOT_TILEMAP,
                                                  MENU_UPLOAD_SLOT_TILEMAP_3 };
 
 // $C2:E743

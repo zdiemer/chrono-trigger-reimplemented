@@ -260,33 +260,33 @@ game/cpu_io.h	57	raw-helper	hw_port_seek_bank(GameState *g, uint8_t bank);
 game/cpu_io.h	58	raw-helper	hw_port_read(GameState *g);
 game/cpu_io.h	59	raw-helper	hw_port_write(GameState *g, uint8_t v);
 game/cpu_io.h	65	raw-helper	hw_port_leave_spill(GameState *g, uint8_t low);
-game/data/assets.c	99	raw-helper	wram_data_read8(g, at & 0xFFFFFFu);
-game/data/assets.c	96	resource-address	rom_read8(const GameState *g, uint32_t at)
-game/data/assets.c	100	resource-address	rom_cartridge_read(g, at, served(at));
-game/data/assets.c	109	resource-address	rom_read8(g, e->at + offset);
-game/data/assets.c	111	resource-address	rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
-game/data/assets.c	125	resource-address	rom_read8(g, (e->at & 0xFF0000u) | place);
-game/data/assets.c	134	resource-address	rom_read16(g, (e->at & 0xFF0000u) | place);
-game/data/assets.c	142	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
-game/data/assets.c	144	resource-address	rom_read8(g, asset_place_address(resource, place));
-game/data/assets.c	147	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
-game/data/assets.c	149	resource-address	rom_read16(g, asset_place_address(resource, place));
-game/data/assets.c	152	resource-address	rom_read16(const GameState *g, uint32_t at)
-game/data/assets.c	154	resource-address	rom_read8(g, at);
-game/data/assets.c	155	resource-address	rom_read8(g, at + 1) << 8);
-game/data/assets.c	158	resource-address	rom_data(uint32_t at, uint32_t length)
-game/data/assets.c	188	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
-game/data/assets.c	191	resource-address	rom_data(at, length ? 1 : 0);
-game/data/assets.c	193	resource-address	rom_data(at, length);
-game/data/assets.c	195	resource-address	rom_data(first, length);
-game/data/assets.c	161	video-source	PF_GAME(at);
+game/data/assets.c	129	raw-helper	wram_data_read8(g, at & 0xFFFFFFu);
+game/data/assets.c	126	resource-address	rom_read8(const GameState *g, uint32_t at)
+game/data/assets.c	130	resource-address	rom_cartridge_read(g, at, served(at));
+game/data/assets.c	139	resource-address	rom_read8(g, e->at + offset);
+game/data/assets.c	142	resource-address	rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
+game/data/assets.c	156	resource-address	rom_read8(g, (e->at & 0xFF0000u) | place);
+game/data/assets.c	165	resource-address	rom_read16(g, (e->at & 0xFF0000u) | place);
+game/data/assets.c	173	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+game/data/assets.c	175	resource-address	rom_read8(g, asset_place_address(resource, place));
+game/data/assets.c	178	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+game/data/assets.c	180	resource-address	rom_read16(g, asset_place_address(resource, place));
+game/data/assets.c	183	resource-address	rom_read16(const GameState *g, uint32_t at)
+game/data/assets.c	185	resource-address	rom_read8(g, at);
+game/data/assets.c	186	resource-address	rom_read8(g, at + 1) << 8);
+game/data/assets.c	189	resource-address	rom_data(uint32_t at, uint32_t length)
+game/data/assets.c	219	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
+game/data/assets.c	222	resource-address	rom_data(at, length ? 1 : 0);
+game/data/assets.c	224	resource-address	rom_data(at, length);
+game/data/assets.c	226	resource-address	rom_data(first, length);
+game/data/assets.c	192	video-source	PF_GAME(at);
 game/data/assets.c	20	layout-expression	<< 16 | offset;
 game/data/assets.c	22	layout-expression	<< 16 | offset;
-game/data/assets.c	125	layout-expression	& 0xFF0000u) | place);
-game/data/assets.c	134	layout-expression	& 0xFF0000u) | place);
-game/data/assets.c	140	layout-expression	& 0xFF0000u) | place; }
-game/data/assets.c	183	layout-expression	& 0xFF0000u) | (uint16_t)(cursor + span);
-game/data/assets.c	194	layout-expression	& 0xFF0000u) | (uint16_t)(at - length + 1);
+game/data/assets.c	156	layout-expression	& 0xFF0000u) | place);
+game/data/assets.c	165	layout-expression	& 0xFF0000u) | place);
+game/data/assets.c	171	layout-expression	& 0xFF0000u) | place; }
+game/data/assets.c	214	layout-expression	& 0xFF0000u) | (uint16_t)(cursor + span);
+game/data/assets.c	225	layout-expression	& 0xFF0000u) | (uint16_t)(at - length + 1);
 game/data/decompress.c	77	raw-helper	hw_port_write(out->g, v);
 game/data/decompress.c	85	raw-helper	wram_write8(out->g, out->bank | out->at, wram_read8(out->g, out->bank | from));
 game/data/decompress.c	85	raw-helper	wram_read8(out->g, out->bank | from));
@@ -712,29 +712,28 @@ game/menu/menu_data.h	441	resource-address	rom_read8(g, at & 0xFFFFFFu); }
 game/menu/menu_data.h	536	resource-address	rom_read8_in_bank_of(g, ASSET_WEAPON_RECORDS, at);
 game/menu/menu_data.h	673	resource-address	rom_read8(g, at & 0xFFFFFFu); }
 game/menu/menu_data.h	700	resource-address	rom_read8_in_bank_of(g, ASSET_MENU_WINDOW_STRINGS, at); }
-game/menu/menu_data.h	784	resource-address	rom_read8_in_bank_of(g, ASSET_MENU_NEW_GAME_SETTING, (uint16_t)(at + i));
-game/menu/menu_data.h	837	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	843	resource-address	rom_read8(g, at & 0xFFFFFFu) | rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
-game/menu/menu_data.h	843	resource-address	rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
-game/menu/menu_data.h	846	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	839	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	845	resource-address	rom_read8(g, at & 0xFFFFFFu) | rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
+game/menu/menu_data.h	845	resource-address	rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
 game/menu/menu_data.h	848	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	1119	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at) |
-game/menu/menu_data.h	1120	resource-address	rom_read8_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, (uint16_t)(at + 2u)) << 16;
-game/menu/menu_data.h	1138	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at);
-game/menu/menu_data.h	1170	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	1229	resource-address	rom_read16_in_bank_of(g, ASSET_MENU_COLORS, (uint16_t)(colours + 2u * i));
-game/menu/menu_data.h	1601	resource-address	rom_data(source, bytes); }
-game/menu/menu_data.h	1606	resource-address	rom_data(asset_address(graphics), bytes);
-game/menu/menu_data.h	1612	resource-address	rom_data(asset_address(ASSET_MENU_MAP_VIEW_TILES) + (second ? 32u : 0u), 32);
-game/menu/menu_data.h	1617	resource-address	rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
+game/menu/menu_data.h	850	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	1121	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at) |
+game/menu/menu_data.h	1122	resource-address	rom_read8_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, (uint16_t)(at + 2u)) << 16;
+game/menu/menu_data.h	1140	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at);
+game/menu/menu_data.h	1172	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	1231	resource-address	rom_read16_in_bank_of(g, ASSET_MENU_COLORS, (uint16_t)(colours + 2u * i));
+game/menu/menu_data.h	1603	resource-address	rom_data(source, bytes); }
+game/menu/menu_data.h	1608	resource-address	rom_data(asset_address(graphics), bytes);
+game/menu/menu_data.h	1614	resource-address	rom_data(asset_address(ASSET_MENU_MAP_VIEW_TILES) + (second ? 32u : 0u), 32);
+game/menu/menu_data.h	1619	resource-address	rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
 game/menu/menu_data.h	105	layout-expression	0x7E0000u, MENU_FIRST_NAME = 0x2C23, MENU_NAME_BYTES = 6 };
-game/menu/menu_data.h	787	layout-expression	<< 16 | (uint16_t)(b[2] | b[3] << 8),
-game/menu/menu_data.h	893	layout-expression	<< 16;
-game/menu/menu_data.h	967	layout-expression	<< 16;
-game/menu/menu_data.h	974	layout-expression	<< 16;
-game/menu/menu_data.h	1120	layout-expression	<< 16;
-game/menu/menu_data.h	1356	layout-expression	<< 16,
-game/menu/menu_data.h	1370	layout-expression	<< 16,
+game/menu/menu_data.h	789	layout-expression	<< 16 | (uint16_t)(b[2] | b[3] << 8),
+game/menu/menu_data.h	895	layout-expression	<< 16;
+game/menu/menu_data.h	969	layout-expression	<< 16;
+game/menu/menu_data.h	976	layout-expression	<< 16;
+game/menu/menu_data.h	1122	layout-expression	<< 16;
+game/menu/menu_data.h	1358	layout-expression	<< 16,
+game/menu/menu_data.h	1372	layout-expression	<< 16,
 game/menu/naming.c	302	layout-expression	RAM_ABS(RAM_CHARACTER_NAMES) + named(g) * NAME_BYTES;
 game/menu/naming.c	302	layout-expression	RAM_CHARACTER_NAMES) + named(g) * NAME_BYTES;
 game/menu/naming.c	313	layout-expression	0x7E0000, FRONT_LAYER = 0, FRONT_LAYER_DOWN = 3 };
@@ -929,7 +928,7 @@ game/overworld/dactyl.c	61	layout-expression	<< 16 });
 game/overworld/dactyl.c	319	layout-expression	<< 16;
 game/overworld/epoch.c	214	layout-expression	<< 16, (uint32_t)at.y << 16 });
 game/overworld/epoch.c	214	layout-expression	<< 16 });
-game/overworld/handlers.c	72	layout-expression	0x7F0000 };
+game/overworld/handlers.c	75	layout-expression	0x7F0000 };
 game/overworld/main_loop.c	83	raw-helper	wram_copy(g, what[i].from, RAM_OVERWORLD_PUT_ASIDE + what[i].to, what[i].bytes);
 game/overworld/main_loop.c	93	raw-helper	wram_copy(g, RAM_OVERWORLD_PUT_ASIDE + what[i].to, what[i].from, what[i].bytes);
 game/overworld/main_loop.c	60	layout-expression	0x7E0000, 0x1700, 0x00F0 },
