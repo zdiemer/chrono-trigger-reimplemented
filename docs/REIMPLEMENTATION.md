@@ -203,8 +203,14 @@ Giga Gaia), it showed where native battle time fell short:
   `tools/timing_ratios.txt`): a battle message's glyph now takes 26.4k clocks
   against the original's 26.2k (22.0k before). The vblank uploads
   (`$C2:85D6`, `$C2:86A9`) are 8-40 times under, varying with what they send:
-  the port's uploads don't charge their bytes, a follow-up. The field's
-  guards still count, and its rates were calibrated with them. Across the 84
+  the port's uploads don't charge their bytes, a follow-up. The field's,
+  the events', the scenes', the world map's and the time gates' checks are
+  looks too: measured again, the field's rates stay within 2% of the
+  original's but two (`$C0:21E1` ×1.82, `$C0:A810` ×0.85), and no place
+  moves. The battle's checks still count: as looks they leave its main
+  thread's routines 1.2 to 30 times under the original's, steadily across
+  the three fights, and with those rates the Death Peak ascent's recorded
+  fight ends in a game over (issue #376). Across the 84
   movies, places on time stay 599 and in order go 694 to 695 (the gate's 58:
   395 to 395, 476 to 478); one moves away, the Black Omen's Zeal fight, with
   its evidence on its line.
