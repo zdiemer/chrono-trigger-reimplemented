@@ -922,7 +922,8 @@ Two pieces of what looked like bookkeeping are the game's, and stay:
 
 So GameState's diagnostics drop by 19.7 KiB, not 136 KiB: the 116.5 KiB of
 last writers is how separate owners keep the original's one byte, and goes
-only where a target shares the owners' storage (issue #427). No mode's
+where a target shares the owners' storage: the flat state (below), which a
+small target builds. No mode's
 resident set fits the SNES's 128 KiB with or without it.
 
 Per frame, the lean build's game takes a half to two thirds of the normal
@@ -943,7 +944,7 @@ mode, with gprof's call counts for who calls what:
 | The state's address view: `vars_host_read8`/`write8` and a 3,360-case switch on the owner field, for alias accessors and reads by address; since resolved once and the sends read a span at a time (below) | 35%, now 15% | 48%, now 22% | 33%, now 10% | 48%, now 20% | #424 |
 | The typed accessors' own calls (inlined into the game once optimized across files) | 23% | 16% | 25% | 17% | |
 | The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access; since charged inline in 32 bits (below), 2-4% in its own functions, the rest inside the accessors | 10% | 8% | 10% | 7% | #426 |
-| The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
+| The overlays' last writer (`vars_host_claim`); since written out as stores (below), 0-1%, battle 6%, scene 6-7% | 3% | 3% | 10% | 5% | |
 | The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address, since read a span at a time (below) | 2% | 3% | 6% | 4% | |
 | Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
 | The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it | 20% | 16% | 10% | 11% | #429 |
@@ -960,6 +961,18 @@ game: an address decode for every byte an alias view or a transfer touches,
 the time model's pricing of every access, and a mixer built to be exact. The
 game's own logic is a fifth of its frame or less, about 1-3 GBA frames' work
 by these estimates. Run `tools/measure.py` against a lean build to remeasure.
+
+**The overlays' last writer, written out** (issue #427). An owner accessor
+whose bytes other owners keep beside it says it wrote them last. Before, it
+called `vars_host_claim` with its place, which looked up each byte's set of
+owners and searched it. For 2,626 of the 2,831 places an overlay touches,
+every index the accessor takes stores the same writer at a slot that moves
+with the address. `tools/ram_map.py` (`direct_claim`) writes out those
+stores (`h->overlay_writer[246u + (uint32_t)i * 0x02u] = 2;`); the other 205
+(pages' instances, sets that change with the index) still call the claim.
+Sampled, the claim falls from 5% of the field's and the menus' game frame to
+0-1%, from 14% of the battle's to 6%, and from 9-11% of a scene's to 6-7%.
+The flat state, a small target's, has no claim at all (below).
 
 **The time model in 32-bit sums** (issue #426). The account an access is
 charged to (`StateHostAccount`) follows the storage at the front of the
@@ -1081,8 +1094,9 @@ does instead, a byte at each of work RAM's 128 KiB of addresses:
 tools/ram_map.py generates `runtime/port/vars_flat.c`, the same accessors in
 their address form, and `runtime/port/vars_flat_host.c` keeps the two banks
 in the arena. Owners the typed state keeps apart (re/ram.toml's `overlays`)
-share the one byte, as in the original, so there is no last writer to keep
-(issue #427's sharing, for the flat state). A native lean, flat ct_native
+share the one byte, as in the original, so there is no writer table and no
+claim: a small target's build of the state shares the overlaid owners'
+storage. A native lean, flat ct_native
 plays all 59 gate movies to the same work RAM and save RAM as the normal
 build (`tools/lean_check.py --lean build/flat/ct_native`, configured
 `-DCT_LEAN=ON -DCT_FLAT_STATE=ON`; CI builds and tests it as

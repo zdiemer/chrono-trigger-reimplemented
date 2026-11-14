@@ -1676,6 +1676,62 @@ def owner_value(a):
     return None
 
 
+def value_starts(a):
+    """The first address of each value an accessor's index can name: every
+    byte of a buffer, every item of a buffer of whole items, every row and
+    column of a table, every element of an array."""
+    v = a.var
+    if a.whole:
+        inner = [i * a.elements.size for i in range(a.size // a.elements.size)]
+    elif a.blob:
+        inner = list(range(a.size))
+    elif a.table:
+        inner = [r * v.row_stride + c for r in range(v.rows) for c in range(a.size)]
+    else:
+        inner = [0]
+    for base in v.bases():
+        for e in range(v.count):
+            for x in inner:
+                yield base + a.offset + e * v.stride + x
+
+
+def direct_claim(a, ov):
+    """An owner accessor's claim of its bytes (vars_host_claim) as the stores it
+    makes: for each byte of the value, the writer's place among that byte's
+    owners at its place in overlay_writer. Where every value the index can
+    name stores the same place at a slot that moves with the address, the
+    stores are written out; otherwise None, and the accessor calls the claim."""
+    if a.var.on_instances():
+        return None
+    place = ov.first[(a.var.name, a.field.name if a.field else None)]
+    order = {page: k for k, page in enumerate(ov.pages)}
+    starts = list(value_starts(a))
+    first = starts[0]
+    out = []
+    for j in range(width_of(a)):
+        actions = set()
+        for start in starts:
+            addr = start + j
+            owners = ov.at.get(addr, []) if addr in ov.shared else []
+            if place not in owners:
+                actions.add(None)
+                continue
+            slot = order[(addr - 0x7E0000) >> 8] * 256 + (addr & 255)
+            actions.add((slot - (addr - first), owners.index(place) + 1))
+        if len(actions) != 1:
+            return None
+        action = actions.pop()
+        if action is None:
+            continue
+        slot0, writer = action
+        offset = a.address()
+        offset = offset[offset.index("u") + 1:] if offset.startswith("0x") else None
+        if offset is None:
+            return None
+        out.append("    h->overlay_writer[%du%s] = %d;" % (slot0 + j, offset, writer))
+    return out
+
+
 def render_host_accessor(a, ids, ov):
     out = []
     same = owner_value(a) if ov.touches(a) else None
@@ -1709,7 +1765,11 @@ def render_host_accessor(a, ids, ov):
             out += ["}"]
         return out
     overlaid = ov.touches(a) and not (a.var.host_alias or (a.field and a.field.host_alias))
-    claim = "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)) if overlaid else None
+    claim = None
+    if overlaid:
+        stores = direct_claim(a, ov)
+        claim = ("\n".join(stores) if stores is not None else
+                 "    vars_host_claim(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a)))
     check = ("    if (!peeking)\n        vars_host_check(h, %s, %du, %s);" % (a.address(), width_of(a), ov.place(a))
              if overlaid else None)
     width = width_of(a)
