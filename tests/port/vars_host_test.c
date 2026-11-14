@@ -477,13 +477,13 @@ static void cartridge_save(const char *path)
 static void wide_window_in_snapshots(void)
 {
     GameState *g = state_host_create(NULL);
-    *battle_wide_window(g) = (BattleWideWindow){ WINDOW_SHOWS_TECHS, 2, 18 };
+    *battle_wide_window(g) = (BattleWideWindow){ WINDOW_SHOWS_TECHS, 18, 6, true };
     uint8_t *snapshot = malloc(state_host_snapshot_bytes());
     state_host_snapshot(g, snapshot);
-    *battle_wide_window(g) = (BattleWideWindow){ WINDOW_SHOWS_PARTY, 0, 12 };
+    *battle_wide_window(g) = (BattleWideWindow){ WINDOW_SHOWS_PARTY, 12, 0, false };
     state_host_restore(g, snapshot);
     const BattleWideWindow *w = battle_wide_window(g);
-    CHECK(w->shows == WINDOW_SHOWS_TECHS && w->layout == 2 && w->divider == 18);
+    CHECK(w->shows == WINDOW_SHOWS_TECHS && w->divider == 18 && w->command == 6 && w->shared);
     free(snapshot);
     state_host_destroy(g);
 }
