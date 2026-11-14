@@ -75,8 +75,13 @@ SECTIONS
         __bss_end = .;
     } > ewram
 
-    /* What the arena hands out, to the end of work RAM. */
+    /* What the arena hands out, to the end of work RAM. It must hold what
+     * the program takes from it as it starts (main.c's report: the game's
+     * state, the SNES's video memory, the sound player), measured as
+     * 167,336 bytes (2026-11-14); a build that leaves less fails here rather
+     * than when the GBA starts. Raise it with what a change takes. */
     __arena_start = .;
+    ASSERT(__ewram_end - __arena_start >= 167336, "work RAM leaves the arena less than the program takes from it")
 
     __rom_end = LOADADDR(.data) + SIZEOF(.data);
 
