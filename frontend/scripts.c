@@ -524,7 +524,10 @@ static bool write_places(DecodedText *t, const uint8_t *u, uint32_t len)
     return true;
 }
 
-typedef enum { FORM_SCRIPT, FORM_PLACES } Form;
+/* A location's script (packed), a world map's places (packed), or commands
+ * the field keeps whole to copy into a script (built_in_command_byte), which
+ * are written as a script of no objects and keep their length. */
+typedef enum { FORM_SCRIPT, FORM_PLACES, FORM_COMMANDS } Form;
 
 static bool form_of(const AssetEntry *e, Form *f)
 {
@@ -533,6 +536,8 @@ static bool form_of(const AssetEntry *e, Form *f)
         *f = FORM_SCRIPT;
     else if (!strcmp(c, "lz:place-lists"))
         *f = FORM_PLACES;
+    else if (!strcmp(c, "script:event-commands"))
+        *f = FORM_COMMANDS;
     else
         return false;
     return true;
@@ -547,6 +552,21 @@ static bool decodes(const AssetEntry *e, bool *named)
 
 static bool write_resource(DecodedText *t, const AssetStore *store, const AssetEntry *e, const uint8_t *bytes)
 {
+    Form f = FORM_SCRIPT;
+    form_of(e, &f);
+    if (f == FORM_COMMANDS) {
+        uint8_t *script = malloc(e->length + 1u);   /* a script of no objects, then the commands */
+        if (!script)
+            return false;
+        script[0] = 0;
+        memcpy(script + 1, bytes, e->length);
+        char line[64];
+        snprintf(line, sizeof line, "# commands, %u bytes, which keep their length\n", (unsigned)e->length);
+        decoded_put(t, line);
+        bool written = write_script(t, script, e->length + 1u, store);
+        free(script);
+        return written;
+    }
     size_t len = 0;
     bool long_runs = false;
     uint8_t *unpacked = packed_unpack(bytes, e->length, &len, &long_runs);
@@ -556,8 +576,6 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     snprintf(line, sizeof line, "# %u bytes unpacked\n", (unsigned)len);
     decoded_put(t, line);
     packed_write_form(t, long_runs);
-    Form f = FORM_SCRIPT;
-    form_of(e, &f);
     bool written = f == FORM_PLACES ? write_places(t, unpacked, (uint32_t)len) : write_script(t, unpacked, (uint32_t)len, store);
     free(unpacked);
     return written;
@@ -1022,7 +1040,12 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
         return "out of memory";
     Form form = FORM_SCRIPT;
     form_of(&asset_catalogue[r->entry], &form);
-    if (r->form == PACKED_UNSAID) {
+    if (r->form == PACKED_UNSAID && form == FORM_COMMANDS) {
+        /* not packed: its first line is the script's `objects 0` */
+        r->form = PACKED_SHORT_RUNS;
+        r->most = asset_catalogue[r->entry].length + 1u;
+        r->part = PART_OBJECTS;
+    } else if (r->form == PACKED_UNSAID) {
         const char *wrong = packed_read_form(d, r, s, end);
         if (form == FORM_SCRIPT && r->most < SCRIPT_ROOM)
             r->most = SCRIPT_ROOM;
@@ -1171,6 +1194,13 @@ static const char *read_end(Decoded *d, DecodedReading *r)
         r->made[f->at] = (uint8_t)distance;
     }
     r->wrong_at = 0;
+    if (form == FORM_COMMANDS) {
+        uint32_t length = asset_catalogue[r->entry].length;
+        if (st->objects || r->made_len != length + 1u)
+            return "the commands have no objects and keep their length: the field copies them by place";
+        memcpy(r->bytes, r->made + 1, length);
+        return NULL;
+    }
     return packed_end(d, r);
 }
 

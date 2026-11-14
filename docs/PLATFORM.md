@@ -386,6 +386,11 @@ pack's text spells it, cut at 95 bytes:
 
 5,257 of the cartridge's commands show their line.
 
+The commands the field keeps whole to copy into a script
+(`built_in_command_byte`, `script:event-commands`, 55 bytes) are written as
+a script of no objects, `objects 0` and the commands, and keep their
+length, since the field copies them by place.
+
 A world map's places are its lists, each a record a line in the game's
 order and layout (`overworld_place_streams`, `game/overworld/places.h`, from
 the work-RAM map's fields, which the map's load and the places' lookups go
@@ -472,8 +477,7 @@ value too long, an opcode not the command's, a condition short of its
 bytes, a script a byte longer, a byte shorter); with the ROM staged every
 script of the cartridge reads back as its bytes. The upload records the
 menus queue (`script_c2bece` and nine more) were typed `script` and are
-records, `struct:records:7`. The event commands built into the field
-(`built_in_command_byte`, 55 bytes) are still bytes.
+records, `struct:records:7`.
 
 ### Text
 

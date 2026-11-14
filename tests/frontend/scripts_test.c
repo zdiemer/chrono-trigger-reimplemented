@@ -201,6 +201,9 @@ int main(int argc, char **argv)
         if (!strcmp(asset_codec_names[asset_catalogue[i].codec], "lz:place-lists"))
             CHECK(pack_into(&asset_catalogue[i], PLACES, sizeof PLACES) ||
                   pack_into(&asset_catalogue[i], FEW_PLACES, sizeof FEW_PLACES));
+        else if (!strcmp(asset_codec_names[asset_catalogue[i].codec], "script:event-commands"))
+            memcpy(made_up(&asset_catalogue[i]), SCRIPT + 33, asset_catalogue[i].length < sizeof SCRIPT - 33
+                                                                ? asset_catalogue[i].length : sizeof SCRIPT - 33);
         else
             CHECK(pack_into(&asset_catalogue[i], SCRIPT, sizeof SCRIPT));
     }
@@ -231,6 +234,9 @@ int main(int argc, char **argv)
     CHECK(strstr(text, "L0022:\nif_answer answer=01 to=L0025\nL0025:\ntake_calls takes=01\n") != NULL);
     CHECK(strstr(text, "face object=self facing=") != NULL);
     CHECK(strstr(text, "use_text text=F70000\nsay window=00 line=00   # \"Hi b\"\n") != NULL);
+    /* the commands the field keeps whole, as a script of no objects */
+    CHECK(strstr(text, "[built_in_command_byte]\n# commands, 55 bytes, which keep their length\nobjects 0\n"
+                       "face object=self facing=") != NULL);
     CHECK(strstr(text, "exit 85 10 01 0005 08 1E\nexit 86 11 02 01FF 00 00\nevent 90 20 00\nhalt 91 21 07\n"
                        "script 3000\nscript 3010\nrest AB\n") != NULL);
     free(text);
@@ -316,6 +322,7 @@ int main(int argc, char **argv)
     refused(&made, wrong, 6);
     snprintf(wrong, sizeof wrong, "[%s]\npacked short\nobjects 1\nfunctions 00 L0020\n", script->name);
     refused(&made, wrong, 4);                                            /* 15 functions short */
+    refused(&made, "[built_in_command_byte]\nobjects 0\nreturn_from_function\n", 1);   /* its length kept */
     snprintf(wrong, sizeof wrong, "[%s]\npacked short\n%sif_answer answer=01 to=L0200\n", script->name, table);
     {
         /* a place more than 255 bytes on */
