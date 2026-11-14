@@ -64,40 +64,35 @@ def crossing(run, side_frames, goal, limit):
     run.say("crossing", "delay", delay, "side", side_frames, "up", elapsed, "frame", m.frame)
 
 
-def play(run, start=1, again=""):
+def play(run, start=1):
     """From the 2300 A.D. map outside Death Peak, the Keeper's instructions
     followed, up the wind slope by its two trees to the field beyond;
-    `start` is the index in PHASES of the first phase to run. A route that
-    climbs it a second time names that climb's checkpoints with `again`."""
+    `start` is the index in PHASES of the first phase to run."""
     m = run.machine
     if start <= 1:
         assert run.world_exit(max_nodes=100) and run.map_id() == SLOPE
         assert run.find_player() is not None
-        run.checkpoint("entered" + again)
+        run.checkpoint("entered")
     else:
         assert run.find_player() is not None
     if start <= 2:
         crossing(run, 0, lambda: run.me()[1] <= 806, 240)
-        if not m.b(GUIDES) & 4:
-            m.run(2, "UP+B")
-            m.run(3, "A")
-            m.run(90)
-            run.close_dialogs()
-            assert run.dialogs_until(lambda: bool(m.b(GUIDES) & 4), 2000), "the guide becomes a tree"
-            assert run.wait_control(), "control after the tree's transformation"
-        # A guide already a tree is shelter as it stands, but no scene stops the
-        # party at its trunk: the second climb walks into it (fresh_calm "UP")
-        # or the first gust blows it back down the slope.
-        run.checkpoint("tree" + again)
+        m.run(2, "UP+B")
+        m.run(3, "A")
+        m.run(90)
+        run.close_dialogs()
+        assert run.dialogs_until(lambda: bool(m.b(GUIDES) & 4), 2000), "the guide becomes a tree"
+        assert run.wait_control(), "control after the tree's transformation"
+        run.checkpoint("tree")
     if start <= 3:
-        fresh_calm(run, "UP" if again else 0)
+        fresh_calm(run)
         crossing(run, 12, lambda: run.map_id() == SLOPE and run.me()[1] <= 521, 360)
-        run.checkpoint("second" + again)
+        run.checkpoint("second")
     if start <= 4:
         fresh_calm(run, "UP+B")
         crossing(run, 12, lambda: run.map_id() == LOWER, 400)
         assert run.wait_control(), "the field beyond the wind in hand"
-        run.checkpoint("wind_crossed" + again)
+        run.checkpoint("wind_crossed")
 
 
 def main():

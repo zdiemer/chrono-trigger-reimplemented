@@ -337,11 +337,44 @@ def lavos_inner(bot, state, rng, inventory):
     return ("attack", target)
 
 
+# Lavos's core: its center (slot 3, 10000 HP), left bit (7, 2000) and right
+# bit (9, 30000), the core itself, whose fall ends the fight.
+CORE_CENTER, CORE_LEFT, CORE_RIGHT = 3, 7, 9
+STAT_DEFENCE, STAT_MAGIC_DEFENCE = 0x3E, 0x3C    # offsets in a combatant's stat block
+CORE_GUARDED = 0xFF                              # the right bit's defence while it is shut
+
+
+def stat(bot, slot, offset):
+    """A byte of combatant `slot`'s stat block (whose HP word BATTLE_STATS names, three in)."""
+    return bot.machine.b(A.BATTLE_STATS - 3 + slot * A.BATTLE_STAT_STRIDE + offset)
+
+
 def lavos_core(bot, state, rng, inventory):
-    """Lavos's core: healing first and Marle's Haste (its center's Evil Star
-    halves everyone and Grand Stone hits all), then party_lavos_core's
-    targets, the left bit with weapons first."""
-    return keep_up(bot, state, inventory) or hasten(bot, state) or party_lavos_core(bot, state, rng, inventory)
+    """Lavos's core. Its right bit is the core: its defence stands at the most
+    while the others stand, so a blow does 1. The left bit (which absorbs
+    magic and heals the core) goes first, to weapons; then the center. When
+    one falls the right bit lowers its guard to bring it back: the defence
+    read from its stat block below the most is the window to hit it with
+    everything. The center's Evil Star halves everyone and Grand Stone and
+    Crying Heavens hit all, so healing comes first, and Marle's Haste.
+    (Gamercorner.net's and Neoseeker's core guides; the defence read is the
+    port's own record.)"""
+    action = keep_up(bot, state, inventory) or hasten(bot, state)
+    if action:
+        return action
+    member = state.member
+    if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
+        target = CORE_RIGHT
+    elif state.hp(CORE_LEFT) > 0:
+        return ("attack", CORE_LEFT)
+    elif state.hp(CORE_CENTER) > 0:
+        target = CORE_CENTER
+    else:
+        target = CORE_RIGHT
+    for index, cost in CHARACTER_TECHS.get(party_ids(bot)[member], {}).get("one", []):
+        if party_ids(bot)[member] == ROBO and state.mp(member) >= cost and tech_known(bot, member, index):
+            return ("tech", index, target)
+    return ("attack", target)
 
 
 LAVOS_SHELL, LAVOS_SHELL_HP = 3, 10000

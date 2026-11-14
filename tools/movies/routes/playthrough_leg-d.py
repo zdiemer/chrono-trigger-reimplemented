@@ -55,32 +55,33 @@ KEEPER = ["clone", "keepers_dome", "belthasar"]
 # Spawn to the last save point (death_peak), the last Spawn and the summit,
 # where the Chrono Trigger brings Crono back (death_peak_return).
 TO_THE_PEAK = ["peak"]
-AGAIN = "_again"                # the second climb's checkpoints
 WIND = death_peak_wind.PHASES[1:]
-GRIND = ["lower_field"]
+# The party that comes this far (levels 34-38) is no match for Lavos: its
+# shell takes some 400 HP from each member a blow, and its inner form wipes a
+# party at 45 before anyone acts (the fantasyanime player had theirs at 47-53
+# for Lavos). It grows here, where the slope's top and the lower field meet:
+# each crossing brings back the monsters by the way in, some 3,200
+# experience a round, until everyone is at GRIND_LEVEL. It has to be now:
+# the field above the slope is left only by the summit's scene, once, since
+# its ledges drop one way (the original's own code stops at them too, played
+# with the frozen emulator-oracle oracle from ctsave12 slot 1).
+GRIND = ["lower_field", "grinding", "ground"]
+GRIND_LEVEL = 52
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
-# Crono back, he joins in Lucca's place at the End of Time, and the party,
-# at levels 34-38 (Crono at the one he died at), goes back to Death Peak to
-# grow: Lavos's shell takes some 400 HP from each member a blow, and its inner
-# form wipes a party at 45 before anyone acts (the fantasyanime player had
-# theirs at 47-53 for Lavos). Where the slope's top and the lower field meet,
-# each crossing brings back the monsters by the way in, some 3,200
-# experience a round, until everyone is at GRIND_LEVEL. Then down to the
-# Epoch, and the purse the growing filled buys the 12000 B.C. village's best
+# Crono back, he joins in Lucca's place at the End of Time, at the level he
+# died at. The purse the growing filled buys the 12000 B.C. village's best
 # armour and helms and its Full and Mid Tonics and Ethers, before the End of
 # Time's light and its bucket into Lavos's shell (other_endings). The shell's
 # imitations fall to the party's techs (Crono's lightning for Nizbel), healed
 # from the bag between them; the shell's own form to Haste and healing first.
-REUNITED = ["restored", "crono_joins", "back_to_the_peak"]
-WIND_AGAIN = [phase + AGAIN for phase in death_peak_wind.PHASES[1:]]
-GROWN = ["lower_field" + AGAIN, "grinding", "ground", "off_the_peak", "stocked", "equipped"]
-GRIND_LEVEL = 52
+REUNITED = ["restored", "crono_joins"]
+GROWN = ["stocked", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + GRIND + CAVES
-          + SUMMIT + REUNITED + WIND_AGAIN + GROWN + LAVOS)
+          + SUMMIT + REUNITED + GROWN + LAVOS)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg D of the playthrough, from the Blackbird to an ending (route playthrough_leg-d).
@@ -647,6 +648,12 @@ def main():
             # monsters that stand in the way.
             fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
             run.checkpoint("lower_field")
+        if later <= 1:
+            while min(levels(machine)) < GRIND_LEVEL:
+                grind_a_round(run, args.seed)
+                run.say("levels", levels(machine), "experience", experience(machine))
+                machine.save_state("%s_grinding.st" % run.prefix)
+            run.checkpoint("ground")
         later -= len(GRIND)
         if later <= 0:
             fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower and abs(px - x) <= 2
@@ -676,39 +683,16 @@ def main():
             machine.run(120)
             exchange(run, CRONO, LUCCA)
             run.checkpoint("crono_joins")
-        if later <= 2:
-            assert run.wait_control(), "the End of Time in hand"
-            leave_the_end_of_time(run, PERIOD_2300, WORLD_2300)
-            land_by(run, DEATH_PEAK, enter=False)
-            run.checkpoint("back_to_the_peak")
         later -= len(REUNITED)
-        if later < len(WIND_AGAIN):
-            death_peak_wind.play(run, max(1, later + 1), again=AGAIN)
-        later -= len(WIND_AGAIN)
         if later <= 0:
-            fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
-            run.checkpoint("lower_field" + AGAIN)
-        if later <= 2:
-            while min(levels(machine)) < GRIND_LEVEL:
-                grind_a_round(run, args.seed)
-                run.say("levels", levels(machine), "experience", experience(machine))
-                machine.save_state("%s_grinding.st" % run.prefix)
-            run.checkpoint("ground")
-        if later <= 3:
-            # Down the slope, with the wind, to the Epoch below it.
-            for want in (death_peak_wind.LOWER, death_peak_wind.SLOPE, WORLD_2300):
-                assert run.exit_to(want), want
-            run.checkpoint("off_the_peak")
-        if later <= 4:
-            board(run)
-            dial(run, PERIOD_12000)
-            go_through_time(run, WORLD_12000)
+            assert run.wait_control(), "the End of Time in hand"
+            leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
             land_by(run, COMMONS_SHOP)
             assert run.wait_control(), "the shop in hand"
             stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, 2, 9000), (AEON_HELMS, 2, 7800), (FULL_TONICS, 99, 700),
                                              (MID_ETHERS, 45, 2000), (MID_TONICS, 99, 100), (ETHERS, 25, 800)])
             run.checkpoint("stocked")
-        if later <= 5:
+        if later <= 1:
             # The party's armour and helms, the best the shops have by now
             # (Aeon Suit and Aeon Helm), and Crono's Rage Band from the bag.
             for member, slot, item in BEST_GEAR:
