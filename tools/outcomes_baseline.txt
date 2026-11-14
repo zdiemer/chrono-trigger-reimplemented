@@ -73,7 +73,7 @@ battle-tech-sweep-spekkio/native places 0 1 2 3 4
 battle-tech-sweep-spekkio/native sram end
 battle-tech-sweep/native game
 battle-tech-sweep/native places 0 1 2 3 4
-battle-tech-sweep/native sram end
+battle-tech-sweep/native sram
 battle-tyrano-lair-walls/native game
 battle-tyrano-lair-walls/native places 0 1 2 3 4
 battle-tyrano-lair-walls/native sram end
@@ -110,8 +110,8 @@ events-death-peak-wind/native sram end
 events-death-peak/native game
 events-death-peak/native places 0 1 2 3
 events-death-peak/native sram
-events-end-of-time-gate/native game end
-events-end-of-time-gate/native places 0 1 2 3 4
+events-end-of-time-gate/native game
+events-end-of-time-gate/native places 0 1 2 3
 events-end-of-time-gate/native sram end
 events-epoch-lavos/native game
 events-epoch-lavos/native places 0 1 2 3 4
