@@ -266,6 +266,12 @@ int main(void)
     CHECK(asset_unread_reads()->count == unread + 2);
     (void)asset_read8(NULL, ASSET_RANDOM_BYTES, 0);
     CHECK(asset_unread_reads()->count == unread + 2);
+    /* A run through it has nothing held, and each of its reads is counted too. */
+    RomRun unread_run = rom_run_from(asset_address(ASSET_MIXED_C0F170));
+    CHECK(unread_run.length == 0);
+    (void)rom_run_read8(NULL, &unread_run, asset_address(ASSET_MIXED_C0F170));
+    (void)rom_run_read8(NULL, &unread_run, asset_address(ASSET_MIXED_C0F170) + 1);
+    CHECK(asset_unread_reads()->count == unread + 4);
     const AssetId *rows;
     unsigned kept = asset_unread_rows(&rows), seen = 0;
     for (unsigned i = 0; i < kept; i++)

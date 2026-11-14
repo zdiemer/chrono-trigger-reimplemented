@@ -213,7 +213,8 @@ RomRun rom_run_from(uint32_t at)
     RomRun run = { at, 0, NULL };
     uint32_t a = cartridge_address(at);
     AssetId id = asset_containing(at);
-    const uint8_t *bytes = id == ASSET_NONE ? NULL : resource_bytes(id);
+    /* A row marked unread has no run: each of its reads goes by rom_read8, which notes it. */
+    const uint8_t *bytes = id == ASSET_NONE || left_untyped(id) ? NULL : resource_bytes(id);
     if (!bytes)
         return run;
     const AssetEntry *e = &asset_catalogue[id];
