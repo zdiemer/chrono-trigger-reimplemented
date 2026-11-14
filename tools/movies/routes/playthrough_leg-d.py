@@ -72,8 +72,11 @@ GRIND_LEVEL = 58
 # to reach the mountain's save point, where a Shelter restores everyone.
 GRIND_RESERVE = 8
 # Then Marle wears the Wallet, which pays each fight's experience as gold,
-# until the purse holds PURSE: the shop's armour and helms, and its tonics and
-# Ethers to the bag's limit, for the long run of fights inside Lavos.
+# until the purse holds PURSE. At stock_up's prices, in its order, 200,000
+# buys two Aeon Suits and two Aeon Helms (33,600), Full Tonics to 99 (at most
+# 69,300) and Mid Ethers with what is left (some 48 from an empty bag, 96,000);
+# the Mid Tonics and Ethers after them take only the change. Filling the bag
+# with all four to 99 from empty would cost about 390,000.
 PURSE = 200000
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
@@ -374,7 +377,7 @@ def stock_up(run, merchant, purchases):
     machine.run(60)
     at = 0
     for place, item, want, price in purchases:
-        count = min(want - count_of(machine, item), gold(machine) // price)
+        count = max(0, min(want - count_of(machine, item), gold(machine) // price))
         if count == 0:
             continue
         while at != place:

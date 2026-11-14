@@ -218,13 +218,15 @@ field brings back the monsters by the way in, healing from the bag and Robo's
 Heal Beam between rounds, until everyone is at level 58 or the bag's
 healing is down to 8 (those in reserve take a share, at most a level a
 fight, so Crono comes back at 54); then Marle wears the Wallet, which pays
-each fight's experience as gold, until the purse holds 200,000. It has to be
+each fight's experience as gold, until the purse holds 200,000: at the
+route's prices, two Aeon Suits and Helms (33,600), Full Tonics to 99 (up to
+69,300) and some 48 Mid Ethers (96,000), with change for Mid Tonics and
+Ethers; filling the bag with all four to 99 would cost about 390,000. It has to be
 then: above the slope
 the field's ledges drop one way, and only the summit's scene leaves it (the
 frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
-1). Crono joins in Robo's place at the End of Time, and the purse buys Aeon
-Suits and Helms and Full and Mid Tonics and Ethers to the bag's 99 in the
-12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
+1). Crono joins in Robo's place at the End of Time, and the purse buys in
+the 12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
 the party's techs, healed from the bag between them; the shell's own form
 with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
 acts, an arm casts a spell that hits each member once: 37 power on the arm's
