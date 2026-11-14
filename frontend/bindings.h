@@ -3,7 +3,7 @@
  * fast forward, quick save and load, fullscreen, quit). The defaults are the
  * keymap ct_native always had plus a gamepad layout; `--bind` and a key file
  * change them. Bindings are the driver's: the player only ever sees the
- * buttons they add up to. */
+ * buttons they add up to. Quit asks first (frontend/window.c). */
 #ifndef CT_FRONTEND_BINDINGS_H
 #define CT_FRONTEND_BINDINGS_H
 
@@ -22,6 +22,8 @@ typedef enum {
     ACT_QUICK_SAVE,
     ACT_QUICK_LOAD,
     ACT_FULLSCREEN,
+    ACT_SCALING,       /* the next way of scaling the picture (frontend/presentation.h) */
+    ACT_FILTER,        /* the next filter over it */
     ACT_QUIT,
     ACT_COUNT
 } Action;
@@ -36,7 +38,7 @@ void bindings_reset(void);
  * "F5"), or "Pad " and a controller button ("Pad a", "Pad dpup",
  * "Pad start") or axis direction ("Pad leftx-", "Pad righttrigger"); and a
  * SNES button (A B X Y L R Start Select Up Down Left Right), Pause,
- * FastForward, QuickSave, QuickLoad, Fullscreen, Quit, or None to unbind.
+ * FastForward, QuickSave, QuickLoad, Fullscreen, Scaling, Filter, Quit, or None to unbind.
  * It replaces whatever that input did. Returns 0, or -1 with why in err. */
 int bindings_set(const char *spec, char *err, size_t err_len);
 
