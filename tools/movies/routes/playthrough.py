@@ -170,6 +170,7 @@ SUPPLIES_ASKED, CHEF_TOLD, JERKY_GIVEN = 0x04, 0x08, 0x10
 JERKY = 0xDB
 BENT_SWORD = 0x50
 CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP, RECORD_LEVEL = 0x7E2600, 0x50, 3, 0x12
+RECORD_WEAPON = 0x29   # the equipped weapon's item (re/ram.toml: the equipment screen's slots, $29 the weapon)
 ENERTRON = 14                   # Proto Dome's: a rest that restores HP and MP
 ARRIS_MERCHANT = 11
 ARRIS_TONIC_ROW, ARRIS_REVIVE_ROW = 3, 5     # of its list: Auto Gun, Iron Suit, Iron Helm, Tonic, Heal, Revive, Shelter
@@ -1607,7 +1608,7 @@ def main():
             leg_d = importlib.import_module(".playthrough_leg-d", __package__)
             for member, slot, item in GEAR_FROM_MELCHIOR:
                 leg_d.equip(run, member, getattr(leg_d, slot), item)
-            run.say("equipped", [hex(machine.b(CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + 0x29)) for c in (0, 1)],
+            run.say("equipped", [hex(machine.b(CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + RECORD_WEAPON)) for c in (0, 1)],
                     "gold", gold(machine))
             run.checkpoint("melchior_told")
         if later <= 3:
