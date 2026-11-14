@@ -210,14 +210,24 @@ Crono's room), Belthasar in the Keeper's Dome, Death Peak (`death_peak_wind`,
 bucket into Lavos (`other_endings`). The save's party, at levels 34-38, is
 no match for Lavos (its shell's blows take 400-500 HP a member, and its inner
 form wipes a party at 45 before anyone acts), so the leg grows it at Death
-Peak, where crossing between the slope's top and the lower field brings back
-the monsters by the way in, healing from the bag and Robo's Heal Beam between
-rounds, until everyone is at level 52. Crono, back at the End of Time, stays
-there at the level he died at. The grown purse buys Full and Mid Tonics in
-the 12000 B.C. village's shop, and the fights take the `lavos_shell` policy:
-the imitations with the party's techs (Robo's Shock takes the Nizbel
-imitation's guard down), healed from the bag between them, and the shell's own
-form with Marle's Haste and `holding_out`, which keeps everyone up first. The
+Peak on the way up, where crossing between the slope's top and the lower
+field brings back the monsters by the way in, healing from the bag and Robo's
+Heal Beam between rounds, until everyone is at level 52 (those in reserve
+take a share, so Crono comes back at 50). It has to be then: above the slope
+the field's ledges drop one way, and only the summit's scene leaves it (the
+frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
+1). Crono joins in Robo's place at the End of Time, and the grown purse buys
+Aeon Suits and Helms and Full and Mid Tonics and Ethers in the 12000 B.C.
+village's shop. The fights take the `lavos_shell` policy (the imitations with
+the party's techs, healed from the bag between them; the shell's own form
+with Marle's Haste and `holding_out`), then `lavos_inner`: the inner form's
+arms open with a spell of 37 power on their level and magic ($C1:E0F5,
+2,960 before magic defence taken two and a half times, $C1:E65F), which a
+member with less than 85 magic defence does not survive, so Crono, Marle and
+Lucca go in; Barriers and Shields from the bag, then the arms together and
+the body. `lavos_core` reads the right bit's defence from its stat block: 255
+while the others stand, lower in the moment one falls, when everyone hits it.
+The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
 `playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest

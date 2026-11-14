@@ -268,7 +268,7 @@ def party_with_ethers(bot, state, rng, inventory):
     return party_with_lapis(bot, state, rng, inventory)
 
 
-def keep_up(bot, state, inventory):
+def keep_up(bot, state, inventory, well=0.6, badly=0.35):
     """The healing a long fight against an enemy that hits the whole party
     hard puts first, or None: the fallen raised with Revives; two or more hurt
     (or one badly) healed, by Robo's Heal Beam where he has the MP, else a
@@ -283,8 +283,8 @@ def keep_up(bot, state, inventory):
             action = use(inventory, REVIVE, slot)
             if action:
                 return action
-    hurt = [slot for slot in alive if fraction(state, slot) < 0.6]
-    if len(hurt) >= 2 or any(fraction(state, slot) < 0.35 for slot in alive):
+    hurt = [slot for slot in alive if fraction(state, slot) < well]
+    if len(hurt) >= 2 or any(fraction(state, slot) < badly for slot in alive):
         heal_all = CHARACTER_TECHS.get(ids[member], {}).get("heal_all")
         if heal_all and len(hurt) >= 2 and state.mp(member) >= heal_all[1] and tech_known(bot, member, heal_all[0]):
             return ("tech", heal_all[0], None)
@@ -332,6 +332,19 @@ def guard_up(bot, state, inventory):
                 action = use(inventory, item, slot)
                 if action:
                     return action
+    return None
+
+
+def refill(bot, state, inventory, low=20):
+    """An Ether (the Mid, then the plain) for a member short of the MP its
+    techs want, or None."""
+    member = state.member
+    if state.mp(member) >= low or not CHARACTER_TECHS.get(party_ids(bot)[member]):
+        return None
+    for item in (MID_ETHER, ETHER):
+        action = use(inventory, item, member)
+        if action:
+            return action
     return None
 
 
@@ -384,17 +397,15 @@ def lavos_core(bot, state, rng, inventory):
     Crying Heavens hit all, so healing comes first, and Marle's Haste.
     (Gamercorner.net's and Neoseeker's core guides; the defence read is the
     port's own record.)"""
-    action = keep_up(bot, state, inventory) or hasten(bot, state) or guard_up(bot, state, inventory)
+    action = (keep_up(bot, state, inventory, well=0.8, badly=0.7) or guard_up(bot, state, inventory)
+              or hasten(bot, state) or refill(bot, state, inventory))
     if action:
         return action
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
-        target = CORE_RIGHT
-    elif state.hp(CORE_LEFT) > 0:
+        return ("attack", CORE_RIGHT)
+    if state.hp(CORE_LEFT) > 0:
         return ("attack", CORE_LEFT)
-    elif state.hp(CORE_CENTER) > 0:
-        target = CORE_CENTER
-    else:
-        target = CORE_RIGHT
+    target = CORE_CENTER if state.hp(CORE_CENTER) > 0 else CORE_RIGHT
     return strongest_single(bot, state, target)
 
 
