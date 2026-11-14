@@ -31,32 +31,41 @@ extern const char *const asset_codec_names[];
 /* A CRC-32 of the catalogue's rows: a pack made from another catalogue holds
  * other resources, or the same under other names. */
 extern const uint32_t asset_catalogue_version;
+/* The CRC-32 of the catalogue's resources' bytes, one after another in its
+ * order, as the cartridge has them: recorded by tools/assets.py from the ROM
+ * file itself (re/assets.tsv), the reference an imported pack is held to. */
+extern const uint32_t asset_catalogue_bytes_crc32;
 
-/* Where the game's resources come from: the driver supplies a store, as it
- * keeps the saves (frontend/assets.h makes one over an asset pack, or over a
- * ROM image). The game asks it for a resource by name and type; `find` gives
- * the resource's bytes and sets *length, or gives NULL when it hasn't it. */
+typedef uint16_t AssetId;
+enum { ASSET_NONE = 0xFFFF };
+
+/* A store of resources by name and type, as the driver's text and packs keep
+ * them (frontend/assets.h makes one over an asset pack, or over a ROM image):
+ * `find` gives the resource's bytes and sets *length, or gives NULL when it
+ * hasn't it. */
 typedef struct {
     const uint8_t *(*find)(void *ctx, const char *name, const char *type, uint32_t *length);
     void *ctx;
 } AssetStore;
 
-/* Read the resources from `store` from now on: the driver's to call, before
- * the game runs or between frames. NULL leaves the game with no store, so a
- * read of the cartridge has nothing to answer it. The store must outlive its use;
- * each resource is asked for once, and what the store answers kept. */
-void assets_use(const AssetStore *store);
-
-/* What a store answered for each resource of the catalogue (generated beside
- * it, a slot a row). */
+/* Where the game's resources come from: the driver supplies a source, as it
+ * keeps the saves (frontend/assets.h makes one over an asset pack, or over a
+ * ROM image). The game asks it for a resource by its row of the catalogue at
+ * every read, so a source answers from an index (a pack's directory, which a
+ * cartridge keeps in its ROM), and the game keeps nothing of its own per
+ * resource: `resource` gives the bytes and sets *length, or gives NULL when
+ * it hasn't it. */
 typedef struct {
-    const uint8_t *bytes;   /* NULL: the store hasn't it */
-    uint8_t asked;
-} AssetServed;
-extern AssetServed asset_served[];
+    const uint8_t *(*resource)(void *ctx, AssetId id, uint32_t *length);
+    void *ctx;
+} AssetSource;
 
-typedef uint16_t AssetId;
-enum { ASSET_NONE = 0xFFFF };
+/* Read the resources from `source` from now on: the driver's to call, before
+ * the game runs or between frames. NULL leaves the game with no source, so a
+ * read of the cartridge has nothing to answer it. The source must outlive its
+ * use. */
+void assets_use(const AssetSource *source);
+
 
 /* The resource holding the cartridge byte at `at`, or ASSET_NONE. `at` may
  * be any of the addresses the cartridge answers at (its banks $40-$7D, or the

@@ -86,7 +86,7 @@ static void deep_body(void *arg)
 
 static void test_deep_stack(void)
 {
-    int depth = 1000;   /* about 300 KiB of the 512 KiB stack */
+    int depth = 120;   /* about 36 KiB of the 64 KiB stack */
     Fiber *f = fiber_create(deep_body, &depth);
     uint32_t expect = 0;
     for (int d = 0; d <= depth; d++)

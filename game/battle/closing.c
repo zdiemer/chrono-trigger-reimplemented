@@ -39,6 +39,7 @@
 #include "core/program.h"
 #include "field/sounds.h"
 #include "platform/audio.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The window's slide ------------------------------------------------------------------- */
@@ -94,7 +95,7 @@ enum { FADE_WAIT_FRAMES = 0x0F };
  * message the menus' text code doesn't go on from. */
 static bool fade_the_music_out(GameState *g, Platform *pf)
 {
-    if (!battle_message_typing_fits(g))
+    if (!PORT_CHECK(battle_message_typing_fits(g)))
         return battle_contract_broken(g, 0xCD039E, "a message the menus' text code doesn't go on from");
     au_fade(pf, PF_CALL(0xCD03AB, 0xC70004), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
     return battle_wait_some_frames(g, pf, FADE_WAIT_FRAMES);

@@ -67,6 +67,23 @@ verifies the user's cartridge and imports a local pack. Game code loads named
 resources from that store, never an embedded ROM. Packs and decoded assets are
 not committed.
 
+A pack is held to a reference made apart from the import: `tools/assets.py crc
+ROM` records the CRC-32 of every resource's bytes, one after another in the
+catalogue's order, read from the ROM file by the catalogue's own addresses
+(`# bytes crc32` in `re/assets.tsv`, `asset_catalogue_bytes_crc32`), and
+`tools/assets.py check` holds the record to the catalogue where the ROM is
+staged. The import refuses a pack whose resources don't come to it, and
+`ct_native` imports again over a pack on disk that doesn't
+(`asset_pack_is_the_cartridges`); a pack remade from edited text isn't held
+to it. `assets_test` checks both ways with the ROM staged.
+
+The game reads its resources through a source that answers by the
+catalogue's row (`AssetSource`, `assets_use`): a pack's directory is in the
+catalogue's order, so a row is its entry, and the game keeps no table of its
+own per resource (a target keeps the pack's directory in its ROM). The
+battle's animation commands' handlers, which name their timing, are a table
+in `battle/scripts.c` rather than a resource read at run time.
+
 An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
@@ -813,27 +830,101 @@ What it measures, and how:
   neither Thumb's nor the 65816's, and the host was shared with other work, so
   the heaviest frames are noisy; the 99th percentile is the representative one.
 
-Measured on the gate's build (2026-11-13):
+Measured on the gate's build (2026-11-13; the fiber stacks, the arena, the
+lean build and the work a frame 2026-11-14):
 
 | What | Host | Fits the SNES (128 KiB WRAM, 64 KiB VRAM, 3.58 MHz)? | Fits the GBA (256 KiB EWRAM, 32 KiB IWRAM, 96 KiB VRAM, 16.78 MHz)? |
 |---|---|---|---|
-| GameState | 529.1 KiB: work RAM's parts 372.0 KiB, diagnostics 136.2 KiB (`overlay_writer` 116.5, `crossed` 19.7), save RAM and the rest 21 KiB | No: the parts alone are 2.9x WRAM (244 KiB over); the original fits them by overlaying the modes' memory | No as a whole (372 KiB is 116 KiB over); a mode's set does (below) |
-| A mode's work RAM at once (core, event, palettes and the small parts, plus the mode's) | field 164.1, field with the menus 229.4, field with a battle 210.2, world map 150.9, scene 146.8, time warp 142.2 KiB | No: each is over 128 KiB (by 14-101 KiB) | Yes, each under 256 KiB (27-114 KiB to spare), the modes overlaid as the original overlays them |
+| GameState | 529.1 KiB: work RAM's parts 372.0 KiB, the overlays' last writers 116.5 KiB (`overlay_writer`), the crossings' tally 19.7 KiB (`crossed`), save RAM and the rest 21 KiB; lean, 509.4 KiB | No: the parts alone are 2.9x WRAM (244 KiB over); the original fits them by overlaying the modes' memory | No as a whole (372 KiB is 116 KiB over); a mode's set does (below) |
+| A mode's work RAM at once (core, event, palettes and the small parts, plus the mode's) | field 164.1, field with the menus 229.4, field with a battle 210.2, world map 150.9, scene 146.8, time warp 142.2 KiB | No: each is over 128 KiB (by 14-101 KiB), lean or not | Yes, each under 256 KiB (27-114 KiB to spare), the modes overlaid as the original overlays them |
 | Largest parts | event 110.5 (its script buffer 56.0), field 49.6, battle 46.1, world map 36.4, sprite-object mode 33.2, scene 32.3, menus 32.1, warp 27.7 KiB | Event alone is 86% of WRAM | Fits |
 | Game library | code and constants 1947.2 KiB, static data 117.5 KiB | Code: a ROM's, not WRAM; the static data is 92% of WRAM besides | Code in the cartridge's 32 MiB; static data 46% of EWRAM besides |
 | Renderer, observer | 253.6, 186.8 KiB | Not needed: the PPU draws | Not needed: the GBA's PPU draws, from VRAM the port fills |
 | Sound player | 126.4 KiB (the sound processor's 64 KiB and its mixer) | Not needed: the APU | Over budget as is: a GBA needs its own player in EWRAM |
 | Picture memory | the SNES's own: 64 KiB VRAM, 512 B CGRAM, 544 B OAM, kept by the observer | Fits: it is the SNES's | Fits 96 KiB VRAM, 32 KiB to spare, where 2bpp layers are widened to the GBA's 4bpp (BG3 doubles) |
 | Resources one stay reads | battle 565.8, field 518.5, menus 451.4, scene 379.0, warp 270.6 KiB; the catalogue 3.67 MiB | ROM: no RAM | Cartridge ROM: no RAM |
-| Fiber stacks | 16 slots of 512 KiB reserved; deepest use 3,432 bytes (the main thread), then 1,768 and under 1,300 in the six task slots used | 8 KiB of stack would do; the 65816's are in WRAM | Seven slots of 4 KiB fit IWRAM (28 KiB) |
-| Work a frame, 99th percentile (game; game and sound on the GBA) | battle 0.14+0.10 ms, field 0.24+0.13, menus 0.35+0.14, scene 0.08+0.11, warp 0.01+0.09 | No: 10-282x a frame's 65816 work (field 189x) | No: 9-42x a frame's ARM7 work (field 32x, menus 42x) |
-| Work a frame, heaviest | game up to 10.3 ms (field, a noisy single frame) | No | No |
+| Fiber stacks | 16 slots of 64 KiB (1 MiB; the arena 5.7 MiB in all, from 12.8 with 512 KiB slots); deepest use 3.4-3.7 KiB (the main thread), then 1.8 KiB and under 1.3 KiB in the six task slots used; 20.1 KiB in an unoptimized build | 8 KiB of stack would do; the 65816's are in WRAM | Seven slots of 4 KiB fit IWRAM (28 KiB) |
+| Work a frame, 99th percentile, median of three runs (game + sound) | normal: battle 0.14+0.15 ms, field 0.26+0.16, menus 0.40+0.12, scene 0.09+0.14, warp 0.03+0.15; lean: battle 0.09+0.12, field 0.16+0.13, menus 0.13+0.13, scene 0.07+0.15, warp 0.01+0.12 | No | No: normal 15-45x a frame's ARM7 work (field 36x, menus 45x); lean 11-25x (field 25x, menus 22x), of which the game alone 1-14x |
+| Work a frame, heaviest | game up to 20 ms (single frames, noisy on a shared host) | No | No |
 
-The figures say where the small targets' work lies: the work RAM fits a GBA
-mode by mode, and the stacks fit its fast RAM, once the host's diagnostics, its
-renderer and its sound processor are left out; the per-frame work is one to two
-orders of magnitude over both CPUs, so a GBA build needs the game's frame
-made far cheaper, not only fitted. Run `tools/measure.py` again to remeasure.
+The fibers' stacks are sized from these marks: 64 KiB keeps three times the
+deepest use of an unoptimized build, and the lowest 256 bytes of each slot
+are a guard that a switch away from its fiber checks (runtime/port/fiber.c).
+The ctest `measure` fails if a run takes over half a slot.
+
+#### The lean build
+
+`-DCT_LEAN=ON` configures what a small target needs of the program and
+nothing else. It leaves out:
+
+- the overlays' crossings tally: `vars_host_check` on every read of shared
+  bytes, `VarsHost.crossed` and `crossed_writer` (19.7 KiB), and the owners'
+  names behind the `overlay crossed:` report;
+- the port's own checks: `PORT_CHECK(check)` is `true` and the check is not
+  made (runtime/port/vars_ram.h), so the contract it guards is trusted;
+- the timing report (`--timing-report`, `state_host_record_time`), the
+  per-routine totals the time model feeds;
+- the accessors' bounds checks, which only `CT_ACCESSOR_CHECKS` builds make.
+
+It also optimizes across files (CMake's interprocedural optimization), as a
+small target's build would, so the generated accessors inline into the game;
+`-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF` leaves that out. It plays every
+gate movie as the normal build does: `python3 tools/lean_check.py --ct-native
+build/main/ct_native --lean build/lean/ct_native` plays each with both and
+compares how it ended and the whole of work RAM and save RAM at its end (59
+of 59 the same, about six minutes at `-j 2`). The native tests run in it too,
+less the parts that look at what it leaves out.
+
+Two pieces of what looked like bookkeeping are the game's, and stay:
+
+- **The time model** (`state_host_game_access`, the `TIMED_AS` scopes): a
+  build that charges no time shows no picture in any movie, since the game's
+  frames and lag frames are made from it.
+- **The overlays' last writer** (`overlay_writer`, `vars_host_claim`): the
+  address view answers a read of shared bytes from the owner that wrote them
+  last, and the video uploads, saves and end states read by address. A build
+  without the claim goes dark at frame 1637 of every movie.
+
+So GameState's diagnostics drop by 19.7 KiB, not 136 KiB: the 116.5 KiB of
+last writers is how separate owners keep the original's one byte, and goes
+only where a target shares the owners' storage (issue #427). No mode's
+resident set fits the SNES's 128 KiB with or without it.
+
+Per frame, the lean build's game takes a half to two thirds of the normal
+build's time (menus 0.40 to 0.13 ms, field 0.26 to 0.16, battle 0.14 to 0.09).
+Leaving out the diagnostics alone halves the menus' (0.18 ms) and changes the
+other modes by less than the runs vary; optimizing across files does the
+rest. The lean game and sound together are still 11-25 GBA frames' work.
+
+#### Where the lean build's frame goes
+
+Sampled by stopping the host's thread every 40 microseconds and reading which
+part of the frame it was in (the game's or the sound's), over the `menu`,
+`field` and `gato-battle` movies, all frames and the heaviest 2% of each
+mode, with gprof's call counts for who calls what:
+
+| Share of the lean game frame | Field | Menus | Battle | Scene | Issue |
+|---|---|---|---|---|---|
+| The state's address view: `vars_host_read8`/`write8` and the 3,360-case `place_read8`/`place_write8`, for alias accessors and reads by address | 35% | 48% | 33% | 48% | #424 |
+| The typed accessors' own calls (inlined into the game once optimized across files) | 23% | 16% | 25% | 17% | |
+| The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access | 10% | 8% | 10% | 7% | #426 |
+| The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
+| The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address | 2% | 3% | 6% | 4% | #425 |
+| Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
+| The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it | 20% | 16% | 10% | 11% | #429 |
+
+The heaviest frames share the same parts, with more of the address view's
+writes (a resource unpacked into work RAM, `wram_fill8`). Optimized across
+files the address view is half the frame (49-50%) and the time model 8%. The
+sound player costs as much again as the lean game: 95-97% of it is the
+host's mixer (`mixer_frame`: eight voices, Gaussian interpolation and the
+echo at 32 kHz), the sound driver itself 1-3% (issue #428).
+
+So most of the 11-25x is the state's machinery and the mixer rather than the
+game: an address decode for every byte an alias view or a transfer touches,
+the time model's pricing of every access, and a mixer built to be exact. The
+game's own logic is a fifth of its frame or less, about 1-3 GBA frames' work
+by these estimates. Run `tools/measure.py` against a lean build to remeasure.
 
 ## Scene map fills
 

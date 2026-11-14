@@ -209,6 +209,21 @@ Giga Gaia), it showed where native battle time fell short:
   3000-6000; 74.4k before). Across the 84 movies, places on time stay 599
   and in order go 694 to 695 (the gate's 58: 395 to 395, 476 to 478); one
   moves away, the Black Omen's Zeal fight, with its evidence on its line.
+- The location's load (issues #349, #376). The routines a location's load
+  and its scripts' setup run once or a few times were left out of the
+  field's calibration, which took routines of 1000 calls and more. 76 of
+  them were measured against the original's clocks over the 25 movies
+  (`tools/timing_ratios.txt`); 71 take the ratio, among them the load
+  (`$C0:00F4` ×4.1) and the event commands that set objects up (×1.1-1.8),
+  and no place moves across the 84 movies (598 on time, 701 in order). Five
+  are measured, not applied: the screen's setup (`$C0:286C` ×2.3), the
+  objects' start (`$C0:5709` ×1.8), the map's unpacking (`$C0:A33B` ×1.5)
+  and the casting of an NPC or an enemy (`$C0:4590`, `$C0:46DF`) each move
+  recorded fights (the unequipped armor's, Bucket Lavos's, the Zeal fight's,
+  Crono's trial) away from the reference on top of the battle's rates; they
+  wait for those fights to be played by state (issue #376). Left as they
+  were: the song starts, the transfers the port charges outside the routines
+  and the routines the port prices from their own work.
 - The checks outside the menus (issue #349). The field's, the events', the
   scenes', the world map's and the time gates' checks are looks too:
   measured again, the field's rates stay within 2% of the original's but
@@ -216,10 +231,20 @@ Giga Gaia), it showed where native battle time fell short:
   not applied, as it runs 1.43-2.19 from movie to movie. Across the 84
   movies places on time go 599 to 606 and in order 695 to 705 (the gate's
   58: 395 to 394, 478 to 478); the rescue game at the fair moves away, its
-  lag on its line. The battle's checks still count: as looks they leave its
-  main thread's routines 1.2 to 30 times under the original's, steadily
-  across the three fights, and with those rates the Death Peak ascent's
-  recorded fight ends in a game over (issue #376).
+  lag on its line.
+- The battle's checks (issue #349). The battle's checks are looks as well,
+  which left its main thread's routines 1.2 to 30 times under the
+  original's, steadily across the three fights; 136 of their rates take the
+  ratio of the original's clocks a call to native's over Dalton's Golem
+  Boss, the Golem Twins and Giga Gaia (`tools/timing_ratios.txt`), the waits,
+  the transfers the port charges outside its routines, the long division
+  and the field's palette darkening left as they were. The Death Peak
+  ascent's first two Lavos Spawn, which this time turns into a game over by
+  recorded presses, are carried by its route (MOVIES.md, "Fights carried by
+  routes"). Leaving the carried ascent aside, places on time across the 84
+  movies go from 592 to 593 and in order from 691 to 696 (the gate's 58:
+  394 to 395, 478 to 482); Bucket Lavos moves away (14 to 12 on time, its
+  first Lavos fight's end later), with its evidence on its line.
 - A lag frame gets the main thread time its own handlers leave (issue #321),
   so a frame whose handlers made a load's sends no longer shortens every lag
   frame after it.

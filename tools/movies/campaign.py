@@ -20,6 +20,7 @@ the whole run into a `.ctm` (docs/MOVIES.md).
 import argparse
 import os
 import random
+import threading
 import time
 
 from . import addresses as A
@@ -32,6 +33,12 @@ PATH_SLOT = 4089        # in-memory slot used by object_path
 
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Seconds a route may go without progress (a checkpoint, a fight won, or a fight's
+# retry) before its watchdog ends it with a STALL line: a loop that walks back and
+# forth for ever, or a search that never finds its way, then fails instead of
+# hanging the batch that waits on it. CT_ROUTE_STALL overrides it (0: no watchdog).
+STALL_SECONDS = 15 * 60
+STALL_STATUS = 3
 
 
 class RouteDone(Exception):
@@ -87,6 +94,28 @@ class Run:
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
         self.fight_tries = []   # each fight's retries this session (fight_facts)
+        self.progress("started")
+        stall = int(os.environ.get("CT_ROUTE_STALL", STALL_SECONDS))
+        if stall:
+            threading.Thread(target=self._watch, args=(stall,), daemon=True).start()
+
+    def progress(self, where):
+        """Note that the route has moved on (the watchdog's clock starts again)."""
+        self.progressed, self.where = time.monotonic(), where
+
+    def _watch(self, stall):
+        """End the route, and its ct_native, once it has gone `stall` seconds
+        without progress, saying where it was last."""
+        while True:
+            time.sleep(min(30, stall))
+            idle = time.monotonic() - self.progressed
+            if idle >= stall:
+                self.say("STALL no progress for %d s since %s" % (idle, self.where))
+                print("outcome failed STALL: no progress since %s" % self.where, flush=True)
+                try:
+                    self.machine.process.kill()
+                finally:
+                    os._exit(STALL_STATUS)
 
     def close(self):
         self.logfile.close()
@@ -121,6 +150,7 @@ class Run:
     def checkpoint(self, name):
         self.machine.save_state("%s_%s.st" % (self.prefix, name))
         self.say("checkpoint", name, "frame", self.machine.frame, "map", self.map_id())
+        self.progress("checkpoint %s" % name)
         if name == self.until:
             frame = self.machine.frame
             self.close()
@@ -508,6 +538,7 @@ class Run:
             bot.step(0)
             rng.seed(seed * 1000003 + tries * 7919)
             self.say("%s: back to decision %d frame %d (try %d)" % (reason, index, point["frame"], tries))
+            self.progress("a fight's try %d" % tries)
             return point
 
         while True:
@@ -529,6 +560,7 @@ class Run:
                 self.fight_tries.append(tries)
                 self.say("fight done frame", machine.frame, "tries", tries,
                          "elapsed %.0fs" % (time.time() - started))
+                self.progress("a fight won at frame %d" % machine.frame)
                 return True
             wiped = (state.member >= 0x80 and not any(state.hp(slot) for slot in range(party))
                      and any(state.max_hp(slot) for slot in range(party)))

@@ -281,7 +281,7 @@ static bool tech_body(GameState *g, Platform *pf, ScriptPlace at)
 static bool tech_turn(GameState *g, Platform *pf, ScriptPlace at)
 {
     (void)at;
-    if (!enemy_action_turn_fits(g, ACTION_TECH))
+    if (!PORT_CHECK(enemy_action_turn_fits(g, ACTION_TECH)))
         return battle_contract_broken(g, TECH_BODY, "an enemy's tech the port doesn't take");
     bool done = false;
     TIMED_AS(g, TECH_BODY, done = run_action_turn(g, pf, tech_body, TECH_READS));
@@ -518,7 +518,7 @@ static const ActionTurnRow *turn_of(uint8_t action) { return action < ACTION_KIN
 static bool run_the_action_turn(GameState *g, Platform *pf)
 {
     const ActionTurnRow *row = turn_of(battle_action_kind(g));
-    if (!enemy_action_turn_fits(g, battle_action_kind(g)))
+    if (!PORT_CHECK(enemy_action_turn_fits(g, battle_action_kind(g))))
         return battle_contract_broken(g, row->routine, "an enemy's action the port doesn't take");
     bool done = false;
     TIMED_AS(g, row->routine, done = run_action_turn(g, pf, row->turn, row->reads));
@@ -533,7 +533,7 @@ static bool run_the_action_turn(GameState *g, Platform *pf)
 static bool work_the_effect_out(GameState *g, Platform *pf)
 {
     bool tech = battle_action_kind(g) == ACTION_TECH;
-    if (!battle_enemy_action_worked_out(g, tech))
+    if (!PORT_CHECK(battle_enemy_action_worked_out(g, tech)))
         return battle_contract_broken(g, tech ? 0xC1D7C4 : 0xC1D8D1, "an enemy's effect the port doesn't work out");
     TIMED_AS(g, tech ? 0xC1D7C4 : 0xC1D8D1, battle_work_out_enemy_action(g, pf, tech));
     return true;
@@ -593,7 +593,7 @@ static bool enemy_turn(GameState *g, Platform *pf)
 /* Refused where the port doesn't take the turn (battle_enemy_turn_fits). */
 bool battle_enemy_takes_turn(GameState *g, Platform *pf)
 {
-    if (!battle_enemy_turn_fits(g))
+    if (!PORT_CHECK(battle_enemy_turn_fits(g)))
         return battle_contract_broken(g, 0xC18CF9, "an enemy's turn the port doesn't take");
     return enemy_turn(g, pf);
 }

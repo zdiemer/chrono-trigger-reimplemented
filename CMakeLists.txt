@@ -30,6 +30,23 @@ else()
   endif()
 endif()
 
+# The lean build: what a small target needs of the program and nothing else.
+# It leaves out the overlay crossings' tally, the port's own checks and the
+# timing report, optimizes across files as a small target's build would (so
+# the state's accessors inline into the game), and plays as the normal build
+# does (tools/lean_check.py; docs/PLATFORM.md, "Memory, stacks and per-frame
+# work against small targets"). -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+# keeps it to one file at a time.
+option(CT_LEAN "Leave out the program's own diagnostics, as a small target would" OFF)
+if(CT_LEAN)
+  add_compile_definitions(CT_LEAN)
+  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT CT_IPO)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ${CT_IPO})
+  endif()
+endif()
+
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
@@ -471,6 +488,8 @@ if(BUILD_TESTING)
   target_link_libraries(sound_setting_test PRIVATE ct_game)
   add_executable(palette_sharers_test tests/port/palette_sharers_test.c)
   target_link_libraries(palette_sharers_test PRIVATE ct_game)
+  add_executable(overworld_leader_test tests/port/overworld_leader_test.c)
+  target_link_libraries(overworld_leader_test PRIVATE ct_game)
   add_executable(object_talk_test tests/port/object_talk_test.c)
   target_link_libraries(object_talk_test PRIVATE ct_game)
   add_executable(party_trail_test tests/port/party_trail_test.c)
@@ -486,7 +505,7 @@ if(BUILD_TESTING)
   add_executable(enemy_movement_test tests/port/enemy_movement_test.c)
   target_include_directories(enemy_movement_test PRIVATE game runtime)
   target_link_libraries(enemy_movement_test PRIVATE ct_game)
-  foreach(test player_files presentation recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps scripts commands text records sound_setting sound_native object_talk party_trail enemy_movement menu_fade screen_command palette_sharers)
+  foreach(test player_files presentation recorder fiber route_driver file_store timing video tasks native_time program vars_host unpack_time assets palettes fonts lz tiles maps scripts commands text records sound_setting sound_native object_talk party_trail enemy_movement menu_fade screen_command palette_sharers overworld_leader)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()
@@ -500,8 +519,11 @@ if(BUILD_TESTING)
   add_test(NAME measure COMMAND ${Python3_EXECUTABLE} tools/measure.py --ct-native $<TARGET_FILE:ct_native> --check)
   set_tests_properties(measure PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # ct_native's reporting options only look: play is the same with each of them (with the ROM staged).
-  add_test(NAME observers COMMAND ${Python3_EXECUTABLE} tests/frontend/observers.py $<TARGET_FILE:ct_native>)
-  set_tests_properties(observers PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # It holds the options to the timing report's, which the lean build hasn't.
+  if(NOT CT_LEAN)
+    add_test(NAME observers COMMAND ${Python3_EXECUTABLE} tests/frontend/observers.py $<TARGET_FILE:ct_native>)
+    set_tests_properties(observers PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  endif()
   if(CT_SDL2)
     add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c frontend/bindings_config.c frontend/storage.c)
     target_include_directories(bindings_test PRIVATE frontend)

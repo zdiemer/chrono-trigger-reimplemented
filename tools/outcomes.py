@@ -21,7 +21,7 @@ EXCEPTIONS = ROOT / "tools/outcomes_exceptions.txt"
 FIGHT_ROUTES = ROOT / "tools/fight_routes.txt"
 ROUTES = ROOT / "tools/movies/routes"
 FAULT = re.compile(r"accessor out of range|page refused:|contract broken:|asset outside the catalogue|"
-                   r"asset differs from the cartridge|the program's C goes no further|strays: [1-9]|overlay crossed:")
+                   r"resources imported aren't the cartridge's|the program's C goes no further|strays: [1-9]|overlay crossed:")
 KINDS = {"input", "game", "sram", "places"}
 
 

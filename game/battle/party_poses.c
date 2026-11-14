@@ -282,7 +282,7 @@ bool battle_party_strikes_its_poses(GameState *g, Platform *pf)
 
 bool battle_wins_the_fight(GameState *g, Platform *pf)
 {
-    if (!poses_fit(g) || !battle_pose_looks_fit(g))
+    if (!poses_fit(g) || !PORT_CHECK(battle_pose_looks_fit(g)))
         return battle_contract_broken(g, 0xC1356D, "a victory with looks or graphics the port doesn't take");
     return win(g, pf);
 }
