@@ -28,7 +28,21 @@
 enum { OPEN = 0x80, COLUMN_BITS = 0x7F, ROW_BITS = 0x3F, LIST_RECORDS = 128 };
 enum { NOTHING_FOUND = 0xFFFF, FOUND_NOTHING_BIT = 0x8000 };
 
-static const uint8_t RECORD_BYTES[PLACE_LISTS] = { [LIST_EXITS] = 7, [LIST_EVENTS] = 3, [LIST_HALTS] = 3 };
+#define FIELD_AT(list, field) (uint8_t)(RAM_OVERWORLD_##list##_##field - RAM_OVERWORLD_##list)
+const PlaceStream overworld_place_streams[PLACE_STREAMS] = {
+    [LIST_EXITS] = { RAM_OVERWORLD_EXITS, RAM_OVERWORLD_EXITS_STRIDE, 6,
+                     { FIELD_AT(EXITS, COLUMN), FIELD_AT(EXITS, ROW), FIELD_AT(EXITS, NAME),
+                       FIELD_AT(EXITS, LOCATION), FIELD_AT(EXITS, X), FIELD_AT(EXITS, Y) } },
+    [LIST_EVENTS] = { RAM_OVERWORLD_EVENTS, RAM_OVERWORLD_EVENTS_STRIDE, 3,
+                      { FIELD_AT(EVENTS, COLUMN), FIELD_AT(EVENTS, ROW), FIELD_AT(EVENTS, SCRIPT) } },
+    /* a halt's third byte has no name: the game notes the byte after the record */
+    [LIST_HALTS] = { RAM_OVERWORLD_HALTS, RAM_OVERWORLD_HALTS_STRIDE, 3,
+                     { FIELD_AT(HALTS, COLUMN), FIELD_AT(HALTS, ROW), FIELD_AT(HALTS, ROW) + 1 } },
+    [LIST_EVENT_SCRIPTS] = { RAM_OVERWORLD_EVENT_SCRIPTS, RAM_OVERWORLD_EVENT_SCRIPTS_STRIDE, 1, { 0 } },
+};
+#undef FIELD_AT
+
+static unsigned record_bytes(PlaceList list) { return overworld_place_streams[list].record_bytes; }
 
 static uint8_t record_column(const GameState *g, PlaceList list, unsigned record)
 {
@@ -49,7 +63,7 @@ static uint8_t record_row(const GameState *g, PlaceList list, unsigned record)
 }
 
 static bool found_one(const GameState *g, PlaceList list) { return !(overworld_found(g, list) & FOUND_NOTHING_BIT); }
-static unsigned found_record(const GameState *g, PlaceList list) { return overworld_found(g, list) / RECORD_BYTES[list]; }
+static unsigned found_record(const GameState *g, PlaceList list) { return overworld_found(g, list) / record_bytes(list); }
 
 bool overworld_on_an_exit(const GameState *g) { return found_one(g, LIST_EXITS); }
 
@@ -61,7 +75,7 @@ static uint16_t look_up(const GameState *g, PlaceList list, uint8_t column, uint
     for (unsigned record = 0; record < length; record++) {
         uint8_t c = record_column(g, list, record);
         if ((c & OPEN) && (c & COLUMN_BITS) == column && (record_row(g, list, record) & ROW_BITS) == row)
-            return (uint16_t)(record * RECORD_BYTES[list]);
+            return (uint16_t)(record * record_bytes(list));
     }
     return NOTHING_FOUND;
 }
@@ -114,7 +128,7 @@ bool overworld_exit_here_is_in_range(const GameState *g)
 {
     if (!found_one(g, LIST_EXITS))
         return true;
-    if (found_record(g, LIST_EXITS) >= LIST_RECORDS || overworld_found(g, LIST_EXITS) % RECORD_BYTES[LIST_EXITS] != 0)
+    if (found_record(g, LIST_EXITS) >= LIST_RECORDS || overworld_found(g, LIST_EXITS) % record_bytes(LIST_EXITS) != 0)
         return false;
     unsigned exit = found_record(g, LIST_EXITS);
     return overworld_exit_here(g).location != EXIT_TO_AN_EVENT

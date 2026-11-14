@@ -20,10 +20,11 @@
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
  * kept. The palettes, the fonts, the graphics, the maps, the event scripts,
- * the text and the tables of records are served from the text beside the
- * pack, <pack name>.palettes, .fonts, .graphics, .maps, .scripts, .text and
- * .records (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h,
- * frontend/maps.h, frontend/scripts.h, frontend/text.h, frontend/records.h),
+ * the battle animation and menu object scripts, the text and the tables of
+ * records are served from the text beside the pack, <pack name>.palettes,
+ * .fonts, .graphics, .maps, .scripts, .commands, .text and .records
+ * (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h, frontend/maps.h,
+ * frontend/scripts.h, frontend/commands.h, frontend/text.h, frontend/records.h),
  * written from the pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
@@ -50,6 +51,7 @@
 #include "fonts.h"
 #include "maps.h"
 #include "records.h"
+#include "commands.h"
 #include "scripts.h"
 #include "text.h"
 #include "palettes.h"
@@ -249,18 +251,18 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     return written < 0 ? (free(text), NULL) : text;
 }
 
-/* The pack made again with its palettes, fonts, graphics, maps, scripts, text and records as the text beside it
+/* The pack made again with its palettes, fonts, graphics, maps, scripts, commands, text and records as the text beside it
  * says, each kind's store over the one before. True with the pack unchanged
  * where there is no text; false, the pack and its bytes gone, only where a
  * text is wrong or the remade pack can't be had. */
-enum { DECODED_KINDS = 7 };
+enum { DECODED_KINDS = 8 };
 
 static bool serve_decoded(const Files *files, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
     const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text, &tile_text, &map_text, &script_text,
-                                                &game_text, &record_text };
+                                                &command_text, &game_text, &record_text };
     const char *paths[DECODED_KINDS] = { files->palettes, files->fonts, files->graphics, files->maps, files->scripts,
-                                         files->text, files->records };
+                                         files->commands, files->text, files->records };
     Decoded *decoded[DECODED_KINDS] = { NULL };
     AssetStore stores[DECODED_KINDS + 1];
     asset_pack_store(*pack, &stores[0]);
@@ -722,11 +724,14 @@ static void usage(FILE *out)
 {
     fprintf(out, "usage: ct_native [ROM | --rom ROM] [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--load-state FILE] [--save-state FILE] [--record out.ctm] [--save-dir DIR] [--import ROM] [--keys FILE] [--bind INPUT=ACTION]\n"
-                 "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--mute] [--view WIDTHx224]\n"
+                 "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--fullscreen-mode borderless|exclusive]\n"
+                 "                 [--scaling integer|fit] [--filter none|scanlines] [--mute] [--view WIDTHx224] [--present WxH]\n"
                  "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
-                 "Window play writes cartridge saves; headless runs only read them. F5 saves a snapshot of the frame; F7 loads it.\n");
+                 "Window play writes cartridge saves; headless runs only read them. F5 saves a snapshot of the frame; F7 loads it.\n"
+                 "The window remembers its scaling, filter and fullscreen; --present WxH makes --screenshot show the picture\n"
+                 "as the window would on a WxH display.\n");
 #ifdef CT_HAVE_SDL
     window_print_controls(out);
 #else
@@ -763,6 +768,28 @@ static bool view_from(const char *text, VidView *out)
     return true;
 }
 
+#ifdef CT_HAVE_SDL
+/* --present WIDTHxHEIGHT: an output for the window's presentation, from a
+ * pixel square up to an 8K display. */
+static bool size_from(const char *text, int *w, int *h)
+{
+    char head[16];
+    const char *x = strchr(text, 'x');
+    size_t n = x ? (size_t)(x - text) : 0;
+    unsigned long width, height;
+    if (!x || n == 0 || n >= sizeof head)
+        return false;
+    memcpy(head, text, n);
+    head[n] = 0;
+    if (!count_from(head, &width) || !count_from(x + 1, &height) || width < 1 || height < 1 || width > 7680 ||
+        height > 4320)
+        return false;
+    *w = (int)width;
+    *h = (int)height;
+    return true;
+}
+#endif
+
 /* --check-snapshots EVERY[,SPAN]: both whole numbers above 0. */
 static bool checks_from(const char *text, unsigned long *every, unsigned long *span)
 {
@@ -788,13 +815,18 @@ int main(int argc, char **argv)
 #endif
     Files files = { 0 };
     unsigned long frames = 600, shot_every = 0, scale = 3, check_every = 0, check_span = 60;
-    bool frames_given = false, fullscreen = false, mute = false;
+    bool frames_given = false, mute = false;
     bool drive = false;
     VidView view = { VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
     int display_mode = 0;   /* auto, headless, window */
 #ifdef CT_HAVE_SDL
     SDL_SetMainReady();
     bindings_reset();
+    /* The window's presentation as given on the command line, over what the
+     * last window play left (frontend/presentation.h). */
+    PresentSettings asked = PRESENT_SETTINGS_DEFAULT;
+    bool scaling_asked = false, filter_asked = false, fullscreen_asked = false, mode_asked = false;
+    int present_w = 0, present_h = 0;
 
 #endif
     bool locations = false, outcomes = false, lag_log = false, timing_report = false, measuring = false;
@@ -813,6 +845,11 @@ int main(int argc, char **argv)
 #ifdef CT_HAVE_SDL
         else if (!strcmp(a, "--keys") && v) keys_path = v, i++;
         else if (!strcmp(a, "--bind") && v && nbinds < 128) binds[nbinds++] = v, i++;
+        else if (!strcmp(a, "--fullscreen")) asked.fullscreen = fullscreen_asked = true;
+        else if (!strcmp(a, "--fullscreen-mode") && v && present_fullscreen_mode_from(v, &asked.fullscreen_mode)) mode_asked = true, i++;
+        else if (!strcmp(a, "--scaling") && v && present_scaling_from(v, &asked.scaling)) scaling_asked = true, i++;
+        else if (!strcmp(a, "--filter") && v && present_filter_from(v, &asked.filter)) filter_asked = true, i++;
+        else if (!strcmp(a, "--present") && v && size_from(v, &present_w, &present_h)) i++;
 #endif
         else if (a[0] != '-' && !rom_path) rom_path = a;
         else if (!strcmp(a, "--sram") && v) sram_path = v, i++;
@@ -823,7 +860,6 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--drive")) drive = true;
         else if (!strcmp(a, "--window")) display_mode = 2;
         else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
-        else if (!strcmp(a, "--fullscreen")) fullscreen = true;
         else if (!strcmp(a, "--view") && v && view_from(v, &view)) i++;
         else if (!strcmp(a, "--mute")) mute = true;
         else if (!strcmp(a, "--help")) help = true;
@@ -846,6 +882,12 @@ int main(int argc, char **argv)
 #ifdef CT_HAVE_SDL
     if (bindings_configure(keys_path, binds, nbinds)) return 2;
 #endif
+#ifdef CT_HAVE_SDL
+    /* The picture as the window shows it: the view's width, eight overscan
+     * rows cropped top and bottom, and pixels as wide as a 4:3 television
+     * made them. */
+    const Display display = { view.width, 8, 8, 4.0 / 3.0 * VID_RENDER_HEIGHT / VID_RENDER_WIDTH };
+#endif
     if (help) { usage(stdout); return 0; }
     if (shot_every && !shot_dir) {
         fprintf(stderr, "ct_native: --shot-every needs --shot-dir\n");
@@ -867,7 +909,6 @@ int main(int argc, char **argv)
         return 2;
     }
     windowed = false;
-    (void)fullscreen;
     (void)mute;
 #endif
     if (display_mode == 1)
@@ -889,9 +930,10 @@ int main(int argc, char **argv)
         preferences = system_preferences;
     }
 #endif
-    char remembered[4096] = "", config[1024] = "";
+    char remembered[4096] = "", config[1024] = "", window_settings[1024] = "";
     const char *remembered_sram = NULL;
     if (preferences) snprintf(config, sizeof config, "%s/assets-path.txt", preferences);
+    if (preferences) snprintf(window_settings, sizeof window_settings, "%s/window.txt", preferences);
     if (!rom_path && !pack_path && config[0]) {
         size_t len;
         uint8_t *data = files_read(config, &len, false, NULL);
@@ -919,6 +961,7 @@ int main(int argc, char **argv)
     files_side_path(files.text, sizeof files.text, files.assets, files.assets, NULL, ".text");
     files_side_path(files.records, sizeof files.records, files.assets, files.assets, NULL, ".records");
     files_side_path(files.scripts, sizeof files.scripts, files.assets, files.assets, NULL, ".scripts");
+    files_side_path(files.commands, sizeof files.commands, files.assets, files.assets, NULL, ".commands");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");
@@ -1021,9 +1064,18 @@ int main(int argc, char **argv)
 #ifdef CT_HAVE_SDL
     if (windowed) {
         WindowOptions options = {
-            .scale = (int)scale, .fullscreen = fullscreen, .mute = mute,
-            .display = { view.width, 8, 8, 4.0 / 3.0 * VID_RENDER_HEIGHT / VID_RENDER_WIDTH }
+            .scale = (int)scale, .mute = mute, .display = display, .present = PRESENT_SETTINGS_DEFAULT
         };
+        if (window_settings[0]) {
+            size_t len = 0;
+            uint8_t *text = files_read(window_settings, &len, true, NULL);
+            if (text) present_settings_read(&options.present, (const char *)text, len);
+            free(text);
+        }
+        if (scaling_asked) options.present.scaling = asked.scaling;
+        if (filter_asked) options.present.filter = asked.filter;
+        if (fullscreen_asked) options.present.fullscreen = true;
+        if (mode_asked) options.present.fullscreen_mode = asked.fullscreen_mode;
         WindowClient client = {
             .ctx = &driver, .name = "ct_native", .step = native_step, .pixels = native_pixels,
             .audio = { &driver, native_audio, native_discard }, .title = native_title,
@@ -1031,6 +1083,10 @@ int main(int argc, char **argv)
             .quick_save = native_quick_save, .quick_load = native_quick_load
         };
         rc = window_run(&client, &options);
+        char settings[256];
+        size_t len = present_settings_write(&options.present, settings, sizeof settings);
+        if (window_settings[0] && len && file_store_replace(window_settings, settings, len))
+            fprintf(stderr, "ct_native: cannot remember the window's settings in %s\n", window_settings);
     } else
 #endif
     {
@@ -1050,6 +1106,16 @@ int main(int argc, char **argv)
         }
         if (wav_path && ct_wav_close(&wav)) driver.result = 2;
     }
+#ifdef CT_HAVE_SDL
+    if (screenshot && present_w) {
+        PresentSettings present = asked;
+        uint32_t *shown = malloc((size_t)present_w * (size_t)present_h * sizeof *shown);
+        if (!shown || window_present_picture(picture.pixels, &display, &present, present_w, present_h, shown) ||
+            ct_png_write(screenshot, shown, (unsigned)present_w, (unsigned)present_h))
+            driver.result = 2;
+        free(shown);
+    } else
+#endif
     if (screenshot && ct_png_write(screenshot, picture.pixels, picture.width, VID_RENDER_HEIGHT)) driver.result = 2;
     if (save_state && !driver.result && !native_save_state(&driver, save_state)) driver.result = 2;
     native_flush(&driver);

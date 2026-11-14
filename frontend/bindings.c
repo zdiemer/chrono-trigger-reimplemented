@@ -39,7 +39,7 @@ static const struct {
 static const char *const action_names[ACT_COUNT] = {
     [ACT_NONE] = "None", [ACT_PAUSE] = "Pause", [ACT_FAST_FORWARD] = "FastForward",
     [ACT_QUICK_SAVE] = "QuickSave", [ACT_QUICK_LOAD] = "QuickLoad", [ACT_FULLSCREEN] = "Fullscreen",
-    [ACT_QUIT] = "Quit",
+    [ACT_SCALING] = "Scaling", [ACT_FILTER] = "Filter", [ACT_QUIT] = "Quit",
 };
 
 static const char *const defaults[] = {
@@ -47,7 +47,7 @@ static const char *const defaults[] = {
     "Up = Up", "Down = Down", "Left = Left", "Right = Right",
     "X = A", "Z = B", "S = X", "A = Y", "Q = L", "W = R", "Return = Start", "Right Shift = Select",
     "P = Pause", "Pause = Pause", "Tab = FastForward", "F5 = QuickSave", "F7 = QuickLoad", "F11 = Fullscreen",
-    "Escape = Quit",
+    "F9 = Scaling", "F10 = Filter", "Escape = Quit",
     /* Pads by position, as on a SNES pad: SDL names the bottom face button a
      * (a SNES's B), the right one b (A), the left one x (Y), the top one y (X). */
     "Pad dpup = Up", "Pad dpdown = Down", "Pad dpleft = Left", "Pad dpright = Right",
@@ -269,6 +269,8 @@ void bindings_print(FILE *out)
     print_row(out, "quick save", ACT_QUICK_SAVE, 0, NULL);
     print_row(out, "quick load", ACT_QUICK_LOAD, 0, NULL);
     print_row(out, "fullscreen", ACT_FULLSCREEN, 0, "Alt+Return");
+    print_row(out, "scaling", ACT_SCALING, 0, NULL);
+    print_row(out, "filter", ACT_FILTER, 0, NULL);
     print_row(out, "quit", ACT_QUIT, 0, NULL);
 }
 
@@ -284,16 +286,45 @@ static bool pad_held(Input in, SDL_GameController *const *pads, int npads)
     return false;
 }
 
+/* Keys a prompt answered, pressing nothing: each for at least SWALLOW_FRAMES
+ * reads of the buttons, and then until it is let go. */
+enum { SWALLOW_FRAMES = 15 };
+static uint8_t swallowed[SDL_NUM_SCANCODES];
+
+void bindings_swallow_held_keys(void)
+{
+    const Uint8 *keys = SDL_GetKeyboardState(NULL);
+    for (int code = 0; code < SDL_NUM_SCANCODES; code++)
+        if (keys[code])
+            swallowed[code] = SWALLOW_FRAMES;
+    swallowed[SDL_SCANCODE_RETURN] = swallowed[SDL_SCANCODE_KP_ENTER] = swallowed[SDL_SCANCODE_ESCAPE] = SWALLOW_FRAMES;
+}
+
+/* A frame's read of the buttons: a swallowed key let go after its frames
+ * presses again. */
+static void let_go_of_swallowed(const Uint8 *keys)
+{
+    for (int code = 0; code < SDL_NUM_SCANCODES; code++) {
+        if (!swallowed[code])
+            continue;
+        if (swallowed[code] > 1)
+            swallowed[code]--;
+        else if (!keys[code])
+            swallowed[code] = 0;
+    }
+}
+
 static bool held(const Binding *b, const Uint8 *keys, SDL_GameController *const *pads, int npads)
 {
     if (b->in.kind == IN_KEY)
-        return keys && keys[b->in.code];
+        return keys && keys[b->in.code] && !swallowed[b->in.code];
     return pad_held(b->in, pads, npads);
 }
 
 uint16_t bindings_buttons(SDL_GameController *const *pads, int npads)
 {
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
+    let_go_of_swallowed(keys);
     /* Alt+Return toggles fullscreen; don't also press what Return is bound to. */
     bool alt = (SDL_GetModState() & KMOD_ALT) != 0;
     uint16_t pad = 0;

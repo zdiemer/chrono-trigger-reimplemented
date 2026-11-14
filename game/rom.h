@@ -27,7 +27,9 @@
 uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset);
 uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset);
 
-/* A byte or a word where the data's own pointers lead, by the address. */
+/* A byte or a word where the data's own pointers lead, by the address: the
+ * cartridge's, or the game's RAM where the pointer names it (wram.h,
+ * wram_data_read8). */
 uint8_t rom_read8(const GameState *g, uint32_t at);
 uint16_t rom_read16(const GameState *g, uint32_t at);
 
@@ -38,11 +40,10 @@ PfData rom_data(uint32_t at, uint32_t length);
 /* A script-selected transfer may repeat one byte or walk backwards. */
 PfData rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
 
-/* The backing's side of each of those reads, with the time it takes.
- * `served` is the store's copy of the byte, which is what the read gives;
- * NULL where the store has none (`at` not the cartridge's: work RAM or save
- * RAM a pointer in the data names), when the backing reads its own memory at
- * `at`, and a cartridge byte no resource holds stops the program there. */
+/* The backing's side of each of those reads of the cartridge, with the time
+ * it takes. `served` is the store's copy of the byte, which is what the read
+ * gives; NULL for a cartridge byte no resource holds, which stops the program
+ * there. */
 uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served);
 
 #endif

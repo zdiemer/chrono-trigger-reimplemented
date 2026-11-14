@@ -74,6 +74,9 @@ uint32_t state_host_take_owed(GameState *g);
  * RAM through the save service), of `clocks` master clocks on the machine,
  * timed at the rate of the routine its work is timed as. */
 void state_host_game_access(const GameState *g, uint32_t clocks);
+/* The clocks a cartridge read takes, which a read through a pointer the
+ * data holds takes too, into RAM as into the cartridge. */
+enum { STATE_HOST_CARTRIDGE_CLOCKS = 6 };
 
 /* Host audio replay preserves the accounting effects of resource reads as
  * well as the replies it returned. These counters are additive over a host

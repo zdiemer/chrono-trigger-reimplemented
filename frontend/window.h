@@ -5,6 +5,7 @@
 #define CT_FRONTEND_WINDOW_H
 
 #include "audio_fill.h"
+#include "presentation.h"
 #include <stdio.h>
 
 /* The picture's width in pixels (0: the original's 256; a wider view is the
@@ -17,11 +18,14 @@ typedef struct {
     double pixel_aspect;
 } Display;
 
+/* `present` is how the picture is shown (frontend/presentation.h); the
+ * window leaves it as play ended it -- the scaling, filter and fullscreen the
+ * player last chose -- for the driver to remember. */
 typedef struct {
     int scale;
-    bool fullscreen;
     bool mute;
     Display display;
+    PresentSettings present;
 } WindowOptions;
 
 /* Callbacks run on the driver thread; audio.take supplies 32000 Hz stereo.
@@ -41,7 +45,15 @@ typedef struct {
     int (*flush)(void *ctx);
 } WindowClient;
 
-int window_run(const WindowClient *client, const WindowOptions *options);
+int window_run(const WindowClient *client, WindowOptions *options);
 void window_print_controls(FILE *out);
+
+/* The picture `pixels` (VID_RENDER_HEIGHT rows of the display's width) as the
+ * window would show it on an output of out_w x out_h under `present`, drawn
+ * by SDL's software renderer into out (out_w * out_h pixels, 0x00RRGGBB):
+ * for looking at a presentation without a window. Returns 0, or -1 after
+ * printing why not. */
+int window_present_picture(const uint32_t *pixels, const Display *display, const PresentSettings *present, int out_w,
+                           int out_h, uint32_t *out);
 
 #endif

@@ -66,6 +66,14 @@ void script_play_the_sound(GameState *g, Platform *pf, uint8_t byte, const Scrip
 
 /* ---- The screen effect ---------------------------------------------------------------------- */
 
+#if CT_SCRIPT_TEXT
+/* The command's length: its byte and the settings it gives. */
+static uint16_t measure_screen_effect(const uint8_t *command, uint16_t available)
+{
+    return available < 2 ? 0 : (uint16_t)(1 + screen_effect_settings_given(command[1]));
+}
+#endif
+
 /* The command is the settings and its own byte, the first setting counting
  * them (battle/screen.h). The battle keeps the settings
  * (battle_screen_effect_settings): a command giving fewer than five takes the
@@ -96,12 +104,13 @@ SCRIPT_OPERATION(screen_effect, settings)
 /* ---- The table ------------------------------------------------------------------------- */
 
 SCRIPT_OPCODES(script_sound_opcodes,
-    { 0x78, .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .length = 2 },
-    { 0x79, .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .length = 2 },
-    { 0x7A, .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .place = OPERAND(2), .length = 3,
-      .needs = NEEDS_A_PLACE_APART_FROM_THE_SOUND },
-    { 0x7B, .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .place = OPERAND(2), .length = 3,
-      .needs = NEEDS_A_PLACE_APART_FROM_THE_SOUND },
-    { 0x7C, .hit = CONSTANT(false), .length = 1 },
-    { 0x7D, .hit = CONSTANT(true), .length = 1 },
-    { 0x80, OPERATION(screen_effect), .settings = OPERAND(1), .length = 1, .needs = NEEDS_A_SCREEN_EFFECT });
+    { 0x78, NAMED("play_sound"), .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .length = 2 },
+    { 0x79, NAMED("play_sound"), .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .length = 2 },
+    { 0x7A, NAMED("play_sound"), .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .place = OPERAND(2),
+      .length = 3, .needs = NEEDS_A_PLACE_APART_FROM_THE_SOUND },
+    { 0x7B, NAMED("play_sound"), .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .place = OPERAND(2),
+      .length = 3, .needs = NEEDS_A_PLACE_APART_FROM_THE_SOUND },
+    { 0x7C, NAMED("weapon_sound"), .hit = CONSTANT(false), .length = 1 },
+    { 0x7D, NAMED("weapon_sound"), .hit = CONSTANT(true), .length = 1 },
+    { 0x80, OPERATION(screen_effect), .settings = OPERAND(1), .length = 1, .needs = NEEDS_A_SCREEN_EFFECT,
+      MEASURED(measure_screen_effect) });

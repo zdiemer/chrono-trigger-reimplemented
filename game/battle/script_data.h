@@ -83,7 +83,7 @@ static inline uint8_t battle_walk_probe(const GameState *g, uint8_t step, WalkPr
  * ($CD:6D4C), and as it hits ($CD:6DAC). */
 static inline uint8_t battle_weapon_sound(const GameState *g, uint8_t weapon, bool hit)
 {
-    return rom_read8(g, (hit ? 0xCD6DACu : 0xCD6D4Cu) + weapon);
+    return asset_read8(g, hit ? ASSET_BATTLE_WEAPON_HIT_SOUNDS : ASSET_BATTLE_WEAPON_SWING_SOUNDS, weapon);
 }
 
 #endif

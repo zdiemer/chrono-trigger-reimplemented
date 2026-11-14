@@ -220,7 +220,8 @@ static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16
 static inline uint16_t battle_palette_set_color(const GameState *g, bool seven, uint8_t set, unsigned color)
 {
     unsigned colors = seven ? BATTLE_LARGE_SET_COLORS : BATTLE_SMALL_SET_COLORS;
-    return rom_read16(g, (seven ? 0xD14400u : 0xD14100u) + (set * colors + color) * 2u);
+    return asset_read16(g, seven ? ASSET_BATTLE_SPRITE_LARGE_COLOR_SETS : ASSET_BATTLE_SPRITE_COLOR_SETS,
+                        (set * colors + color) * 2u);
 }
 
 static inline uint16_t battle_flash_color(const GameState *g, uint8_t set, unsigned color)
@@ -264,7 +265,10 @@ static inline uint8_t battle_bitmap_cell_position(const GameState *g, uint16_t c
  * original's pointer does) and a row set's palette word ($CF:E000). */
 static inline uint16_t battle_tile_descriptor(const GameState *g, uint16_t at)
 {
-    return rom_read16(g, 0xCF0000u | (uint16_t)(0xA000u + at));
+    /* the table's place in its bank wraps round the bank, as the original's word does */
+    enum { DESCRIPTORS_IN_THEIR_BANK = 0xA000 };
+    return asset_read16(g, ASSET_BATTLE_TILE_DESCRIPTORS,
+                        (uint32_t)(uint16_t)(DESCRIPTORS_IN_THEIR_BANK + at) - DESCRIPTORS_IN_THEIR_BANK);
 }
 
 static inline uint16_t battle_tile_row_palette_word(const GameState *g, uint16_t at)

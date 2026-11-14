@@ -5,7 +5,9 @@
 #include <string.h>
 
 #include "event/script.h"
+#include "overworld/places.h"
 #include "packed.h"
+#include "text.h"
 
 /* ---- The language, from its table ------------------------------------------------------------- */
 
@@ -245,14 +247,21 @@ static void put_hex(DecodedText *t, const uint8_t *p, unsigned n, const char *be
 typedef struct Line Line;
 typedef struct JumpTo JumpTo;
 static const char *split_line(const char *s, const char *end, Line *l);
-static const char *read_command(Line *l, uint8_t *c, uint16_t *length, JumpTo *jump, const struct Row **found);
-static int read_as(const char *text, size_t len, bool back);
+/* A command as it is made from its line, and its data: room for the longest
+ * a script can hold, kept off the stack (a small host's is small). */
+enum { MOST_COMMAND = SCRIPT_ROOM };
+typedef struct Scratch {
+    uint8_t command[MOST_COMMAND];
+    uint8_t data[MOST_COMMAND];
+} Scratch;
+static const char *read_command(Line *l, Scratch *sc, uint16_t *length, JumpTo *jump, const struct Row **found);
+static int read_as(const char *text, size_t len, bool back, Scratch *sc);
 
 /* A command's line: its name, its parameters, what no parameter reads, its
  * jump's place, and its opcode where its name and parameters would be
  * another's. */
 static void write_command(DecodedText *out, const Row *row, const uint8_t *c, uint16_t length, uint32_t at,
-                          const uint8_t *mark, uint32_t len)
+                          const uint8_t *mark, uint32_t len, Scratch *sc, const char *said)
 {
     char s[48];
     DecodedText line = { 0 }, *t = &line;
@@ -288,7 +297,7 @@ static void write_command(DecodedText *out, const Row *row, const uint8_t *c, ui
         decoded_put(t, " data=");
         put_hex(t, c + row->length, (unsigned)(length - row->length), ".");
     }
-    if (row->jump) {
+    if (row->jump && row->jump < length) {
         uint8_t distance = c[row->jump];
         uint32_t from = at + row->jump;
         uint32_t to = row->back ? from - distance : from + distance;
@@ -302,9 +311,14 @@ static void write_command(DecodedText *out, const Row *row, const uint8_t *c, ui
         }
     }
     /* the opcode, where the line would be read as another's */
-    if (!line.full && read_as(line.text, line.len, row->back) != row->opcode) {
+    if (!line.full && read_as(line.text, line.len, row->back, sc) != row->opcode) {
         snprintf(s, sizeof s, " @%02X", row->opcode);
         decoded_put(t, s);
+    }
+    if (said) {   /* the line it says, which reading leaves alone */
+        decoded_put(t, "   # \"");
+        decoded_put(t, said);
+        decoded_put(t, "\"");
     }
     decoded_put(t, "\n");
     decoded_put(t, "x");   /* room for a NUL */
@@ -348,8 +362,8 @@ static void mark_jumps(const uint8_t *u, uint32_t len, uint8_t *mark)
         if ((mark[at] & ~LABEL) != COMMAND)
             continue;
         const Row *row = row_of(u[at]);
-        if (!row->jump)
-            continue;
+        if (!row->jump || row->jump >= length_of(row, u + at, len - at))
+            continue;   /* a jump's distance lies inside its command */
         uint32_t from = at + row->jump, distance = u[from];
         if (row->back ? from >= distance : from + distance < len) {
             uint32_t to = row->back ? from - distance : from + distance;
@@ -359,15 +373,51 @@ static void mark_jumps(const uint8_t *u, uint32_t len, uint8_t *mark)
     }
 }
 
-static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
+/* A parameter of a row, by its name, inside a command of `length` bytes. */
+static const Param *param_named(const Row *row, const char *name, uint16_t length)
+{
+    for (unsigned i = 0; i < row->params; i++)
+        if (!strcmp(row->param[i].name, name) && param_in(&row->param[i], length))
+            return &row->param[i];
+    return NULL;
+}
+
+/* The line a command says from the table of strings the script last chose
+ * (use_text), as the dialog's text spells it: the table's word for the line
+ * is where in the table's bank the string starts. Followed in the script's
+ * order, which is how its objects choose a table before they speak. */
+enum { TABLE_ENTRY_BYTES = 2 };
+
+static bool line_said(const AssetStore *store, uint32_t table, uint32_t line, char *out, size_t n)
+{
+    uint32_t entry = table + TABLE_ENTRY_BYTES * line;
+    for (uint16_t i = 0; i < asset_catalogue_count; i++) {
+        const AssetEntry *e = &asset_catalogue[i];
+        if (entry < e->at || entry + TABLE_ENTRY_BYTES > e->at + e->length)
+            continue;
+        uint32_t got = 0;
+        const uint8_t *bytes = store->find(store->ctx, e->name, asset_type_names[e->type], &got);
+        if (!bytes || got != e->length)
+            return false;
+        uint32_t at = entry - e->at;
+        return text_said_at(store, (table & 0xFF0000) | bytes[at] | (uint32_t)bytes[at + 1] << 8, out, n);
+    }
+    return false;
+}
+
+static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len, const AssetStore *store)
 {
     char s[48];
     uint32_t objects = len ? u[0] : 0, code = TABLE_AT + objects * FUNCTIONS * 2;
     if (len == 0 || code > len)
         return false;
     uint8_t *mark = calloc(len, 1);
-    if (!mark)
+    Scratch *sc = malloc(sizeof *sc);
+    if (!mark || !sc) {
+        free(mark);
+        free(sc);
         return false;
+    }
     for (uint32_t k = 0; k < objects * FUNCTIONS; k++) {
         uint32_t to = (uint32_t)(u[TABLE_AT + 2 * k] | u[TABLE_AT + 2 * k + 1] << 8) + TABLE_AT;
         if (to >= code && to < len)
@@ -387,6 +437,8 @@ static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
         }
         decoded_put(t, "\n");
     }
+    uint32_t table = 0;   /* the table of strings chosen, or none yet */
+    char said[96];
     for (uint32_t at = code; at < len;) {
         if (mark[at] & LABEL) {
             snprintf(s, sizeof s, "L%04X:\n", offset_of(at));
@@ -395,7 +447,11 @@ static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
         if ((mark[at] & ~LABEL) == COMMAND) {
             const Row *row = row_of(u[at]);
             uint16_t length = length_of(row, u + at, len - at);
-            write_command(t, row, u + at, length, at, mark, len);
+            const Param *text = param_named(row, "text", length), *line = param_named(row, "line", length);
+            if (text)
+                table = operand_value(u + at, text);
+            bool says = line && table && line_said(store, table, operand_value(u + at, line), said, sizeof said);
+            write_command(t, row, u + at, length, at, mark, len, sc, says ? said : NULL);
             at += length;
             continue;
         }
@@ -409,34 +465,28 @@ static bool write_script(DecodedText *t, const uint8_t *u, uint32_t len)
         at += n;
     }
     free(mark);
+    free(sc);
     return true;
 }
 
 /* ---- The world maps' places --------------------------------------------------------------------- */
 
-/* A world map's lists of places (game/overworld/setup.c, load_the_places):
- * each its count of records and the records -- the exits, the events and
- * the halts, then where each event's script starts -- and what follows. A
- * record is its fields, a byte or a word each (game/overworld/places.c). */
-enum { PLACE_LISTS = 4, MOST_PLACE_FIELDS = 6 };
+/* A world map's lists of places, as the game lays them out
+ * (overworld_place_streams, game/overworld/places.h): each its count of
+ * records and the records -- the exits, the events and the halts, then where
+ * each event's script starts -- and what follows. A record is its fields, a
+ * byte or a word each; a record's line starts with its list's name. */
+static const char *const PLACE_NAME[PLACE_STREAMS] = { "exit", "event", "halt", "script" };
 
-static const struct {
-    const char *name;       /* a record's line starts with it */
-    unsigned fields;
-    uint8_t bytes[MOST_PLACE_FIELDS];
-} PLACE_LIST[PLACE_LISTS] = {
-    { "exit", 6, { 1, 1, 1, 2, 1, 1 } },
-    { "event", 3, { 1, 1, 1 } },
-    { "halt", 3, { 1, 1, 1 } },
-    { "script", 1, { 2 } },
-};
+static unsigned place_fields(unsigned list) { return overworld_place_streams[list].fields; }
+static unsigned record_bytes(unsigned list) { return overworld_place_streams[list].record_bytes; }
 
-static unsigned record_bytes(unsigned list)
+/* A field's bytes: up to the next field, or the record's end. */
+static unsigned field_bytes(unsigned list, unsigned f)
 {
-    unsigned n = 0;
-    for (unsigned f = 0; f < PLACE_LIST[list].fields; f++)
-        n += PLACE_LIST[list].bytes[f];
-    return n;
+    const PlaceStream *l = &overworld_place_streams[list];
+    unsigned next = f + 1 < l->fields ? l->field_at[f + 1] : l->record_bytes;
+    return next - l->field_at[f];
 }
 
 static bool write_places(DecodedText *t, const uint8_t *u, uint32_t len)
@@ -447,19 +497,19 @@ static bool write_places(DecodedText *t, const uint8_t *u, uint32_t len)
                    "# location (a word: 01FF an event script, the next byte its entry), where the\n"
                    "# party arrives (x, y); event: column (bit 7: armed), row, its script's entry;\n"
                    "# halt: column, row and a byte; script: where an event's script starts\n");
-    for (unsigned list = 0; list < PLACE_LISTS; list++) {
+    for (unsigned list = 0; list < PLACE_STREAMS; list++) {
         if (at >= len || at + 1 + u[at] * record_bytes(list) > len)
             return false;
         unsigned count = u[at++];
         for (unsigned k = 0; k < count; k++) {
-            decoded_put(t, PLACE_LIST[list].name);
-            for (unsigned f = 0; f < PLACE_LIST[list].fields; f++) {
-                if (PLACE_LIST[list].bytes[f] == 2)
+            decoded_put(t, PLACE_NAME[list]);
+            for (unsigned f = 0; f < place_fields(list); f++) {
+                if (field_bytes(list, f) == 2)
                     snprintf(s, sizeof s, " %04X", (unsigned)(u[at] | u[at + 1] << 8));
                 else
                     snprintf(s, sizeof s, " %02X", u[at]);
                 decoded_put(t, s);
-                at += PLACE_LIST[list].bytes[f];
+                at += field_bytes(list, f);
             }
             decoded_put(t, "\n");
         }
@@ -474,7 +524,10 @@ static bool write_places(DecodedText *t, const uint8_t *u, uint32_t len)
     return true;
 }
 
-typedef enum { FORM_SCRIPT, FORM_PLACES } Form;
+/* A location's script (packed), a world map's places (packed), or commands
+ * the field keeps whole to copy into a script (built_in_command_byte), which
+ * are written as a script of no objects and keep their length. */
+typedef enum { FORM_SCRIPT, FORM_PLACES, FORM_COMMANDS } Form;
 
 static bool form_of(const AssetEntry *e, Form *f)
 {
@@ -483,6 +536,8 @@ static bool form_of(const AssetEntry *e, Form *f)
         *f = FORM_SCRIPT;
     else if (!strcmp(c, "lz:place-lists"))
         *f = FORM_PLACES;
+    else if (!strcmp(c, "script:event-commands"))
+        *f = FORM_COMMANDS;
     else
         return false;
     return true;
@@ -497,7 +552,21 @@ static bool decodes(const AssetEntry *e, bool *named)
 
 static bool write_resource(DecodedText *t, const AssetStore *store, const AssetEntry *e, const uint8_t *bytes)
 {
-    (void)store;
+    Form f = FORM_SCRIPT;
+    form_of(e, &f);
+    if (f == FORM_COMMANDS) {
+        uint8_t *script = malloc(e->length + 1u);   /* a script of no objects, then the commands */
+        if (!script)
+            return false;
+        script[0] = 0;
+        memcpy(script + 1, bytes, e->length);
+        char line[64];
+        snprintf(line, sizeof line, "# commands, %u bytes, which keep their length\n", (unsigned)e->length);
+        decoded_put(t, line);
+        bool written = write_script(t, script, e->length + 1u, store);
+        free(script);
+        return written;
+    }
     size_t len = 0;
     bool long_runs = false;
     uint8_t *unpacked = packed_unpack(bytes, e->length, &len, &long_runs);
@@ -507,9 +576,7 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     snprintf(line, sizeof line, "# %u bytes unpacked\n", (unsigned)len);
     decoded_put(t, line);
     packed_write_form(t, long_runs);
-    Form f = FORM_SCRIPT;
-    form_of(e, &f);
-    bool written = f == FORM_PLACES ? write_places(t, unpacked, (uint32_t)len) : write_script(t, unpacked, (uint32_t)len);
+    bool written = f == FORM_PLACES ? write_places(t, unpacked, (uint32_t)len) : write_script(t, unpacked, (uint32_t)len, store);
     free(unpacked);
     return written;
 }
@@ -557,7 +624,7 @@ static int hex_run(const char *s, const char *end, char between, uint8_t *out, u
 }
 
 /* A line's words: its first, and its `key=value` pairs. */
-enum { MOST_WORDS = 40, MOST_COMMAND = SCRIPT_ROOM };
+enum { MOST_WORDS = 40 };
 
 typedef struct {
     const char *key, *key_end, *value, *end;
@@ -622,11 +689,11 @@ struct JumpTo {
     uint8_t distance;
 };
 
-/* The command `row` makes of a line, into c (room for MOST_COMMAND): its
- * length, or 0 where the line isn't one of the row's. */
-static uint16_t encode(const Row *row, Line *l, uint8_t *c, JumpTo *jump)
+/* The command `row` makes of a line, into the scratch's command: its length,
+ * or 0 where the line isn't one of the row's. */
+static uint16_t encode(const Row *row, Line *l, Scratch *sc, JumpTo *jump)
 {
-    uint8_t data[MOST_COMMAND];
+    uint8_t *c = sc->command, *data = sc->data;
     int data_n = 0;
     memset(c, 0, MOST_COMMAND);
     c[0] = row->opcode;
@@ -674,7 +741,7 @@ static uint16_t encode(const Row *row, Line *l, uint8_t *c, JumpTo *jump)
                 return 0;
             c[k] |= (uint8_t)bits;
         } else if (word_is(v->key, v->key_end, "data")) {
-            data_n = hex_run(v->value, v->end, '.', data, sizeof data);
+            data_n = hex_run(v->value, v->end, '.', data, MOST_COMMAND);
             if (data_n <= 0)
                 return 0;
         } else if (word_is(v->key, v->key_end, "to") && row->jump) {
@@ -698,8 +765,8 @@ static uint16_t encode(const Row *row, Line *l, uint8_t *c, JumpTo *jump)
         return 0;
     memcpy(c + row->length, data, (size_t)data_n);
     uint16_t length = length_of(row, c, MOST_COMMAND);
-    if (length == 0)
-        return 0;
+    if (length == 0 || (row->jump && row->jump >= length))
+        return 0;   /* a jump's distance lies inside its command */
     /* past its operands, a command's bytes are a parameter's or its data */
     bool past = length > row->length && covered(row, row->length, length) != 0xFF;
     if (data_n != (past ? (int)(length - row->length) : 0))
@@ -711,7 +778,7 @@ static uint16_t encode(const Row *row, Line *l, uint8_t *c, JumpTo *jump)
         if (param_in(p, length) != (v != NULL))
             return 0;
         if (v && p->form == P_RAW && p->bytes == 0 &&
-            hex_run(v->value, v->end, '.', data, sizeof data) != (int)(length - p->operand))
+            hex_run(v->value, v->end, '.', data, MOST_COMMAND) != (int)(length - p->operand))
             return 0;
     }
     for (unsigned k = length; k < row->length; k++)
@@ -746,6 +813,7 @@ typedef struct {
     unsigned list;        /* the list of places being read */
     uint32_t count_at;    /* where its count is */
     bool rest;            /* what follows the lists is being read */
+    Scratch *scratch;
 } Reading;
 
 enum { PART_FORM, PART_OBJECTS, PART_TABLE, PART_CODE };
@@ -754,9 +822,15 @@ static Reading *reading_of(DecodedReading *r)
 {
     Reading *s = r->own;
     if (!s) {
-        s = r->own = calloc(1, sizeof *s);
-        if (!s)
+        s = calloc(1, sizeof *s);
+        Scratch *scratch = malloc(sizeof *scratch);
+        if (!s || !scratch) {
+            free(s);
+            free(scratch);
             return NULL;
+        }
+        r->own = s;
+        s->scratch = scratch;
         s->entry = -1;
     }
     if (s->entry != r->entry) {
@@ -777,6 +851,7 @@ static void forget(DecodedReading *r)
     if (s) {
         free(s->labels);
         free(s->fixups);
+        free(s->scratch);
         free(s);
     }
     r->own = NULL;
@@ -831,7 +906,7 @@ static const char *add_label(Reading *s, const char name[8], uint32_t at)
 
 /* The row a line names: the hinted opcode, or the first of its name's rows
  * its parameters fit; and the command made of it. */
-static const char *read_command(Line *l, uint8_t *c, uint16_t *length, JumpTo *jump, const Row **found)
+static const char *read_command(Line *l, Scratch *sc, uint16_t *length, JumpTo *jump, const Row **found)
 {
     /* of the rows the line fits, the shortest, the first of those; a jump
      * to a place goes back to one already named and on to one that isn't */
@@ -841,7 +916,7 @@ static const char *read_command(Line *l, uint8_t *c, uint16_t *length, JumpTo *j
         if (!row->known || !word_is(l->name, l->name_end, row->name) || (l->hint >= 0 && l->hint != (int)op))
             continue;
         JumpTo to = { false, NULL, NULL, 0 };
-        uint16_t n = encode(row, l, c, &to);
+        uint16_t n = encode(row, l, sc, &to);
         if (n == 0 || (to.label && l->back >= 0 && row->back != (l->back > 0)))
             continue;
         if (!*found || n < *length) {
@@ -851,7 +926,7 @@ static const char *read_command(Line *l, uint8_t *c, uint16_t *length, JumpTo *j
     }
     if (*found) {
         *jump = (JumpTo){ false, NULL, NULL, 0 };
-        *length = encode(*found, l, c, jump);
+        *length = encode(*found, l, sc, jump);
         return NULL;
     }
     for (unsigned op = 0; op < OPCODES; op++)
@@ -862,9 +937,8 @@ static const char *read_command(Line *l, uint8_t *c, uint16_t *length, JumpTo *j
 }
 
 /* The opcode a command's line is read as, without its @XX; -1 for none. */
-static int read_as(const char *text, size_t len, bool back)
+static int read_as(const char *text, size_t len, bool back, Scratch *sc)
 {
-    static uint8_t c[MOST_COMMAND];
     Line l;
     uint16_t length;
     JumpTo jump;
@@ -872,7 +946,7 @@ static int read_as(const char *text, size_t len, bool back)
     if (split_line(text, text + len, &l))
         return -1;
     l.back = back;
-    if (read_command(&l, c, &length, &jump, &row))
+    if (read_command(&l, sc, &length, &jump, &row))
         return -1;
     return row->opcode;
 }
@@ -913,7 +987,7 @@ static const char *read_places_line(DecodedReading *r, Reading *st, const char *
     }
     if (decoded_word(&s, end, "rest")) {
         uint8_t bytes[LINE_BYTES * 4];
-        const char *wrong = st->rest ? NULL : lists_up_to(r, st, PLACE_LISTS - 1);
+        const char *wrong = st->rest ? NULL : lists_up_to(r, st, PLACE_STREAMS - 1);
         if (!wrong && !st->rest && r->made[st->count_at] == 0)
             wrong = EMPTY_LIST;
         if (wrong)
@@ -931,9 +1005,9 @@ static const char *read_places_line(DecodedReading *r, Reading *st, const char *
         return r->made_len > r->most ? "more than the cartridge's stream unpacks to" : NULL;
     }
     unsigned list = 0;
-    while (list < PLACE_LISTS && !decoded_word(&s, end, PLACE_LIST[list].name))
+    while (list < PLACE_STREAMS && !decoded_word(&s, end, PLACE_NAME[list]))
         list++;
-    if (list == PLACE_LISTS || list < st->list || st->rest)
+    if (list == PLACE_STREAMS || list < st->list || st->rest)
         return "a record is an exit, an event, a halt or a script, the lists in that order, then the rest";
     const char *wrong = lists_up_to(r, st, list);
     if (wrong)
@@ -943,14 +1017,14 @@ static const char *read_places_line(DecodedReading *r, Reading *st, const char *
     uint8_t *p = decoded_grow(r, record_bytes(list));
     if (!p)
         return "out of memory";
-    for (unsigned f = 0; f < PLACE_LIST[list].fields; f++) {
+    for (unsigned f = 0; f < place_fields(list); f++) {
         unsigned v;
-        if (!decoded_number(&s, end, 16, PLACE_LIST[list].bytes[f] == 2 ? 0xFFFF : 0xFF, &v))
+        if (!decoded_number(&s, end, 16, field_bytes(list, f) == 2 ? 0xFFFF : 0xFF, &v))
             return list == 0 ? "an exit is its column, row, name, location (a word), x and y, in hex"
                    : list == 3 ? "a script is where it starts, a word in hex"
                                : "an event or a halt is its column, row and a byte, in hex";
         *p++ = (uint8_t)v;
-        if (PLACE_LIST[list].bytes[f] == 2)
+        if (field_bytes(list, f) == 2)
             *p++ = (uint8_t)(v >> 8);
     }
     if (s != end)
@@ -966,7 +1040,12 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
         return "out of memory";
     Form form = FORM_SCRIPT;
     form_of(&asset_catalogue[r->entry], &form);
-    if (r->form == PACKED_UNSAID) {
+    if (r->form == PACKED_UNSAID && form == FORM_COMMANDS) {
+        /* not packed: its first line is the script's `objects 0` */
+        r->form = PACKED_SHORT_RUNS;
+        r->most = asset_catalogue[r->entry].length + 1u;
+        r->part = PART_OBJECTS;
+    } else if (r->form == PACKED_UNSAID) {
         const char *wrong = packed_read_form(d, r, s, end);
         if (form == FORM_SCRIPT && r->most < SCRIPT_ROOM)
             r->most = SCRIPT_ROOM;
@@ -1054,16 +1133,15 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
             if (!strcmp(st->labels[k].name, to_name))
                 l.back = 1;
     }
-    uint8_t c[MOST_COMMAND];
     uint16_t length;
     JumpTo jump;
     const Row *row;
-    if ((wrong = read_command(&l, c, &length, &jump, &row)) != NULL)
+    if ((wrong = read_command(&l, st->scratch, &length, &jump, &row)) != NULL)
         return wrong;
     uint8_t *p = decoded_grow(r, length);
     if (!p)
         return "out of memory";
-    memcpy(p, c, length);
+    memcpy(p, st->scratch->command, length);
     if (r->made_len > r->most)
         return "the script is longer than the game's buffer for it";
     if (jump.label) {
@@ -1088,7 +1166,7 @@ static const char *read_end(Decoded *d, DecodedReading *r)
         if (!wrong && r->made_len == 0)
             wrong = start_list(r, st);
         if (!wrong && !st->rest)
-            wrong = lists_up_to(r, st, PLACE_LISTS - 1);
+            wrong = lists_up_to(r, st, PLACE_STREAMS - 1);
         if (!wrong && !st->rest && r->made[st->count_at] == 0)
             wrong = EMPTY_LIST;
         r->wrong_at = wrong ? r->last_line : 0;
@@ -1116,6 +1194,13 @@ static const char *read_end(Decoded *d, DecodedReading *r)
         r->made[f->at] = (uint8_t)distance;
     }
     r->wrong_at = 0;
+    if (form == FORM_COMMANDS) {
+        uint32_t length = asset_catalogue[r->entry].length;
+        if (st->objects || r->made_len != length + 1u)
+            return "the commands have no objects and keep their length: the field copies them by place";
+        memcpy(r->bytes, r->made + 1, length);
+        return NULL;
+    }
     return packed_end(d, r);
 }
 

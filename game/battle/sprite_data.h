@@ -86,7 +86,8 @@ static inline int8_t battle_scripted_move_dy(const GameState *g, uint8_t move, u
 
 static inline uint8_t battle_number_rise_table(const GameState *g, bool second, uint8_t row)
 {
-    return rom_read8(g, (second ? 0xD15E49u : 0xD15E10u) + row);
+    enum { SECOND_RISE = 0x39 };   /* the second table, after the first's 57 rows */
+    return asset_read8(g, ASSET_BATTLE_NUMBER_RISE_TABLES, (second ? SECOND_RISE : 0) + row);
 }
 
 /* The party's color cycles: where a pose's cycle starts in the colors

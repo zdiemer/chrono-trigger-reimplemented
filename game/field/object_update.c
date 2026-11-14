@@ -244,7 +244,7 @@ bool object_rows_step(GameState *g, FieldObject obj, bool join)
 /* The animation's tick, where the port takes it. */
 static bool tick(GameState *g, FieldObject obj)
 {
-    if (!field_tick_is_exact(g, obj)) {
+    if (!PORT_CHECK(field_tick_is_exact(g, obj))) {
         program_breaks_a_contract(g, TICK, "an animation tick the port doesn't take");
         return false;
     }

@@ -49,6 +49,7 @@
 #include <stdint.h>
 
 #include "battle/rules_data.h"
+#include "script_text.h"
 #include "state.h"
 
 /* How testing a block came out: its conditions held (and its actions were
@@ -119,6 +120,13 @@ void enemy_choose_actions(GameState *g, ScriptChoosing *c);
 /* ---- The commands (battle/enemy_conditions.c, battle/enemy_actions.c) --------------------- */
 
 enum { CONDITION_KINDS = 0x29, ACTION_KINDS = 0x17 };
+
+#if CT_SCRIPT_TEXT
+/* What the scripts' text (frontend/enemy_scripts.c) calls a condition and an
+ * action: its test's or its own name, or NULL for a kind the tables haven't. */
+const char *enemy_condition_name(uint8_t kind);
+const char *enemy_action_name(uint8_t action);
+#endif
 
 /* How a condition came out, for the block's testing to act on: the block
  * fails; its actions are chosen; it holds with nothing chosen; or its actions

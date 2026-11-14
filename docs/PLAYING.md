@@ -15,8 +15,9 @@ The native frontend imports the user's cartridge into a local asset pack on
 first use. `--assets <pack>` chooses the pack; no game assets are distributed.
 Beside the pack, `<pack name>.palettes`, `<pack name>.fonts`,
 `<pack name>.graphics`, `<pack name>.maps`, `<pack name>.scripts`,
-`<pack name>.text` and `<pack name>.records` hold the game's palettes, fonts,
-tiles, maps, event scripts, text and tables of records as text, written from
+`<pack name>.commands`, `<pack name>.text` and `<pack name>.records` hold the
+game's palettes, fonts, tiles, maps, event scripts, battle, menu and enemy
+scripts, text and tables of records as text, written from
 the pack the first time: edit a color, draw a glyph or a tile, change a map's
 tiles, a script's command or a line of dialog there and it is what the game
 shows from the next start; delete a file to write it afresh.
@@ -82,10 +83,13 @@ save by the CRC32 header if `--sram` is omitted.
 
 Arrows move; X/Z/S/A press SNES A/B/X/Y, Q/W press L/R, Return presses Start,
 and Right Shift presses Select. P pauses, Tab fast-forwards, F11 or Alt+Return
-toggles fullscreen, Escape quits. SDL gamepads use positional face buttons,
-D-pad/left stick, shoulders, Start/Back and right trigger for fast-forward.
-`ct_native.keys` beside the executable supplies bindings; `--keys FILE` and
-`--bind INPUT=ACTION` override them. `--scale`, `--fullscreen` and `--mute`
+toggles fullscreen, F9 changes the scaling and F10 the filter (below). Escape
+asks before it quits: a small prompt stops the game, where a second Escape
+quits and Return plays on; the window's close button quits at once. SDL
+gamepads use positional face buttons, D-pad/left stick, shoulders, Start/Back
+and right trigger for fast-forward. `ct_native.keys` beside the executable
+supplies bindings (`Scaling`, `Filter` and `Quit` are actions like the rest);
+`--keys FILE` and `--bind INPUT=ACTION` override them. `--scale` and `--mute`
 control the window. `--view WIDTHx224` shows a wider picture (up to 480 across,
 the original's screen in its middle; docs/PLATFORM.md, "The wider view, as
 built"), in the window and in screenshots; the game plays the same at any view.
@@ -106,6 +110,39 @@ process (state, picture and PCM), route slot/file restores, recording playback
 and `--check-snapshots` over a field, menu, battle and scene movie, two processes
 at a time; the gate runs it. Outputs stay under the ignored
 `build/player-check` directory.
+
+### Scaling and fullscreen
+
+The renderer's frame goes to the GPU as a texture and is scaled there
+(`frontend/presentation.h`, drawn by `frontend/window.c`); the picture the game
+draws is the same under every choice. The window shows 208 of the 224 rows,
+eight cropped top and bottom, with pixels 8:7 wide as a 4:3 television showed
+them.
+
+- `--scaling integer` (the default) gives every picture pixel the same whole
+  number of output pixels: down, the most rows that fit; across, the whole
+  number nearest that times 8:7. The picture is pixel-exact and letterboxed:
+  5x6 at 1080p (1536x1040), 6x7 at 1440p (1792x1248), 10x12 at 4K
+  (3072x2080), its aspect within 3% of 8:7.
+- `--scaling fit` fills the output's height (or width) at 8:7, drawn
+  sharp-bilinear: scaled up by whole numbers to the size at or above the
+  output's, then smoothly down to it, so an edge blurs over at most one
+  output pixel.
+- `--filter scanlines` darkens the lower third of each picture row (none
+  where a row is under two output pixels tall); `--filter none` is the default.
+- `--fullscreen` fills the screen, `--fullscreen-mode borderless` (the
+  default) over the desktop at its own resolution, `exclusive` with the
+  display set to the desktop's mode for the window alone. F11 toggles the
+  chosen mode.
+
+The window remembers the last scaling, filter, fullscreen and fullscreen mode
+in window.txt in the preferences directory, as `name = value` lines; the
+command line's choices replace them and are remembered in turn. Headless runs
+never read it. `--present WxH` with `--screenshot` writes the frame
+as the window would show it on a display that size, with `--scaling` and
+`--filter`, through SDL's software renderer: the way to look at a
+presentation without a window. `presentation_test` checks the layouts at
+1080p, 1440p and 4K.
 
 ## Snapshots
 
@@ -166,6 +203,25 @@ sound differs. Over the whole movie library at 1009,90 every frame matched.
 The `native-player` CI job builds Release artifacts for Linux GCC/Clang, macOS
 Clang and Windows MinGW GCC, without a ROM. `tools/package_native.py --build-dir
 build/main --output build/player-artifact` packages the executable, the player
-README and Windows host DLLs into an empty directory; Unix users install SDL2.
-CI smoke-tests the packaged `--help` and uploads it without publishing a release.
-No cartridge, asset pack, save or captured state enters the artifact.
+README and the host libraries into an empty directory: on Windows the DLLs
+it imports; on macOS the dylibs, Homebrew's SDL2 (sdl2-compat) and the SDL3
+it loads by name, each named relative to the executable and signed again ad hoc;
+Linux players install SDL2 themselves. `tools/dist.py` does the same into `dist/`. CI smoke-tests the
+packaged `--help`, then runs it where it was never built -- in a Debian 12
+container with only `libsdl2-2.0-0` installed, and on macOS with Homebrew's
+SDL uninstalled -- and uploads it without publishing a release. No cartridge,
+asset pack, save or captured state enters the artifact.
+
+What a clean machine needs, as the artifacts are built (docs/NATIVE-README.txt
+says it for players):
+
+- **Windows** (x86-64): nothing; the DLLs are in the directory.
+- **Linux** (x86-64): glibc 2.34 or later (Debian 12, Ubuntu 22.04, Fedora 35
+  and later) and the SDL2 runtime (`libsdl2-2.0-0`, `SDL2`, `sdl2`); the
+  executable links only it and libc.
+- **macOS** (Apple silicon): the version the runner built for and later
+  (`macos-latest`, macOS 26 now): ct_native and Homebrew's dylibs take their
+  lowest version from the machine that built them. Nothing to install. An
+  Intel Mac or an older macOS needs ct_native built there (`tools/dist.py`).
+- Everywhere, the artifact's zip drops the executable bit: `chmod +x
+  ct_native` after extracting on Linux and macOS.

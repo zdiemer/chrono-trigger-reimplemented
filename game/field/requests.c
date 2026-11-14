@@ -120,7 +120,7 @@ static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uin
  * program reports a broken contract otherwise). */
 static bool sound_at_the_leader(GameState *g, Platform *pf, uint32_t entry, void (*play)(GameState *, Platform *))
 {
-    if (!field_leader_readable(g)) {
+    if (!PORT_CHECK(field_leader_readable(g))) {
         program_breaks_a_contract(g, entry, "a sound at a leader the port doesn't read");
         return false;
     }
@@ -230,7 +230,7 @@ static bool do_the_frame_work(GameState *g, Platform *pf)
 
 static bool copy_the_tiles_into_the_maps(GameState *g)
 {
-    if (!field_tile_copy_is_on_the_map(g)) {
+    if (!PORT_CHECK(field_tile_copy_is_on_the_map(g))) {
         program_breaks_a_contract(g, COPY_TILES, "a tile copy off the map");
         return false;
     }
@@ -240,7 +240,7 @@ static bool copy_the_tiles_into_the_maps(GameState *g)
 
 static bool bring_in_the_right_columns(GameState *g)
 {
-    if (!layers_repeat_within_the_maps(g)) {
+    if (!PORT_CHECK(layers_repeat_within_the_maps(g))) {
         program_breaks_a_contract(g, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, "layers the port doesn't stream");
         return false;
     }
@@ -387,7 +387,7 @@ static void battle_over(GameState *g)
  * map. */
 static bool press_the_switches(GameState *g)
 {
-    if (!field_remembered_switches_on_the_map(g)) {
+    if (!PORT_CHECK(field_remembered_switches_on_the_map(g))) {
         program_breaks_a_contract(g, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, "remembered switches off the map");
         return false;
     }
@@ -449,7 +449,7 @@ FieldPass field_requests_handled(GameState *g, Platform *pf)
     field_step_screen_changes(g);
     if (field_requests(g) == 0)
         return FIELD_PASS_GOES_ON;
-    if (!field_requests_can_be_answered(g)) {
+    if (!PORT_CHECK(field_requests_can_be_answered(g))) {
         program_breaks_a_contract(g, FIELD_HANDLE_REQUESTS_ENTRY, "requests the port doesn't answer");
         return FIELD_PASS_STOPS;
     }
