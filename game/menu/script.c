@@ -51,42 +51,49 @@ const ScriptOpcode *menu_script_opcode(uint8_t opcode)
 }
 
 /* A command's operands are read on from its opcode, across the end of the
- * bank if they reach it. */
-static uint8_t operand(const GameState *g, uint32_t at, uint8_t n) { return menu_script_byte(g, at + n); }
-static uint16_t operand_word(const GameState *g, uint32_t at, uint8_t n)
+ * bank if they reach it: from the script's run of the store's bytes, found
+ * once for the command. */
+typedef struct {
+    const GameState *g;
+    uint32_t at;
+    MenuScriptRun run;
+} CommandBytes;
+
+static uint8_t operand(const CommandBytes *c, uint8_t n) { return menu_script_byte_in(c->g, &c->run, c->at + n); }
+static uint16_t operand_word(const CommandBytes *c, uint8_t n)
 {
-    return (uint16_t)(operand(g, at, n) | operand(g, at, (uint8_t)(n + 1)) << 8);
+    return (uint16_t)(operand(c, n) | operand(c, (uint8_t)(n + 1)) << 8);
 }
 
-static uint32_t argument(const GameState *g, ScriptArg a, uint32_t at)
+static uint32_t argument(const CommandBytes *b, ScriptArg a)
 {
     switch (a.kind) {
     case ARG_CONSTANT: return a.constant;
-    case ARG_BYTE: return operand(g, at, a.operand);
-    case ARG_SIGNED: return (uint32_t)(int32_t)(int8_t)operand(g, at, a.operand);
-    case ARG_WORD: return operand_word(g, at, a.operand);
-    case ARG_LONG: return (uint32_t)operand(g, at, (uint8_t)(a.operand + 2)) << 16 | operand_word(g, at, a.operand);
-    case ARG_WORD_AND_BANK: return (uint32_t)operand(g, at, a.bank_at) << 16 | operand_word(g, at, a.operand);
+    case ARG_BYTE: return operand(b, a.operand);
+    case ARG_SIGNED: return (uint32_t)(int32_t)(int8_t)operand(b, a.operand);
+    case ARG_WORD: return operand_word(b, a.operand);
+    case ARG_LONG: return (uint32_t)operand(b, (uint8_t)(a.operand + 2)) << 16 | operand_word(b, a.operand);
+    case ARG_WORD_AND_BANK: return (uint32_t)operand(b, a.bank_at) << 16 | operand_word(b, a.operand);
     default: return 0;
     }
 }
 
-static ByteRef byte_ref(const GameState *g, ScriptArg a, uint32_t at)
+static ByteRef byte_ref(const CommandBytes *b, ScriptArg a)
 {
     if (a.kind == ARG_SLOT_BYTE)
-        return (ByteRef){ true, operand(g, at, a.operand) };
+        return (ByteRef){ true, operand(b, a.operand) };
     if (a.kind == ARG_CELL)
-        return (ByteRef){ false, operand_word(g, at, a.operand) };
+        return (ByteRef){ false, operand_word(b, a.operand) };
     return (ByteRef){ false, 0 };
 }
 
 /* A row names a handful of the language's parameters; the rest read nothing. */
 #define SCRIPT_DECODE_BYTE_REF(name) \
     if (row->name.kind != ARG_NONE)  \
-        c.name = byte_ref(g, row->name, at);
+        c.name = byte_ref(&bytes, row->name);
 #define SCRIPT_DECODE(type, name)   \
     if (row->name.kind != ARG_NONE) \
-        c.name = (type)argument(g, row->name, at);
+        c.name = (type)argument(&bytes, row->name);
 #define SCRIPT_DECODE_ONE(type, name) SCRIPT_DECODE_##type(type, name)
 #define SCRIPT_DECODE_ByteRef(type, name) SCRIPT_DECODE_BYTE_REF(name)
 #define SCRIPT_DECODE_ByteChange SCRIPT_DECODE
@@ -100,12 +107,13 @@ static ByteRef byte_ref(const GameState *g, ScriptArg a, uint32_t at)
 #define SCRIPT_DECODE_uint32_t SCRIPT_DECODE
 #define SCRIPT_DECODE_bool(type, name) \
     if (row->name.kind != ARG_NONE)    \
-        c.name = argument(g, row->name, at) != 0;
+        c.name = argument(&bytes, row->name) != 0;
 
 ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at,
                                  Platform *pf)
 {
     ScriptCommand c = { 0 };
+    const CommandBytes bytes = { g, at, menu_script_run(at) };
     c.self = self;
     c.at = at;
     c.opcode = row->opcode;

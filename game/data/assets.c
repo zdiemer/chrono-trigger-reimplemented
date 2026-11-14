@@ -208,6 +208,29 @@ uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t pl
     return rom_read16(g, asset_place_address(resource, place));
 }
 
+RomRun rom_run_from(uint32_t at)
+{
+    RomRun run = { at, 0, NULL };
+    uint32_t a = cartridge_address(at);
+    AssetId id = asset_containing(at);
+    const uint8_t *bytes = id == ASSET_NONE ? NULL : resource_bytes(id);
+    if (!bytes)
+        return run;
+    const AssetEntry *e = &asset_catalogue[id];
+    uint32_t in_resource = e->length - (a - e->at), in_bank = 0x10000u - (uint16_t)at;
+    run.bytes = bytes + (a - e->at);
+    run.length = in_resource < in_bank ? in_resource : in_bank;
+    return run;
+}
+
+uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at)
+{
+    uint32_t i = at - run->at;
+    if (i < run->length)
+        return rom_cartridge_read(g, at, run->bytes + i);
+    return rom_read8(g, at);
+}
+
 uint16_t rom_read16(const GameState *g, uint32_t at)
 {
     uint8_t low = rom_read8(g, at);

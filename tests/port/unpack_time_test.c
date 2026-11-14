@@ -19,6 +19,14 @@ uint8_t rom_read8(const GameState *g, uint32_t at)
     return stream[at - 0xC00000];
 }
 
+/* No store here: every read goes by the address above. */
+RomRun rom_run_from(uint32_t at) { return (RomRun){ at, 0, NULL }; }
+uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at)
+{
+    (void)run;
+    return rom_read8(g, at);
+}
+
 static uint32_t unpack(unsigned length, bool direct, bool entry, uint32_t destination)
 {
     GameState *g = state_host_create(NULL);

@@ -200,6 +200,12 @@ int main(void)
             CHECK(rom_read8(NULL, e->at - 0x800000u) == made_up(i, 0));
         if ((e->at & 0xFFFF) >= 0x8000 && e->length > 1)                 /* the upper half of $80-$BF */
             CHECK(rom_read16(NULL, e->at - 0x400000u) == (made_up(i, 0) | made_up(i, 1) << 8));
+        /* A run from the resource's start reads as rom_read8 does, inside it and past it. */
+        RomRun run = rom_run_from(e->at);
+        CHECK(run.length >= 1 && run.length <= e->length);
+        CHECK(rom_run_read8(NULL, &run, e->at) == rom_read8(NULL, e->at));
+        CHECK(rom_run_read8(NULL, &run, last) == rom_read8(NULL, last));
+        CHECK(rom_run_read8(NULL, &run, e->at + run.length) == rom_read8(NULL, e->at + run.length));
     }
     /* A named resource's reads find it by name: its first and last bytes, a
      * word, and past its end the bytes after it by address. */
