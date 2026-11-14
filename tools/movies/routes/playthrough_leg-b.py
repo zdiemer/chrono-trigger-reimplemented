@@ -922,12 +922,22 @@ STEPS = {
 STEPS.update({name: inner_room(name) for name in INNER_WAY})
 
 
-def play(run, start=2, seed=1, before=None):
+class LegEnds(Exception):
+    """play()'s caller asked it to stop after a phase (`last`)."""
+
+
+def play(run, start=2, seed=1, before=None, last=None):
     """The leg from the Forest Maze on (PHASES' index `start`, from 2): the save's or the
     main playthrough's party on the 65,000,000 B.C. world map at story $78. `before` maps
     one of this route's own phases to what the caller plays first, within that phase (the
-    main playthrough's training before Magus)."""
-    before = before or {}
+    main playthrough's training before Magus); `last` is the phase to stop after."""
+    try:
+        play_on(run, start, seed, before or {}, last)
+    except LegEnds:
+        pass
+
+
+def play_on(run, start, seed, before, last):
 
     def own(run, start, offset, phases):
         """This route's own `phases`, PHASES' indices `offset` on, from `start`."""
@@ -938,6 +948,8 @@ def play(run, start=2, seed=1, before=None):
                 STEPS[name](run)
                 run.say(name, run.map_id(), run.me(), "world", run.world_pos(), "story", hex(story(run)))
                 run.checkpoint(name)
+                if name == last:
+                    raise LegEnds()
 
     own(run, start, 2, START[2:])
     at = len(START)

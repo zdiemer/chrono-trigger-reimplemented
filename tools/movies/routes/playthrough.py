@@ -77,7 +77,9 @@ IOKA = ["ioka_rest"]
 LEG_B = importlib.import_module(".playthrough_leg-b", __package__)
 LEG_B_CHAPTER = "b_"
 LEG_B_FROM = LEG_B.PHASES.index("forest_maze")
-FROM_LEG_B = [LEG_B_CHAPTER + name for name in LEG_B.PHASES[LEG_B_FROM:]]
+# To Magus beaten: past him, leg B's rests want more Shelters than this party carries.
+LEG_B_TO = LEG_B.PHASES.index("magus") + 1
+FROM_LEG_B = [LEG_B_CHAPTER + name for name in LEG_B.PHASES[LEG_B_FROM:LEG_B_TO]]
 PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
           + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO + DREAMSTONE + IOKA
           + FROM_LEG_B)
@@ -1708,7 +1710,8 @@ def main():
         later -= len(IOKA)
         if later <= len(FROM_LEG_B) - 1:
             run.chapter = LEG_B_CHAPTER
-            LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed, before={"mountainside": train_for_magus})
+            LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed, before={"mountainside": train_for_magus},
+                       last="magus")
             run.chapter = ""
         run.finish("the playthrough's last checkpoint")
         if args.movie:
