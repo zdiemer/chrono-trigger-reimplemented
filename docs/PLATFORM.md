@@ -926,6 +926,90 @@ the time model's pricing of every access, and a mixer built to be exact. The
 game's own logic is a fifth of its frame or less, about 1-3 GBA frames' work
 by these estimates. Run `tools/measure.py` against a lean build to remeasure.
 
+### The GBA build, as built
+
+`ct_gba` is the game on the GBA with no picture and no sound heard: the lean
+build's game and state, compiled for the ARM7TDMI in Thumb by arm-none-eabi
+GCC with newlib, playing a movie the cartridge carries and reporting how it
+ended over mGBA's debug log. Everything GBA lives in `targets/gba/`:
+
+- `toolchain.cmake`, `CMakeLists.txt` (its own project), `gba.ld` and
+  `start.s`: code, constants and the data's initial values in the cartridge;
+  the data and the zeroed state in work RAM (EWRAM), then the arena to its
+  end; the fibers' stacks and the driver's stack in fast RAM (IWRAM).
+- `fiber.c` and `switch.s`: runtime/port/fiber.h on the ARM, eight slots of
+  3 KiB in fast RAM, each with a guard, and no snapshots.
+- `memory.c`: the state's storage (below).
+- `video.c`: the video service with no picture. It charges each send the
+  transfer time the native backend charges and keeps the display changes
+  below the line handler, which is all the game's play depends on.
+  `vid_vram_word` answers 0 until the GBA's video backend (issue #367), so
+  the jet bike race and the rising palace, which read their maps back from
+  VRAM, play otherwise on the GBA until then.
+- `system.c`: the arena and the C library's heap over the end of work RAM,
+  stdout and stderr to mGBA's debug log, a cycle count from two chained
+  timers.
+- `main.c`: the driver. One frame of the game a turn of its loop, as
+  ct_native's: the inputs from the movie, `tm_host_frame`, the sound
+  player's frame (the native one, frontend/sound_native.c, its mixed sound
+  discarded). At the end it reports the frames and lag frames, a CRC-32 of
+  work RAM and save RAM as `ct_native --end-state` writes them, each part's
+  cycles a frame, the arena and the stacks' deepest use.
+- `pack.py`: the packing step, the seed of the builder (issue #421). It
+  verifies the player's cartridge, cuts the catalogue's resources from it as
+  the cartridge has them, and appends them to the program with a directory
+  the driver indexes in place, the movie's text and the save RAM it starts
+  from. The program is code only; the packed `.gba` is never committed.
+- `mgba_run.c` and `run.py`: the check. `run.py` builds the runner against
+  libmgba (MSYS2's `mingw-w64-x86_64-mgba`, installed or only unpacked),
+  packs the cartridge, plays it in mGBA's core with no window and no sound
+  until the program says it is done, plays the movie in ct_native too, and
+  fails where the two end states' CRCs differ:
+
+      cmake -S targets/gba -B build/gba -G Ninja -DCMAKE_TOOLCHAIN_FILE=<repo>/targets/gba/toolchain.cmake
+      cmake --build build/gba
+      python3 targets/gba/run.py --mgba <mgba prefix> --program build/gba/ct_gba.bin \
+          --ct-native build/main/ct_native --movie movies/title-start.ctm
+
+  CI builds the program (the `gba-arm-none-eabi` job, Ubuntu's
+  `gcc-arm-none-eabi`); with no cartridge it doesn't play it.
+
+**The state as the original's work RAM.** The typed state is 488 KiB, twice
+the GBA's work RAM. `CT_FLAT_STATE` keeps the game's state as the original
+does instead, a byte at each of work RAM's 128 KiB of addresses:
+tools/ram_map.py generates `runtime/port/vars_flat.c`, the same accessors in
+their address form, and the backing keeps the two banks
+(`runtime/port/vars_flat_host.c` natively; on the GBA `memory.c` keeps bank
+$7E in work RAM and bank $7F in video RAM, which no picture uses here,
+writing a byte into its 16-bit word). Owners the typed state keeps apart
+(re/ram.toml's `overlays`) share the one byte, as in the original, so there
+is no last writer to keep (issue #427's sharing, for the flat state). A
+native lean, flat ct_native plays all 59 gate movies to the same work RAM
+and save RAM as the normal build (`tools/lean_check.py --lean
+build/flat/ct_native`, configured `-DCT_LEAN=ON -DCT_FLAT_STATE=ON`).
+
+**Measured** (2026-11-14, mGBA 0.10.5, the cartridge's waits set to 3 and 1
+with the prefetch as `start.s` sets them), over `title-start` (power-on, the
+attract sequence to the title, START) and `new-game` (a new game into
+Crono's house):
+
+| What | On the GBA |
+|---|---|
+| The outcome | `title-start`: 1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`, save RAM `D8F49994`; `new-game`: 7,200 frames, 244 lag frames, `9126C7F9` and `D8F49994`: each the same as ct_native's |
+| Cartridge | the program 1.38 MiB (code 0.79, constants 0.59), the pack 3.73 MiB; 5.1 MiB in all |
+| Work RAM (EWRAM, 256 KiB) | 248 KiB with `title-start`: bank $7E 64 KiB, the platform's state 38 KiB (VidHost's wide-view arrays most of it) and the rest of the zeroed state 3 KiB; the arena 141 KiB: the sound player 96 KiB, GameState about 21 KiB, the run's cycle counts 14 KiB, the C library's heap and the movie. `new-game`'s longer movie leaves no room for the cycle counts |
+| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,208 bytes, the main thread; five slots used), the driver's stack the 7.75 KiB above them |
+| Video RAM | bank $7F, 64 KiB of 96 |
+| Cycles a frame (`title-start`; the GBA's frame is 280,896) | game: mean 1.22 million (4.3 GBA frames), 99th percentile 1.68 million (6.0), heaviest 88.6 million (315: the boot's unpacking); sound: mean 7.38 million (26.3), 99th percentile 11.7 million (41.6) |
+| In all | `title-start` 55,372 GBA frames for 1,800 game frames, 30.8 GBA frames each (8.6 million cycles); `new-game` 232,835 for 7,200, 32.3 each |
+
+So most of the GBA's work is the sound's: its mixer is six times the game,
+26 GBA frames a frame on its own (issue #428). The game's 4-6 GBA frames a
+frame is mostly the flat state's address decode for every byte and the time
+model (issues #424, #426), with all of the code running from the
+cartridge's 16-bit bus and none from fast RAM yet. With the default waits
+(4 and 2, no prefetch) the same run took 52.4 GBA frames a frame.
+
 ## Scene map fills
 
 `vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving

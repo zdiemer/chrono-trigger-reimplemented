@@ -92,18 +92,40 @@ void state_host_destroy(GameState *g)
         free(g);
 }
 
-/* The whole record, but the diagnostic totals the run keeps for itself. */
-size_t state_host_snapshot_bytes(void) { return sizeof(GameState); }
+/* The whole record, but the diagnostic totals the run keeps for itself; and
+ * where the state is work RAM as the original lays it out (CT_FLAT_STATE),
+ * its two banks after the record, which keeps only where they are. */
+#ifdef CT_FLAT_STATE
+enum { FLAT_BANK_BYTES = 0x10000, FLAT_BANKS = 2 };
+#else
+enum { FLAT_BANK_BYTES = 0, FLAT_BANKS = 0 };
+#endif
+size_t state_host_snapshot_bytes(void) { return sizeof(GameState) + (size_t)FLAT_BANK_BYTES * FLAT_BANKS; }
 
-void state_host_snapshot(const GameState *g, uint8_t *out) { memcpy(out, g, sizeof *g); }
+void state_host_snapshot(const GameState *g, uint8_t *out)
+{
+    memcpy(out, g, sizeof *g);
+#ifdef CT_FLAT_STATE
+    for (unsigned b = 0; b < FLAT_BANKS; b++)
+        memcpy(out + sizeof *g + (size_t)b * FLAT_BANK_BYTES, g->vars.bank[b], FLAT_BANK_BYTES);
+#endif
+}
 
 void state_host_restore(GameState *g, const uint8_t *in)
 {
     StateHostTime *time = g->time;
     bool lasting = g->lasting;
+#ifdef CT_FLAT_STATE
+    VarsHost banks = g->vars;
+#endif
     memcpy(g, in, sizeof *g);
     g->time = time;
     g->lasting = lasting;
+#ifdef CT_FLAT_STATE
+    g->vars = banks;
+    for (unsigned b = 0; b < FLAT_BANKS; b++)
+        memcpy(g->vars.bank[b], in + sizeof *g + (size_t)b * FLAT_BANK_BYTES, FLAT_BANK_BYTES);
+#endif
 }
 
 ProgramHandlers *program_handlers(GameState *g) { return &g->handlers; }
