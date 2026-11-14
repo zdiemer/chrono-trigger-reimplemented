@@ -10,9 +10,12 @@ MGBA_PREFIX holds mGBA's library and headers (include/mgba, bin/libmgba*.dll
 or lib/libmgba.so): MSYS2's mingw-w64-x86_64-mgba package, installed or only
 unpacked, or a build of mGBA. The runner (targets/gba/mgba_run.c) is built
 with the host's C compiler into the program's directory. The GBA build is
-packed first (targets/gba/pack.py) from the staged cartridge.
+packed first (targets/gba/pack.py) from the staged cartridge. With
+`--profile FILE`, the runner samples where the processor is as the movie
+plays and FILE gets each function's share of the samples, the largest first.
 """
 import argparse
+import bisect
 import glob
 import os
 import pathlib
@@ -53,6 +56,39 @@ def frame_symbol(elf):
     return next(line.split()[0] for line in out.splitlines() if line.endswith(" ct_gba_frame"))
 
 
+def profile(elf, samples, out):
+    """The runner's samples by function, from the program's symbols: each
+    function's share and count, the largest first; samples outside any
+    function by their 4 KiB page, and outside the program's memory (the
+    BIOS's interrupt dispatch) as <other>."""
+    nm = shutil.which("arm-none-eabi-nm")
+    listing = subprocess.run([nm, "-n", "-S", "--defined-only", str(elf)], stdout=subprocess.PIPE, text=True,
+                             check=True).stdout
+    functions = []
+    for line in listing.splitlines():
+        field = line.split()
+        if len(field) == 4 and field[2] in "tTwW":
+            functions.append((int(field[0], 16) & ~1, int(field[1], 16), field[3]))
+    functions.sort()
+    starts = [f[0] for f in functions]
+    counts, total = {}, 0
+    for line in samples.read_text().splitlines():
+        at, count = line.split()
+        count = int(count)
+        total += count
+        if at == "other":
+            name = "<other>"
+        else:
+            pc = int(at, 16) - 4   # the program counter reads two Thumb instructions ahead
+            i = bisect.bisect_right(starts, pc) - 1
+            inside = i >= 0 and pc < functions[i][0] + max(functions[i][1], 2)
+            name = functions[i][2] if inside else "?%08x" % (pc & ~0xFFF)
+        counts[name] = counts.get(name, 0) + count
+    with out.open("w", encoding="utf-8") as f:
+        for name, count in sorted(counts.items(), key=lambda item: -item[1]):
+            f.write("%6.2f%% %9d %s\n" % (100.0 * count / max(total, 1), count, name))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--mgba", type=pathlib.Path, required=True, help="mGBA's install prefix")
@@ -63,6 +99,8 @@ def main(argv=None):
     ap.add_argument("--max-gba-frames", type=int, default=3000000)
     ap.add_argument("--shot", action="append", default=[], metavar="FRAME=FILE.png",
                     help="write the GBA's picture once the game reaches FRAME")
+    ap.add_argument("--profile", type=pathlib.Path, metavar="FILE",
+                    help="sample where the processor is as the movie plays; FILE gets each function's share")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
@@ -78,7 +116,12 @@ def main(argv=None):
         for shot in args.shot:
             frame, _, path = shot.partition("=")
             command += ["--shot", frame, path]
+    samples = out_dir / (args.movie.stem + ".samples")
+    if args.profile:
+        command += ["--samples", str(samples)]
     gba = subprocess.run(command, stdout=subprocess.PIPE, text=True, env=env)
+    if args.profile and samples.exists():
+        profile(args.program.resolve().with_suffix(".elf"), samples, args.profile)
     print(gba.stdout, end="")
     found = END.search(gba.stdout)
     if gba.returncode or not found:
