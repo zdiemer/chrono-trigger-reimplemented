@@ -68,6 +68,17 @@ enum {
 
 /* ---- The SNES's video memory and settings ---------------------------------------------------- */
 
+/* A map a layer shows part of the way down, from a line effect: its layer,
+ * where it starts in VRAM and how long it is (bytes), and where the GBA keeps
+ * it, converted for that layer (another layer may show the same map as its
+ * own, as the field's dialog's two layers do). */
+typedef struct {
+    uint8_t layer;
+    uint16_t byte, bytes;
+    uint16_t gba_byte;    /* NO_PLACE: no room for it */
+} LineMap;
+enum { NO_PLACE = 0xFFFF };
+
 typedef struct {
     uint8_t vram[VRAM_BYTES];
     uint16_t cgram[256];
@@ -82,6 +93,9 @@ typedef struct {
     uint8_t main_layers;
     VidWindows windows;
     VidLineEffect slot[8];         /* the line effects' slots as the game programmed them */
+    /* the maps the line effects show part of the way down, beside the layers' own */
+    LineMap line_maps[6];
+    uint8_t line_map_count;
     uint32_t written[BLOCKS / 32];    /* blocks the game wrote since the picture was made */
     bool palette_written, settings_changed;
     uint8_t (*read)(void *ctx, uint32_t addr);
@@ -293,7 +307,7 @@ void vid_set_bg_map(Platform *pf, PfOrigin o, VidLayer bg, const VidBg *b)
         return;
     VidBg *s = &snes.bg[bg];
     if (s->map_base != b->map_base || s->map_w != b->map_w || s->map_h != b->map_h)
-        snes.settings_changed = true;
+        snes.settings_changed = true, snes.line_map_count = 0;
     s->map_base = b->map_base;
     s->map_w = b->map_w;
     s->map_h = b->map_h;
@@ -589,7 +603,12 @@ void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool prio
 /* ---- The GBA's picture --------------------------------------------------------------------------- */
 
 /* What the settings make each part of VRAM. */
-typedef enum { NONE, TILES_4BPP = 1, TILES_2BPP = 2, MAP_4BPP = 4, MAP_2BPP = 8, SPRITE_TILES = 16 } Role;
+typedef enum {
+    NONE, TILES_4BPP = 1, TILES_2BPP = 2, MAP_4BPP = 4, MAP_2BPP = 8, SPRITE_TILES = 16,
+    LINE_MAP = 32,        /* a line effect's map: converted to where the GBA keeps it */
+    LINE_MAP_PLACE = 64,  /* where the GBA keeps a line effect's map */
+} Role;
+enum { TAKEN = TILES_4BPP | MAP_4BPP | MAP_2BPP | LINE_MAP_PLACE };
 
 /* A layer as the GBA shows it: how deep its tiles are, where they and its
  * map are, how far its 4bpp tiles are from the GBA's 16 KiB char block (in
@@ -624,7 +643,7 @@ static bool within(uint32_t byte, uint32_t start, uint32_t length)
 static bool slot_free(uint32_t slot)
 {
     uint32_t byte = wide_block * 0x4000 + slot * 32;
-    return byte < VRAM_BYTES && !(roles[byte / BLOCK_BYTES] & (TILES_4BPP | MAP_4BPP | MAP_2BPP));
+    return byte < VRAM_BYTES && !(roles[byte / BLOCK_BYTES] & TAKEN);
 }
 
 static uint16_t take_slot(void)
@@ -676,6 +695,27 @@ static void lay_out(void)
         uint32_t obj = sprite_table(0), second = sprite_table(1);
         if (within(byte, obj, OBJ_TABLE_BYTES) || within(byte, second, OBJ_TABLE_BYTES))
             roles[k] |= SPRITE_TILES;
+    }
+    /* The line effects' maps, each where the GBA has room for it, from the top
+     * of its background VRAM down. */
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        LineMap *lm = &snes.line_maps[m];
+        lm->gba_byte = NO_PLACE;
+        if (!layers[lm->layer].shown)
+            continue;
+        for (unsigned k = 0; k < BLOCKS; k++)
+            if (within((uint32_t)k * BLOCK_BYTES, lm->byte, lm->bytes))
+                roles[k] |= LINE_MAP;
+        for (int32_t at = VRAM_BYTES - lm->bytes; at >= 0 && lm->gba_byte == NO_PLACE; at -= SCREEN_BYTES) {
+            bool room = true;
+            for (uint32_t k = (uint32_t)at / BLOCK_BYTES; k < ((uint32_t)at + lm->bytes) / BLOCK_BYTES; k++)
+                room &= !(roles[k] & TAKEN);
+            if (!room)
+                continue;
+            lm->gba_byte = (uint16_t)at;
+            for (uint32_t k = (uint32_t)at / BLOCK_BYTES; k < ((uint32_t)at + lm->bytes) / BLOCK_BYTES; k++)
+                roles[k] |= LINE_MAP_PLACE;
+        }
     }
     unsigned best = 0, most = 0;
     for (unsigned blk = 0; blk < 3; blk++) {
@@ -763,6 +803,14 @@ static const Layer *map_layer(uint32_t byte)
     return NULL;
 }
 
+/* A block of a map, converted for a layer into the GBA's VRAM at `to`. */
+static void convert_map(uint32_t first, const Layer *l, uint32_t to)
+{
+    volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + to / 2;
+    for (uint32_t i = 0; i < BLOCK_BYTES; i += 2)
+        gba[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
+}
+
 /* A sprite tile's place in the GBA's sprite VRAM: the SNES's two tables of
  * 16 tiles a row, one under the other, the first 16 of its 32 a row. */
 static int sprite_slot(uint32_t byte)
@@ -779,11 +827,16 @@ static void convert_block(unsigned k)
 {
     uint32_t first = (uint32_t)k * BLOCK_BYTES;
     uint8_t role = roles[k];
-    if (role & (MAP_4BPP | MAP_2BPP)) {
-        const Layer *l = map_layer(first);
-        volatile uint16_t *to = (volatile uint16_t *)BG_VRAM + first / 2;
-        for (uint32_t i = 0; i < BLOCK_BYTES; i += 2)
-            to[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
+    if (role & LINE_MAP)
+        for (unsigned m = 0; m < snes.line_map_count; m++) {
+            const LineMap *lm = &snes.line_maps[m];
+            if (lm->gba_byte != NO_PLACE && layers[lm->layer].shown && within(first, lm->byte, lm->bytes))
+                convert_map(first, &layers[lm->layer], lm->gba_byte + ((first - lm->byte) & (VRAM_BYTES - 1)));
+        }
+    if (role & LINE_MAP_PLACE) {
+        /* where a line effect's map is kept: nothing of its own */
+    } else if (role & (MAP_4BPP | MAP_2BPP)) {
+        convert_map(first, map_layer(first), first);
     } else if (role & TILES_4BPP) {
         for (uint32_t t = 0; t < BLOCK_BYTES; t += 32)
             convert_4bpp(BG_VRAM + (first + t) / 4, &snes.vram[first + t]);
@@ -899,7 +952,7 @@ enum {
 
 /* A line's registers on the GBA. */
 typedef struct {
-    uint16_t dispcnt, hofs[3], vofs[3], win0h, win1h, winin, winout, bldcnt, bldy;
+    uint16_t dispcnt, bgcnt[3], hofs[3], vofs[3], win0h, win1h, winin, winout, bldcnt, bldy;
 } LineRegisters;
 
 static LineRegisters lines[GBA_LINES];
@@ -910,6 +963,7 @@ typedef struct {
     VidWindows windows;
     uint8_t main_layers;
     uint16_t hofs[3], vofs[3];
+    uint8_t map[3];       /* each layer's map, as the SNES's register byte (vid_bg_map_decode) */
     uint8_t brightness;
     bool blank;
 } LineState;
@@ -991,6 +1045,8 @@ static void line_apply(LineState *st, VidLineTarget target, unsigned k, uint8_t 
         if (k == 0) st->main_layers = v; else if (k == 2) w->win_main = v;
         break;
     case VID_LINE_MAIN_SCREEN: st->main_layers = v; break;
+    case VID_LINE_BG_MAPS: if (k < 3) st->map[k] = v; break;
+    case VID_LINE_BG2_MAP: st->map[1] = v; break;
     default: break;
     }
 }
@@ -1041,9 +1097,56 @@ static uint16_t region_layers(const LineState *st, bool in1, bool in2)
     return shown;
 }
 
+/* The GBA's control of a layer showing the map the SNES's byte names: its
+ * priority and tiles as the layout set them, the map's screen block and size. */
+static uint16_t layer_control(unsigned n, uint8_t map)
+{
+    const Layer *l = &layers[n];
+    VidBg b = { 0 };
+    vid_bg_map_decode(&b, map);
+    uint16_t char_block = l->bpp == 2 ? (uint16_t)wide_block : (uint16_t)(l->char_byte / 0x4000);
+    uint16_t size = (uint16_t)((b.map_w == 64 ? 1 : 0) | (b.map_h == 64 ? 2 : 0));
+    uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
+    uint32_t at = (uint32_t)b.map_base << 1;
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        const LineMap *lm = &snes.line_maps[m];
+        if (lm->layer == n && lm->byte == at && lm->gba_byte != NO_PLACE)
+            at = lm->gba_byte;
+    }
+    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | (at / SCREEN_BYTES) << 8 | size << 14);
+}
+
+static uint8_t map_byte_of(const VidBg *b)
+{
+    return (uint8_t)((b->map_base >> 8 & 0xFC) | (b->map_w == 64 ? 1 : 0) | (b->map_h == 64 ? 2 : 0));
+}
+
+/* A map a line effect shows that the layout hasn't: kept for the next
+ * layout, which converts it. */
+static void note_line_map(unsigned n, uint8_t map)
+{
+    VidBg b = { 0 };
+    vid_bg_map_decode(&b, map);
+    uint16_t byte = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
+    if (!layers[n].shown || (byte == layers[n].map_byte && bytes == layers[n].map_bytes))
+        return;
+    for (unsigned m = 0; m < snes.line_map_count; m++)
+        if (snes.line_maps[m].byte == byte && snes.line_maps[m].layer == n && snes.line_maps[m].bytes >= bytes)
+            return;
+    if (snes.line_map_count == sizeof snes.line_maps / sizeof snes.line_maps[0])
+        return;
+    snes.line_maps[snes.line_map_count++] = (LineMap){ (uint8_t)n, byte, bytes, NO_PLACE };
+    snes.settings_changed = true;
+}
+
 static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled)
 {
     LineRegisters r = { 0 };
+    for (unsigned n = 0; n < 3; n++)
+        if (layers_enabled & (1u << n)) {
+            r.bgcnt[n] = layer_control(n, st->map[n]);
+            note_line_map(n, st->map[n]);
+        }
     uint16_t layers = 0;
     for (unsigned n = 0; n < 4; n++)
         if ((layers_enabled & (1u << n)) && (st->main_layers & (1u << n)))
@@ -1071,6 +1174,7 @@ static void set_line(const LineRegisters *r)
 {
     DISPCNT = r->dispcnt;
     for (unsigned n = 0; n < 3; n++) {
+        BGCNT(n) = r->bgcnt[n];
         BGHOFS(n) = r->hofs[n];
         BGVOFS(n) = r->vofs[n];
     }
@@ -1100,10 +1204,18 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_hblan
 static void present_lines(Platform *pf, uint16_t layers_enabled)
 {
     const VidHost *v = &pf->video;
-    LineState st = { snes.windows, snes.main_layers, { 0 }, { 0 }, (uint8_t)(v->display.brightness & 15), v->display.blank };
+    LineState st = { .windows = snes.windows, .main_layers = snes.main_layers,
+                     .brightness = (uint8_t)(v->display.brightness & 15), .blank = v->display.blank };
     for (unsigned n = 0; n < 3; n++)
-        st.hofs[n] = snes.bg[n].hofs, st.vofs[n] = snes.bg[n].vofs;
+        st.hofs[n] = snes.bg[n].hofs, st.vofs[n] = snes.bg[n].vofs, st.map[n] = map_byte_of(&snes.bg[n]);
     uint8_t enabled = v->line_effects;
+    static uint8_t logged_targets[8];
+    for (unsigned i = 0; i < 8; i++)
+        if (((enabled >> i) & 1) && logged_targets[i] != (uint8_t)snes.slot[i].target + 1) {
+            logged_targets[i] = (uint8_t)(snes.slot[i].target + 1);
+            fprintf(stderr, "video debug: line effect slot %u target %u table %06X%s\n", i, (unsigned)snes.slot[i].target,
+                    (unsigned)snes.slot[i].table.addr, snes.slot[i].indirect ? " indirect" : "");
+        }
     Slot slots[8];
     for (unsigned i = 0; i < 8; i++) {
         slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
@@ -1146,6 +1258,13 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
     snes.main_layers = st.main_layers;
     for (unsigned n = 0; n < 3; n++)
         snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
+    static unsigned debug_frames;
+    if (++debug_frames % 500 == 0)
+        for (unsigned l = 0; l < GBA_LINES; l += 40)
+            fprintf(stderr, "video debug line %u: dispcnt %04X bgcnt %04X %04X %04X scroll %u,%u %u,%u %u,%u win %04X %04X in %04X out %04X bld %04X %u\n",
+                    l, lines[l].dispcnt, lines[l].bgcnt[0], lines[l].bgcnt[1], lines[l].bgcnt[2], lines[l].hofs[0], lines[l].vofs[0],
+                    lines[l].hofs[1], lines[l].vofs[1], lines[l].hofs[2], lines[l].vofs[2], lines[l].win0h, lines[l].win1h,
+                    lines[l].winin, lines[l].winout, lines[l].bldcnt, lines[l].bldy);
     WIN0V = GBA_LINES;
     WIN1V = GBA_LINES;
     if (!varies) {
@@ -1185,10 +1304,8 @@ void gba_video_present(Platform *pf)
         const Layer *l = &layers[n];
         if (!l->shown)
             continue;
-        uint16_t char_block = l->bpp == 2 ? (uint16_t)wide_block : (uint16_t)(l->char_byte / 0x4000);
-        uint16_t size = (uint16_t)((snes.bg[n].map_w == 64 ? 1 : 0) | (snes.bg[n].map_h == 64 ? 2 : 0));
-        uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
-        BGCNT(n) = (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | (l->map_byte / SCREEN_BYTES) << 8 | size << 14);
+        if (n == 3)
+            BGCNT(3) = layer_control(3, map_byte_of(&snes.bg[3]));
         layers_enabled |= (uint16_t)(1u << n);
     }
     present_lines(pf, layers_enabled);
