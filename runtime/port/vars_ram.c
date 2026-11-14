@@ -4,6 +4,7 @@
  *
  * Module fields are the only backing for owned cells. Unmoved variables and
  * unchecked tails use state_host's address view, never a duplicate image. */
+#ifndef CT_FLAT_STATE
 #include "vars.h"
 
 #include "port/vars_pages.h"
@@ -1160,7 +1161,7 @@ void vars_range_reset(void) {}
 #endif
 
 /* How many instances the kind of a scene_program handle has. */
-static unsigned scene_program_page_count(SceneProgramPage page)
+static inline unsigned scene_program_page_count(SceneProgramPage page)
 {
     switch (page.kind) {
     case SCENE_PROGRAM_OWN:
@@ -65337,3 +65338,5 @@ void set_warp_kept_event_memory_byte(GameState *g, unsigned at, uint8_t v)
     h->warp.warp_kept_event_memory.story_flags[((at + 0u) + 0u) / 1u] = (uint8_t)((h->warp.warp_kept_event_memory.story_flags[((at + 0u) + 0u) / 1u] & ~((uint32_t)0xFFu << (((at + 0u) + 0u) % 1u * 8))) | (uint32_t)(uint8_t)(v >> 0) << (((at + 0u) + 0u) % 1u * 8));
     vars_host_claim(h, 0x7F74B3u + at, 1u, 2205u);
 }
+
+#endif
