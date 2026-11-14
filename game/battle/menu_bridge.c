@@ -4,6 +4,7 @@
 #include "battle/program.h"
 #include "battle/window.h"
 #include "battle/setup_data.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 #include "battle/bridge.h"
@@ -36,7 +37,7 @@ static void click_the_menu(MenuHost *host, MenuClick click)
  * game keeps them. */
 bool battle_menu_input_taken(GameState *g, Platform *pf)
 {
-    if (!battle_menu_window_fits(g) || !battle_menu_frame_fits(g))
+    if (!PORT_CHECK(battle_menu_window_fits(g)) || !PORT_CHECK(battle_menu_frame_fits(g)))
         return battle_contract_broken(g, 0xC11153, "a menu state the menu's frame doesn't take");
     MenuClickContext c = { { click_the_menu }, pf };
     battle_menu_frame(g, battle_menu_buttons(g), &c.host);

@@ -25,6 +25,7 @@
 #include "battle/random.h"
 #include "battle/targets.h"
 #include "charge.h"
+#include "port/vars_ram.h"
 #include "wram.h"
 
 /* The battle slot a character fights in, none where it isn't in the battle.
@@ -411,7 +412,7 @@ static bool item_use_ported(const GameState *g) { return battle_actor(g) < BATTL
 /* Each refused unless it is a tech, or an item, the port works out. */
 bool battle_work_out_member_tech(GameState *g, Platform *pf)
 {
-    if (!member_tech_ported(g))
+    if (!PORT_CHECK(member_tech_ported(g)))
         return battle_contract_broken(g, 0xC1BF79, "a member's tech the port doesn't work out");
     (void)effect_work_out_member_tech(g, pf);
     return true;
@@ -419,7 +420,7 @@ bool battle_work_out_member_tech(GameState *g, Platform *pf)
 
 bool battle_use_item(GameState *g, Platform *pf)
 {
-    if (!item_use_ported(g))
+    if (!PORT_CHECK(item_use_ported(g)))
         return battle_contract_broken(g, 0xC1BF46, "an item the port doesn't use");
     effect_use_item(g, pf);
     return true;

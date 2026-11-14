@@ -38,6 +38,7 @@
 #include "charge.h"
 #include "platform/input.h"
 #include "platform/video.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The sprites ------------------------------------------------------------------------ */
@@ -415,7 +416,7 @@ static UpdateEnds update_the_frame(GameState *g, Platform *pf)
         return UPDATE_DEMO_ENDS;
     hold_to_run(g, pf);
     tick(g);
-    if (!battle_effect_paths_known(g)) {
+    if (!PORT_CHECK(battle_effect_paths_known(g))) {
         (void)battle_contract_broken(g, STEP_EFFECT_SLOTS, "an effect's path of a kind the port doesn't know");
         return UPDATE_STOPPED;
     }
@@ -510,7 +511,7 @@ static bool read_the_input(GameState *g, Platform *pf)
 
 static bool step_the_hp_gradient(GameState *g)
 {
-    if (!battle_hp_gradient_steps(g))
+    if (!PORT_CHECK(battle_hp_gradient_steps(g)))
         return battle_contract_broken(g, HP_GRADIENT, "an HP gradient's phase out of range");
     TIMED_AS(g, HP_GRADIENT, battle_step_hp_gradient(g));
     return true;
@@ -520,7 +521,7 @@ static bool rotation_in_range(const GameState *g);
 
 static bool update_the_objects(GameState *g, Platform *pf)
 {
-    if (!rotation_in_range(g))
+    if (!PORT_CHECK(rotation_in_range(g)))
         return battle_contract_broken(g, FRAME_UPDATE, "a background colors' rotation the port doesn't make");
     UpdateEnds ends = UPDATE_STOPPED;
     TIMED_AS(g, FRAME_UPDATE, ends = update_the_frame(g, pf));
@@ -629,7 +630,7 @@ bool battle_frame_wait_finished(GameState *g, Platform *pf)
             set_battle_effect_graphics_wanted(g, 0);
         }
     }
-    if (!battle_message_typing_fits(g))
+    if (!PORT_CHECK(battle_message_typing_fits(g)))
         return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
     TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
     return true;
