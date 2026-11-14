@@ -94,14 +94,14 @@ A recorded movie meets a fight with presses fixed to frames. A few frames of
 native time decide which turn a press meets, so the fight's outcome, and every
 place after it, follow the time model rather than the game. A route from the
 same save chooses its commands by game state and wins (or, for the Lavos
-game over, loses) whatever the frames. `tools/fight_routes.txt` names the
+game over, loses) whatever the frames. `tools/fight_routes.txt` names the gate
 movies whose fight such a route carries, each movie's own route, the one its
 header names (or, for a hand recording, the route that names the movie): 20
 movies, from Dalton, Giga Gaia, the Golem Twins, the Black Tyrano, Son of
 Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's forest,
 Death Peak's ascent and its summit, the unequipped armor's fights and the
-TerraMutant. The ascent (`death_peak`) is one of the whole library's, not the
-gate's sample: its first two Lavos Spawn, fought by recorded presses, are lost
+TerraMutant. The ascent (`death_peak`) joined the gate's sample for it: its
+first two Lavos Spawn, fought by recorded presses, are lost
 or won by a frame of the battle's time, so its route carries them. Six
 routes take the movie's own presses for the field before their fights, which
 the field plays on time: `unequipped_armor` to Truce Canyon (16 s where the
