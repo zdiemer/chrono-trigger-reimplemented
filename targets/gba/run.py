@@ -41,8 +41,16 @@ def runner(prefix, out_dir):
     if not libraries:
         raise SystemExit("run: no libmgba under %s" % prefix)
     cc = shutil.which("gcc") or shutil.which("cc")
-    subprocess.run([cc, "-O2", "-I", str(prefix / "include"), str(source), libraries[0], "-o", str(exe)], check=True)
+    subprocess.run([cc, "-O2", "-I", str(prefix / "include"), str(source), libraries[0], "-lz", "-o", str(exe)],
+                   check=True)
     return exe
+
+
+def frame_symbol(elf):
+    """The address of the game frame the program is in (main.c's ct_gba_frame)."""
+    nm = shutil.which("arm-none-eabi-nm")
+    out = subprocess.run([nm, str(elf)], stdout=subprocess.PIPE, text=True, check=True).stdout
+    return next(line.split()[0] for line in out.splitlines() if line.endswith(" ct_gba_frame"))
 
 
 def main(argv=None):
@@ -53,6 +61,8 @@ def main(argv=None):
     ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms/ct-usa.sfc")
     ap.add_argument("--movie", type=pathlib.Path, required=True)
     ap.add_argument("--max-gba-frames", type=int, default=3000000)
+    ap.add_argument("--shot", action="append", default=[], metavar="FRAME=FILE.png",
+                    help="write the GBA's picture once the game reaches FRAME")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
@@ -62,7 +72,13 @@ def main(argv=None):
         return 2
     env = dict(os.environ)
     env["PATH"] = str(args.mgba.resolve() / "bin") + os.pathsep + env.get("PATH", "")
-    gba = subprocess.run([str(exe), str(image), str(args.max_gba_frames)], stdout=subprocess.PIPE, text=True, env=env)
+    command = [str(exe), str(image), str(args.max_gba_frames)]
+    if args.shot:
+        command += ["--frame-at", frame_symbol(args.program.resolve().with_suffix(".elf"))]
+        for shot in args.shot:
+            frame, _, path = shot.partition("=")
+            command += ["--shot", frame, path]
+    gba = subprocess.run(command, stdout=subprocess.PIPE, text=True, env=env)
     print(gba.stdout, end="")
     found = END.search(gba.stdout)
     if gba.returncode or not found:
