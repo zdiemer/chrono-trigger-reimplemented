@@ -22,7 +22,7 @@ from .. import policies
 from ..policies import ETHER, FULL_ETHER, FULL_TONIC, MID_ETHER, MID_TONIC
 from .. import other_endings
 from ..campaign import Run, route_arguments, run_route
-from . import black_omen
+from . import _black_omen as black_omen
 from . import blackbird_save
 from . import dalton
 from . import death_peak
@@ -107,7 +107,7 @@ SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # of Luminaire, his spell on every enemy (his record's points left for his
 # next tech, read at the crono_joins checkpoint), and the Black Omen's first
 # fight pays them: the party flies in from 1000 A.D. and wins it. It goes on
-# through the Omen for its treasure (black_omen: the Haste Helm, the Nova
+# through the Omen for its treasure (_black_omen: the Haste Helm, the Nova
 # Armor, the Vigil Hat, the Magic Seal, three MegaElixirs) and back out.
 REUNITED = ["restored", "crono_joins", "stocked", "omen_treasure", "luminaire", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]

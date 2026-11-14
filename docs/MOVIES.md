@@ -268,7 +268,7 @@ in reserve since. Crono comes back 48 points short of Luminaire, his spell on
 every enemy (his record's points left for his next tech at the
 `crono_joins` checkpoint), and the route flies into the Black Omen from 1000
 A.D. for its first fight, which pays them. It goes on through the Omen
-(`black_omen`): the Mega Mutant and the halls behind it, the teleporter, and
+(`routes/_black_omen.py`): the Mega Mutant and the halls behind it, the teleporter, and
 the elevator, whose hall sends the party on by where it last went (bits of
 $7F:01A7 its scripts keep), down to the treasure's floors, for the Haste
 Helm, the Nova Armor, the Vigil Hat, the Magic Seal and three MegaElixirs
