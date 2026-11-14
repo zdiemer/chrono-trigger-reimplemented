@@ -2,6 +2,7 @@
 #include "services/direct_sound.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "system/interrupts.h"
@@ -56,8 +57,11 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void move_to_
     s->played = played + MOVE;
 }
 
+/* The ring is named in the debug log for a runner that records it
+ * (targets/gba/host/mgba_run.c --stream). */
 void direct_sound_start(void)
 {
+    fprintf(stderr, "ct_gba: sound ring at %08X\n", (unsigned)(uintptr_t)&ct_gba_sound);
     SOUNDCNT_X = SOUND_ON;
     SOUNDCNT_L = 0;
     SOUNDCNT_H = DIRECT_SOUND;

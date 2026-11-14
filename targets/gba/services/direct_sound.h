@@ -16,15 +16,15 @@
 enum {
     DIRECT_SOUND_CYCLES = 1254,                      /* cycles a sample: 16,777,216 / 1254 = 13,379 a second */
     DIRECT_SOUND_FRAME = 224,                        /* samples a GBA frame (280,896 cycles) */
-    DIRECT_SOUND_RING = 1024                         /* samples queued at most, each channel */
+    DIRECT_SOUND_RING = 512                          /* samples queued at most, each channel: two frames and more */
 };
 
 /* The ring, where a runner that records the sound finds it
- * (targets/gba/host/mgba_run.c --stream): `queued` counts every sample
+ * (targets/gba/host/mgba_run.c --stream, from the debug log's line naming it): `queued` counts every sample
  * queued since the start, the newest at ring[(queued - 1) % DIRECT_SOUND_RING]. */
 typedef struct {
     volatile uint32_t queued, played;
-    uint32_t dropped;                                /* queued with the ring full: not played */
+    volatile uint32_t dropped;                       /* queued with the ring full: not played */
     int8_t left[DIRECT_SOUND_RING], right[DIRECT_SOUND_RING];
 } DirectSound;
 extern DirectSound ct_gba_sound;

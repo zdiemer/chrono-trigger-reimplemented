@@ -44,8 +44,8 @@ typedef struct {
 enum { MIXER_NO_LOOP = 0xFFFFFFFFu, MIXER_NOISE_LENGTH = 0x7FFF };
 
 enum {
-    MIXER_DIRECTORY = 64,          /* the samples a voice can name: the boot's, the driver's own, a song's */
-    MIXER_REGIONS = 24,            /* the blocks sound memory holds at once */
+    MIXER_DIRECTORY = 48,          /* the samples a voice can name: the boot's, the driver's own ($10), a song's ($20-$2F) */
+    MIXER_REGIONS = 20,            /* the blocks sound memory holds at once: a song's 16 and the boot's */
     MIXER_OWN_SAMPLES = 80,        /* the driver's own sample, decoded: five blocks */
     MIXER_KEY_EVENTS = 8           /* key ons and offs kept in order between two mixes */
 };

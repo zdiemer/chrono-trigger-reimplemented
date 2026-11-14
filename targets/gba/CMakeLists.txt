@@ -6,7 +6,7 @@
 #
 # builds build/gba/ct_gba.bin, the program alone (code, constants and the
 # data's initial values: no cartridge data). targets/gba/host/pack.py appends a
-# cartridge's resources and a movie to it and writes the .gba.
+# cartridge's resources to it and writes the .gba.
 cmake_minimum_required(VERSION 3.20)
 project(ct_gba C ASM)
 
@@ -44,7 +44,7 @@ add_executable(ct_gba
   ${CT_ROOT}/runtime/platform/voices.c
   ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/checksum.c
   toolchain/start.s system/switch.s system/fiber.c system/interrupts.c system/system.c system/main.c
-  services/mixer.c services/direct_sound.c services/video.c)
+  system/drive.c system/keypad.c services/cartridge_save.c services/mixer.c services/direct_sound.c services/video.c)
 # The C library's system calls are called only from the library, which
 # optimizing across files doesn't see: compiled apart, they stay.
 set_source_files_properties(system/system.c PROPERTIES COMPILE_OPTIONS -fno-lto)
