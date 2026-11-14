@@ -31,7 +31,7 @@ battle-golem-twins/native places 0 1 2 3 4
 battle-golem-twins/native sram
 battle-guardian/native game
 battle-guardian/native places 0 1 2 3 4 5 6
-battle-guardian/native sram
+battle-guardian/native sram end
 battle-heckran/native game
 battle-heckran/native places 0 1 2 3 4
 battle-heckran/native sram end
@@ -110,8 +110,8 @@ events-death-peak-wind/native sram end
 events-death-peak/native game
 events-death-peak/native places 0 1 2 3
 events-death-peak/native sram
-events-end-of-time-gate/native game
-events-end-of-time-gate/native places 0 1 2 3
+events-end-of-time-gate/native game end
+events-end-of-time-gate/native places 0 1 2 3 4
 events-end-of-time-gate/native sram end
 events-epoch-lavos/native game
 events-epoch-lavos/native places 0 1 2 3 4
