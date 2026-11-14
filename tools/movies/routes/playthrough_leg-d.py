@@ -99,7 +99,7 @@ SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
-# form to Haste and healing first.
+# form to healing first (holding_out).
 REUNITED = ["restored", "crono_joins"]
 GROWN = ["stocked", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]

@@ -390,7 +390,6 @@ LAVOS_BLOWS = {0: [(6, 12), (3, 4)], 3: [(5, 12), (0, 1)], 4: [(4, 4), (1, 2)]}
 TRIPLE_RAID, TRIPLE_RAID_MP = 109, 12
 
 
-TECH_RECORDS, TECH_RECORD_BYTES, TECHS_LISTED, TECH_DIMMED = 0x7E1A80, 7, 20, 0x80
 TRIPLE_WAIT = 30                # frames a member's menu is held open for the others' turns
 
 
@@ -404,8 +403,7 @@ def triple_raid(bot, state, rng, target):
         return None
     for entry, tech_id in tech_list_entries(bot, state.member):
         if tech_id == TRIPLE_RAID:
-            record = TECH_RECORDS + (state.member * TECHS_LISTED + entry) * TECH_RECORD_BYTES
-            if bot.machine.b(record + 2) & TECH_DIMMED and rng.random() < 0.5:
+            if A.battle_tech_dimmed(bot.machine, state.member, entry) and rng.random() < 0.5:
                 return ("wait", TRIPLE_WAIT)
             return ("tech", entry, target)
     return None

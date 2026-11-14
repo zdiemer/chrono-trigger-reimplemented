@@ -243,7 +243,7 @@ frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
 1). Crono joins in Marle's place at the End of Time, and the purse buys in
 the 12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
 the party's techs, healed from the bag between them; the shell's own form
-with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
+with `holding_out`, which heals first), then `lavos_inner`. Before anyone
 acts, an arm casts a spell that hits each member once: 37 power on the arm's
 level 50 and magic 50 (read from its stat block in ct_native, $C1:E0F5),
 (50 x 12 + 50 x 12) x 37 / 15 = 2,960, of which a member keeps 256 less two

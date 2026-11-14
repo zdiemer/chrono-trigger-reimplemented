@@ -172,6 +172,23 @@ game/battle/menu_lists.c). The tech-sweep policy (policies.py) walks this to
 find every tech a member's list can show, singles first, then doubles and
 triples, without needing to know the party's combination techs by name."""
 
+BATTLE_TECH_RECORDS = 0x7E1A80
+BATTLE_TECH_RECORD_BYTES = 7
+BATTLE_TECHS_LISTED = 20
+BATTLE_TECH_DIMMED = 0x80
+"""The in-battle tech records (battle_tech_records in re/ram.toml): seven bytes
+each, twenty a member, record `member * 20 + entry` for the entry the member's
+tech list names. The third byte's bit 7 is set while the tech is dimmed (it
+can't be used now), as the tech page last worked out when it opened
+(game/battle/menu_window.c shade_unusable_techs)."""
+
+
+def battle_tech_dimmed(machine, member, entry):
+    """Whether entry `entry` of `member`'s tech list showed dimmed when the
+    member's tech page last opened."""
+    record = BATTLE_TECH_RECORDS + (member * BATTLE_TECHS_LISTED + entry) * BATTLE_TECH_RECORD_BYTES
+    return bool(machine.b(record + 2) & BATTLE_TECH_DIMMED)
+
 # ---- inventory -------------------------------------------------------------------------------
 
 INVENTORY_ITEMS = 0x7E2400
