@@ -1444,6 +1444,68 @@ def render_backing(m, flat=False):
         "void wram_write16(GameState *g, uint32_t at, uint16_t v) { w16(g, at, v); }",
     ]
     if flat:
+        out += [
+            "",
+            "/* An accessor's own bytes, every one of which an owner keeps: read and",
+            "   written where work RAM keeps them, the whole value's time at once. */",
+            "static inline uint8_t *kept(const GameState *g, uint32_t a)",
+            "{",
+            "    a -= 0x7E0000u;",
+            "    return &state_host_vars_const(g)->bank[a >> 16][a & 0xFFFFu];",
+            "}",
+            "",
+            "static inline void timed(const GameState *g, uint32_t clocks)",
+            "{",
+            "    if (!peeking)",
+            "        state_host_game_access(g, clocks);",
+            "}",
+            "",
+            "static inline uint8_t get8(const GameState *g, uint32_t a) { timed(g, 8); return *kept(g, a); }",
+            "static inline uint16_t get16(const GameState *g, uint32_t a)",
+            "{",
+            "    timed(g, 16);",
+            "    const uint8_t *p = kept(g, a);",
+            "    return (uint16_t)(p[0] | p[1] << 8);",
+            "}",
+            "static inline uint32_t get24(const GameState *g, uint32_t a)",
+            "{",
+            "    timed(g, 24);",
+            "    const uint8_t *p = kept(g, a);",
+            "    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16;",
+            "}",
+            "static inline uint32_t get32(const GameState *g, uint32_t a)",
+            "{",
+            "    timed(g, 32);",
+            "    const uint8_t *p = kept(g, a);",
+            "    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;",
+            "}",
+            "",
+            "static inline void put8(GameState *g, uint32_t a, uint8_t v) { timed(g, 8); *kept(g, a) = v; }",
+            "static inline void put16(GameState *g, uint32_t a, uint16_t v)",
+            "{",
+            "    timed(g, 16);",
+            "    uint8_t *p = kept(g, a);",
+            "    p[0] = (uint8_t)v;",
+            "    p[1] = (uint8_t)(v >> 8);",
+            "}",
+            "static inline void put24(GameState *g, uint32_t a, uint32_t v)",
+            "{",
+            "    timed(g, 24);",
+            "    uint8_t *p = kept(g, a);",
+            "    p[0] = (uint8_t)v;",
+            "    p[1] = (uint8_t)(v >> 8);",
+            "    p[2] = (uint8_t)(v >> 16);",
+            "}",
+            "static inline void put32(GameState *g, uint32_t a, uint32_t v)",
+            "{",
+            "    timed(g, 32);",
+            "    uint8_t *p = kept(g, a);",
+            "    p[0] = (uint8_t)v;",
+            "    p[1] = (uint8_t)(v >> 8);",
+            "    p[2] = (uint8_t)(v >> 16);",
+            "    p[3] = (uint8_t)(v >> 24);",
+            "}",
+        ]
         out += render_flat_owners(m)
     out += render_page_backing(m)
     checked = checked_vars(m)
@@ -1459,50 +1521,55 @@ def render_backing(m, flat=False):
                 continue
             for a in group:
                 w = width_of(a) * 8
+                # An accessor whose every byte an owner keeps reads and writes
+                # them in place; an index out of range, or a byte no owner
+                # keeps, goes by address as the original's would.
+                bad = " || ".join("%s >= %s" % (arg, limit) for arg, limit, _ in Accessor(a.var, a.field).bounds())
+                if a.var.on_instances() and a.var.page.shape() == "named":
+                    bad = "(unsigned)page >= %du" % len(a.var.page.instances) + (" || " + bad if bad else "")
+                direct = not a.unchecked and flat_owned(a, ov)
                 for write in (False, True):
                     name = ("set_" if write else "") + a.name
                     checks = "".join("IN_RANGE(g, %d, \"%s\", \"%s\", %s, %s); "
                                      % (ids[a.var.name], name, what, arg, limit)
                                      for arg, limit, what in a.bounds())
-                    body = ("w%d(g, %s, v);" if write else "return r%d(g, %s);") % (w, a.address())
+                    by_address = ("w%d(g, %s, v);" if write else "return r%d(g, %s);") % (w, a.address())
+                    if not direct:
+                        body = by_address
+                    else:
+                        body = ("put%d(g, %s, v);" if write else "return get%d(g, %s);") % (w, a.address())
+                        if bad:
+                            body = "if (%s) { %s%s } %s" % (bad, by_address, " return;" if write else "", body)
                     out.append("%s { %s%s }" % (a.signature(write), checks, body))
     out += ["", "#endif", ""]
     return "\n".join(out)
 
 
+def flat_owned(a, ov):
+    """Whether an owner keeps every byte an accessor's value can take, over
+    each of its instances, elements, rows and columns: then the flat state's
+    accessor reads them where work RAM keeps them, with nothing to look up."""
+    return all(addr in ov.at for base in a.var.bases() for addr in accessor_bytes(a, base + a.offset))
+
+
 def render_flat_owners(m):
-    """For the flat state: the runs of work RAM no owner keeps, whose bytes
-    read 0, and the overlays' diagnostics, which one byte for every owner
-    leaves nothing to count."""
+    """For the flat state: the bytes of work RAM an owner keeps, a bit each
+    (those no owner keeps read 0), and the overlays' diagnostics, which one
+    byte for every owner leaves nothing to count."""
     owned = Overlays.of(m).at
-    runs, start = [], None
-    for addr in range(0x7E0000, 0x800001):
-        free = addr < 0x800000 and addr not in owned
-        if free and start is None:
-            start = addr
-        elif not free and start is not None:
-            runs.append((start, addr))
-            start = None
+    bits = [0] * (0x20000 // 8)
+    for addr in owned:
+        if 0x7E0000 <= addr < 0x800000:
+            bits[(addr - 0x7E0000) >> 3] |= 1 << (addr & 7)
     out = ["", "/* ---- the bytes no owner keeps -------------------------------------------------------- */", "",
-           "/* Each run's first address and the one after it, in order. */",
-           "static const uint32_t unowned[][2] = {"]
-    out += ["    { 0x%06Xu, 0x%06Xu }," % run for run in runs]
+           "/* A bit for each byte of work RAM, from $7E:0000: set where an owner keeps it. */",
+           "static const uint8_t owned[0x20000 / 8] = {"]
+    out += ["    " + ", ".join("0x%02X" % b for b in bits[at:at + 16]) + "," for at in range(0, len(bits), 16)]
     out += ["};", "",
             "bool vars_flat_owned(uint32_t addr)",
             "{",
-            "    unsigned lo = 0, hi = sizeof unowned / sizeof unowned[0];",
-            "    if (addr < 0x7E0000u || addr >= 0x800000u)",
-            "        return false;",
-            "    while (lo < hi) {",
-            "        unsigned mid = (lo + hi) / 2;",
-            "        if (addr >= unowned[mid][1])",
-            "            lo = mid + 1;",
-            "        else if (addr < unowned[mid][0])",
-            "            hi = mid;",
-            "        else",
-            "            return false;",
-            "    }",
-            "    return true;",
+            "    uint32_t at = addr - 0x7E0000u;",
+            "    return at < 0x20000u && (owned[at >> 3] >> (at & 7) & 1u);",
             "}", "",
             "/* One byte for every owner: no last writer to keep, no crossing to count. */",
             "void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)",
@@ -1958,6 +2025,17 @@ def projection_statement(a, write, byte="offset", instance=None):
     return "*value = (uint8_t)(%s >> (%s * 8));" % (member, byte)
 
 
+def projection_place(a, byte="offset", instance=None):
+    """The integer member holding an owner field's byte at `offset`, and which
+    byte of its value that is."""
+    member = host_member(a, element="element", byte=byte, instance=instance)
+    if a.elements.name:
+        return element_member(a, member, byte)
+    if a.blob or a.table:
+        return member, "0u"
+    return member, byte
+
+
 def projection_indices(a):
     out = []
     if a.var.rows:
@@ -1970,6 +2048,7 @@ def projection_indices(a):
 def render_host_backing(m):
     out = ["/* Address projection of module fields; generated by tools/ram_map.py accessors. */",
            '#include "port/vars_host.h"', "#include <string.h>", "#ifndef CT_FLAT_STATE", "",
+           "static void resolve_the_bytes(const VarsHost *h);", "",
            "void vars_host_init(VarsHost *h)", "{", "    memset(h, 0x55, sizeof *h);"]
     groups = owner_accessors(m)
     # 24-bit values live in uint32_t, whose unused high byte is always zero.
@@ -1992,7 +2071,7 @@ def render_host_backing(m):
             out += ["    %s%s = 0x555555u;" % ("    " if a.var.count > 1 or a.var.on_instances() else "", host_member(a, element="i", instance="instance"))]
     if Overlays.of(m).shared:
         out += ["    memset(h->overlay_writer, 0, sizeof h->overlay_writer);"]
-    out += ["    vars_host_crossings_reset(h);", "}", ""]
+    out += ["    vars_host_crossings_reset(h);", "    resolve_the_bytes(h);", "}", ""]
     # Aliases use named owners, with offsets in the owner's serialized layout.
     # No host pointer cast, union type punning, padding or endian assumption.
     for v in alias_owners(m):
@@ -2074,42 +2153,112 @@ def render_host_backing(m):
                                "[%d]" % instance if a.var.on_instances() else "")
             for a, instance, _ in placed]
     out += ["};", "#endif", ""]
-    for write in (False, True):
-        out += ["static void place_%s8(%sVarsHost *h, unsigned place, uint32_t addr, uint8_t %svalue)" %
-                ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
-        if not placed:
-            out += ["    (void)h; (void)place; (void)addr; (void)value;"]
-        else:
-            out += ["    switch (place) {"]
-            for number, (a, instance, base) in enumerate(placed, 1):
-                out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % base]
-                out += ["        " + line for line in projection_indices(a)]
-                out += ["        " + projection_statement(a, write, instance=str(instance)), "        return;", "    }"]
-            out += ["    default: break;", "    }"]
-        out += ["}", ""]
-    out += ["bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value)", "{"]
-    if placed:
-        out += ["    unsigned place = projection_at(addr);", "    if (!place)", "        return false;"]
-        if ov.shared:
-            out += ["    unsigned set, slot = overlay_at(addr, &set);",
-                    "    if (slot && h->overlay_writer[slot - 1])",
-                    "        place = overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u];"]
-        out += ["    place_read8(h, place, addr, value);", "    return true;", "}", ""]
+    out += ["/* Which byte of the host's storage holds each byte of an integer's value",
+            " * (a uint8_t, uint16_t or uint32_t), as the host lays integers out. */",
+            "static uint8_t value_byte[5][4];", "",
+            "static void learn_byte_order(void)", "{",
+            "    const uint16_t two = 0x0100u;",
+            "    const uint32_t four = 0x03020100u;",
+            "    for (unsigned i = 0; i < 2; i++)",
+            "        value_byte[2][((const uint8_t *)&two)[i]] = (uint8_t)i;",
+            "    for (unsigned i = 0; i < 4; i++)",
+            "        value_byte[4][((const uint8_t *)&four)[i]] = (uint8_t)i;",
+            "}", "",
+            "static uint32_t at_byte(const VarsHost *h, const void *object, unsigned size, unsigned byte)",
+            "{",
+            "    return (uint32_t)((const uint8_t *)object - (const uint8_t *)h) + value_byte[size][byte];",
+            "}", "",
+            "/* Where in the host's storage an owner field keeps a byte of the original's",
+            " * address, as an offset from the start of the storage. */",
+            "static uint32_t place_byte(const VarsHost *h, unsigned place, uint32_t addr)", "{"]
+    if not placed:
+        out += ["    (void)h; (void)place; (void)addr;"]
     else:
-        out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
-    out += ["bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value)", "{"]
+        out += ["    switch (place) {"]
+        for number, (a, instance, base) in enumerate(placed, 1):
+            member, byte = projection_place(a, instance=str(instance))
+            out += ["    case %d: {" % number, "        uint32_t offset = addr - 0x%06Xu;" % base]
+            out += ["        " + line for line in projection_indices(a)]
+            out += ["        return at_byte(h, &%s, sizeof %s, %s);" % (member, member, byte), "    }"]
+        out += ["    default: break;", "    }"]
+    out += ["    return 0;", "}", ""]
+    pairs = sum(len(ov.at[addr]) for addr in ov.shared)
+    out += ["/* Each byte of work RAM, resolved once to where the storage keeps it",
+            " * (place_byte): its offset in the storage, plus 1, or 0 where no owner",
+            " * keeps it. Where owners keep it beside each other, that is the first",
+            " * owner's, with SHARED; the byte's place in overlay_writer follows from",
+            " * overlay_pages, and shared_bytes keeps every owner's offset from",
+            " * shared_first[place], in overlay_owner_sets's order, with their count above",
+            " * OWNERS_AT. The layout is the same for every state. */",
+            "enum { WORK_RAM_BYTES = 0x20000, OWNERS_AT = 24 };",
+            "#define SHARED 0x80000000u",
+            "static uint32_t byte_kept[WORK_RAM_BYTES];"]
+    if ov.shared:
+        out += ["static uint32_t shared_first[%d];" % (len(ov.pages) * 256),
+                "static uint32_t shared_bytes[%d];" % pairs, "",
+                "/* A shared byte's place in overlay_writer. */",
+                "static uint32_t writer_slot(uint32_t at)",
+                "{",
+                "    return (overlay_pages[at >> 8] - 1u) * 256u + (at & 255u);",
+                "}"]
+    out += ["", "static void resolve_the_bytes(const VarsHost *h)", "{",
+            "    static bool resolved;",
+            "    if (resolved)", "        return;",
+            "    resolved = true;",
+            "    learn_byte_order();"]
     if placed:
-        out += ["    unsigned place = projection_at(addr);", "    if (!place)", "        return false;"]
         if ov.shared:
-            out += ["    unsigned set, slot = overlay_at(addr, &set);", "    if (slot) {",
-                    "        /* Every owner of the byte takes the write, as the original's one byte does. */",
-                    "        for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++)",
-                    "            place_write8(h, *owner, addr, value);",
-                    "        h->overlay_writer[slot - 1] = 0;",
-                    "        return true;", "    }"]
-        out += ["    place_write8(h, place, addr, value);", "    return true;", "}", ""]
+            out += ["    uint32_t shared = 0;"]
+        out += ["    for (uint32_t at = 0; at < WORK_RAM_BYTES; at++) {",
+                "        uint32_t addr = 0x7E0000u + at;",
+                "        unsigned place = projection_at(addr);",
+                "        if (!place)",
+                "            continue;",
+                "        byte_kept[at] = place_byte(h, place, addr) + 1u;"]
+        if ov.shared:
+            out += ["        unsigned set, slot = overlay_at(addr, &set);",
+                    "        if (!slot)",
+                    "            continue;",
+                    "        uint32_t owners = 0, first = shared;",
+                    "        for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++, owners++)",
+                    "            shared_bytes[shared++] = place_byte(h, *owner, addr);",
+                    "        shared_first[slot - 1] = first | owners << OWNERS_AT;",
+                    "        byte_kept[at] |= SHARED;"]
+        out += ["    }"]
     else:
-        out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
+        out += ["    (void)h;"]
+    out += ["}", ""]
+    out += ["bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value)", "{",
+            "    uint32_t at = addr - 0x7E0000u;",
+            "    uint32_t kept = at < WORK_RAM_BYTES ? byte_kept[at] : 0u;",
+            "    if (!kept)", "        return false;",
+            "    const uint8_t *storage = (const uint8_t *)h;"]
+    if ov.shared:
+        out += ["    if (kept & SHARED) {",
+                "        /* The owner that wrote it last, when that isn't the first. */",
+                "        uint32_t slot = writer_slot(at);",
+                "        unsigned writer = h->overlay_writer[slot];",
+                "        if (writer > 1u) {",
+                "            *value = storage[shared_bytes[(shared_first[slot] & ((1u << OWNERS_AT) - 1u)) + writer - 1u]];",
+                "            return true;",
+                "        }",
+                "        kept &= ~SHARED;", "    }"]
+    out += ["    *value = storage[kept - 1u];", "    return true;", "}", ""]
+    out += ["bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value)", "{",
+            "    uint32_t at = addr - 0x7E0000u;",
+            "    uint32_t kept = at < WORK_RAM_BYTES ? byte_kept[at] : 0u;",
+            "    if (!kept)", "        return false;",
+            "    uint8_t *storage = (uint8_t *)h;"]
+    if ov.shared:
+        out += ["    if (kept & SHARED) {",
+                "        /* Every owner of the byte takes the write, as the original's one byte does. */",
+                "        uint32_t slot = writer_slot(at), first = shared_first[slot];",
+                "        const uint32_t *owner = &shared_bytes[first & ((1u << OWNERS_AT) - 1u)];",
+                "        for (uint32_t k = first >> OWNERS_AT; k; k--)",
+                "            storage[*owner++] = value;",
+                "        h->overlay_writer[slot] = 0;",
+                "        return true;", "    }"]
+    out += ["    storage[kept - 1u] = value;", "    return true;", "}", ""]
     out += ["void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:
         out += ["    for (unsigned i = 0; i < bytes; i++) {",

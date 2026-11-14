@@ -139,8 +139,8 @@ FieldObjectsPast *field_objects_past(GameState *g) { return &g->field_objects_pa
 MenuSpritesPast *menu_sprites_past(GameState *g) { return &g->menu_sprites_past; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
-VarsHost *state_host_vars(GameState *g) { return &g->vars; }
-const VarsHost *state_host_vars_const(const GameState *g) { return &g->vars; }
+/* state_host_vars (state_host.h) reaches the storage as the state's first member. */
+_Static_assert(offsetof(GameState, vars) == 0, "the state's storage is its first member");
 
 StateHostWork state_host_work(const GameState *g)
 {
