@@ -78,7 +78,7 @@ static void start_typing(GameState *g, MenuObject self)
     overworld_set_step(g, self, TYPES_THE_NAME);
     set_menu_object_slots_sprite_frames(g, self, 0);
     set_menu_text_string(g, overworld_sign(g));
-    set_menu_text_strings(g, OVERWORLD_PLACE_NAMES);
+    set_menu_text_strings(g, overworld_place_names());
     set_menu_text_layout(g, MENU_TEXT_A_TILE_FURTHER_LEFT);
     set_menu_text_tiles(g, RAM_OVERWORLD_SIGN_LABEL);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
@@ -164,7 +164,7 @@ bool overworld_sign_can_show(const GameState *g, MenuObject self)
     if (step >= SIGN_STEPS || !menu_object_queue_is_whole(g))
         return false;
     if (step <= WAITS_FOR_A_NAME && overworld_sign(g) != 0
-        && !menu_text_can_be_typed(g, OVERWORLD_PLACE_NAMES, overworld_sign(g), RAM_OVERWORLD_SIGN_LABEL))
+        && !menu_text_can_be_typed(g, overworld_place_names(), overworld_sign(g), RAM_OVERWORLD_SIGN_LABEL))
         return false;
     if (step == TYPES_THE_NAME && !menu_text_can_carry_on(g))
         return false;

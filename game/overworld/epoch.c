@@ -149,7 +149,7 @@ static void set_off_through_time(GameState *g, MenuObject self, uint16_t chosen)
 {
     set_step(g, self, EPOCH_RUNS_A_SCENE);
     set_menu_object_slots_command_frames(g, self, 0);
-    set_menu_object_slots_script(g, self, EPOCH_LEAVES_THROUGH_TIME);
+    set_menu_object_slots_script(g, self, epoch_scene_script(EPOCH_LEAVES_THROUGH_TIME));
     bool wings = has_its_wings(g);
     for (unsigned i = 0; i < sizeof EPOCH_ARRIVALS / sizeof EPOCH_ARRIVALS[0]; i++) {
         if (EPOCH_ARRIVALS[i].chosen != chosen || !(wings ? EPOCH_ARRIVALS[i].with_wings : EPOCH_ARRIVALS[i].without_wings))
@@ -234,7 +234,7 @@ static void set_down(GameState *g, MenuObject self)
     mark_epoch(g, EPOCH_ENTERING_THE_BLACK_OMEN | EPOCH_OVER_THE_BLACK_OMEN, false);
     set_overworld_epoch_flying(g, true);
     if (arriving) {
-        set_menu_object_slots_script(g, self, EPOCH_ARRIVES_THROUGH_TIME);
+        set_menu_object_slots_script(g, self, epoch_scene_script(EPOCH_ARRIVES_THROUGH_TIME));
         set_menu_object_slots_command_frames(g, self, 0);
         return;
     }
@@ -257,7 +257,7 @@ static void rise(GameState *g, MenuObject self)
     if (menu_story_progress(g) == STORY_SHOWS_THE_FIRST_FLIGHT) {
         if (overworld_mode(g) == OVERWORLD_ON_THE_MAP) {
             overworld_set_mode(g, OVERWORLD_BACK_ON_THE_MAP);
-            TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, EPOCH_TAKES_OFF_IN_A_SCENE, MENU_ORDINARY_SLOT));
+            TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, epoch_scene_script(EPOCH_TAKES_OFF_IN_A_SCENE), MENU_ORDINARY_SLOT));
             animate(g);
         }
         return;
@@ -307,7 +307,7 @@ bool overworld_epoch_takes_the_party_into_the_omen(GameState *g)
     if (!epoch_is(g, EPOCH_ENTERING_THE_BLACK_OMEN)) {
         overworld_set_mode(g, OVERWORLD_BACK_ON_THE_MAP);
         mark_epoch(g, EPOCH_ENTERING_THE_BLACK_OMEN, true);
-        TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, EPOCH_ENTERS_THE_BLACK_OMEN, MENU_ORDINARY_SLOT));
+        TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, epoch_scene_script(EPOCH_ENTERS_THE_BLACK_OMEN), MENU_ORDINARY_SLOT));
     }
     return true;
 }

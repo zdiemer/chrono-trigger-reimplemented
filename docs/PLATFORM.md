@@ -211,7 +211,7 @@ same packed, which the game unpacks as it loads them
 the locations' records load them into BG3, the rest four), the characters'
 sprites (`setup_character_graphics.N`), the world maps' tiles
 (`overworld_map_graphics.N`, the top layer's two planes), the menus' scenes'
-(`menu_scene_stream.N`) and the credits' letters
+(`overworld_sprite_graphics.N`) and the credits' letters
 (`field_credits_letters_packed`). The tiles kept as they are are the
 battlefield's two-plane sheet (`battlefield_tiles`, `$CF:0000`, split from
 the descriptors and palettes after it) and the sprites' four banks
@@ -299,7 +299,7 @@ two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
 effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
 `lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
 digit a cell; `lz:colors:16` the world maps' packed palettes
-(`menu_scene_stream_c6fea0.N`); and `lz` for the three attract streams
+(`overworld_palettes.N`); and `lz` for the three attract streams
 whose layout no reader has shown yet, in hex. A
 tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
 so a map is edited by its tile numbers, flips, priority and palettes.

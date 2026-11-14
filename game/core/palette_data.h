@@ -13,7 +13,10 @@
 /* A color of the palette animations' frames, which lie in bank $F6, as a
  * BGR555 word. `at` is its offset in the bank (a slot's frames, then 2 bytes a
  * color); offsets wrap within the bank. */
-static inline uint16_t palette_frame_color(const GameState *g, uint16_t at) { return rom_read16(g, 0xF60000u + at); }
+static inline uint16_t palette_frame_color(const GameState *g, uint16_t at)
+{
+    return asset_read16_at_place(g, ASSET_PALETTE_ANIMATION_FRAMES, at);
+}
 
 /* The palette animation set of the location whose record (location_records,
  * 14 bytes each at $F6:0000) is at byte offset `record`: its byte 3. */
@@ -32,7 +35,11 @@ static inline uint16_t palette_animation_set_start(const GameState *g, uint8_t s
 
 /* A byte of the stream at offset `at` (16-bit), and the long address of that
  * byte, which a slot keeps as its frame table. */
-static inline uint32_t palette_animation_set_address(uint16_t at) { return 0xFD0000u | (uint16_t)(0xFA77u + at); }
+static inline uint32_t palette_animation_set_address(uint16_t at)
+{
+    uint16_t start = (uint16_t)asset_address(ASSET_PALETTE_ANIMATION_SETS);
+    return asset_place_address(ASSET_PALETTE_ANIMATION_SETS, (uint16_t)(start + at));
+}
 
 static inline uint8_t palette_animation_set_byte(const GameState *g, uint16_t at)
 {

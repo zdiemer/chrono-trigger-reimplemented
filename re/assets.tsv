@@ -40,12 +40,12 @@ menu_return_flags	bytes	C2:2509	C2:250C	raw	accessor menu_return_flags
 menu_vram_clearing_zero	bytes	C2:26D4	C2:26D5	raw	accessor menu_vram_clearing_zero
 overworld_fade_scripts	script	C2:2EC1	C2:2ED8	script:object	accessor overworld_fade_script
 epoch_boarded_in_a_scene	script	C2:31A8	C2:31B1	script:object	accessor epoch_boarded_in_a_scene
-bytes_c2324c	bytes	C2:324C	C2:3263	raw	read
+overworld_standing_reaches	struct	C2:324C	C2:3263	struct:records:8	accessor overworld_reach
 overworld_walking_animation	bytes	C2:397F	C2:3986	raw	accessor overworld_walking_animation
 overworld_standing_animation	bytes	C2:39AA	C2:39AD	raw	accessor overworld_standing_animation
 overworld_epoch_pace	words	C2:4899	C2:48A8	raw	accessor overworld_epoch_pace
 overworld_epoch_flying_animation	bytes	C2:48C5	C2:48CC	raw	accessor overworld_epoch_flying_animation
-bytes_c24946	bytes	C2:4946	C2:495D	raw	read
+overworld_flying_reaches	struct	C2:4946	C2:495D	struct:records:8	accessor overworld_reach
 epoch_scene_scripts	script	C2:4A9B	C2:4CC4	script:object	accessor epoch_scene_script
 overworld_dactyl_pace	words	C2:5037	C2:504A	raw	accessor overworld_dactyl_pace
 overworld_dactyl_second_sprite_below	words	C2:508F	C2:5096	raw	accessor overworld_dactyl_second_sprite_below
@@ -134,25 +134,25 @@ scene_script_ptrs.4	lz	C3:AC3E	C3:BA13	lz:object	scene_script_ptrs entry
 scene_script_ptrs.5	lz	C3:BA14	C3:BF7A	lz:object	scene_script_ptrs entry
 scene_script_ptrs.6	lz	C3:BF7B	C3:C804	lz:object	scene_script_ptrs entry
 scene_script_ptrs.7	lz	C3:C805	C3:CE43	lz:object	scene_script_ptrs entry
-menu_scene_stream_c6fea0.0	lz	C3:CE44	C3:CED9	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.1	lz	C3:CEDA	C3:CF6B	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.2	lz	C3:CF6C	C3:CFF4	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.3	lz	C3:CFF5	C3:D01B	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.4	lz	C3:D01C	C3:D1EB	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.5	lz	C3:D1EC	C3:D35E	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.6	lz	C3:D35F	C3:D4D7	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.7	lz	C3:D4D8	C3:D644	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.8	lz	C3:D645	C3:D7C2	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.9	lz	C3:D7C3	C3:D937	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.10	lz	C3:D938	C3:DAF1	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.11	lz	C3:DAF2	C3:DB98	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.12	lz	C3:DB99	C3:DC44	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.13	lz	C3:DC45	C3:DCBD	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.14	lz	C3:DCBE	C3:DD12	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.15	lz	C3:DD13	C3:DD84	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.16	lz	C3:DD85	C3:DEB1	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.17	lz	C3:DEB2	C3:DF3D	lz:colors:16	menu_scene_stream_c6fea0 entry
-menu_scene_stream_c6fea0.18	lz	C3:DF3E	C3:DFE0	lz:colors:16	menu_scene_stream_c6fea0 entry
+overworld_palettes.0	lz	C3:CE44	C3:CED9	lz:colors:16	overworld_palettes entry
+overworld_palettes.1	lz	C3:CEDA	C3:CF6B	lz:colors:16	overworld_palettes entry
+overworld_palettes.2	lz	C3:CF6C	C3:CFF4	lz:colors:16	overworld_palettes entry
+overworld_palettes.3	lz	C3:CFF5	C3:D01B	lz:colors:16	overworld_palettes entry
+overworld_palettes.4	lz	C3:D01C	C3:D1EB	lz:colors:16	overworld_palettes entry
+overworld_palettes.5	lz	C3:D1EC	C3:D35E	lz:colors:16	overworld_palettes entry
+overworld_palettes.6	lz	C3:D35F	C3:D4D7	lz:colors:16	overworld_palettes entry
+overworld_palettes.7	lz	C3:D4D8	C3:D644	lz:colors:16	overworld_palettes entry
+overworld_palettes.8	lz	C3:D645	C3:D7C2	lz:colors:16	overworld_palettes entry
+overworld_palettes.9	lz	C3:D7C3	C3:D937	lz:colors:16	overworld_palettes entry
+overworld_palettes.10	lz	C3:D938	C3:DAF1	lz:colors:16	overworld_palettes entry
+overworld_palettes.11	lz	C3:DAF2	C3:DB98	lz:colors:16	overworld_palettes entry
+overworld_palettes.12	lz	C3:DB99	C3:DC44	lz:colors:16	overworld_palettes entry
+overworld_palettes.13	lz	C3:DC45	C3:DCBD	lz:colors:16	overworld_palettes entry
+overworld_palettes.14	lz	C3:DCBE	C3:DD12	lz:colors:16	overworld_palettes entry
+overworld_palettes.15	lz	C3:DD13	C3:DD84	lz:colors:16	overworld_palettes entry
+overworld_palettes.16	lz	C3:DD85	C3:DEB1	lz:colors:16	overworld_palettes entry
+overworld_palettes.17	lz	C3:DEB2	C3:DF3D	lz:colors:16	overworld_palettes entry
+overworld_palettes.18	lz	C3:DF3E	C3:DFE0	lz:colors:16	overworld_palettes entry
 padding_c3dfe1	padding	C3:DFE1	C3:DFFF	raw	zero to the end of the bank
 menu_sprite_script_start	words	C3:E000	C3:FFFF	raw	accessor menu_sprite_script_start
 overworld_map_graphics.0	lz	C4:0000	C4:0EB7	lz:4bpp	overworld_map_graphics entry
@@ -192,20 +192,20 @@ overworld_map_graphics.33	lz	C5:8F5A	C5:97F6	lz:4bpp	overworld_map_graphics entr
 overworld_map_graphics.34	lz	C5:97F7	C5:9847	lz:2bpp	overworld_map_graphics entry
 overworld_map_graphics.35	lz	C5:9848	C5:98AB	lz:2bpp	overworld_map_graphics entry
 overworld_map_graphics.36	lz	C5:98AC	C5:9A55	lz:2bpp	overworld_map_graphics entry
-menu_scene_stream.0	lz	C5:9A56	C5:B113	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.1	lz	C5:B114	C5:B797	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.2	lz	C5:B798	C5:C6EC	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.3	lz	C5:C6ED	C5:CD20	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.4	lz	C5:CD21	C5:D596	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.5	lz	C5:D597	C5:D80A	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.6	lz	C5:D80B	C5:DA87	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.7	lz	C5:DA88	C5:E0F6	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.8	lz	C5:E0F7	C5:EAAE	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.9	lz	C5:EAAF	C5:ED13	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.10	lz	C5:ED14	C5:F364	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.11	lz	C6:0000	C6:07B5	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.12	lz	C6:07B6	C6:0E99	lz:4bpp	menu_scene_stream entry
-menu_scene_stream.13	lz	C6:0E9A	C6:1E70	lz:4bpp	menu_scene_stream entry
+overworld_sprite_graphics.0	lz	C5:9A56	C5:B113	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.1	lz	C5:B114	C5:B797	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.2	lz	C5:B798	C5:C6EC	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.3	lz	C5:C6ED	C5:CD20	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.4	lz	C5:CD21	C5:D596	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.5	lz	C5:D597	C5:D80A	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.6	lz	C5:D80B	C5:DA87	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.7	lz	C5:DA88	C5:E0F6	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.8	lz	C5:E0F7	C5:EAAE	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.9	lz	C5:EAAF	C5:ED13	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.10	lz	C5:ED14	C5:F364	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.11	lz	C6:0000	C6:07B5	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.12	lz	C6:07B6	C6:0E99	lz:4bpp	overworld_sprite_graphics entry
+overworld_sprite_graphics.13	lz	C6:0E9A	C6:1E70	lz:4bpp	overworld_sprite_graphics entry
 mixed_c61e71	mixed	C6:1E71	C6:1FFF	raw	read
 stream_c62000	lz	C6:2000	C6:2410	lz	read
 overworld_place_lists.0	lz	C6:2411	C6:25DE	lz:place-lists	overworld_place_lists entry
@@ -369,9 +369,9 @@ overworld_last_sprite_colors	words	C6:F620	C6:F63F	palette:16	accessor overworld
 menu_scene_velocity_x	words	C6:F640	C6:F6FF	raw	accessor menu_scene_velocity_x
 menu_gate_pixel_pair	bytes	C6:F700	C6:FCFF	raw	accessor menu_gate_pixel_pair
 overworld_map_record_of	words	C6:FD00	C6:FDEF	raw	accessor overworld_map_record_of
-menu_scene_stream	ptr24	C6:FDF0	C6:FE19	raw	accessor menu_scene_stream
+overworld_sprite_graphics	ptr24	C6:FDF0	C6:FE19	raw	accessor overworld_stream, menu_scene_stream
 overworld_map_graphics	ptr24	C6:FE20	C6:FE8E	raw	accessor overworld_map_graphics
-menu_scene_stream_c6fea0	ptr24	C6:FEA0	C6:FED8	raw	accessor menu_scene_stream
+overworld_palettes	ptr24	C6:FEA0	C6:FED8	raw	accessor menu_scene_stream
 overworld_tile_groups	ptr24	C6:FF00	C6:FF11	raw	accessor overworld_tile_groups
 overworld_maps	ptr24	C6:FF20	C6:FF37	raw	accessor overworld_maps
 overworld_top_layer_tilemaps	ptr24	C6:FF40	C6:FF51	raw	accessor overworld_top_layer_tilemaps

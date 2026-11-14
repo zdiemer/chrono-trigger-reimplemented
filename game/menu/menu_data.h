@@ -884,7 +884,7 @@ static inline uint32_t menu_time_dial_script(uint16_t at) { return asset_address
 
 static inline uint32_t menu_scene_stream(const GameState *g, MenuSceneResource kind, uint8_t number)
 {
-    AssetId streams = kind == MENU_SCENE_GRAPHICS ? ASSET_MENU_SCENE_STREAM : ASSET_MENU_SCENE_STREAM_C6FEA0;
+    AssetId streams = kind == MENU_SCENE_GRAPHICS ? ASSET_OVERWORLD_SPRITE_GRAPHICS : ASSET_OVERWORLD_PALETTES;
     uint32_t at = MENU_SCENE_POINTER_BYTES * number;
     return asset_read16(g, streams, at) | (uint32_t)asset_read8(g, streams, at + 2) << 16;
 }

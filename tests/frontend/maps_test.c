@@ -192,7 +192,7 @@ int main(void)
             fill(&asset_catalogue[i], i);
     AssetStore made = { made_up_find, NULL };
     const AssetEntry *map = named("field_packed_map.3"), *tilemap = named("overworld_top_layer_tilemaps.0"),
-                     *looks = named("tile_looks_address.0"), *colors = named("menu_scene_stream_c6fea0.0"),
+                     *looks = named("tile_looks_address.0"), *colors = named("overworld_palettes.0"),
                      *regions = named("overworld_region_maps.0");
     CHECK(map && tilemap && looks && colors && regions);
     if (!map || !tilemap || !looks || !colors || !regions)
@@ -211,7 +211,7 @@ int main(void)
     if (!text)
         return 1;
     char *m = strstr(text, "[field_packed_map.3]"), *t = strstr(text, "[overworld_top_layer_tilemaps.0]"),
-         *l = strstr(text, "[tile_looks_address.0]"), *c = strstr(text, "[menu_scene_stream_c6fea0.0]"),
+         *l = strstr(text, "[tile_looks_address.0]"), *c = strstr(text, "[overworld_palettes.0]"),
          *g = strstr(text, "[overworld_region_maps.0]");
     CHECK(m && t && l && c && g);
     if (!m || !t || !l || !c || !g)
@@ -257,7 +257,7 @@ int main(void)
     /* Only the resources the text names are its own: ground kinds, and two colors. */
     char one[512];
     snprintf(one, sizeof one, "[overworld_ground_kinds.0]\npacked short\n0123\n4567\n"
-                              "[menu_scene_stream_c6fea0.0]\npacked long\n31.00.15+ 00.31.00\n");
+                              "[overworld_palettes.0]\npacked long\n31.00.15+ 00.31.00\n");
     const AssetEntry *kinds = named("overworld_ground_kinds.0");
     d = decoded_import(&map_text, one, strlen(one), &made, &line, &why);
     CHECK(d != NULL);
@@ -295,7 +295,7 @@ int main(void)
     refused(&made, "[overworld_top_layer_tilemaps.0]\npacked short\n400:0:---\n", 3);   /* tile past 3FF */
     refused(&made, "[overworld_top_layer_tilemaps.0]\npacked short\n001:8:---\n", 3);   /* palette past 7 */
     refused(&made, "[overworld_top_layer_tilemaps.0]\npacked short\n001:0:v--\n", 3);   /* flags out of place */
-    refused(&made, "[menu_scene_stream_c6fea0.0]\npacked short\n32.00.00\n", 3);
+    refused(&made, "[overworld_palettes.0]\npacked short\n32.00.00\n", 3);
     refused(&made, "[tile_looks_address.0]\npacked short\n000:0:--- 000:0:---\n", 1);   /* half a look: at its [name] */
     refused(&made, "[tile_looks_address.0]\npacked short\n000:0:---\n", 3);             /* a look is two across */
     refused(&made, "[tile_looks_address.0]\npacked short\nrest 01 02 03 04 05 06 07 08\n", 3);
