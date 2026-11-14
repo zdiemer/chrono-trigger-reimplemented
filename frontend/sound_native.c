@@ -31,7 +31,12 @@ enum {
 
 typedef enum { WAITING, ECHO_DRAINING, ECHO_FILLING } Phase;
 
-enum { AUDIO_FRAMES = 8192 };
+/* The mixed sound kept for the driver to take: a build that plays none
+ * (targets/gba/) keeps a few frames of it. */
+#ifndef SOUND_NATIVE_AUDIO_FRAMES
+#define SOUND_NATIVE_AUDIO_FRAMES 8192
+#endif
+enum { AUDIO_FRAMES = SOUND_NATIVE_AUDIO_FRAMES };
 
 /* A command that came while the driver waited for its echo: the game's (as
  * the CPU half took it) or one written to the ports. */

@@ -218,6 +218,19 @@ back to a view:
 around battle records, menu object remainders) had no reader left and were
 deleted; the overlays at their bytes name each other instead.
 
+## The flat state
+
+A build configured `-DCT_FLAT_STATE=ON` keeps the state as the original lays
+out its work RAM instead of the typed records: 128 KiB, a byte at each
+address. `tools/ram_map.py accessors` writes `runtime/port/vars_flat.c`
+beside `vars_ram.c`, every accessor in its address form, and the runs of
+addresses no owner keeps (`vars_flat_owned`), which read 0 as the address
+view's do. The backing keeps the two banks (`vars_flat_host.c`, or a
+target's own: the GBA's, PLATFORM.md "The GBA build, as built"). Owners kept
+apart by `overlays` share the one byte, so there is no last writer and no
+crossing to count; since no gate movie crosses, a flat build plays them as
+the typed one does, which `tools/lean_check.py` checks.
+
 ## What still uses addresses
 
 - Cartridge `.srm` projection retains the original eight-run layout below.

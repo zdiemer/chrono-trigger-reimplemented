@@ -92,6 +92,23 @@ jobs:
       - name: ROM-free Python tests
         run: python3 -m unittest discover tests
 
+  # The GBA program (targets/gba/), code only: no cartridge, so it is built and not played.
+  gba:
+    name: gba-arm-none-eabi
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the ARM toolchain
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+      - name: Configure
+        run: >-
+          cmake -S targets/gba -B build/gba -G Ninja -DCT_WERROR=ON
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/targets/gba/toolchain.cmake
+      - name: Build the GBA program
+        run: cmake --build build/gba -j 2
 
   native-player:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
