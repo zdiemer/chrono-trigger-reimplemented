@@ -206,8 +206,11 @@ Giga Gaia), it showed where native battle time fell short:
   the port's uploads don't charge their bytes, a follow-up. The field's,
   the events', the scenes', the world map's and the time gates' checks are
   looks too: measured again, the field's rates stay within 2% of the
-  original's but two (`$C0:21E1` ×1.82, `$C0:A810` ×0.85), and no place
-  moves. The battle's checks still count: as looks they leave its main
+  original's but two. `$C0:A810` takes its steady ×0.85; `$C0:21E1`'s ×1.82
+  is measured, not applied, as it runs 1.43-2.19 from movie to movie. Across the
+  84 movies places on time go 599 to 606 and in order 695 to 705 (the gate's
+  58: 395 to 394, 478 to 478); the rescue game at the fair moves away, its lag
+  on its line. The battle's checks still count: as looks they leave its main
   thread's routines 1.2 to 30 times under the original's, steadily across
   the three fights, and with those rates the Death Peak ascent's recorded
   fight ends in a game over (issue #376). Across the 84

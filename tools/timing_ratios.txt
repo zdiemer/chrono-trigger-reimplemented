@@ -182,6 +182,8 @@ C2051D 5435 20019 3.68  # attract-demo 3.75 events-epoch-lavos 3.50 events-fair-
 C20405 3545 12943 3.65  # attract-demo 3.60 events-epoch-lavos 4.03 events-fair-rescue 4.30 menus-epoch 4.03
 
 # With the port's own checks no longer counted as the game's time outside the battle (issue #349), the field's rates
-# measured again over the 25 movies: two move more than 10%, the rest stay within 2%:
-C021E1 6772 12312 1.82  # field 2.02 menu 2.03 events-fair-rescue 2.14 attract-demo 1.43 (its checks had stood for most of its time)
+# measured again over the 25 movies: two move more than 10%, the rest stay within 2%. $C0:A810's ratio is steady
+# (0.76-0.98 over 18 movies) and applied:
 C0A810 4979 4217 0.85  # field 0.96 attract-demo 0.88 events-epoch-lavos 0.80 menus-shop-inn 0.76
+# $C0:21E1's is measured, not applied: 2.02-2.19 in most movies but 1.43 in attract-demo, 1.63 in
+# events-end-of-time-gate and 1.71 in events-ocean-palace-lavos, so it isn't steady; it keeps 6772.
