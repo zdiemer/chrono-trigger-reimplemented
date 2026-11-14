@@ -700,12 +700,16 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   what they framed. `game/core/panel_layout.h` builds layouts: columns shown
   at a place, a window stretched with its inside's four-column pattern
   repeated.
-- **The battle window** (`game/battle/wide_window.c`) keeps the windows at its
-  left (the command windows, the enemies' list) at the view's left side,
-  stretches the party's window to its right side and spreads each member's
-  name, numbers and gauge across it; the tech page's two windows each stretch
-  to their side, and the item list and the message window across the view.
-  What the window's rows and frames show is noted as the vblank sends them
+- **The battle window** (`game/battle/wide_window.c`) keeps its windows the
+  size the original draws them. Where the frames have a border between
+  windows, those left of it (the enemies' list, a member's command window
+  over it, the tech page's list) go to the view's left side and the one right
+  of it (the party's, the tech page's MP) to its right side, with their text;
+  the gap between shows nothing, as the original's lines there show only the
+  window. A command window drawn over the enemies' list stands alone: the
+  rest of the list, whose names it covers, is left out rather than shown as
+  an empty piece of a window. The item list and the message window, a screen
+  across, stay in the middle. What the window's rows and frames show is noted as the vblank sends them
   (from the transfer's source, and the frames' window corners), so the layout
   always fits what VRAM holds.
 - **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) take
