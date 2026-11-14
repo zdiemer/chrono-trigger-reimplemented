@@ -498,6 +498,7 @@ typedef struct {
     uint8_t first_sprite;   /* OAM priority rotation */
     VidView view;           /* how much of the picture to draw (vid_view) */
     int16_t layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across (vid_show_a_layer_across) */
+    int16_t back_left, back_right;           /* and the backdrop: black past it */
     uint8_t layout_count;   /* the panels laid out across the view (vid_lay_out_a_map_across) */
     uint16_t layout_map[VID_MAP_LAYOUTS];
     const VidMapLayout *layouts;
@@ -651,7 +652,13 @@ PF_API VidView vid_view(const Platform *pf);
  * (the backdrop at last) shows. Each frame starts with every layer holding
  * the original's screen alone, so a mode whose layers hold more (a map
  * scrolling in, built past the screen) says so every frame. Mode 7's plane
- * goes on past the screen as its settings say, and is never left out. */
+ * goes on past the screen as its settings say, and is never left out.
+ *
+ * VID_BACK is the backdrop: past where the mode says it holds the picture
+ * (the edge of a room the screen is held to, where the original's screen
+ * never goes) the view is black rather than the backdrop's colour, which a
+ * map may never have meant to be seen. Each frame starts with the backdrop
+ * across the whole view, and the original's screen is always among it. */
 PF_API void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right);
 /* How a panel is laid out across a wider view (VidMapLayout, above). */
 PF_API void vid_lay_out_a_map_across(Platform *pf, uint16_t map_base, const VidMapLayout *layout);
@@ -872,7 +879,7 @@ uint16_t vid_obs_vram_word(const VidObserver *ob, uint16_t vram_addr);
 void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t count);
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
-                  const VidMarginEntry *margin, uint16_t margin_count);
+                  int16_t back_left, int16_t back_right, const VidMarginEntry *margin, uint16_t margin_count);
 void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
                      const VidWindowParting *parting);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);

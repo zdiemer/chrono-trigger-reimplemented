@@ -599,7 +599,9 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   each layer holding the original's screen alone, so a tilemap never repeats
   or shows stale columns in the margins unless its mode built them, and what
   lies under it shows there instead -- in the end the backdrop, the colour the
-  original shows where no layer is opaque. A line whose tilemap is one screen
+  original shows where no layer is opaque. The backdrop too can be held to a
+  span (`VID_BACK`), past which the view is black: each frame starts with it
+  across the whole view. A line whose tilemap is one screen
   across (32 tiles: the menus', the battle's and the dialog's panels, which
   line effects switch to partway down) keeps to the original's screen. The
   original's screen itself is always drawn as before. Mode 7 continues its
@@ -648,8 +650,11 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   the room a column is built as its edge's, and shown only where the edge is
   one entry all the way down (a void), which is judged as the margins are
   built and kept for the frames between, when a battle's data may lie over
-  the map's looks; elsewhere the layer stops at the room and the backdrop
-  shows. Each frame
+  the map's looks; elsewhere the layer stops at the room. Past where the
+  ground's layers (BG1 and BG2) stop, BG3 stops too and the view is black:
+  BG3's edge is often one entry all the way down, a fill the map never meant
+  to be seen (Denadoro's grey-blue, which its battles moved into the view),
+  and so is the backdrop's colour there. Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
   within the room -- unless it is a veil, a layer drawn whole that the
@@ -705,8 +710,10 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
 - **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) take
   a layout per screen from an explicit list in that file. Most screens are
   framed: where a layer runs on in a four-column pattern across the edge of
-  its outer columns (a window's inside, the backdrop), the columns outside it
-  move out to the view's sides and the pattern fills the gap; the lists, text
+  its outer columns (a window's inside, the backdrop) -- and the pattern
+  holds none of the window sides or corners further out, as where the save
+  screen's slot number and title are two boxes side by side -- the columns
+  outside it move out to the view's sides and the pattern fills the gap; the lists, text
   and figures inside stay where the original drew them, and the windows'
   edges at the screen's sides move with the frame. The main menu, the
   equipment, the items, the techs, the settings, the party exchange, the save

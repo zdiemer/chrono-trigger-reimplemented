@@ -70,6 +70,7 @@ typedef struct {
     uint8_t clip[W], math_on[W];   /* the color window's effect */
     int width, left;               /* the view: pixels across, and the screen X of the first */
     int layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across */
+    int back_from, back_to;              /* the view's pixels the backdrop holds, black past them */
     const VidMapLayout *layout[4];       /* how each BG's one-screen map is laid out across the view, or NULL */
     const VidWindowParting *parting;     /* how the windows are parted, or NULL */
     int parted_row;                      /* the run of eight lines the window masks were parted for */
@@ -146,6 +147,7 @@ struct VidRenderer {
     const uint32_t *last_out;   /* the framebuffer the cached lines are in */
     int width, left;            /* the view the cached lines were drawn for */
     int16_t layer_left[4], layer_right[4];   /* and where its layers held the picture */
+    int16_t back_left, back_right;           /* and its backdrop */
     uint8_t layout_count;                    /* and how its panels were laid out */
     uint16_t layout_map[VID_MAP_LAYOUTS];
     VidMapLayout layouts[VID_MAP_LAYOUTS];
@@ -1123,6 +1125,14 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     sp->st = st;
     sp->width = r->width;
     sp->left = r->left;
+    {
+        /* the backdrop across: the original's screen always among it */
+        int from = f->back_left - r->left, to = f->back_right - r->left;
+        from = from < -r->left ? from : -r->left;
+        to = to > -r->left + SCREEN_W ? to : -r->left + SCREEN_W;
+        sp->back_from = from < 0 ? 0 : from > r->width ? r->width : from;
+        sp->back_to = to < sp->back_from ? sp->back_from : to > r->width ? r->width : to;
+    }
     for (int bg = 0; bg < 4; bg++) {
         sp->layer_left[bg] = f->layer_left[bg];
         sp->layer_right[bg] = f->layer_right[bg];
@@ -1257,8 +1267,9 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
 
     memset(main_s->z, 0, sizeof main_s->z);
     for (int x = 0; x < width; x++) {
-        main_s->color[x] = sp->pal[0];   /* backdrop */
-        main_s->math[x] = (layers_math & VID_LAYER_BIT(VID_BACK)) != 0;
+        bool held = x >= sp->back_from && x < sp->back_to;
+        main_s->color[x] = held ? sp->pal[0] : 0;   /* backdrop, or black past where it holds the picture */
+        main_s->math[x] = held && (layers_math & VID_LAYER_BIT(VID_BACK)) != 0;
     }
     if (sp->any_math) {
         memset(sub_s->z, 0, sizeof sub_s->z);
@@ -1477,6 +1488,7 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
                           !memcmp(f->layout_map, r->layout_map, sizeof *f->layout_map * f->layout_count) &&
                           (!f->layout_count || !memcmp(f->layouts, r->layouts, sizeof *f->layouts * f->layout_count));
     if (out != r->last_out || width != r->width || memcmp(f->layer_left, r->layer_left, sizeof r->layer_left) ||
+        f->back_left != r->back_left || f->back_right != r->back_right ||
         memcmp(f->layer_right, r->layer_right, sizeof r->layer_right) || f->margin_count != r->margin_count ||
         (f->margin_count && memcmp(f->margin, r->margin, sizeof *f->margin * f->margin_count)) || !laid_out_alike) {
         for (int line = 1; line <= H; line++)
@@ -1486,6 +1498,8 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         r->left = vid_view_left((VidView){ (uint16_t)width, H });
         r->sprites.valid = false;
         memcpy(r->layer_left, f->layer_left, sizeof r->layer_left);
+        r->back_left = f->back_left;
+        r->back_right = f->back_right;
         memcpy(r->layer_right, f->layer_right, sizeof r->layer_right);
         r->parted = f->parting != NULL;
         if (f->parting)
