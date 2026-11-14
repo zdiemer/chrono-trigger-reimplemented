@@ -202,8 +202,11 @@ Giga Gaia), it showed where native battle time fell short:
   ratio of the original's clocks a call to native's (in
   `tools/timing_ratios.txt`): a battle message's glyph now takes 26.4k clocks
   against the original's 26.2k (22.0k before). The vblank uploads
-  (`$C2:85D6`, `$C2:86A9`) are 8-40 times under, varying with what they send:
-  the port's uploads don't charge their bytes, a follow-up. The field's
+  (`$C2:85D6`, `$C2:86A9`) read 8-40 times under, as the port charges its
+  palette's transfer outside the routines; the sprite table's it didn't
+  charge at all, and now does, which brings the menus' vblank to 78.8k
+  clocks a frame against the original's 83.7k (menus-shop-inn, frames
+  3000-6000; 74.4k before). The field's
   guards still count, and its rates were calibrated with them. Across the 84
   movies, places on time stay 599 and in order go 694 to 695 (the gate's 58:
   395 to 395, 476 to 478); one moves away, the Black Omen's Zeal fight, with
