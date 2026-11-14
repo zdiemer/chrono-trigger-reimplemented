@@ -7864,7 +7864,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFC9FCu, 256u, "small_font_replacements", 10, 2 },
     { 0xFFCAFCu, 160u, "menu_small_digit_byte", 0, 29 },
     { 0xFFCB9Cu, 692u, "menu_colors", 1, 24 },
-    { 0xFFCE50u, 32u, "mixed_ffce50", 5, 29 },
+    { 0xFFCE50u, 32u, "menu_colors_ce50", 1, 24 },
     { 0xFFCE70u, 8u, "menu_large_portrait_first_tile", 0, 29 },
     { 0xFFCE78u, 16u, "menu_large_portrait_colours", 1, 29 },
     { 0xFFCE88u, 10u, "menu_element_label_tile", 1, 29 },
@@ -7964,7 +7964,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFDBE4u, 2424u, "menu_three_plane_tiles", 10, 29 },
     { 0xFFE55Cu, 896u, "menu_gate_tiles", 10, 29 },
     { 0xFFE8DCu, 684u, "menu_gate_swirl_graphics", 7, 3 },
-    { 0xFFEB88u, 1152u, "mixed_ffeb88", 5, 29 },
+    { 0xFFEB88u, 1u, "menu_gate_swirl_graphics_after", 0, 29 },
+    { 0xFFEB89u, 1151u, "mixed_ffeb89", 5, 29 },
     { 0xFFF008u, 1344u, "menu_battle_mode_screen_tile", 1, 29 },
     { 0xFFF6F2u, 36u, "menu_gate_row_first_tile", 1, 29 },
     { 0xFFF759u, 128u, "menu_gate_wave", 1, 29 },
@@ -7978,8 +7979,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-const uint16_t asset_catalogue_count = 7910;
+const uint16_t asset_catalogue_count = 7911;
 
-const uint32_t asset_catalogue_version = 0xC9222F22u;
+const uint32_t asset_catalogue_version = 0x390181DFu;
 
 const uint32_t asset_catalogue_bytes_crc32 = 0x315F7395u;

@@ -7814,7 +7814,7 @@ menu_name_grid_letter	bytes	FF:C9AC	FF:C9FB	raw	accessor menu_name_grid_letter
 small_font_replacements	gfx	FF:C9FC	FF:CAFB	font:8x8	accessor menu_screen_graphics_data
 menu_small_digit_byte	bytes	FF:CAFC	FF:CB9B	raw	accessor menu_small_digit_byte
 menu_colors	words	FF:CB9C	FF:CE4F	palette:16	accessor menu_rom_colour, menu_portrait_colour
-mixed_ffce50	mixed	FF:CE50	FF:CE6F	raw	unread
+menu_colors_ce50	words	FF:CE50	FF:CE6F	palette:16	read: a palette the menus copy whole (a playthrough leg)
 menu_large_portrait_first_tile	bytes	FF:CE70	FF:CE77	raw	accessor menu_large_portrait_first_tile
 menu_large_portrait_colours	words	FF:CE78	FF:CE87	raw	accessor menu_large_portrait_colours
 menu_element_label_tile	words	FF:CE88	FF:CE91	raw	accessor menu_element_label_tile
@@ -7914,7 +7914,8 @@ menu_more_four_colour_tiles	gfx	FF:D5E4	FF:DBE3	tiles:2bpp	accessor menu graphic
 menu_three_plane_tiles	gfx	FF:DBE4	FF:E55B	raw	accessor menu graphics
 menu_gate_tiles	gfx	FF:E55C	FF:E8DB	raw	accessor menu_upload_data
 menu_gate_swirl_graphics	lz	FF:E8DC	FF:EB87	lz	accessor menu_draw_gate_screen
-mixed_ffeb88	mixed	FF:EB88	FF:F007	raw	unread
+menu_gate_swirl_graphics_after	bytes	FF:EB88	FF:EB88	raw	read: the byte past the swirl stream the unpacker reads
+mixed_ffeb89	mixed	FF:EB89	FF:F007	raw	unread
 menu_battle_mode_screen_tile	words	FF:F008	FF:F547	raw	accessor menu_battle_mode_screen_tile
 menu_gate_row_first_tile	words	FF:F6F2	FF:F715	raw	accessor menu_gate_row_first_tile
 menu_gate_wave	words	FF:F759	FF:F7D8	raw	accessor menu_gate_wave
