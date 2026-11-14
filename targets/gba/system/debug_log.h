@@ -1,4 +1,4 @@
-/* The GBA build's text out: mGBA's debug log (targets/gba/system.c), which
+/* The GBA build's text out: mGBA's debug log (targets/gba/system/system.c), which
  * stdout and stderr write to a line at a time. */
 #ifndef CT_GBA_DEBUG_LOG_H
 #define CT_GBA_DEBUG_LOG_H

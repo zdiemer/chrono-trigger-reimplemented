@@ -3,14 +3,14 @@ ct_native's does: the same CRC-32 of work RAM and save RAM at the end, as
 `ct_native --end-state` writes them (docs/PLATFORM.md, "The GBA build, as
 built").
 
-    python3 targets/gba/run.py --mgba MGBA_PREFIX --program build/gba/ct_gba.bin \\
+    python3 targets/gba/host/run.py --mgba MGBA_PREFIX --program build/gba/ct_gba.bin \\
         --ct-native build/main/ct_native --movie movies/title-start.ctm
 
 MGBA_PREFIX holds mGBA's library and headers (include/mgba, bin/libmgba*.dll
 or lib/libmgba.so): MSYS2's mingw-w64-x86_64-mgba package, installed or only
-unpacked, or a build of mGBA. The runner (targets/gba/mgba_run.c) is built
+unpacked, or a build of mGBA. The runner (targets/gba/host/mgba_run.c) is built
 with the host's C compiler into the program's directory. The GBA build is
-packed first (targets/gba/pack.py) from the staged cartridge. With
+packed first (targets/gba/host/pack.py) from the staged cartridge. With
 `--profile FILE`, the runner samples where the processor is as the movie
 plays and FILE gets each function's share of the samples, the largest first.
 """
@@ -27,7 +27,7 @@ import tempfile
 import zlib
 
 HERE = pathlib.Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
+ROOT = HERE.parents[2]
 sys.path.insert(0, str(HERE))
 import pack  # noqa: E402
 

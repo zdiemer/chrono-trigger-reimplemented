@@ -1,13 +1,13 @@
-/* ct_gba: the game on the GBA with no picture and no sound heard
+/* ct_gba: the game on the GBA with its picture and no sound heard
  * (docs/PLATFORM.md, "The GBA build, as built").
  *
  * The driver plays the movie the packing step put in the cartridge
- * (targets/gba/pack.py), one frame of the game per call of its loop as
+ * (targets/gba/host/pack.py), one frame of the game per call of its loop as
  * ct_native does, then reports the end over mGBA's debug log: the frames and
  * lag frames run, a CRC-32 of work RAM and save RAM at the end (as
  * ct_native --end-state writes them) and of save RAM alone, and the memory
- * it used. The loop doesn't wait for the GBA's own frames: a frame of the
- * game takes as long as its work, which is what the run measures. */
+ * it used. A frame of the game takes as long as its work, which is what the
+ * run measures, and its picture is made in the next vertical blank. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,8 +21,9 @@
 #include "port/state_host.h"
 #include "sound_native.h"
 
-#include "debug_log.h"
-#include "gba_video.h"
+#include "services/video.h"
+#include "system/debug_log.h"
+#include "system/fiber.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
  * order, the movie's pads and the save RAM it starts from. */
@@ -35,6 +36,16 @@ typedef struct {
 typedef struct { uint32_t at, length; } PackEntry;
 
 extern const uint8_t __rom_end[];
+extern const uint8_t __iwram_bss_end[], __stack_top[];   /* the driver's stack, zeroed at the start (start.s) */
+
+/* The driver's stack's deepest use: from its lowest byte that isn't zero. */
+static size_t driver_stack_used(void)
+{
+    const uint8_t *at = __iwram_bss_end;
+    while (at < __stack_top && !*at)
+        at++;
+    return (size_t)(__stack_top - at);
+}
 
 static const PackHead *pack(void)
 {
@@ -123,7 +134,7 @@ static void report_cycles(const Cycles *c, uint32_t frames)
 }
 
 /* The game's frame the driver is in, for a runner that takes pictures at
- * chosen frames (targets/gba/mgba_run.c). */
+ * chosen frames (targets/gba/host/mgba_run.c). */
 volatile uint32_t ct_gba_frame;
 
 int main(void)
@@ -132,7 +143,7 @@ int main(void)
     const PackHead *head = pack();
     if (memcmp(head->magic, "CTGB", 4) || head->catalogue != asset_catalogue_version ||
         head->count != asset_catalogue_count) {
-        fprintf(stderr, "ct_gba: no pack of this catalogue after the program: pack it again (targets/gba/pack.py)\n");
+        fprintf(stderr, "ct_gba: no pack of this catalogue after the program: pack it again (targets/gba/host/pack.py)\n");
         abort();
     }
     static AssetSource source;
@@ -171,10 +182,12 @@ int main(void)
         sound_native_frame(sound);
         sound_native_discard_audio(sound);
         uint32_t sound_done = cycles_now();
+        gba_video_await_blank();
+        uint32_t blank = cycles_now();
         gba_video_present(&pf);
         count_cycles(&game, game_done - began);
         count_cycles(&sounds, sound_done - game_done);
-        count_cycles(&picture, cycles_now() - sound_done);
+        count_cycles(&picture, cycles_now() - blank);
         if (frame % 600 == 599)
             fprintf(stderr, "ct_gba: frame %u\n", (unsigned)frame + 1);
     }
@@ -193,7 +206,9 @@ int main(void)
     for (unsigned s = 0; s < fiber_slots(); s++)
         if (fiber_stack_high_water(s))
             fprintf(stderr, "ct_gba: stack %u %u of %u bytes\n", s, (unsigned)fiber_stack_high_water(s),
-                    (unsigned)fiber_stack_size());
+                    (unsigned)gba_fiber_slot_size(s));
+    fprintf(stderr, "ct_gba: the driver's stack %u of %u bytes\n", (unsigned)driver_stack_used(),
+            (unsigned)(__stack_top - __iwram_bss_end));
     fprintf(stderr, "ct_gba: done\n");
     for (;;)
         ;

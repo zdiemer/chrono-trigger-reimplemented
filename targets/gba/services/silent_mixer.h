@@ -1,7 +1,7 @@
 /* The sound's voices on the GBA until it plays them (issue #368): the native
  * mixer's interface (runtime/platform/native/mixer.h), which
  * frontend/sound_native.c drives, keeping what the driver sets and reads back
- * of the voices and the mix, and making no sound (targets/gba/main.c).
+ * of the voices and the mix, and making no sound (targets/gba/system/main.c).
  *
  * What it can't answer is a voice's output, which the native mixer computes
  * as it plays: it answers 0, so the sound driver's meter (its status mode

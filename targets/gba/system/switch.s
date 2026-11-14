@@ -1,4 +1,4 @@
-@ The fibers' switch (targets/gba/fiber.c): the callee-saved registers and
+@ The fibers' switch (targets/gba/system/fiber.c): the callee-saved registers and
 @ the return address pushed on the stack being left, its stack pointer kept
 @ at r0, and the coming fiber's (r1) popped.
     .text

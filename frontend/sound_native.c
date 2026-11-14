@@ -5,7 +5,7 @@
 #include "charge.h"
 #include "core/sound_commands.h"
 /* The voices' mixer: the native one, or a build's own with its interface
- * (targets/gba/silent_mixer.h, which keeps the settings and plays nothing). */
+ * (targets/gba/services/silent_mixer.h, which keeps the settings and plays nothing). */
 #ifdef SOUND_NATIVE_MIXER
 #include SOUND_NATIVE_MIXER
 #else

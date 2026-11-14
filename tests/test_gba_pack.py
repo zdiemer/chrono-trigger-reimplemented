@@ -1,5 +1,5 @@
-"""The GBA cartridge's packing (targets/gba/pack.py), with no cartridge: the
-pack's head and directory as targets/gba/main.c reads them, and the header's
+"""The GBA cartridge's packing (targets/gba/host/pack.py), with no cartridge: the
+pack's head and directory as targets/gba/system/main.c reads them, and the header's
 complement check."""
 import importlib.util
 import pathlib
@@ -7,7 +7,7 @@ import struct
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("gba_pack", ROOT / "targets/gba/pack.py")
+spec = importlib.util.spec_from_file_location("gba_pack", ROOT / "targets/gba/host/pack.py")
 pack = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pack)
 

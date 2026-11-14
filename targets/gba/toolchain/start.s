@@ -1,6 +1,6 @@
-@ The cartridge's first bytes and the processor's start (targets/gba/gba.ld).
+@ The cartridge's first bytes and the processor's start (targets/gba/toolchain/gba.ld).
 @
-@ The header's fields are left for the packing step (targets/gba/pack.py) to
+@ The header's fields are left for the packing step (targets/gba/host/pack.py) to
 @ fill: the title, the game code and the complement check. The start puts the
 @ driver's stack at the top of fast RAM, copies the data's initial values out
 @ of the cartridge, zeroes the rest and calls main, in Thumb, which never
@@ -41,8 +41,8 @@ start:
     ldr     r1, =__bss_start   @ the zeroed state
     ldr     r2, =__bss_end
     bl      zero
-    ldr     r1, =__iwram_bss_start   @ and the fast RAM's
-    ldr     r2, =__iwram_bss_end
+    ldr     r1, =__iwram_bss_start   @ and the fast RAM's, the driver's stack too (main.c reports its deepest use)
+    ldr     r2, =__stack_top
     bl      zero
 
     ldr     r0, =main

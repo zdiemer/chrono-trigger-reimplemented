@@ -39,7 +39,7 @@
 #include "platform/time_model.h"
 #include "platform/timing.h"
 
-#include "gba_video.h"
+#include "services/video.h"
 
 /* ---- The GBA's registers and memory ------------------------------------------------------------- */
 
@@ -1592,9 +1592,11 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
 
 void gba_video_present(Platform *pf)
 {
-    /* Tiles that found no place since the layout have the caches started
-     * afresh, a second on. */
-    if (misses > layout_misses && ++frames_since_layout >= 60)
+    /* Tiles that found no place have the caches started afresh: a second
+     * on where a tile missed since the layout, eight where only the layout's
+     * own misses stand (starting afresh from the same maps misses the same
+     * tiles, and a layout is about ten GBA frames' work). */
+    if (misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480))
         snes.settings_changed = true;
     bool laid_out = snes.settings_changed;
     if (laid_out) {
@@ -1633,3 +1635,11 @@ void gba_video_present(Platform *pf)
 }
 
 size_t gba_video_bytes(void) { return sizeof snes; }
+
+/* The picture is made in the vertical blank, so that no frame the GBA shows
+ * has half of one picture and half of the next. */
+void gba_video_await_blank(void)
+{
+    while (VCOUNT < GBA_LINES)
+        ;
+}
