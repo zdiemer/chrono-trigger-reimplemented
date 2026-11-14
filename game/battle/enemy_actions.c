@@ -194,6 +194,23 @@ static const ActionRow actions[ACTION_KINDS] = {
     [ACTION_CALL_IN] = { NEED_BEATEN, 0, 0, 0xC19981 },
 };
 
+#if CT_SCRIPT_TEXT
+const char *enemy_action_name(uint8_t action)
+{
+    static const char *const names[ACTION_KINDS] = {
+        [ACTION_POSE] = "pose", [ACTION_ATTACK] = "attack", [ACTION_TECH] = "tech",
+        [ACTION_ONE_OF_FOUR] = "one_of_four", [ACTION_CHOOSE_AGAIN] = "choose_again",
+        [ACTION_CHANGE_INTO] = "change_into", [ACTION_LEAVE] = "leave", [ACTION_DIE] = "die",
+        [ACTION_SET_STAT] = "set_stat", [ACTION_ADD_TO_STAT] = "add_to_stat", [ACTION_FLAGS] = "flags",
+        [ACTION_MESSAGE] = "message", [ACTION_BRING_BACK] = "bring_back", [ACTION_SET_STATS] = "set_stats",
+        [ACTION_SET_STATS_THEN_TECH] = "set_stats_then_tech", [ACTION_ADD_TO_TURN_WAIT] = "add_to_turn_wait",
+        [ACTION_ADD_TO_STATS] = "add_to_stats", [ACTION_ADD_TO_STATS_THEN_TECH] = "add_to_stats_then_tech",
+        [ACTION_CALL_IN] = "call_in",
+    };
+    return action < ACTION_KINDS ? names[action] : NULL;
+}
+#endif
+
 /* The choice, its operands decoded: a pose's and an aim's selector in the
  * second, the pose in the third; a number in the first. */
 static Choice choose(GameState *g, const ScriptChoosing *c, ChoiceKind kind, uint8_t action, ScriptPlace at)

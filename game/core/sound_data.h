@@ -126,12 +126,14 @@ static inline uint8_t sound_own_sample_byte(const GameState *g, uint8_t i)
  * envelopes (block 4, to $1F80): a word each. */
 static inline uint32_t sound_boot_block_data(const GameState *g, uint8_t block)
 {
-    return (0xC70000u | rom_read16(g, (uint32_t)(0xC70010u + 2 * block))) + 2;
+    enum { BLOCK_PLACES = 0x09 };   /* in the program's header, sound_program_byte */
+    return (0xC70000u | asset_read16(g, ASSET_SOUND_PROGRAM_BYTE, BLOCK_PLACES + 2u * block)) + 2;
 }
 
 static inline uint8_t sound_boot_instruments(const GameState *g)
 {
-    return (uint8_t)(rom_read16(g, 0xC70000u | rom_read16(g, 0xC7001Au)) / 2);
+    enum { INSTRUMENTS_PLACE = 0x13 };   /* in the program's header */
+    return (uint8_t)(rom_read16(g, 0xC70000u | asset_read16(g, ASSET_SOUND_PROGRAM_BYTE, INSTRUMENTS_PLACE)) / 2);
 }
 
 static inline uint16_t sound_boot_instrument_tuning(const GameState *g, uint8_t n)

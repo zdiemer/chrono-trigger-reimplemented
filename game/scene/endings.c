@@ -1126,7 +1126,7 @@ enum { ENDINGS_SET_UP = 0x7E8538 };
 
 bool scene_ending_set_up(GameState *g, Platform *pf)
 {
-    if (!room_for_the_mosaic(g)) {
+    if (!PORT_CHECK(room_for_the_mosaic(g))) {
         program_fail(g, ENDINGS_SET_UP, "an ending's picture with no room on the vblank list");
         return false;
     }
@@ -1595,7 +1595,7 @@ enum { SCALE_PICTURE = 0x7E8930, GATHER_PICTURE = 0x7E8983 };
 bool scene_ending_scale_picture(GameState *g, Platform *pf)
 {
     (void)pf;
-    if (!picture_waiting(g) && !shape_word_agrees(g)) {
+    if (!PORT_CHECK(picture_waiting(g)) && !PORT_CHECK(shape_word_agrees(g))) {
         program_fail(g, SCALE_PICTURE, "an ending's picture whose shape the port doesn't take");
         return false;
     }

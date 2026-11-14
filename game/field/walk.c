@@ -41,6 +41,7 @@
 #include "field/parts.h"
 #include "field/party.h"
 #include "field/streaming.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The map under a point -------------------------------------------------------------- */
@@ -929,7 +930,7 @@ enum { LAYER_SCROLL = 0xC091AC, LAYERS_STREAMED = 0xC093E1 };
 static bool scroll(GameState *g)
 {
     TIMED_AS(g, LAYER_SCROLL, field_layer_scroll_updated(g));
-    if (!layers_repeat_within_the_maps(g)) {
+    if (!PORT_CHECK(layers_repeat_within_the_maps(g))) {
         program_breaks_a_contract(g, LAYERS_STREAMED, "layers the port doesn't stream");
         return false;
     }
@@ -964,7 +965,7 @@ static bool walk_fits(const GameState *g);
 /* The walk, where the port takes it (walk_fits). */
 bool field_the_leader_walks(GameState *g)
 {
-    if (!walk_fits(g)) {
+    if (!PORT_CHECK(walk_fits(g))) {
         program_breaks_a_contract(g, THE_WALK, "a walk the port doesn't take");
         return false;
     }
@@ -985,7 +986,7 @@ static bool recentring_fits(const GameState *g)
 
 bool field_the_screen_recentres(GameState *g)
 {
-    if (!recentring_fits(g)) {
+    if (!PORT_CHECK(recentring_fits(g))) {
         program_breaks_a_contract(g, 0xC0885A, "a recentring with no leader the tables hold");
         return false;
     }

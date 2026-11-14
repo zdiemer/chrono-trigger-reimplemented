@@ -224,7 +224,7 @@ static bool field_window_shape_fits(const GameState *g)
 void field_draw_window_shape(GameState *g)
 {
     uint32_t mark = charge_uncounted_begin(g);
-    bool fits = field_window_shape_fits(g);
+    bool fits = PORT_CHECK(field_window_shape_fits(g));
     charge_uncounted_end(g, mark);
     if (!fits) {
         program_breaks_a_contract(g, 0xC30EFA, "window shape outside its table");

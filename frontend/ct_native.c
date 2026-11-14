@@ -20,10 +20,11 @@
  * the ROM unless --assets names it, imported from the ROM where there is none
  * or it is of another catalogue. The ROM is read only to import it, and isn't
  * kept. The palettes, the fonts, the graphics, the maps, the event scripts,
- * the text and the tables of records are served from the text beside the
- * pack, <pack name>.palettes, .fonts, .graphics, .maps, .scripts, .text and
- * .records (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h,
- * frontend/maps.h, frontend/scripts.h, frontend/text.h, frontend/records.h),
+ * the battle animation and menu object scripts, the text and the tables of
+ * records are served from the text beside the pack, <pack name>.palettes,
+ * .fonts, .graphics, .maps, .scripts, .commands, .text and .records
+ * (frontend/palettes.h, frontend/fonts.h, frontend/tiles.h, frontend/maps.h,
+ * frontend/scripts.h, frontend/commands.h, frontend/text.h, frontend/records.h),
  * written from the pack where there is none.
  *
  * It plays in the shared SDL window, or runs headless measurements with
@@ -50,6 +51,7 @@
 #include "fonts.h"
 #include "maps.h"
 #include "records.h"
+#include "commands.h"
 #include "scripts.h"
 #include "text.h"
 #include "palettes.h"
@@ -248,18 +250,18 @@ static char *decoded_text(const DecodedKind *kind, const char *path, const Asset
     return written < 0 ? (free(text), NULL) : text;
 }
 
-/* The pack made again with its palettes, fonts, graphics, maps, scripts, text and records as the text beside it
+/* The pack made again with its palettes, fonts, graphics, maps, scripts, commands, text and records as the text beside it
  * says, each kind's store over the one before. True with the pack unchanged
  * where there is no text; false, the pack and its bytes gone, only where a
  * text is wrong or the remade pack can't be had. */
-enum { DECODED_KINDS = 7 };
+enum { DECODED_KINDS = 8 };
 
 static bool serve_decoded(const Files *files, uint8_t **bytes, size_t *len, AssetPack **pack)
 {
     const DecodedKind *kinds[DECODED_KINDS] = { &palette_text, &font_text, &tile_text, &map_text, &script_text,
-                                                &game_text, &record_text };
+                                                &command_text, &game_text, &record_text };
     const char *paths[DECODED_KINDS] = { files->palettes, files->fonts, files->graphics, files->maps, files->scripts,
-                                         files->text, files->records };
+                                         files->commands, files->text, files->records };
     Decoded *decoded[DECODED_KINDS] = { NULL };
     AssetStore stores[DECODED_KINDS + 1];
     asset_pack_store(*pack, &stores[0]);
@@ -951,6 +953,7 @@ int main(int argc, char **argv)
     files_side_path(files.text, sizeof files.text, files.assets, files.assets, NULL, ".text");
     files_side_path(files.records, sizeof files.records, files.assets, files.assets, NULL, ".records");
     files_side_path(files.scripts, sizeof files.scripts, files.assets, files.assets, NULL, ".scripts");
+    files_side_path(files.commands, sizeof files.commands, files.assets, files.assets, NULL, ".commands");
     files_side_path(files.sram, sizeof files.sram, identity, identity, save_dir, ".srm");
     if (remembered_sram && !save_dir) snprintf(files.sram, sizeof files.sram, "%s", remembered_sram);
     files_side_path(files.state, sizeof files.state, record_path ? record_path : files.sram, files.sram, save_dir, ".native-state");
