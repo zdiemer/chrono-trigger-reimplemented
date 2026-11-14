@@ -80,8 +80,13 @@ static ByteRef byte_ref(const GameState *g, ScriptArg a, uint32_t at)
     return (ByteRef){ false, 0 };
 }
 
-#define SCRIPT_DECODE_BYTE_REF(name) c.name = byte_ref(g, row->name, at);
-#define SCRIPT_DECODE(type, name) c.name = (type)argument(g, row->name, at);
+/* A row names a handful of the language's parameters; the rest read nothing. */
+#define SCRIPT_DECODE_BYTE_REF(name) \
+    if (row->name.kind != ARG_NONE)  \
+        c.name = byte_ref(g, row->name, at);
+#define SCRIPT_DECODE(type, name)   \
+    if (row->name.kind != ARG_NONE) \
+        c.name = (type)argument(g, row->name, at);
 #define SCRIPT_DECODE_ONE(type, name) SCRIPT_DECODE_##type(type, name)
 #define SCRIPT_DECODE_ByteRef(type, name) SCRIPT_DECODE_BYTE_REF(name)
 #define SCRIPT_DECODE_ByteChange SCRIPT_DECODE
@@ -93,7 +98,9 @@ static ByteRef byte_ref(const GameState *g, ScriptArg a, uint32_t at)
 #define SCRIPT_DECODE_int8_t SCRIPT_DECODE
 #define SCRIPT_DECODE_uint16_t SCRIPT_DECODE
 #define SCRIPT_DECODE_uint32_t SCRIPT_DECODE
-#define SCRIPT_DECODE_bool(type, name) c.name = argument(g, row->name, at) != 0;
+#define SCRIPT_DECODE_bool(type, name) \
+    if (row->name.kind != ARG_NONE)    \
+        c.name = argument(g, row->name, at) != 0;
 
 ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at,
                                  Platform *pf)

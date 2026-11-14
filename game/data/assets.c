@@ -94,17 +94,30 @@ void asset_note_outside(uint32_t at)
 
 static const AssetSource *source;
 
-void assets_use(const AssetSource *s) { source = s; }
+/* The resource read last, and its bytes: the reads come in runs through one
+ * resource, and a run asks the source once. A new source asks again. */
+static AssetId held = ASSET_NONE;
+static const uint8_t *held_bytes;
+
+void assets_use(const AssetSource *s)
+{
+    source = s;
+    held = ASSET_NONE;
+}
 
 /* A resource's bytes from the source, or NULL where there is no source or it
  * hasn't the resource as the catalogue has it. */
 static const uint8_t *resource_bytes(AssetId id)
 {
+    if (id == held)
+        return held_bytes;
     if (!source)
         return NULL;
     uint32_t length = 0;
     const uint8_t *bytes = source->resource(source->ctx, id, &length);
-    return bytes && length == asset_catalogue[id].length ? bytes : NULL;
+    held = id;
+    held_bytes = bytes && length == asset_catalogue[id].length ? bytes : NULL;
+    return held_bytes;
 }
 
 /* The store's copy of the cartridge byte at `at`, or NULL: the address is in
