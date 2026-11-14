@@ -46,9 +46,11 @@ size_t state_host_snapshot_bytes(void);
 void state_host_snapshot(const GameState *g, uint8_t *out);
 void state_host_restore(GameState *g, const uint8_t *in);
 
-/* Generated accessors only: module storage, never exposed to game logic. */
-VarsHost *state_host_vars(GameState *g);
-const VarsHost *state_host_vars_const(const GameState *g);
+/* Generated accessors only: module storage, never exposed to game logic.
+ * The storage is the first thing a state holds (state_host.c checks it), so
+ * the accessors reach it with no call. */
+static inline VarsHost *state_host_vars(GameState *g) { return (VarsHost *)(void *)g; }
+static inline const VarsHost *state_host_vars_const(const GameState *g) { return (const VarsHost *)(const void *)g; }
 
 uint8_t state_host_read8(const GameState *g, uint32_t addr);
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v);
