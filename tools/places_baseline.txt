@@ -47,13 +47,13 @@ events-cyrus 19 # issue #321: a lag frame gets the main thread time its own hand
 events-death-peak-ascent 5
 events-death-peak-wind 5
 events-death-peak 4
-events-end-of-time-gate 5 # Native retired-work accounting restores the final reference visit within 30 frames.
+events-end-of-time-gate 4 # issue #376: the original stalls 8 frames at 3121 in the End of Time, ct_native 1; the presses after it meet the pillar prompt otherwise and $024 comes at 5023 (tools/outcomes_exceptions.txt)
 events-epoch-lavos 5
 events-fair-clone 6
 events-fair-rescue 6
 events-fair-shuffle 6
 events-fair-strength 5
-events-fionas-forest 11 # issue #321: a Gate trip no longer runs 30 frames late, and Fiona's forest keeps the reference's time after it
+events-fionas-forest 10 # issue #376: the Retinite fight from 10004, played by recorded presses, isn't over by $161 at 12943 in ct_native as in the original (its route fionas_forest carries it), so $161 leaves the count
 events-jetbike-race-won 7
 events-jetbike-race 7
 events-keepers-dome 6
