@@ -1,9 +1,10 @@
-/* Work RAM as the original lays it out, for a native build of the flat
- * state (CT_FLAT_STATE: port/vars_host.h, vars_flat.c): its two banks in
- * the arena, a byte for each address. A target keeps them its own way
- * (targets/gba/memory.c). Bytes the map gives no owner read 0 and drop
- * writes, as the typed state's address view does. */
+/* Work RAM as the original lays it out, for a build of the flat state
+ * (CT_FLAT_STATE: port/vars_host.h, vars_flat.c), native or the GBA's: its
+ * two banks in the arena, a byte for each address. Bytes the map gives no
+ * owner read 0 and drop writes, as the typed state's address view does. */
 #ifdef CT_FLAT_STATE
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "port/arena.h"
@@ -16,8 +17,11 @@ void vars_host_init(VarsHost *h)
     for (unsigned b = 0; b < 2; b++) {
         if (!h->bank[b])
             h->bank[b] = arena_take(BANK_BYTES);
-        if (h->bank[b])
-            memset(h->bank[b], 0x55, BANK_BYTES);
+        if (!h->bank[b]) {
+            fputs("vars: no memory for work RAM's banks\n", stderr);
+            abort();
+        }
+        memset(h->bank[b], 0x55, BANK_BYTES);
     }
 }
 

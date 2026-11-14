@@ -1,24 +1,177 @@
-/* The video service on the GBA with no picture (targets/gba/main.c), in
- * place of runtime/platform/native/video.c: every call keeps only what the
- * game's own play depends on, and draws nothing.
+/* The video service on the GBA's own picture (issue #367), in place of
+ * runtime/platform/native/video.c (docs/PLATFORM.md, "The GBA build, as
+ * built").
  *
- * What the game's play depends on is the time its sends take, charged as
- * the native backend charges them (platform/time_model.h), and the display's
- * changes below the line handler, which the native backend keeps for the
- * frame after. What the game reads back of VRAM (vid_vram_word: the jet bike
- * race's and the rising palace's maps) answers 0 here, as there is no VRAM
- * kept until the GBA's video backend (issue #367): a movie through those
- * scenes plays otherwise on the GBA until then. */
+ * Two halves. The SNES's video memory as the game's calls leave it: VRAM
+ * (64 KiB, in work RAM), the palette and the sprite table, each written as
+ * the native backend's observer writes it (runtime/platform/observe.c), so
+ * that what the game reads back of VRAM is what it reads natively; and the
+ * settings: the mode, the layers' maps and tiles, the sprites' tiles and
+ * sizes, which layers show. And the GBA's picture made from them once a
+ * frame (gba_video_present), in mode 0's four tiled layers and its sprites:
+ *
+ * - The palette is the same colours (both are BGR555). The 4bpp layers' eight
+ *   palettes are the GBA's background palettes 0-7; a 2bpp layer's eight
+ *   palettes of four are 8-15, their first four colours each; the sprites'
+ *   eight are the GBA's sprite palettes 0-7.
+ * - VRAM is converted in blocks of 512 bytes, the ones the game wrote and,
+ *   where the settings change, all of them, each as what the settings make
+ *   it: 4bpp tiles (bitplanes to the GBA's packed nibbles) at the same place
+ *   in the GBA's background VRAM, a map (each entry's palette, flips and
+ *   tile moved to the GBA's bits) at the same place too, 2bpp tiles widened
+ *   to 4bpp in a 16 KiB block of their own, and sprite tiles into sprite
+ *   VRAM, the two tables one under the other, 16 tiles of each row of the
+ *   GBA's 32 (its two-dimensional layout, so that a sprite's rows of tiles
+ *   are 16 names apart on both).
+ * - The SNES's per-tile priority has no GBA counterpart: each layer takes
+ *   one priority, and the sprites' four map onto the GBA's around them.
+ * - The GBA's 240x160 screen shows the middle of the SNES's 256x224: 8 dots
+ *   in from the left, 32 lines down. A camera that follows the action is
+ *   issue #366.
+ *
+ * The sends still take the time the native backend charges, which is the
+ * game's play; the conversion is the GBA's own work, outside the game's
+ * frame. */
+#include <string.h>
+
 #include "platform/native/host.h"
 #include "platform/time_model.h"
 #include "platform/timing.h"
 
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
+#include "gba_video.h"
+
+/* ---- The GBA's registers and memory ------------------------------------------------------------- */
+
+#define REG16(at) (*(volatile uint16_t *)(at))
+#define DISPCNT REG16(0x04000000)
+#define BGCNT(n) REG16(0x04000008 + 2 * (n))
+#define BGHOFS(n) REG16(0x04000010 + 4 * (n))
+#define BGVOFS(n) REG16(0x04000012 + 4 * (n))
+#define BLDCNT REG16(0x04000050)
+#define BLDALPHA REG16(0x04000052)
+#define BLDY REG16(0x04000054)
+#define BG_PALETTE ((volatile uint16_t *)0x05000000)
+#define OBJ_PALETTE ((volatile uint16_t *)0x05000200)
+#define BG_VRAM ((volatile uint32_t *)0x06000000)
+#define OBJ_VRAM ((volatile uint32_t *)0x06010000)
+#define OAM ((volatile uint16_t *)0x07000000)
+
+enum {
+    DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
+    BGCNT_4BPP = 0x0000,
+    BLD_DARKEN = 0x00C0, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
+    CAMERA_X = 8, CAMERA_Y = 32,
+    VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
+    TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
+    OBJ_TABLE_BYTES = 256 * 32, SPRITES = 128,
+};
+
+/* ---- The SNES's video memory and settings ---------------------------------------------------- */
+
+/* A map a layer shows part of the way down, from a line effect: its layer,
+ * where it starts in VRAM and how long it is (bytes), and where the GBA keeps
+ * it, converted for that layer (another layer may show the same map as its
+ * own, as the field's dialog's two layers do). */
+typedef struct {
+    uint8_t layer;
+    uint16_t byte, bytes;
+    uint16_t gba_byte;    /* NO_PLACE: no room for it */
+} LineMap;
+enum { NO_PLACE = 0xFFFF };
+
+typedef struct {
+    uint8_t vram[VRAM_BYTES];
+    uint16_t cgram[256];
+    uint8_t oam[544];
+    VidVramPort port;
+    uint16_t vram_addr;
+    uint16_t oam_addr;
+    uint8_t oam_latch;
+    VidMode mode;
+    VidBg bg[4];
+    VidObjConfig obj;
+    uint8_t main_layers, sub_layers;
+    VidWindows windows;
+    VidColorMath math;
+    uint16_t fixed_color;          /* BGR555 */
+    VidLineEffect slot[8];         /* the line effects' slots as the game programmed them */
+    /* the maps the line effects show part of the way down, beside the layers' own */
+    LineMap line_maps[6];
+    uint8_t line_map_count;
+    uint32_t written[BLOCKS / 32];    /* blocks the game wrote since the picture was made */
+    bool palette_written, settings_changed;
+    uint8_t (*read)(void *ctx, uint32_t addr);
+    void *ctx;
+} Snes;
+
+static Snes snes;
+
+static void block_written(uint32_t byte) { snes.written[byte / BLOCK_BYTES / 32] |= 1u << (byte / BLOCK_BYTES % 32); }
+
+static uint16_t vram_mapped(void)
 {
-    (void)pf, (void)read, (void)ctx;
+    uint16_t a = snes.vram_addr;
+    switch (snes.port.remap) {
+    case 1: a = (uint16_t)((a & 0xFF00) | ((a << 3) & 0x00F8) | ((a >> 5) & 0x0007)); break;
+    case 2: a = (uint16_t)((a & 0xFE00) | ((a << 3) & 0x01F8) | ((a >> 6) & 0x0007)); break;
+    case 3: a = (uint16_t)((a & 0xFC00) | ((a << 3) & 0x03F8) | ((a >> 7) & 0x0007)); break;
+    default: break;
+    }
+    return (uint16_t)(a & 0x7FFF);
 }
 
-void vid_host_stop(Platform *pf) { (void)pf; }
+static uint8_t data_byte(PfData src, uint32_t i)
+{
+    const uint8_t *byte = pf_data_pointer(src, i);
+    return byte ? *byte : snes.read ? snes.read(snes.ctx, pf_data_address(src, i)) : 0;
+}
+
+/* A byte through the VRAM port, as the SNES's PPU takes it. */
+static void vram_put(bool high, uint8_t v)
+{
+    uint16_t at = (uint16_t)((vram_mapped() << 1) + (high ? 1 : 0));
+    snes.vram[at] = v;
+    block_written(at);
+    if (snes.port.after_high == high)
+        snes.vram_addr = (uint16_t)(snes.vram_addr + snes.port.step);
+}
+
+static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill, const VidVramPort *port)
+{
+    if (port)
+        snes.port = *port;
+    if (len == 0)
+        return;
+    snes.vram_addr = vram_addr;
+    for (uint32_t i = 0; i < len; i++)
+        vram_put((i & 1) != 0, data_byte(src, fill ? 0 : i));
+}
+
+static void oam_put(uint8_t v)
+{
+    if (snes.oam_addr & 0x200) {
+        snes.oam[0x200 + (snes.oam_addr & 0x1F)] = v;
+    } else if (!(snes.oam_addr & 1)) {
+        snes.oam_latch = v;
+    } else {
+        snes.oam[snes.oam_addr - 1] = snes.oam_latch;
+        snes.oam[snes.oam_addr] = v;
+    }
+    snes.oam_addr = (uint16_t)((snes.oam_addr + 1) & 0x3FF);
+}
+
+/* ---- The host half ------------------------------------------------------------------------------ */
+
+void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
+{
+    (void)pf;
+    snes.read = read;
+    snes.ctx = ctx;
+    snes.settings_changed = snes.palette_written = true;
+    DISPCNT = DISPCNT_FORCED_BLANK;
+}
+
+void vid_host_stop(Platform *pf) { (void)pf; snes.read = NULL; }
 
 const VidFrame *vid_host_picture(Platform *pf)
 {
@@ -40,7 +193,7 @@ void vid_host_frame_begins(Platform *pf)
 size_t vid_host_observer_bytes(const Platform *pf)
 {
     (void)pf;
-    return 0;
+    return sizeof snes;
 }
 
 /* ---- The view: the original's screen ------------------------------------------------------- */
@@ -72,11 +225,14 @@ void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, co
 
 void vid_read_vram(const Platform *pf, uint16_t vram, uint16_t *words, uint16_t count)
 {
-    (void)pf, (void)vram;
-    for (uint16_t i = 0; i < count; i++)
-        words[i] = 0;
+    (void)pf;
+    for (uint16_t i = 0; i < count; i++) {
+        uint16_t at = (uint16_t)(((vram + i) & 0x7FFF) << 1);
+        words[i] = (uint16_t)(snes.vram[at] | snes.vram[at + 1] << 8);
+    }
 }
 
+/* Only a wider view asks what the last picture showed of a layer. */
 bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg *out)
 {
     (void)pf, (void)bg, (void)line, (void)out;
@@ -85,13 +241,14 @@ bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg 
 
 uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr)
 {
-    (void)pf, (void)o, (void)vram_addr;
-    return 0;
+    (void)o;
+    uint16_t word;
+    vid_read_vram(pf, vram_addr, &word, 1);
+    return word;
 }
 
 /* ---- The picture's settings ------------------------------------------------------------------- */
 
-/* A change the line handler makes shows from the line after its own. */
 static uint16_t below_the_line_handler(const Platform *pf)
 {
     return pf->timing.part == TM_HOST_IN_LINE ? (uint16_t)(pf->timing.line + 1) : 0;
@@ -137,49 +294,153 @@ void vid_enable_line_effects(Platform *pf, PfOrigin o, uint8_t slots)
     v->below_line_effects = false;
 }
 
-void vid_set_mode(Platform *pf, PfOrigin o, const VidMode *m) { (void)pf, (void)o, (void)m; }
-void vid_set_bg_map(Platform *pf, PfOrigin o, VidLayer bg, const VidBg *b) { (void)pf, (void)o, (void)bg, (void)b; }
+void vid_set_mode(Platform *pf, PfOrigin o, const VidMode *m)
+{
+    (void)pf, (void)o;
+    if (m->mode != snes.mode.mode)
+        snes.settings_changed = true;
+    snes.mode = *m;
+}
+
+void vid_set_bg_map(Platform *pf, PfOrigin o, VidLayer bg, const VidBg *b)
+{
+    (void)pf, (void)o;
+    if (bg > VID_BG4)
+        return;
+    VidBg *s = &snes.bg[bg];
+    if (s->map_base != b->map_base || s->map_w != b->map_w || s->map_h != b->map_h)
+        snes.settings_changed = true, snes.line_map_count = 0;
+    s->map_base = b->map_base;
+    s->map_w = b->map_w;
+    s->map_h = b->map_h;
+}
+
 void vid_set_bg_chars(Platform *pf, PfOrigin o, VidLayer first, uint16_t base0, uint16_t base1)
 {
-    (void)pf, (void)o, (void)first, (void)base0, (void)base1;
+    (void)pf, (void)o;
+    if (first + 1 > VID_BG4)
+        return;
+    if (snes.bg[first].char_base != base0 || snes.bg[first + 1].char_base != base1)
+        snes.settings_changed = true;
+    snes.bg[first].char_base = base0;
+    snes.bg[first + 1].char_base = base1;
 }
+
 void vid_set_scroll(Platform *pf, PfOrigin o, VidLayer bg, uint16_t hofs, uint16_t vofs, uint32_t fields)
 {
-    (void)pf, (void)o, (void)bg, (void)hofs, (void)vofs, (void)fields;
+    (void)pf, (void)o;
+    if (bg > VID_BG4)
+        return;
+    if (fields & VID_SCROLL_H)
+        snes.bg[bg].hofs = hofs & 0x3FF;
+    if (fields & VID_SCROLL_V)
+        snes.bg[bg].vofs = vofs & 0x3FF;
 }
+
 void vid_set_mosaic(Platform *pf, PfOrigin o, uint8_t bgs, uint8_t size) { (void)pf, (void)o, (void)bgs, (void)size; }
 void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t fields)
 {
     (void)pf, (void)o, (void)m7, (void)fields;
 }
-void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c) { (void)pf, (void)o, (void)c; }
+
+void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c)
+{
+    (void)pf, (void)o;
+    if (c->base != snes.obj.base || c->name_select != snes.obj.name_select)
+        snes.settings_changed = true;
+    snes.obj = *c;
+}
+
 void vid_set_screens(Platform *pf, PfOrigin o, uint8_t main_layers, uint8_t sub_layers, uint32_t fields)
 {
-    (void)pf, (void)o, (void)main_layers, (void)sub_layers, (void)fields;
+    (void)pf, (void)o;
+    if (fields & VID_SCREEN_MAIN)
+        snes.main_layers = main_layers;
+    if (fields & VID_SCREEN_SUB)
+        snes.sub_layers = sub_layers;
 }
+
 void vid_set_video_config(Platform *pf, PfOrigin o, const VidVideoConfig *c) { (void)pf, (void)o, (void)c; }
+/* The members a call names, as the native backend's observer takes them. */
 void vid_set_windows(Platform *pf, PfOrigin o, const VidWindows *w, uint32_t fields)
 {
-    (void)pf, (void)o, (void)w, (void)fields;
+    (void)pf, (void)o;
+    VidWindows *d = &snes.windows;
+    static const uint8_t pair_layer[3][2] = { { VID_BG1, VID_BG2 }, { VID_BG3, VID_BG4 }, { VID_OBJ, VID_BACK } };
+    for (int g = 0; g < 3; g++)
+        if (fields & (1u << g))
+            for (int k = 0; k < 2; k++) {
+                d->w1[pair_layer[g][k]] = w->w1[pair_layer[g][k]];
+                d->w2[pair_layer[g][k]] = w->w2[pair_layer[g][k]];
+            }
+    if (fields & VID_WINDOWS_W1_LEFT)
+        d->w1_left = w->w1_left;
+    if (fields & VID_WINDOWS_W1_RIGHT)
+        d->w1_right = w->w1_right;
+    if (fields & VID_WINDOWS_W2_LEFT)
+        d->w2_left = w->w2_left;
+    if (fields & VID_WINDOWS_W2_RIGHT)
+        d->w2_right = w->w2_right;
+    if (fields & VID_WINDOWS_BG_LOGIC)
+        for (int l = VID_BG1; l <= VID_BG4; l++)
+            d->logic[l] = w->logic[l];
+    if (fields & VID_WINDOWS_OBJ_LOGIC) {
+        d->logic[VID_OBJ] = w->logic[VID_OBJ];
+        d->logic[VID_BACK] = w->logic[VID_BACK];
+    }
+    if (fields & VID_WINDOWS_MAIN)
+        d->win_main = w->win_main;
+    if (fields & VID_WINDOWS_SUB)
+        d->win_sub = w->win_sub;
 }
 void vid_set_color_math(Platform *pf, PfOrigin o, const VidColorMath *m, uint32_t fields)
 {
-    (void)pf, (void)o, (void)m, (void)fields;
-}
-void vid_set_fixed_color(Platform *pf, PfOrigin o, uint8_t channels, uint8_t intensity)
-{
-    (void)pf, (void)o, (void)channels, (void)intensity;
-}
-void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e)
-{
-    (void)pf, (void)o, (void)slot, (void)e;
-}
-void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table)
-{
-    (void)pf, (void)o, (void)slot, (void)table;
+    (void)pf, (void)o;
+    if (fields & VID_MATH_CONTROL) {
+        snes.math.clip_black = m->clip_black;
+        snes.math.prevent_math = m->prevent_math;
+        snes.math.sub_screen = m->sub_screen;
+        snes.math.direct = m->direct;
+    }
+    if (fields & VID_MATH_LAYERS) {
+        snes.math.subtract = m->subtract;
+        snes.math.half = m->half;
+        snes.math.layers = m->layers;
+    }
 }
 
-/* ---- Sends: their time, as the native backend charges it ---------------------------------------- */
+static uint16_t fixed_channels(uint16_t color, uint8_t channels, uint8_t intensity)
+{
+    uint16_t c = intensity & 31;
+    if (channels & VID_RED)
+        color = (uint16_t)((color & ~0x001F) | c);
+    if (channels & VID_GREEN)
+        color = (uint16_t)((color & ~0x03E0) | c << 5);
+    if (channels & VID_BLUE)
+        color = (uint16_t)((color & ~0x7C00) | c << 10);
+    return color;
+}
+
+void vid_set_fixed_color(Platform *pf, PfOrigin o, uint8_t channels, uint8_t intensity)
+{
+    (void)pf, (void)o;
+    snes.fixed_color = fixed_channels(snes.fixed_color, channels, intensity);
+}
+
+void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e)
+{
+    (void)pf, (void)o;
+    snes.slot[slot & 7] = *e;
+}
+
+void vid_set_line_table(Platform *pf, PfOrigin o, uint8_t slot, uint16_t table)
+{
+    (void)pf, (void)o;
+    PfData *t = &snes.slot[slot & 7].table;
+    t->addr = (t->addr & 0xFF0000) | table;
+}
+
+/* ---- Sends: kept as the SNES keeps them, and their time as the native backend charges it ---------- */
 
 static void charge_send(Platform *pf, uint32_t bytes)
 {
@@ -187,14 +448,21 @@ static void charge_send(Platform *pf, uint32_t bytes)
         tm_host_charge(pf, time_of_transfer(bytes));
 }
 
-void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port) { (void)pf, (void)o, (void)port; }
+void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *port)
+{
+    (void)pf, (void)o;
+    if (port)
+        snes.port = *port;
+}
 
 void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len, const VidVramPort *port)
 {
-    (void)o, (void)vram_addr, (void)src, (void)port;
+    (void)o;
     charge_send(pf, len);
+    vram_upload(vram_addr, src, len, false, port);
 }
 
+/* A wider view's own: never sent here. */
 void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len, const VidVramPort *port)
 {
     (void)pf, (void)vram_addr, (void)src, (void)len, (void)port;
@@ -202,8 +470,9 @@ void vid_send_view_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t l
 
 void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len)
 {
-    (void)o, (void)vram_addr, (void)src;
+    (void)o;
     charge_send(pf, len);
+    vram_upload(vram_addr, src, len, false, &(VidVramPort){ .step = 1, .after_high = true });
 }
 
 void vid_send_vram_next_frame(Platform *pf, PfOrigin o, PfOrigin wait, uint16_t vram_addr, PfData src, uint32_t len,
@@ -223,78 +492,913 @@ void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData 
 void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len, VidVramHalf half,
                         const VidVramPort *port)
 {
-    (void)o, (void)vram_addr, (void)src, (void)half, (void)port;
+    (void)o;
     charge_send(pf, len);
+    if (port)
+        snes.port = *port;
+    if (len == 0)
+        return;
+    snes.vram_addr = vram_addr;
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(half == VID_VRAM_HIGH_BYTES, data_byte(src, i));
 }
 
 void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
                         const VidVramPort *port)
 {
-    (void)o, (void)vram_addr, (void)value, (void)port;
+    (void)o;
     charge_send(pf, len);
+    vram_upload(vram_addr, value, len, true, port);
 }
 
 void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count)
 {
-    (void)o, (void)first, (void)src;
+    (void)o;
     charge_send(pf, 2u * count);
+    uint8_t at = first;
+    for (uint16_t i = 0; i < count; i++) {
+        uint8_t lo = data_byte(src, 2u * i), hi = data_byte(src, 2u * i + 1);
+        snes.cgram[at++] = (uint16_t)((hi & 0x7F) << 8 | lo);
+    }
+    snes.palette_written = true;
 }
 
 void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, VidVramHalf half)
 {
-    (void)o, (void)value, (void)half;
+    (void)o;
     charge_send(pf, len);
+    if (len == 0)
+        return;
+    uint8_t byte = data_byte(value, 0);
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(half == VID_VRAM_HIGH_BYTES, byte);
 }
 
 void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len)
 {
-    (void)o, (void)src;
+    (void)o;
     charge_send(pf, len);
+    for (uint32_t i = 0; i < len; i++)
+        vram_put((i & 1) != 0, data_byte(src, i));
 }
 
 void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, VidVramHalf half)
 {
-    (void)o, (void)src, (void)half;
+    (void)o;
     charge_send(pf, len);
+    for (uint32_t i = 0; i < len; i++)
+        vram_put(half == VID_VRAM_HIGH_BYTES, data_byte(src, i));
 }
 
 void vid_send_oam(Platform *pf, PfOrigin o, PfData oam, const VidSpritePlace *places)
 {
-    (void)pf, (void)o, (void)oam, (void)places;
+    (void)pf, (void)o, (void)places;
+    for (uint32_t i = 0; i < sizeof snes.oam; i++)
+        snes.oam[i] = data_byte(oam, i);
 }
 
 void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)
 {
-    (void)pf, (void)o, (void)word_addr, (void)value, (void)len;
+    vid_set_oam_address(pf, o, word_addr, false);
+    for (uint32_t i = 0; i < len; i++)
+        oam_put(value);
+}
+
+static uint8_t sprite_attributes(const VidSprite *sp)
+{
+    return (uint8_t)((sp->vflip ? 0x80 : 0) | (sp->hflip ? 0x40 : 0) | (sp->priority & 3) << 4 | (sp->palette & 7) << 1 |
+                     (sp->tile >> 8 & 1));
 }
 
 void vid_set_sprite(Platform *pf, PfOrigin o, uint8_t index, const VidSprite *sp)
 {
-    (void)pf, (void)o, (void)index, (void)sp;
+    const uint8_t entry[VID_OAM_ENTRY_BYTES] = { vid_oam_x_low(sp->x), sp->y, (uint8_t)sp->tile, sprite_attributes(sp) };
+    vid_set_oam_address(pf, o, (uint16_t)(index * VID_OAM_ENTRY_BYTES / 2), false);
+    for (unsigned i = 0; i < VID_OAM_ENTRY_BYTES; i++)
+        oam_put(entry[i]);
 }
 
 void vid_stop_uploads(Platform *pf, PfOrigin o) { (void)pf, (void)o; }
 
-/* A screen sets the display, as the native backend's does, and the rest. */
+/* A screen sets all four layers and the settings the picture is made from. */
 void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *sc)
 {
     if (sc->display)
         vid_set_display(pf, o, sc->display);
+    vid_set_obj_config(pf, o, &sc->sprites);
+    vid_set_oam_address(pf, o, 0x0000, false);
+    vid_set_mode(pf, o, &sc->mode);
+    for (unsigned bg = 0; bg < 4; bg++) {
+        vid_set_bg_map(pf, o, (VidLayer)bg, &sc->bg[bg]);
+        vid_set_scroll(pf, o, (VidLayer)bg, sc->bg[bg].hofs, sc->bg[bg].vofs, VID_SCROLL_H | VID_SCROLL_V);
+    }
+    vid_set_bg_chars(pf, o, VID_BG1, sc->bg[VID_BG1].char_base, sc->bg[VID_BG2].char_base);
+    vid_set_bg_chars(pf, o, VID_BG3, sc->bg[VID_BG3].char_base, sc->bg[VID_BG4].char_base);
+    vid_start_vram_uploads(pf, o, &sc->vram_port);
+    vid_set_vram_address(pf, o, 0x0000);
+    vid_set_screens(pf, o, sc->main_layers, sc->sub_layers, VID_SCREEN_MAIN | VID_SCREEN_SUB);
     pf->video.screens_applied++;
 }
 
-void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr) { (void)pf, (void)o, (void)vram_addr; }
-void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value) { (void)pf, (void)o, (void)value; }
+void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr) { (void)pf, (void)o; snes.vram_addr = vram_addr; }
+
+void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value)
+{
+    (void)pf, (void)o;
+    vram_put(false, (uint8_t)value);
+    vram_put(true, (uint8_t)(value >> 8));
+}
+
 void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value)
 {
-    (void)pf, (void)o, (void)high, (void)value;
+    (void)pf, (void)o;
+    vram_put(high, value);
 }
+
 void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first) { (void)pf, (void)o, (void)first; }
+
 void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color)
 {
-    (void)pf, (void)o, (void)index, (void)color;
+    (void)pf, (void)o;
+    snes.cgram[index] = color & 0x7FFF;
+    snes.palette_written = true;
 }
+
 void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation)
 {
-    (void)pf, (void)o, (void)word_addr, (void)priority_rotation;
+    (void)pf, (void)o, (void)priority_rotation;
+    snes.oam_addr = (uint16_t)((word_addr & 0x1FF) << 1);
 }
+
+/* ---- The GBA's picture --------------------------------------------------------------------------- */
+
+/* What the settings make each part of VRAM. */
+typedef enum {
+    NONE, TILES = 1, MAP = 2, SPRITE_TILES = 4,
+    LINE_MAP = 8,         /* a line effect's map: converted to where the GBA keeps it */
+} Role;
+
+/* The layers' tiles live in caches, one for each set of tiles (layers whose
+ * tiles are the same, at the same place and depth, share one): a window of
+ * the GBA's background VRAM, 1,024 tiles from a 16 KiB block, whose places
+ * no map takes are handed out to the tiles the layers' maps name, as they
+ * name them, each converted (bitplanes to the GBA's packed nibbles, 2bpp
+ * widened to 4bpp) as it is given its place and again as the game writes it.
+ * A tile no place is left for shows blank; the next layout, a second on at
+ * most, starts the caches afresh from what the maps name then. */
+enum { CACHES = 3, CACHE_TILES = 1024, NO_SLOT = 0xFFFF, PLACES = VRAM_BYTES / 32 };
+typedef struct {
+    bool used;
+    uint8_t bpp;
+    uint16_t char_byte;
+    uint8_t block;                 /* the GBA char block its window starts at */
+    uint16_t next, blank;          /* the next place to look at, a blank tile's place */
+    uint16_t slot_of[CACHE_TILES]; /* each SNES tile's place in the window, or NO_SLOT */
+} Cache;
+
+/* A layer as the GBA shows it: how deep its tiles are, where its map is,
+ * and which cache its tiles are in. */
+typedef struct {
+    bool shown;
+    uint8_t bpp, cache;
+    uint16_t char_byte, map_byte, map_bytes;
+} Layer;
+
+static Layer layers[4];
+static Cache caches[CACHES];
+static uint8_t roles[BLOCKS];
+static uint8_t taken[PLACES / 8];   /* the 32-byte places of background VRAM a map or a tile has */
+static uint16_t misses, frames_since_layout;
+
+static bool is_taken(uint32_t place) { return (taken[place / 8] >> (place % 8)) & 1; }
+static void take(uint32_t place) { taken[place / 8] |= (uint8_t)(1u << (place % 8)); }
+
+static uint16_t map_bytes(const VidBg *b) { return (uint16_t)((b->map_w == 64 ? 2 : 1) * (b->map_h == 64 ? 2 : 1) * SCREEN_BYTES); }
+
+static bool within(uint32_t byte, uint32_t start, uint32_t length)
+{
+    return ((byte - start) & (VRAM_BYTES - 1)) < length;
+}
+
+static uint32_t tile_bytes(uint8_t bpp) { return bpp == 4 ? 32u : 16u; }
+
+/* A place in a cache's window, for a tile: the next one free, or NO_SLOT. */
+static uint16_t take_slot(Cache *c)
+{
+    while (c->next < CACHE_TILES && (c->block * 512u + c->next >= PLACES || is_taken(c->block * 512u + c->next)))
+        c->next++;
+    if (c->next == CACHE_TILES)
+        return NO_SLOT;
+    take(c->block * 512u + c->next);
+    return c->next++;
+}
+
+/* Where a sprite tile table starts in VRAM (bytes): the second is 8 KiB on
+ * from the first, and the name select's words more, as the SNES's PPU has it. */
+static uint32_t sprite_table(unsigned table)
+{
+    return ((uint32_t)snes.obj.base << 1) + (table ? 0x2000u + ((uint32_t)snes.obj.name_select << 1) : 0);
+}
+
+/* A SNES tile, converted into its place in a cache's window. */
+static uint32_t packed_row(uint8_t p0, uint8_t p1, uint8_t p2, uint8_t p3)
+{
+    uint32_t row = 0;
+    for (unsigned x = 0; x < 8; x++) {
+        unsigned bit = 7 - x;
+        uint32_t pixel = (uint32_t)((p0 >> bit) & 1) | (uint32_t)((p1 >> bit) & 1) << 1 |
+                         (uint32_t)((p2 >> bit) & 1) << 2 | (uint32_t)((p3 >> bit) & 1) << 3;
+        row |= pixel << (4 * x);
+    }
+    return row;
+}
+
+static void convert_4bpp(volatile uint32_t *to, const uint8_t *tile)
+{
+    for (unsigned y = 0; y < 8; y++)
+        to[y] = packed_row(tile[2 * y], tile[2 * y + 1], tile[16 + 2 * y], tile[16 + 2 * y + 1]);
+}
+
+static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
+{
+    volatile uint32_t *to = BG_VRAM + (c->block * 512u + slot) * 8u;
+    uint32_t at = c->char_byte + tile * tile_bytes(c->bpp);
+    for (unsigned y = 0; y < 8; y++) {
+        const uint8_t *row = &snes.vram[(at + 2 * y) & (VRAM_BYTES - 1)];
+        const uint8_t *high = &snes.vram[(at + 16 + 2 * y) & (VRAM_BYTES - 1)];
+        to[y] = c->bpp == 4 ? packed_row(row[0], row[1], high[0], high[1]) : packed_row(row[0], row[1], 0, 0);
+    }
+}
+
+static uint16_t slot_for(Cache *c, uint16_t tile)
+{
+    uint16_t *slot = &c->slot_of[tile & (CACHE_TILES - 1)];
+    if (*slot == NO_SLOT) {
+        *slot = take_slot(c);
+        if (*slot == NO_SLOT) {
+            misses++;
+            return c->blank;
+        }
+        convert_tile(c, tile, *slot);
+    }
+    return *slot;
+}
+
+/* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
+ * places their maps take, and their tiles' caches, each with the window the
+ * most places are free in. */
+static void lay_out(void)
+{
+    memset(layers, 0, sizeof layers);
+    memset(caches, 0, sizeof caches);
+    memset(roles, 0, sizeof roles);
+    memset(taken, 0, sizeof taken);
+    misses = frames_since_layout = 0;
+    /* mode 2 is mode 1 without BG3, whose map there holds the offsets a column (not kept yet) */
+    unsigned count = snes.mode.mode == 0 ? 4 : snes.mode.mode == 1 ? 3 : snes.mode.mode == 2 ? 2 : 0;
+    for (unsigned n = 0; n < count; n++) {
+        Layer *l = &layers[n];
+        const VidBg *b = &snes.bg[n];
+        l->bpp = snes.mode.mode != 0 && n < 2 ? 4 : 2;
+        l->char_byte = (uint16_t)(b->char_base << 1);
+        l->map_byte = (uint16_t)(b->map_base << 1);
+        l->map_bytes = map_bytes(b);
+        unsigned c = 0;
+        while (c < CACHES && caches[c].used && !(caches[c].bpp == l->bpp && caches[c].char_byte == l->char_byte))
+            c++;
+        if (c == CACHES)
+            continue;   /* mode 0's fourth set of tiles: not shown yet */
+        caches[c].used = true;
+        caches[c].bpp = l->bpp;
+        caches[c].char_byte = l->char_byte;
+        l->cache = (uint8_t)c;
+        l->shown = true;
+    }
+    for (unsigned k = 0; k < BLOCKS; k++) {
+        uint32_t byte = (uint32_t)k * BLOCK_BYTES;
+        for (unsigned n = 0; n < 4; n++) {
+            const Layer *l = &layers[n];
+            if (!l->shown)
+                continue;
+            if (within(byte, l->char_byte, CACHE_TILES * tile_bytes(l->bpp)))
+                roles[k] |= TILES;
+            if (within(byte, l->map_byte, l->map_bytes))
+                roles[k] |= MAP;
+        }
+        if (within(byte, sprite_table(0), OBJ_TABLE_BYTES) || within(byte, sprite_table(1), OBJ_TABLE_BYTES))
+            roles[k] |= SPRITE_TILES;
+        if (roles[k] & MAP)
+            for (uint32_t place = byte / 32; place < (byte + BLOCK_BYTES) / 32; place++)
+                take(place);
+    }
+    /* The line effects' maps, each where the GBA has room for it, from the top
+     * of its background VRAM down. */
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        LineMap *lm = &snes.line_maps[m];
+        lm->gba_byte = NO_PLACE;
+        if (!layers[lm->layer].shown)
+            continue;
+        for (unsigned k = 0; k < BLOCKS; k++)
+            if (within((uint32_t)k * BLOCK_BYTES, lm->byte, lm->bytes))
+                roles[k] |= LINE_MAP;
+        for (int32_t at = VRAM_BYTES - lm->bytes; at >= 0 && lm->gba_byte == NO_PLACE; at -= SCREEN_BYTES) {
+            bool room = true;
+            for (uint32_t place = (uint32_t)at / 32; place < ((uint32_t)at + lm->bytes) / 32; place++)
+                room &= !is_taken(place);
+            if (!room)
+                continue;
+            lm->gba_byte = (uint16_t)at;
+            for (uint32_t place = (uint32_t)at / 32; place < ((uint32_t)at + lm->bytes) / 32; place++)
+                take(place);
+        }
+    }
+    for (unsigned c = 0; c < CACHES; c++) {
+        Cache *cache = &caches[c];
+        if (!cache->used)
+            continue;
+        unsigned most = 0;
+        for (unsigned blk = 0; blk < 3; blk++) {
+            unsigned free = 0;
+            for (uint32_t place = blk * 512u; place < blk * 512u + CACHE_TILES && place < PLACES; place++)
+                free += !is_taken(place);
+            if (free > most)
+                most = free, cache->block = (uint8_t)blk;
+        }
+        memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
+        cache->blank = take_slot(cache);
+        if (cache->blank == NO_SLOT)
+            cache->blank = 0;
+        else
+            for (unsigned w = 0; w < 8; w++)
+                BG_VRAM[(cache->block * 512u + cache->blank) * 8u + w] = 0;
+    }
+}
+
+/* A map entry as the GBA's: its tile's place in its cache, its flips, and its
+ * palette (a 2bpp layer's are 8-15). */
+static uint16_t map_entry(uint16_t e, const Layer *l)
+{
+    uint16_t tile = slot_for(&caches[l->cache], e & 0x3FF);
+    uint16_t palette = (uint16_t)((e >> 10 & 7) + (l->bpp == 2 ? 8 : 0));
+    return (uint16_t)(tile | (e & 0x4000 ? 0x0400 : 0) | (e & 0x8000 ? 0x0800 : 0) | palette << 12);
+}
+
+static const Layer *map_layer(uint32_t byte)
+{
+    for (unsigned n = 0; n < 4; n++)
+        if (layers[n].shown && within(byte, layers[n].map_byte, layers[n].map_bytes))
+            return &layers[n];
+    return NULL;
+}
+
+/* A block of a map, converted for a layer into the GBA's VRAM at `to`. */
+static void convert_map(uint32_t first, const Layer *l, uint32_t to)
+{
+    volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + to / 2;
+    for (uint32_t i = 0; i < BLOCK_BYTES; i += 2)
+        gba[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
+}
+
+/* A sprite tile's place in the GBA's sprite VRAM: the SNES's two tables of
+ * 16 tiles a row, one under the other, the first 16 of its 32 a row. */
+static int sprite_slot(uint32_t byte)
+{
+    uint32_t obj = sprite_table(0), second = sprite_table(1);
+    int table = within(byte, obj, OBJ_TABLE_BYTES) ? 0 : within(byte, second, OBJ_TABLE_BYTES) ? 1 : -1;
+    if (table < 0)
+        return -1;
+    uint32_t tile = ((byte - (table ? second : obj)) & (VRAM_BYTES - 1)) / 32;
+    return (int)(((unsigned)table * 16 + tile / 16) * 32 + tile % 16);
+}
+
+static void convert_block(unsigned k)
+{
+    uint32_t first = (uint32_t)k * BLOCK_BYTES;
+    uint8_t role = roles[k];
+    if (role & LINE_MAP)
+        for (unsigned m = 0; m < snes.line_map_count; m++) {
+            const LineMap *lm = &snes.line_maps[m];
+            if (lm->gba_byte != NO_PLACE && layers[lm->layer].shown && within(first, lm->byte, lm->bytes))
+                convert_map(first, &layers[lm->layer], lm->gba_byte + ((first - lm->byte) & (VRAM_BYTES - 1)));
+        }
+    if (role & MAP)
+        convert_map(first, map_layer(first), first);
+    if (role & TILES)
+        for (unsigned c = 0; c < CACHES; c++) {
+            const Cache *cache = &caches[c];
+            uint32_t bytes = tile_bytes(cache->bpp);
+            if (!cache->used || !within(first, cache->char_byte, CACHE_TILES * bytes))
+                continue;
+            for (uint32_t t = 0; t < BLOCK_BYTES; t += bytes) {
+                uint16_t tile = (uint16_t)(((first + t - cache->char_byte) & (VRAM_BYTES - 1)) / bytes);
+                uint16_t slot = cache->slot_of[tile & (CACHE_TILES - 1)];
+                if (slot != NO_SLOT)
+                    convert_tile(cache, tile, slot);
+            }
+        }
+    if (role & SPRITE_TILES)
+        for (uint32_t t = 0; t < BLOCK_BYTES; t += 32) {
+            int slot = sprite_slot(first + t);
+            if (slot >= 0)
+                convert_4bpp(OBJ_VRAM + (uint32_t)slot * 8, &snes.vram[first + t]);
+        }
+}
+
+static void present_palettes(void)
+{
+    for (unsigned i = 0; i < 128; i++)
+        BG_PALETTE[i] = snes.cgram[i];
+    for (unsigned p = 0; p < 8; p++)
+        for (unsigned c = 0; c < 4; c++)
+            BG_PALETTE[(8 + p) * 16 + c] = snes.cgram[p * 4 + c];
+    for (unsigned i = 0; i < 128; i++)
+        OBJ_PALETTE[i] = snes.cgram[128 + i];
+}
+
+/* The SNES's sprite sizes, small and large, for each of its size settings. */
+static const uint8_t sprite_sizes[8][2][2] = {
+    { { 8, 8 }, { 16, 16 } }, { { 8, 8 }, { 32, 32 } }, { { 8, 8 }, { 64, 64 } }, { { 16, 16 }, { 32, 32 } },
+    { { 16, 16 }, { 64, 64 } }, { { 32, 32 }, { 64, 64 } }, { { 16, 32 }, { 32, 64 } }, { { 16, 32 }, { 32, 32 } },
+};
+
+/* The GBA's shape and size bits for a sprite's width and height, or false. */
+static bool gba_size(unsigned w, unsigned h, uint16_t *shape, uint16_t *size)
+{
+    static const struct { uint8_t w, h, shape, size; } sizes[] = {
+        { 8, 8, 0, 0 }, { 16, 16, 0, 1 }, { 32, 32, 0, 2 }, { 64, 64, 0, 3 },
+        { 16, 32, 2, 2 }, { 32, 64, 2, 3 },
+    };
+    for (unsigned i = 0; i < sizeof sizes / sizeof sizes[0]; i++)
+        if (sizes[i].w == w && sizes[i].h == h) {
+            *shape = sizes[i].shape;
+            *size = sizes[i].size;
+            return true;
+        }
+    return false;
+}
+
+/* The SNES's sprite priorities among the layers, as the GBA's. */
+static const uint8_t sprite_priority[4] = { 3, 2, 2, 1 };
+
+static void present_sprites(void)
+{
+    for (unsigned n = 0; n < SPRITES; n++) {
+        const uint8_t *e = &snes.oam[n * 4];
+        uint8_t high = (uint8_t)(snes.oam[0x200 + n / 4] >> (2 * (n % 4)));
+        int x = e[0] | (high & 1) << 8;
+        if (x >= 256)
+            x -= 512;
+        unsigned w = sprite_sizes[snes.obj.size_select & 7][(high >> 1) & 1][0];
+        unsigned h = sprite_sizes[snes.obj.size_select & 7][(high >> 1) & 1][1];
+        uint16_t shape, size;
+        volatile uint16_t *to = &OAM[n * 4];
+        int gx = x - CAMERA_X, gy = (e[1] - CAMERA_Y) & 0xFF;
+        if (!gba_size(w, h, &shape, &size) || gx <= -(int)w || gx >= 240) {
+            to[0] = 0x0200;   /* hidden */
+            continue;
+        }
+        uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
+        uint16_t tile = (uint16_t)((name >> 4) * 32 + (name & 15));
+        to[0] = (uint16_t)(gy | shape << 14);
+        to[1] = (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14);
+        to[2] = (uint16_t)(tile | sprite_priority[(e[3] >> 4) & 3] << 10 | ((e[3] >> 1) & 7) << 12);
+    }
+}
+
+/* ---- The picture line by line ----------------------------------------------------------------- *
+ *
+ * The SNES changes its settings line by line from tables in the game's
+ * memory (HDMA, the video service's line effects): the field's dialog and
+ * its black edges are windows and layers switched on and off part of the way
+ * down. Once a frame those tables are read as the native backend's observer
+ * reads them, from the frame's top, and what each of the GBA's 160 lines
+ * should show is kept; an interrupt at each line's horizontal blank sets the
+ * next line's registers from it. */
+
+#define VCOUNT REG16(0x04000006)
+#define DISPSTAT REG16(0x04000004)
+#define WIN0H REG16(0x04000040)
+#define WIN1H REG16(0x04000042)
+#define WIN0V REG16(0x04000044)
+#define WIN1V REG16(0x04000046)
+#define WININ REG16(0x04000048)
+#define WINOUT REG16(0x0400004A)
+#define REG_IE REG16(0x04000200)
+#define REG_IF REG16(0x04000202)
+#define REG_IME REG16(0x04000208)
+#define IRQ_HANDLER (*(void (*volatile *)(void))0x03007FFC)
+#define BIOS_IF REG16(0x03007FF8)
+enum {
+    GBA_LINES = 160, SNES_LINES = 224, IRQ_HBLANK = 2, DISPSTAT_HBLANK_IRQ = 0x10,
+    DISPCNT_WIN0 = 0x2000, DISPCNT_WIN1 = 0x4000, WIN_EFFECTS = 0x20,
+};
+
+/* A line's registers on the GBA. */
+typedef struct {
+    uint16_t dispcnt, bgcnt[3], hofs[3], vofs[3], win0h, win1h, winin, winout, bldcnt, bldy;
+    uint16_t backdrop, bldalpha;
+} LineRegisters;
+
+static LineRegisters lines[GBA_LINES];
+static volatile bool by_line;     /* whether the interrupt sets each line's registers */
+
+/* The registers the line effects change, as they stand. */
+typedef struct {
+    VidWindows windows;
+    uint8_t main_layers, sub_layers;
+    uint16_t hofs[3], vofs[3];
+    uint8_t map[3];       /* each layer's map, as the SNES's register byte (vid_bg_map_decode) */
+    VidColorMath math;
+    uint16_t fixed_color;
+    uint8_t brightness;
+    bool blank;
+} LineState;
+
+/* A slot's progress through its table, as HDMA's. */
+typedef struct {
+    bool active, transfer;
+    uint8_t bank, count;
+    uint16_t cursor, indirect;
+} Slot;
+
+static uint8_t line_read(uint32_t addr) { return snes.read ? snes.read(snes.ctx, addr) : 0; }
+
+static void slot_entry(Slot *sl, const VidLineEffect *e)
+{
+    uint32_t bank = (uint32_t)sl->bank << 16;
+    sl->count = line_read(bank | sl->cursor);
+    sl->cursor++;
+    if (e->indirect) {
+        sl->indirect = (uint16_t)(line_read(bank | sl->cursor) | line_read(bank | (uint16_t)(sl->cursor + 1)) << 8);
+        sl->cursor = (uint16_t)(sl->cursor + 2);
+    }
+    if (sl->count == 0)
+        sl->active = false;
+    sl->transfer = true;
+}
+
+static uint8_t unit_bytes(VidLineTarget target)
+{
+    switch (target) {
+    case VID_LINE_WINDOWS: case VID_LINE_SCROLL_BG1: case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3:
+    case VID_LINE_BG_MAPS: case VID_LINE_SCREENS: case VID_LINE_COLOR_MATH:
+    case VID_LINE_MODE7_AB: case VID_LINE_MODE7_CD: case VID_LINE_MODE7_CENTER:
+        return 4;
+    case VID_LINE_WINDOW1: case VID_LINE_WINDOW2: case VID_LINE_MODE: case VID_LINE_MATH_LAYERS:
+    case VID_LINE_MATH_CONTROL_AND_LAYERS: case VID_LINE_SCROLL_BG1_H: case VID_LINE_SCROLL_BG1_V:
+    case VID_LINE_SCROLL_BG2_V: case VID_LINE_SCROLL_BG2_H: case VID_LINE_SCROLL_BG3_H: case VID_LINE_SCROLL_BG3_V:
+    case VID_LINE_MODE7_A: case VID_LINE_MODE7_B: case VID_LINE_MODE7_C: case VID_LINE_MODE7_D:
+        return 2;
+    default:
+        return 1;
+    }
+}
+
+/* A scroll register's byte, low then high, as the PPU's latch takes it. */
+static void scroll_byte(uint16_t *value, unsigned k, uint8_t v)
+{
+    *value = k & 1 ? (uint16_t)((*value & 0xFF) | (v & 3) << 8) : (uint16_t)((*value & 0x300) | v);
+}
+
+/* What one byte of a line effect changes of what the GBA shows; the effects
+ * on colour math, the mode and Mode 7 aren't shown yet. */
+static void line_apply(LineState *st, VidLineTarget target, unsigned k, uint8_t v)
+{
+    VidWindows *w = &st->windows;
+    switch (target) {
+    case VID_LINE_WINDOWS:
+        if (k == 0) w->w1_left = v; else if (k == 1) w->w1_right = v; else if (k == 2) w->w2_left = v; else w->w2_right = v;
+        break;
+    case VID_LINE_WINDOW1: if (k == 0) w->w1_left = v; else w->w1_right = v; break;
+    case VID_LINE_WINDOW2: if (k == 0) w->w2_left = v; else w->w2_right = v; break;
+    case VID_LINE_WINDOW1_LEFT: w->w1_left = v; break;
+    case VID_LINE_WINDOW1_RIGHT: w->w1_right = v; break;
+    case VID_LINE_WINDOW2_LEFT: w->w2_left = v; break;
+    case VID_LINE_WINDOW2_RIGHT: w->w2_right = v; break;
+    case VID_LINE_SCROLL_BG1: case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3: {
+        unsigned bg = (unsigned)(target - VID_LINE_SCROLL_BG1);
+        scroll_byte(k < 2 ? &st->hofs[bg] : &st->vofs[bg], k, v);
+        break;
+    }
+    case VID_LINE_SCROLL_BG1_H: scroll_byte(&st->hofs[0], k, v); break;
+    case VID_LINE_SCROLL_BG1_V: scroll_byte(&st->vofs[0], k, v); break;
+    case VID_LINE_SCROLL_BG2_H: scroll_byte(&st->hofs[1], k, v); break;
+    case VID_LINE_SCROLL_BG2_V: scroll_byte(&st->vofs[1], k, v); break;
+    case VID_LINE_SCROLL_BG3_H: scroll_byte(&st->hofs[2], k, v); break;
+    case VID_LINE_SCROLL_BG3_V: scroll_byte(&st->vofs[2], k, v); break;
+    case VID_LINE_BRIGHTNESS: st->brightness = v & 15; st->blank = (v & 0x80) != 0; break;
+    case VID_LINE_SCREENS:
+        if (k == 0) st->main_layers = v; else if (k == 1) st->sub_layers = v; else if (k == 2) w->win_main = v;
+        break;
+    case VID_LINE_MAIN_SCREEN: st->main_layers = v; break;
+    case VID_LINE_SUB_SCREEN: st->sub_layers = v; break;
+    case VID_LINE_BG_MAPS: if (k < 3) st->map[k] = v; break;
+    case VID_LINE_FIXED_COLOR: st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31)); break;
+    case VID_LINE_COLOR_MATH:
+        if (k == 0) vid_color_math_decode(&st->math, VID_MATH_CONTROL, v);
+        else if (k == 1) vid_color_math_decode(&st->math, VID_MATH_LAYERS, v);
+        else if (k == 2) st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31));
+        break;
+    case VID_LINE_MATH_LAYERS:
+        if (k == 0) vid_color_math_decode(&st->math, VID_MATH_LAYERS, v);
+        else st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31));
+        break;
+    case VID_LINE_MATH_LAYERS_ONLY: vid_color_math_decode(&st->math, VID_MATH_LAYERS, v); break;
+    case VID_LINE_MATH_CONTROL_AND_LAYERS:
+        vid_color_math_decode(&st->math, k == 0 ? VID_MATH_CONTROL : VID_MATH_LAYERS, v);
+        break;
+    case VID_LINE_BG2_MAP: st->map[1] = v; break;
+    default: break;
+    }
+}
+
+/* Whether a layer's windows mask it where the dot is in window 1 (`in1`)
+ * and window 2 (`in2`). */
+static bool masked(const VidWindows *w, unsigned layer, bool in1, bool in2)
+{
+    int a = w->w1[layer] == VID_WIN_IN ? in1 : w->w1[layer] == VID_WIN_OUT ? !in1 : -1;
+    int b = w->w2[layer] == VID_WIN_IN ? in2 : w->w2[layer] == VID_WIN_OUT ? !in2 : -1;
+    if (a < 0 && b < 0)
+        return false;
+    if (a < 0 || b < 0)
+        return a < 0 ? b : a;
+    switch (w->logic[layer]) {
+    case VID_WIN_OR: return a || b;
+    case VID_WIN_AND: return a && b;
+    case VID_WIN_XOR: return a != b;
+    default: return a == b;
+    }
+}
+
+/* A window's edges (inclusive, the SNES's dots) as the GBA's (its last dot
+ * exclusive, on its screen); nothing where the left edge is past the right. */
+static uint16_t gba_window(uint8_t left, uint8_t right)
+{
+    if (left > right)
+        return 0;
+    int x1 = left - CAMERA_X, x2 = right + 1 - CAMERA_X;
+    x1 = x1 < 0 ? 0 : x1 > 240 ? 240 : x1;
+    x2 = x2 < 0 ? 0 : x2 > 240 ? 240 : x2;
+    return (uint16_t)(x1 << 8 | x2);
+}
+
+/* The layers a window region shows: in window 1 alone (WIN0), in window 2
+ * alone (WIN1), in neither (outside). Where both windows are, the GBA shows
+ * window 1's choice. */
+static uint16_t region_layers(const LineState *st, bool in1, bool in2)
+{
+    uint16_t shown = WIN_EFFECTS;
+    for (unsigned layer = VID_BG1; layer <= VID_OBJ; layer++) {
+        if (!(st->main_layers & (1u << layer)))
+            continue;
+        if ((st->windows.win_main & (1u << layer)) && masked(&st->windows, layer, in1, in2))
+            continue;
+        shown |= (uint16_t)(1u << layer);
+    }
+    return shown;
+}
+
+/* The GBA's control of a layer showing the map the SNES's byte names: its
+ * priority and tiles as the layout set them, the map's screen block and size. */
+static uint16_t layer_control(unsigned n, uint8_t map)
+{
+    const Layer *l = &layers[n];
+    VidBg b = { 0 };
+    vid_bg_map_decode(&b, map);
+    uint16_t char_block = caches[l->cache].block;
+    uint16_t size = (uint16_t)((b.map_w == 64 ? 1 : 0) | (b.map_h == 64 ? 2 : 0));
+    uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
+    uint32_t at = (uint32_t)b.map_base << 1;
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        const LineMap *lm = &snes.line_maps[m];
+        if (lm->layer == n && lm->byte == at && lm->gba_byte != NO_PLACE)
+            at = lm->gba_byte;
+    }
+    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | (at / SCREEN_BYTES) << 8 | size << 14);
+}
+
+static uint8_t map_byte_of(const VidBg *b)
+{
+    return (uint8_t)((b->map_base >> 8 & 0xFC) | (b->map_w == 64 ? 1 : 0) | (b->map_h == 64 ? 2 : 0));
+}
+
+/* A map a line effect shows that the layout hasn't: kept for the next
+ * layout, which converts it. */
+static void note_line_map(unsigned n, uint8_t map)
+{
+    VidBg b = { 0 };
+    vid_bg_map_decode(&b, map);
+    uint16_t byte = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
+    if (!layers[n].shown || (byte == layers[n].map_byte && bytes == layers[n].map_bytes))
+        return;
+    for (unsigned m = 0; m < snes.line_map_count; m++)
+        if (snes.line_maps[m].byte == byte && snes.line_maps[m].layer == n && snes.line_maps[m].bytes >= bytes)
+            return;
+    if (snes.line_map_count == sizeof snes.line_maps / sizeof snes.line_maps[0])
+        return;
+    snes.line_maps[snes.line_map_count++] = (LineMap){ (uint8_t)n, byte, bytes, NO_PLACE };
+    snes.settings_changed = true;
+}
+
+/* The backdrop with the fixed colour's math on it, where the math takes the
+ * backdrop in: the one part of the SNES's colour math the GBA is given (its
+ * blending can't add a colour), which the field's dialog's gradient is. */
+static uint16_t backdrop(const LineState *st)
+{
+    uint16_t base = snes.cgram[0];
+    const VidColorMath *m = &st->math;
+    if (!(m->layers & VID_BACK_BIT) || m->sub_screen || m->prevent_math == VID_REGION_ALWAYS)
+        return base;
+    uint16_t out = 0;
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        int a = base >> shift & 31, b = st->fixed_color >> shift & 31;
+        int c = m->subtract ? a - b : a + b;
+        if (m->half)
+            c >>= 1;
+        c = c < 0 ? 0 : c > 31 ? 31 : c;
+        out |= (uint16_t)(c << shift);
+    }
+    return out;
+}
+
+static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled)
+{
+    LineRegisters r = { 0 };
+    for (unsigned n = 0; n < 3; n++)
+        if (layers_enabled & (1u << n)) {
+            r.bgcnt[n] = layer_control(n, st->map[n]);
+            note_line_map(n, st->map[n]);
+        }
+    uint16_t layers = 0;
+    for (unsigned n = 0; n < 4; n++)
+        if ((layers_enabled & (1u << n)) && (st->main_layers & (1u << n)))
+            layers |= (uint16_t)(DISPCNT_BG0 << n);
+    if (st->main_layers & VID_OBJ_BIT)
+        layers |= DISPCNT_OBJ;
+    r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | layers | (st->blank ? DISPCNT_FORCED_BLANK : 0));
+    if (st->windows.win_main & (VID_ALL_LAYERS)) {
+        r.dispcnt |= DISPCNT_WIN0 | DISPCNT_WIN1;
+        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right);
+        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right);
+        r.winin = (uint16_t)(region_layers(st, true, false) | region_layers(st, false, true) << 8);
+        r.winout = region_layers(st, false, false);
+    }
+    for (unsigned n = 0; n < 3; n++) {
+        r.hofs[n] = (uint16_t)(st->hofs[n] + CAMERA_X);
+        r.vofs[n] = (uint16_t)(st->vofs[n] + CAMERA_Y);
+    }
+    r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
+    r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
+    r.backdrop = backdrop(st);
+    /* Adding the sub screen to the layers colour math takes in, as the GBA's
+     * blending of two targets at full weight (half at half): of the sub
+     * screen, only what the main screen shows too, and the backdrop. The
+     * SNES's subtraction has no GBA counterpart. */
+    const VidColorMath *m = &st->math;
+    uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
+    if (st->brightness == 15 && m->sub_screen && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
+        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
+        r.bldcnt = (uint16_t)(BLD_ALPHA | first | second << 8);
+        r.bldalpha = m->half ? 0x0808 : 0x1010;
+    }
+    return r;
+}
+
+static void set_line(const LineRegisters *r)
+{
+    DISPCNT = r->dispcnt;
+    for (unsigned n = 0; n < 3; n++) {
+        BGCNT(n) = r->bgcnt[n];
+        BGHOFS(n) = r->hofs[n];
+        BGVOFS(n) = r->vofs[n];
+    }
+    WIN0H = r->win0h;
+    WIN1H = r->win1h;
+    WININ = r->winin;
+    WINOUT = r->winout;
+    BLDCNT = r->bldcnt;
+    BLDY = r->bldy;
+    BLDALPHA = r->bldalpha;
+    BG_PALETTE[0] = r->backdrop;
+}
+
+/* At each line's horizontal blank, the next line's registers; in the
+ * vertical blank, the first line's. In ARM, in fast RAM. */
+__attribute__((target("arm"), section(".iwram"), noinline)) static void on_hblank(void)
+{
+    uint16_t line = (uint16_t)(VCOUNT + 1);
+    if (line >= 228)
+        line = 0;
+    if (by_line && line < GBA_LINES)
+        set_line(&lines[line]);
+    REG_IF = IRQ_HBLANK;
+    BIOS_IF |= IRQ_HBLANK;
+}
+
+/* The frame's lines: the line effects read down the picture from its top,
+ * the line handler's changes below its line, each GBA line's registers. */
+static void present_lines(Platform *pf, uint16_t layers_enabled)
+{
+    const VidHost *v = &pf->video;
+    LineState st = { .windows = snes.windows, .main_layers = snes.main_layers, .sub_layers = snes.sub_layers,
+                     .math = snes.math,
+                     .fixed_color = snes.fixed_color,
+                     .brightness = (uint8_t)(v->display.brightness & 15), .blank = v->display.blank };
+    for (unsigned n = 0; n < 3; n++)
+        st.hofs[n] = snes.bg[n].hofs, st.vofs[n] = snes.bg[n].vofs, st.map[n] = map_byte_of(&snes.bg[n]);
+    uint8_t enabled = v->line_effects;
+    Slot slots[8];
+    for (unsigned i = 0; i < 8; i++) {
+        slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
+                           .cursor = (uint16_t)snes.slot[i].table.addr };
+        if (slots[i].active)
+            slot_entry(&slots[i], &snes.slot[i]);
+    }
+    bool varies = false;
+    for (unsigned line = 0; line < SNES_LINES; line++) {
+        if (line && v->below_display && line == v->display_from) {
+            st.brightness = (uint8_t)(v->display_below.brightness & 15);
+            st.blank = v->display_below.blank;
+        }
+        if (line && v->below_line_effects && line == v->effects_from)
+            enabled = v->line_effects_below;
+        if (line > CAMERA_Y && line <= CAMERA_Y + GBA_LINES) {
+            LineRegisters *r = &lines[line - CAMERA_Y - 1];
+            *r = line_registers(&st, layers_enabled);
+            varies |= line > CAMERA_Y + 1 && memcmp(r, r - 1, sizeof *r) != 0;
+        }
+        for (unsigned i = 0; i < 8; i++) {
+            Slot *sl = &slots[i];
+            const VidLineEffect *e = &snes.slot[i];
+            if (!sl->active || !((enabled >> i) & 1))
+                continue;
+            if (sl->transfer)
+                for (unsigned k = 0, n = unit_bytes(e->target); k < n; k++) {
+                    uint32_t src = e->indirect ? (uint32_t)e->indirect_bank << 16 | sl->indirect++
+                                               : (uint32_t)sl->bank << 16 | sl->cursor++;
+                    line_apply(&st, e->target, k, line_read(src));
+                }
+            sl->count--;
+            sl->transfer = (sl->count & 0x80) != 0;
+            if (!(sl->count & 0x7F))
+                slot_entry(sl, e);
+        }
+    }
+    /* What the effects leave stands, as the SNES's registers do. */
+    snes.windows = st.windows;
+    snes.math = st.math;
+    snes.fixed_color = st.fixed_color;
+    snes.main_layers = st.main_layers;
+    snes.sub_layers = st.sub_layers;
+    for (unsigned n = 0; n < 3; n++)
+        snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
+    WIN0V = GBA_LINES;
+    WIN1V = GBA_LINES;
+    if (!varies) {
+        by_line = false;
+        set_line(&lines[0]);
+        return;
+    }
+    if (!by_line) {
+        IRQ_HANDLER = on_hblank;
+        DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
+        REG_IE = (uint16_t)(REG_IE | IRQ_HBLANK);
+        REG_IME = 1;
+        by_line = true;
+    }
+}
+
+void gba_video_present(Platform *pf)
+{
+    /* Tiles that found no place have the caches started afresh, a second on. */
+    if (misses && ++frames_since_layout >= 60)
+        snes.settings_changed = true;
+    if (snes.settings_changed) {
+        lay_out();
+        for (unsigned i = 0; i < BLOCKS / 32; i++)
+            snes.written[i] = 0xFFFFFFFFu;
+        snes.settings_changed = false;
+    }
+    for (unsigned k = 0; k < BLOCKS; k++)
+        if (snes.written[k / 32] & 1u << (k % 32))
+            convert_block(k);
+    memset(snes.written, 0, sizeof snes.written);
+    if (snes.palette_written) {
+        present_palettes();
+        snes.palette_written = false;
+    }
+    present_sprites();
+
+    uint16_t layers_enabled = 0;
+    for (unsigned n = 0; n < 4; n++) {
+        const Layer *l = &layers[n];
+        if (!l->shown)
+            continue;
+        if (n == 3)
+            BGCNT(3) = layer_control(3, map_byte_of(&snes.bg[3]));
+        layers_enabled |= (uint16_t)(1u << n);
+    }
+    present_lines(pf, layers_enabled);
+}
+
+size_t gba_video_bytes(void) { return sizeof snes; }

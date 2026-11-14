@@ -33,14 +33,15 @@ list(TRANSFORM CT_GAME_SOURCES PREPEND "${CT_ROOT}/")
 # the fibers' switch, the memory, the video with no picture and the driver.
 add_executable(ct_gba
   ${CT_GAME_SOURCES}
-  ${CT_ROOT}/runtime/port/vars_flat.c ${CT_ROOT}/runtime/port/state_host.c ${CT_ROOT}/runtime/port/rom_host.c
+  ${CT_ROOT}/runtime/port/vars_flat.c ${CT_ROOT}/runtime/port/vars_flat_host.c ${CT_ROOT}/runtime/port/state_host.c ${CT_ROOT}/runtime/port/rom_host.c
   ${CT_ROOT}/runtime/port/rom_ram.c ${CT_ROOT}/runtime/port/time_rates.c
   ${CT_ROOT}/runtime/platform/native/timing.c ${CT_ROOT}/runtime/platform/native/input.c
   ${CT_ROOT}/runtime/platform/native/audio.c ${CT_ROOT}/runtime/platform/native/save.c
-  ${CT_ROOT}/runtime/platform/native/mixer.c ${CT_ROOT}/runtime/platform/voices.c
-  ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/movie.c ${CT_ROOT}/frontend/checksum.c
-  start.s switch.s fiber.c system.c memory.c video.c main.c)
-target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_FLAT_STATE SOUND_NATIVE_AUDIO_FRAMES=16)
+  ${CT_ROOT}/runtime/platform/voices.c
+  ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/checksum.c
+  start.s switch.s fiber.c system.c silent_mixer.c video.c main.c)
+target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_FLAT_STATE SOUND_NATIVE_AUDIO_FRAMES=16
+  SOUND_NATIVE_MIXER="silent_mixer.h" VID_HOST_NO_WIDER_VIEW)
 target_include_directories(ct_gba PRIVATE ${CT_ROOT}/game ${CT_ROOT}/runtime ${CT_ROOT}/frontend
   ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_options(ct_gba PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/gba.ld -Wl,-Map=ct_gba.map)

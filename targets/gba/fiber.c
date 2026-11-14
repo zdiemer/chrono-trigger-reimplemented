@@ -51,12 +51,20 @@ Fiber *fiber_main(void) { return &main_fiber; }
 Fiber *fiber_current(void) { return current; }
 
 /* What fiber_swap pops for a fiber that hasn't run: r4-r11 zero, and the
- * return into fiber_body (its Thumb bit set, which bx keeps). */
-enum { SWAP_WORDS = 9 };
+ * return into fiber_body (its Thumb bit set, which bx keeps). Once they are
+ * popped the stack pointer is 8-aligned, as the ARM EABI wants it at a call:
+ * a word of padding below the top makes the nine words' odd count even. */
+enum { SWAP_WORDS = 9, STACK_ALIGN = 8 };
+_Static_assert(FIBER_STACK_SIZE % STACK_ALIGN == 0, "fiber stacks keep their slots 8-aligned");
 static void prepare(Fiber *f)
 {
-    uint32_t *sp = (uint32_t *)(f->stack + FIBER_STACK_SIZE) - SWAP_WORDS - 1;   /* 8-aligned */
-    memset(sp, 0, (SWAP_WORDS + 1) * sizeof *sp);
+    uint32_t *entry = (uint32_t *)(f->stack + FIBER_STACK_SIZE) - 2;   /* the sp fiber_body starts with */
+    uint32_t *sp = entry - SWAP_WORDS;
+    if ((uintptr_t)entry % STACK_ALIGN) {
+        fputs("fiber: a new fiber's stack isn't 8-aligned\n", stderr);
+        abort();
+    }
+    memset(sp, 0, (SWAP_WORDS + 2) * sizeof *sp);
     sp[8] = (uint32_t)(uintptr_t)fiber_body;
     f->sp = sp;
 }

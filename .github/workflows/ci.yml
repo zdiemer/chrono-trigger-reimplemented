@@ -39,6 +39,13 @@ jobs:
             cc: gcc
             shell: bash
             no_sdl: true
+          # The lean build with the state as the original's work RAM, as the GBA's (targets/gba/).
+          - name: linux-gcc-lean-flat
+            os: ubuntu-latest
+            cc: gcc
+            shell: bash
+            no_sdl: true
+            flags: -DCT_LEAN=ON -DCT_FLAT_STATE=ON
           - name: macos-clang
             os: macos-latest
             cc: clang
@@ -85,6 +92,7 @@ jobs:
         run: >-
           cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON
           ${{ matrix.no_sdl && '-DCMAKE_DISABLE_FIND_PACKAGE_SDL2=ON -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON' || '' }}
+          ${{ matrix.flags || '' }}
       - name: Build native game and tests
         run: cmake --build build/ci -j 2
       - name: Native tests
