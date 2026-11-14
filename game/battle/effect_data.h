@@ -173,7 +173,6 @@ enum { ITEM_HEALS, ITEM_AMOUNT, ITEM_POWER };
  * as the healing's is, by the item's number times four in a byte (so the
  * items from 64 on read the first ones' again). */
 enum { ITEM_USE_RESTORES = 0x80, ITEM_USE_GIVES_STATUS = 0x40, ITEM_USE_CURES = 0x04 };
-enum { ITEM_RECORDS_BANK = 0xCC0000u, ITEM_RECORDS_PLACE = 0x05CC };
 
 /* $CC:0ABC and $CC:1BB5: the items from $BC on have a record of three bytes,
  * whose first byte's bit 7 says a party member who steals one keeps it apart
@@ -181,16 +180,12 @@ enum { ITEM_RECORDS_BANK = 0xCC0000u, ITEM_RECORDS_PLACE = 0x05CC };
 enum { FIRST_RECORDED_ITEM = 0xBC, ITEM_RECORD_BYTES = 3, ITEM_KEPT_APART = 0x80 };
 
 /* $CC:88CA and $CC:6FCA, a record an attack or a tech by number. */
-static inline uint32_t action_record_place(ActionTable table, uint8_t number)
-{
-    return (table == ENEMY_ATTACKS ? 0xCC88CAu : 0xCC6FCAu) + (uint32_t)(number * ACTION_RECORD_BYTES);
-}
-
 static inline ActionRecord action_record(const GameState *g, ActionTable table, uint8_t number)
 {
-    uint32_t at = action_record_place(table, number);
-    return (ActionRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 4),
-                           rom_read8(g, at + 7) };
+    AssetId records = table == ENEMY_ATTACKS ? ASSET_ENEMY_ATTACK_RECORDS : ASSET_ENEMY_TECH_RECORDS;
+    uint32_t at = (uint32_t)(number * ACTION_RECORD_BYTES);
+    return (ActionRecord){ asset_read8(g, records, at), asset_read8(g, records, at + 1), asset_read8(g, records, at + 2),
+                           asset_read8(g, records, at + 4), asset_read8(g, records, at + 7) };
 }
 
 /* The record decoded for the kind it is worked out as (which is its first
@@ -215,26 +210,21 @@ static inline EffectRecord effect_record_decode(const uint8_t b[EFFECT_RECORD_BY
 
 /* $CC:89C6 and $CC:7AC9, an effect by number, for the attacks and the
  * techs. */
-static inline uint32_t effect_record_place(ActionTable table, uint8_t effect)
-{
-    return (table == ENEMY_ATTACKS ? 0xCC89C6u : 0xCC7AC9u) + (uint32_t)(effect * EFFECT_RECORD_BYTES);
-}
-
 static inline uint8_t effect_record_byte(const GameState *g, ActionTable table, uint8_t effect, unsigned n)
 {
-    return rom_read8(g, effect_record_place(table, effect) + n);
+    AssetId effects = table == ENEMY_ATTACKS ? ASSET_ENEMY_ATTACK_EFFECTS : ASSET_ENEMY_TECH_EFFECTS;
+    return asset_read8(g, effects, (uint32_t)(effect * EFFECT_RECORD_BYTES) + n);
 }
 
-static inline uint32_t party_tech_place(uint8_t tech) { return 0xCC1BEBu + (uint32_t)(tech * PARTY_TECH_BYTES); }
-
+/* $CC:1BEB, a tech of the party's by number. */
 static inline PartyTech party_tech(const GameState *g, uint8_t tech)
 {
-    uint32_t at = party_tech_place(tech);
-    PartyTech t = { (uint8_t)(rom_read8(g, at) & 0x7F), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
-                    { 0 }, { 0 } };
+    uint32_t at = (uint32_t)(tech * PARTY_TECH_BYTES);
+    PartyTech t = { (uint8_t)(asset_read8(g, ASSET_PARTY_TECHS, at) & 0x7F), asset_read8(g, ASSET_PARTY_TECHS, at + 1),
+                    asset_read8(g, ASSET_PARTY_TECHS, at + 2), asset_read8(g, ASSET_PARTY_TECHS, at + 3), { 0 }, { 0 } };
     for (unsigned part = 0; part < PARTY_TECH_PARTS; part++) {
-        t.effects[part] = rom_read8(g, at + 5 + part);
-        t.modifiers[part] = rom_read8(g, at + 8 + part);
+        t.effects[part] = asset_read8(g, ASSET_PARTY_TECHS, at + 5 + part);
+        t.modifiers[part] = asset_read8(g, ASSET_PARTY_TECHS, at + 8 + part);
     }
     return t;
 }
@@ -242,7 +232,10 @@ static inline PartyTech party_tech(const GameState *g, uint8_t tech)
 /* A tech whose record has its top bit set is locked: the tech points don't
  * teach it until the character's techs are unlocked (battle/rewards_techs.c),
  * nor a combination's its characters. */
-static inline bool party_tech_locked(const GameState *g, uint8_t tech) { return (rom_read8(g, party_tech_place(tech)) & 0x80) != 0; }
+static inline bool party_tech_locked(const GameState *g, uint8_t tech)
+{
+    return (asset_read8(g, ASSET_PARTY_TECHS, (uint32_t)(tech * PARTY_TECH_BYTES)) & 0x80) != 0;
+}
 
 static inline uint8_t tech_member_at(const GameState *g, uint16_t place, unsigned part)
 {
@@ -327,14 +320,26 @@ static inline ArmorModifier armor_modifier(const GameState *g, uint8_t modifier)
     return (ArmorModifier){ asset_read8(g, ASSET_MODIFIER_RECORD, at), asset_read8(g, ASSET_MODIFIER_RECORD, at + 1) };
 }
 
+/* The other items' records ($CC:05CC, four bytes an item): the use's byte,
+ * then the healing's. An item's record is found by its number times four in
+ * a byte (so the items from 64 on read the first ones' again). */
+enum { ITEM_HEALING = 1 };
+
 static inline uint8_t item_healing_byte(const GameState *g, uint8_t item, unsigned n)
 {
-    return asset_read8(g, ASSET_ITEM_HEALING_BYTE, (uint8_t)(item << 2) + n);
+    return asset_read8(g, ASSET_OTHER_ITEM_RECORDS, ITEM_HEALING + (uint8_t)(item << 2) + n);
 }
 
-static inline uint16_t item_use_place(uint8_t item) { return (uint16_t)(ITEM_RECORDS_PLACE + (uint8_t)(item << 2)); }
+/* Where an item's use is in its bank, which the original leaves in a cell. */
+static inline uint16_t item_use_place(uint8_t item)
+{
+    return (uint16_t)((uint16_t)asset_address(ASSET_OTHER_ITEM_RECORDS) + (uint8_t)(item << 2));
+}
 
-static inline uint8_t item_use(const GameState *g, uint8_t item) { return rom_read8(g, ITEM_RECORDS_BANK | item_use_place(item)); }
+static inline uint8_t item_use(const GameState *g, uint8_t item)
+{
+    return asset_read8(g, ASSET_OTHER_ITEM_RECORDS, (uint8_t)(item << 2));
+}
 
 static inline uint8_t item_record_flags(const GameState *g, uint8_t item)
 {
