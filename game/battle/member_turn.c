@@ -38,6 +38,7 @@
 #include "battle/rules_data.h"
 #include "battle/timers.h"
 #include "charge.h"
+#include "port/vars_ram.h"
 
 /* ---- The member and its partners ------------------------------------------------------------ */
 
@@ -582,7 +583,7 @@ static bool member_turn_end_fits(const GameState *g)
 
 bool battle_end_member_turn(GameState *g)
 {
-    if (!member_turn_end_fits(g))
+    if (!PORT_CHECK(member_turn_end_fits(g)))
         return battle_contract_broken(g, 0xC1BCE1, "a member's turn's end with partners past the party");
     member_turn_ends(g);
     return true;
@@ -590,14 +591,14 @@ bool battle_end_member_turn(GameState *g)
 
 bool battle_member_attacks(GameState *g, Platform *pf)
 {
-    if (!attacker_fits(g))
+    if (!PORT_CHECK(attacker_fits(g)))
         return battle_contract_broken(g, MEMBER_ATTACKS, "an attacker past the party");
     return attack(g, pf);
 }
 
 bool battle_carry_out_member_action(GameState *g, Platform *pf)
 {
-    if (!action_fits(g))
+    if (!PORT_CHECK(action_fits(g)))
         return battle_contract_broken(g, 0xC1B967, "a member's action the port doesn't carry out");
     return carry_out_action(g, pf);
 }

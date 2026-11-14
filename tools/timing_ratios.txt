@@ -188,6 +188,144 @@ C0A810 4979 4217 0.85  # field 0.96 attract-demo 0.88 events-epoch-lavos 0.80 me
 # $C0:21E1's is measured, not applied: 2.02-2.19 in most movies but 1.43 in attract-demo, 1.63 in
 # events-end-of-time-gate and 1.71 in events-ocean-palace-lavos, so it isn't steady; it keeps 6772.
 
+# The battle's main thread (issue #349), with the port's own checks no longer counted: its routines' clocks a call against the original's in the three fights (the routes' bot runs against the original's recorded fights; at least two fights, no fight's ratio more than 1.35 times another's). Left out: the waits, the transfers whose bytes the port charges outside the routine ($CD:0607, $CD:0015, $CD:002A, $CD:3EB4), two whose port is shaped otherwise ($CD:20D3, $CD:30BE), the long division ($C1:C92A, 0.68 in the fights against 1.0 in the setup it was calibrated from) and the field's palette darkening ($FD:E64F, calibrated from the field).
+C10012 3092 15385 4.98  # dalton 4.83 golem 5.43 giga 4.67
+C10222 5140 8548 1.66  # dalton 1.68 golem 1.66 giga 1.68
+C105A7 10819 3644 0.34  # dalton 0.33 golem 0.34 giga 0.34
+C10A88 15877 17629 1.11  # dalton 1.13 golem 1.10 giga 1.11
+C110FA 4330 19609 4.53  # dalton 4.44 golem 4.45 giga 4.64
+C11115 5585 7081 1.27  # dalton 1.28 golem 1.25 giga 1.25
+C11153 5462 9093 1.66  # dalton 1.82 golem 1.61 giga 1.57
+C117DD 3343 5876 1.76  # dalton 2.00 golem 1.64 giga 1.64
+C11B19 4414 122299 27.71  # dalton 28.74 giga 26.50
+C11B67 3512 12238 3.48  # dalton 3.32 golem 3.44 giga 3.62
+C11C3A 7845 9622 1.23  # dalton 1.23 golem 1.22 giga 1.23
+C11F79 6435 8553 1.33  # dalton 1.42 golem 1.22 giga 1.29
+C1283D 7349 3694 0.50  # dalton 0.55 golem 0.50 giga 0.49
+C12986 6115 3912 0.64  # dalton 0.63 golem 0.64 giga 0.64
+C129B2 7141 3811 0.53  # dalton 0.53 golem 0.54 giga 0.53
+C12D9F 7837 11153 1.42  # dalton 1.42 golem 1.43 giga 1.44
+C12F97 5478 7258 1.32  # dalton 1.32 golem 1.33 giga 1.32
+C1305C 45989 79049 1.72  # dalton 1.75 golem 1.69 giga 1.71
+C1308C 4429 9885 2.23  # dalton 2.31 golem 2.23 giga 2.21
+C13714 5279 7354 1.39  # dalton 1.29 golem 1.47 giga 1.39
+C13772 2614 16606 6.35  # dalton 7.04 giga 6.15
+C1379A 6478 3807 0.59  # golem 0.59 giga 0.59
+C14058 18841 58275 3.09  # dalton 2.88 giga 3.22
+C14212 6078 21776 3.58  # dalton 3.09 golem 3.80 giga 3.79
+C1423A 13912 17017 1.22  # dalton 1.22 golem 1.25 giga 1.21
+C14310 7222 36419 5.04  # dalton 4.97 giga 5.10
+C148EC 21061 30208 1.43  # dalton 1.60 giga 1.22
+C14BBE 4520 9425 2.09  # dalton 2.11 golem 2.07 giga 2.04
+C14C9E 3755 4252 1.13  # dalton 1.22 golem 1.09 giga 1.10
+C14CF0 2208 5305 2.40  # dalton 2.36 golem 2.52 giga 2.35
+C14D04 4346 6369 1.47  # dalton 1.50 golem 1.45 giga 1.45
+C14E22 2845 4484 1.58  # dalton 1.57 golem 1.68 giga 1.63
+C14EA2 4462 7362 1.65  # dalton 1.56 golem 1.67 giga 1.66
+C14F54 3786 5524 1.46  # dalton 1.50 golem 1.45 giga 1.46
+C14FE3 6307 8932 1.42  # dalton 1.58 golem 1.45 giga 1.36
+C1567D 5137 7611 1.48  # dalton 1.47 golem 1.47 giga 1.48
+C156CC 3722 5162 1.39  # dalton 1.42 golem 1.41 giga 1.36
+C156FB 4150 6223 1.50  # dalton 1.49 golem 1.48 giga 1.53
+C15714 2592 3761 1.45  # dalton 1.47 golem 1.41 giga 1.46
+C1572C 3963 6156 1.55  # dalton 1.57 golem 1.54 giga 1.55
+C15743 4465 7663 1.72  # golem 1.71 giga 1.72
+C15756 4517 7869 1.74  # dalton 1.76 golem 1.70 giga 1.75
+C1577D 4055 6630 1.64  # golem 1.64 giga 1.62
+C158E4 2446 3878 1.59  # dalton 1.51 giga 1.64
+C15931 2410 3089 1.28  # dalton 1.27 giga 1.29
+C1594B 2412 3679 1.53  # dalton 1.59 golem 1.48 giga 1.49
+C15ADB 7781 13798 1.77  # dalton 1.74 golem 1.77 giga 1.83
+C15DD3 6916 9319 1.35  # dalton 1.35 golem 1.35 giga 1.41
+C15E87 4139 5685 1.37  # dalton 1.48 golem 1.48 giga 1.43
+C15F13 5781 8967 1.55  # golem 1.56 giga 1.52
+C15FC1 2794 4414 1.58  # dalton 1.54 golem 1.60 giga 1.57
+C15FD3 2617 3935 1.50  # dalton 1.59 golem 1.49 giga 1.49
+C15FDE 5360 6912 1.29  # dalton 1.21 golem 1.34 giga 1.28
+C16059 4205 4774 1.14  # dalton 1.14 golem 1.14 giga 1.13
+C16093 3308 4791 1.45  # golem 1.46 giga 1.43
+C16154 3011 4392 1.46  # dalton 1.49 golem 1.48 giga 1.42
+C16258 3074 4817 1.57  # dalton 1.53 giga 1.60
+C16299 5929 7878 1.33  # dalton 1.41 golem 1.34 giga 1.36
+C1672E 5329 7574 1.42  # golem 1.40 giga 1.42
+C169C3 4935 7320 1.48  # dalton 1.54 golem 1.46 giga 1.49
+C16CF3 4888 7220 1.48  # golem 1.51 giga 1.46
+C16F31 3857 6232 1.62  # dalton 1.63 golem 1.61 giga 1.61
+C16F53 4702 7471 1.59  # dalton 1.55 golem 1.59 giga 1.59
+C18461 6684 10774 1.61  # dalton 1.68 golem 1.56 giga 1.59
+C18C09 8398 12973 1.54  # dalton 1.59 golem 1.56 giga 1.51
+C18CF9 8382 6135 0.73  # dalton 0.75 golem 0.79 giga 0.68
+C18EA7 9318 5417 0.58  # dalton 0.55 giga 0.63
+C197AB 1945 8814 4.53  # golem 4.17 giga 4.99
+C19810 4699 12042 2.56  # dalton 2.72 golem 2.61 giga 2.45
+C1983A 8256 19456 2.36  # golem 2.39 giga 2.31
+C199B8 1393 2354 1.69  # dalton 1.82 giga 1.61
+C1A4AF 23822 14027 0.59  # dalton 0.58 golem 0.55 giga 0.61
+C1AC14 8044 4965 0.62  # dalton 0.63 golem 0.61 giga 0.63
+C1AC46 6781 8877 1.31  # dalton 1.33 golem 1.30 giga 1.31
+C1AC5E 3438 8189 2.38  # dalton 2.45 golem 2.30 giga 2.39
+C1B093 4827 7623 1.58  # dalton 1.57 golem 1.58 giga 1.59
+C1B0B6 6567 8405 1.28  # dalton 1.29 golem 1.30 giga 1.25
+C1B223 17176 26119 1.52  # dalton 1.47 golem 1.55 giga 1.52
+C1B279 5758 9420 1.64  # dalton 1.81 golem 1.71 giga 1.60
+C1B3F9 4895 7335 1.50  # dalton 1.49 golem 1.53 giga 1.49
+C1B575 8407 11727 1.39  # dalton 1.39 golem 1.41 giga 1.39
+C1B762 8101 11046 1.36  # dalton 1.36 golem 1.39 giga 1.35
+C1B967 32659 8650 0.26  # dalton 0.25 giga 0.29
+C1BF79 17772 10570 0.59  # dalton 0.59 giga 0.59
+C1D2DE 45460 11838 0.26  # dalton 0.28 giga 0.27
+C1EC39 11254 14294 1.27  # dalton 1.30 giga 1.25
+C1EC7F 8359 9703 1.16  # dalton 1.19 giga 1.13
+CCF06B 7433 9054 1.22  # dalton 1.21 golem 1.21 giga 1.22
+CCF102 8500 13014 1.53  # dalton 1.49 giga 1.56
+CCF110 3284 4059 1.24  # dalton 1.23 golem 1.24 giga 1.24
+CCF156 7759 11574 1.49  # dalton 1.26 giga 1.69
+CCF1E7 9367 16000 1.71  # dalton 1.84 golem 1.50 giga 1.83
+CCF278 9942 13122 1.32  # dalton 1.36 golem 1.27 giga 1.35
+CCF2A9 6690 13290 1.99  # dalton 1.95 golem 2.00 giga 2.00
+CD0239 2835 3325 1.17  # dalton 1.16 golem 1.20 giga 1.19
+CD025E 7039 22033 3.13  # dalton 3.07 golem 3.20 giga 3.22
+CD11E4 5126 6280 1.23  # dalton 1.24 golem 1.21 giga 1.22
+CD1368 6484 8470 1.31  # dalton 1.32 golem 1.32 giga 1.30
+CD16A6 3485 1353 0.39  # dalton 0.42 golem 0.38 giga 0.38
+CD1834 1383 10375 7.50  # dalton 7.50 golem 7.50 giga 7.50
+CD18C2 761 13500 17.74  # dalton 17.74 golem 17.74 giga 17.74
+CD1918 761 16911 22.22  # golem 19.71 giga 24.10
+CD1E07 1886 8294 4.40  # dalton 4.56 golem 4.17 giga 4.24
+CD29E3 2301 18224 7.92  # dalton 7.96 golem 8.07 giga 7.79
+CD2DCB 1160 12368 10.66  # golem 10.70 giga 10.64
+CD2EA2 1709 13692 8.01  # dalton 7.79 golem 8.00 giga 8.26
+CD2EDE 1588 5737 3.61  # golem 3.62 giga 3.61
+CD2F4E 1578 19876 12.60  # dalton 16.27 golem 12.57 giga 12.05
+CD2F61 1533 13682 8.92  # dalton 9.99 golem 9.65 giga 7.80
+CD2F6E 1681 15932 9.48  # dalton 9.56 golem 9.12 giga 9.63
+CD2F8B 1530 7549 4.93  # dalton 4.35 golem 5.44 giga 5.07
+CD2FAB 761 15234 20.02  # dalton 22.81 golem 18.34 giga 18.45
+CD2FB1 761 14750 19.38  # dalton 17.74 golem 18.45 giga 21.26
+CD2FB7 2645 3380 1.28  # dalton 1.24 golem 1.21 giga 1.30
+CD2FBC 2250 14727 6.55  # dalton 7.23 golem 6.02 giga 6.21
+CD2FED 2042 20681 10.13  # dalton 10.35 giga 9.92
+CD3017 893 9419 10.55  # dalton 10.56 golem 10.40 giga 10.64
+CD3032 893 9181 10.28  # dalton 9.57 golem 10.57 giga 10.59
+CD303B 2215 28720 12.97  # dalton 10.60 golem 12.95 giga 13.24
+CD3083 893 11616 13.01  # dalton 12.74 golem 12.56 giga 13.56
+CD308C 761 21987 28.89  # dalton 28.77 golem 30.48 giga 27.74
+CD3092 1691 11098 6.56  # dalton 6.86 golem 6.03 giga 6.82
+CD30B8 761 22374 29.40  # dalton 27.60 golem 28.93 giga 31.05
+CD3B5F 2625 13204 5.03  # dalton 5.17 golem 4.91 giga 5.00
+CFEA8A 1887 12598 6.68  # dalton 6.59 golem 6.39 giga 7.04
+CFF03E 6005 5297 0.88  # dalton 0.92 giga 0.97
+CFF087 8352 11349 1.36  # golem 1.39 giga 1.35
+CFFD02 4750 7502 1.58  # dalton 1.60 golem 1.57 giga 1.57
+CFFD36 4750 7383 1.55  # dalton 1.55 golem 1.58 giga 1.56
+CFFD9E 2969 6507 2.19  # dalton 2.19 golem 2.21 giga 2.18
+FDA95F 3569 8508 2.38  # dalton 2.42 golem 2.41 giga 2.34
+FDAB30 2591 3063 1.18  # dalton 1.18 golem 1.18 giga 1.18
+FDAC6E 3767 8815 2.34  # dalton 2.13 golem 2.84 giga 2.12
+FDACEE 9838 11945 1.21  # dalton 1.21 golem 1.22 giga 1.21
+FDACFD 9833 12173 1.24  # dalton 1.22 golem 1.24 giga 1.24
+FDE779 5491 6853 1.25  # dalton 1.23 golem 1.24 giga 1.24
+
 # The field's and the events' one-off routines (issue #349, #376): the location's load, its scripts' setup commands, under 1000 calls in the 25 movies (each routine's calls within 20% of the original's, at least three movies, no movie's ratio more than 1.35 times another's). Left out: the waits and the song starts, the transfers whose bytes the port charges outside the routine (the edge uploads, the window design's send, the choice pointer's refresh, the location's palette), and the routines the port prices from their own work ($C0:56D4, $C0:0A14, $C0:6DCF, $C0:0960, $C0:09DD).
 C00005 4307 4917 1.14  # attract-demo 1.14 field-factory-switch 1.14 events-ocean-palace-lavos 1.14
 C000F4 3295 13378 4.06  # attract-demo 4.05 events-ocean-palace-lavos 4.14 field 4.01 menus-shop-inn 4.08

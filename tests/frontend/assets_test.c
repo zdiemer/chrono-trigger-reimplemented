@@ -110,6 +110,34 @@ static const uint8_t *made_up_find(void *ctx, const char *name, const char *type
     return NULL;
 }
 
+/* With the ROM staged: the import's pack is the cartridge's by the reference
+ * tools/assets.py recorded, and a byte changed in it makes it not. */
+static void the_cartridges_pack(void)
+{
+    FILE *f = fopen("roms/ct-usa.sfc", "rb");
+    if (!f) {
+        printf("assets_test: no ROM staged, the import not held to the recorded bytes\n");
+        return;
+    }
+    uint8_t *file = malloc(ASSET_ROM_SIZE + 0x200);
+    size_t len = file ? fread(file, 1, ASSET_ROM_SIZE + 0x200, f) : 0, size = 0, pack_len = 0;
+    fclose(f);
+    const char *why = "";
+    const uint8_t *rom = file ? asset_rom_image(file, len, &size) : NULL;
+    uint8_t *bytes = rom ? asset_pack_import(rom, size, &pack_len, &why) : NULL;
+    AssetPack *pack = bytes ? asset_pack_open(bytes, pack_len, &why) : NULL;
+    CHECK(pack && asset_pack_is_the_cartridges(pack));
+    asset_pack_close(pack);
+    if (bytes) {
+        bytes[pack_len - 1] ^= 1;
+        pack = asset_pack_open(bytes, pack_len, &why);
+        CHECK(pack && !asset_pack_is_the_cartridges(pack));
+        asset_pack_close(pack);
+    }
+    free(bytes);
+    free(file);
+}
+
 int main(void)
 {
     size_t total = 0;
@@ -131,6 +159,8 @@ int main(void)
         return 1;
     AssetPack *pack = asset_pack_open(bytes, len, &why);
     CHECK(pack != NULL);
+    CHECK(!asset_pack_is_the_cartridges(pack));   /* made-up bytes aren't the cartridge's */
+    the_cartridges_pack();
     AssetStore store;
     asset_pack_store(pack, &store);
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
@@ -141,8 +171,15 @@ int main(void)
         CHECK(!store.find(store.ctx, e->name, "not-a-type", &n));
     }
 
-    /* The game's reads, through the store. */
-    assets_use(&store);
+    /* The game's reads, through the pack as a source: each resource its row's entry. */
+    AssetSource source;
+    asset_pack_source(pack, &source);
+    for (uint16_t i = 0; i < asset_catalogue_count; i++) {
+        uint32_t n = 0;
+        const uint8_t *got = source.resource(source.ctx, i, &n);
+        CHECK(got && n == asset_catalogue[i].length && !memcmp(got, made_up_bytes + made_up_at[i], n));
+    }
+    assets_use(&source);
     CHECK(event_selected_data_byte(NULL, NULL, asset_catalogue[0].at) == made_up(0, 0));
     CHECK(memory_reads == 0);
     CHECK(event_selected_data_word(NULL, NULL, 0x7E1234) == 0xA4A4);

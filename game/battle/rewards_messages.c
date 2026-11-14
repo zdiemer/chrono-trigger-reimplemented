@@ -22,6 +22,7 @@
 #include "battle/program.h"
 #include "charge.h"
 #include "battle/rewards_work.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* The battle's own messages that tell the rewards, by their number among
@@ -208,7 +209,7 @@ static bool rewards_fit(const GameState *g)
 
 bool battle_show_the_rewards(GameState *g, Platform *pf)
 {
-    if (!rewards_fit(g))
+    if (!PORT_CHECK(rewards_fit(g)))
         return battle_contract_broken(g, 0xFDAD17, "a double techs' list with no end");
     return tell_the_rewards(g, pf);
 }
