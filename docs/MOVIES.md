@@ -179,7 +179,22 @@ then stands still); `heckran_prepare` and `heckran` then play the Medina gate,
 the cave, a Shelter at its save point and Heckran. Heckran's whirlpool,
 Leene Square's Gate (which shows Truce Canyon's pillar at the End of Time) and
 that pillar lead to 600 A.D.; Guardia's kitchen gives Zenan Bridge's jerky,
-and `zombor` plays the bridge. It ends with Zombor beaten (frame 698042). Lab 16's Shadows,
+and `zombor` plays the bridge. From there it goes south: Dorino's Tonics and
+Mid Tonics; up the Denadoro Mountains (the entrance's west way, then map by
+map, the climbs' ladders and falls by leg B's search) to the save point below
+the top, where the party trains on the monsters of the map before it, which
+come back each time it steps out and in, until all are at level 15 (31 fights),
+and rests with a Shelter; Masa and Mune, beaten in one try with Marle's Ice,
+Lucca's Fire and Crono's Slash against the merged form's Tornado energy (the
+rpgclassics.com and gamercorner.net boss guides; at levels 13-14 without the
+Slash the bot needed 44 tries). The blade's scene leaps the party down the
+mountainside on the world map. Tata gives the Hero Medal; Frog, shown it, steps
+from his basket, which holds the hilt; Truce Canyon's Gate, the End of Time's
+Medina pillar and Melchior, who wants a Dreamstone; the south-west pillar to
+65,000,000 B.C.; at Ioka's feast a fixed round of talk brings on Ayla's soup
+race, won by pressing A as fast as it counts; and in the morning, the Gate Key
+gone, Ayla joins (Crono 17, Ayla 18, Marle 16). It ends there, at story $78
+(frame 1067447), where leg B's save stands. Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
@@ -283,7 +298,11 @@ become fixes; the batch never blocks a commit, merge or push. Its stage logs,
 route logs and `findings.json` live under `build/suite-long`. At most two native
 processes run at once; individual routes retain their six-hour timeout.
 A route must report its reached outcome and exit successfully. Timeouts stop
-only that route's process tree. `--protocol-log` records requests and replies.
+only that route's process tree. A route that makes no progress (a checkpoint,
+a fight won, or a fight's retry) for 15 minutes ends itself with a `STALL`
+line naming where it last moved on (`tools/movies/campaign.py`,
+`CT_ROUTE_STALL` to change it), so a walk that goes back and forth for ever
+fails rather than holding the batch until its timeout. `--protocol-log` records requests and replies.
 
 ## Native program checkpoints
 
