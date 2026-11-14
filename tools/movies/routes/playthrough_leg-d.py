@@ -143,7 +143,6 @@ BELOW_CRONO = (472, 400)        # Crono at the End of Time once he is back, spok
 EQUIPMENT_LIST = 0x7E0F00       # the equipment screen's list of what the slot can take
 WEAPON, HELM, ARMOUR, ACCESSORY = 0, 1, 2, 3                 # its slots' rows
 SLOT_RECORD = {HELM: 0x27, ARMOUR: 0x28, WEAPON: 0x29, ACCESSORY: 0x2A}   # character_records' gear
-FIRST_LIST_ROW = 4                                           # its cursor on the list's first row
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
@@ -525,7 +524,8 @@ def equip(run, member, slot, item):
     row = list(machine.peek(EQUIPMENT_LIST, 32)).index(item)
     for _ in range(row):
         press(machine, "DOWN", 30)
-    assert machine.b(MENU_CURSOR) == FIRST_LIST_ROW + row, ("the list's row", row)
+    # A long list scrolls, so the cursor alone does not name the row: the
+    # record checked below does.
     press(machine, "A", 60)
     back_to_main_menu(machine)
     press(machine, "B", 120)
