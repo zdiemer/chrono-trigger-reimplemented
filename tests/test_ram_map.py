@@ -392,7 +392,7 @@ host_alias = "items"''', "menu"))
         self.assertIn("if (!peeking)\n        vars_host_check(h, 0x7E1001u, 1u, 2u);", getter[:getter.index("}")])
         self.assertIn("{ 1, 2, 0 },", backing)
         # A read answers from the owner that wrote last; a write reaches every owner.
-        self.assertIn("*value = storage[shared_bytes[shared_first[slot] + (writer ? writer - 1u : 0u)]];", backing)
+        self.assertIn("*value = storage[shared_bytes[(shared_first[slot] & ((1u << OWNERS_AT) - 1u)) + writer - 1u]];", backing)
         self.assertIn("for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++, owners++)", backing)
         self.assertIn("storage[*owner++] = value;", backing)
         self.assertIn("return at_byte(h, &h->menu.view, sizeof h->menu.view, offset);", backing)

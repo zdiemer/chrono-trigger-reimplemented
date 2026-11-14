@@ -2184,17 +2184,23 @@ def render_host_backing(m):
     out += ["    return 0;", "}", ""]
     pairs = sum(len(ov.at[addr]) for addr in ov.shared)
     out += ["/* Each byte of work RAM, resolved once to where the storage keeps it",
-            " * (place_byte): the byte's offset in the storage, plus 1, where one owner",
-            " * keeps it; where owners keep it beside each other, SHARED, the owners'",
-            " * count and the byte's place in overlay_writer, whose owners' offsets",
-            " * shared_bytes keeps from shared_first[place], in overlay_owner_sets's order.",
-            " * 0: no owner keeps it. The layout is the same for every state. */",
-            "enum { WORK_RAM_BYTES = 0x20000, OWNERS_AT = 17, SLOT_BITS = 0x1FFFF };",
+            " * (place_byte): its offset in the storage, plus 1, or 0 where no owner",
+            " * keeps it. Where owners keep it beside each other, that is the first",
+            " * owner's, with SHARED; the byte's place in overlay_writer follows from",
+            " * overlay_pages, and shared_bytes keeps every owner's offset from",
+            " * shared_first[place], in overlay_owner_sets's order, with their count above",
+            " * OWNERS_AT. The layout is the same for every state. */",
+            "enum { WORK_RAM_BYTES = 0x20000, OWNERS_AT = 24 };",
             "#define SHARED 0x80000000u",
             "static uint32_t byte_kept[WORK_RAM_BYTES];"]
     if ov.shared:
         out += ["static uint32_t shared_first[%d];" % (len(ov.pages) * 256),
-                "static uint32_t shared_bytes[%d];" % pairs]
+                "static uint32_t shared_bytes[%d];" % pairs, "",
+                "/* A shared byte's place in overlay_writer. */",
+                "static uint32_t writer_slot(uint32_t at)",
+                "{",
+                "    return (overlay_pages[at >> 8] - 1u) * 256u + (at & 255u);",
+                "}"]
     out += ["", "static void resolve_the_bytes(const VarsHost *h)", "{",
             "    static bool resolved;",
             "    if (resolved)", "        return;",
@@ -2207,18 +2213,18 @@ def render_host_backing(m):
                 "        uint32_t addr = 0x7E0000u + at;",
                 "        unsigned place = projection_at(addr);",
                 "        if (!place)",
-                "            continue;"]
+                "            continue;",
+                "        byte_kept[at] = place_byte(h, place, addr) + 1u;"]
         if ov.shared:
             out += ["        unsigned set, slot = overlay_at(addr, &set);",
-                    "        if (slot) {",
-                    "            uint32_t owners = 0;",
-                    "            shared_first[slot - 1] = shared;",
-                    "            for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++, owners++)",
-                    "                shared_bytes[shared++] = place_byte(h, *owner, addr);",
-                    "            byte_kept[at] = SHARED | owners << OWNERS_AT | (slot - 1u);",
+                    "        if (!slot)",
                     "            continue;",
-                    "        }"]
-        out += ["        byte_kept[at] = place_byte(h, place, addr) + 1u;", "    }"]
+                    "        uint32_t owners = 0, first = shared;",
+                    "        for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++, owners++)",
+                    "            shared_bytes[shared++] = place_byte(h, *owner, addr);",
+                    "        shared_first[slot - 1] = first | owners << OWNERS_AT;",
+                    "        byte_kept[at] |= SHARED;"]
+        out += ["    }"]
     else:
         out += ["    (void)h;"]
     out += ["}", ""]
@@ -2229,11 +2235,14 @@ def render_host_backing(m):
             "    const uint8_t *storage = (const uint8_t *)h;"]
     if ov.shared:
         out += ["    if (kept & SHARED) {",
-                "        /* The owner that wrote it last, or the first owner. */",
-                "        uint32_t slot = kept & SLOT_BITS;",
+                "        /* The owner that wrote it last, when that isn't the first. */",
+                "        uint32_t slot = writer_slot(at);",
                 "        unsigned writer = h->overlay_writer[slot];",
-                "        *value = storage[shared_bytes[shared_first[slot] + (writer ? writer - 1u : 0u)]];",
-                "        return true;", "    }"]
+                "        if (writer > 1u) {",
+                "            *value = storage[shared_bytes[(shared_first[slot] & ((1u << OWNERS_AT) - 1u)) + writer - 1u]];",
+                "            return true;",
+                "        }",
+                "        kept &= ~SHARED;", "    }"]
     out += ["    *value = storage[kept - 1u];", "    return true;", "}", ""]
     out += ["bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value)", "{",
             "    uint32_t at = addr - 0x7E0000u;",
@@ -2243,9 +2252,9 @@ def render_host_backing(m):
     if ov.shared:
         out += ["    if (kept & SHARED) {",
                 "        /* Every owner of the byte takes the write, as the original's one byte does. */",
-                "        uint32_t slot = kept & SLOT_BITS;",
-                "        const uint32_t *owner = &shared_bytes[shared_first[slot]];",
-                "        for (uint32_t k = kept >> OWNERS_AT & 0xFFu; k; k--)",
+                "        uint32_t slot = writer_slot(at), first = shared_first[slot];",
+                "        const uint32_t *owner = &shared_bytes[first & ((1u << OWNERS_AT) - 1u)];",
+                "        for (uint32_t k = first >> OWNERS_AT; k; k--)",
                 "            storage[*owner++] = value;",
                 "        h->overlay_writer[slot] = 0;",
                 "        return true;", "    }"]
