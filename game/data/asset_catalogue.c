@@ -440,8 +440,14 @@ const AssetEntry asset_catalogue[] = {
     { 0xC70D18u, 249u, "sound_song_at", 3, 29 },
     { 0xC70E11u, 2656u, "sound_song_instrument_block", 1, 29 },
     { 0xC71871u, 2988u, "sound_song_percussion_bytes", 4, 41 },
-    { 0xC7241Du, 1u, "sound_song_echo_delay", 0, 29 },
-    { 0xC7241Eu, 20207u, "sound_song_volume", 0, 29 },
+    { 0xC7241Du, 166u, "sound_song_settings", 4, 38 },
+    { 0xC724C3u, 7153u, "sound_boot_program", 11, 29 },
+    { 0xC740B4u, 515u, "sound_boot_samples", 11, 29 },
+    { 0xC742B7u, 38u, "sound_boot_directory", 1, 29 },
+    { 0xC742DDu, 22u, "sound_boot_envelopes", 1, 29 },
+    { 0xC742F3u, 22u, "sound_boot_tunings", 1, 29 },
+    { 0xC74309u, 6146u, "sound_field_effects", 0, 29 },
+    { 0xC75B0Bu, 6146u, "sound_battle_effects", 0, 29 },
     { 0xC7730Du, 3746u, "sound_block_ptrs.0", 11, 29 },
     { 0xC781AFu, 1955u, "sound_block_ptrs.1", 11, 29 },
     { 0xC78952u, 560u, "sound_block_ptrs.2", 11, 29 },
@@ -7947,8 +7953,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-AssetServed asset_served[7879];
+AssetServed asset_served[7885];
 
-const uint16_t asset_catalogue_count = 7879;
+const uint16_t asset_catalogue_count = 7885;
 
-const uint32_t asset_catalogue_version = 0xCB49D979u;
+const uint32_t asset_catalogue_version = 0x5665B3D5u;

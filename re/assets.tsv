@@ -389,8 +389,14 @@ sound_instrument_envelope	words	C7:0C9C	C7:0D17	raw	accessor sound_instrument_en
 sound_song_at	ptr24	C7:0D18	C7:0E10	raw	accessor sound_song_at
 sound_song_instrument_block	words	C7:0E11	C7:1870	raw	accessor sound_song_instrument_block
 sound_song_percussion_bytes	struct	C7:1871	C7:241C	struct:records:36	accessor sound_song_percussion_bytes
-sound_song_echo_delay	bytes	C7:241D	C7:241D	raw	accessor sound_song_echo_delay
-sound_song_volume	bytes	C7:241E	C7:730C	raw	accessor sound_song_volume
+sound_song_settings	struct	C7:241D	C7:24C2	struct:records:2	accessor sound_song_volume, sound_song_echo_delay
+sound_boot_program	spc700	C7:24C3	C7:40B3	raw	accessor sound_program_byte
+sound_boot_samples	spc700	C7:40B4	C7:42B6	raw	accessor sound_boot_block_byte
+sound_boot_directory	words	C7:42B7	C7:42DC	raw	accessor sound_boot_directory_entry
+sound_boot_envelopes	words	C7:42DD	C7:42F2	raw	accessor sound_boot_instrument_envelope
+sound_boot_tunings	words	C7:42F3	C7:4308	raw	accessor sound_boot_instrument_tuning
+sound_field_effects	bytes	C7:4309	C7:5B0A	raw	accessor sound_effect_set_byte
+sound_battle_effects	bytes	C7:5B0B	C7:730C	raw	accessor sound_effect_set_byte
 sound_block_ptrs.0	spc700	C7:730D	C7:81AE	raw	read
 sound_block_ptrs.1	spc700	C7:81AF	C7:8951	raw	read
 sound_block_ptrs.2	spc700	C7:8952	C7:8B81	raw	read
