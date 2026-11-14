@@ -204,7 +204,7 @@ back each time it steps between the entrance and the map above (87 experience a
 thousand frames with this party; Lab 16 gave 6, and the Cursed Woods' fights
 the walk didn't find), 144 fights to levels 25/24/24; Magus then falls without a
 retry (at 19-20 the bot needed 1,764 tries, at 21-22 522). It ends with Magus
-beaten (checkpoint `b_magus`, frame 2160593 on a full run). The Guardian is fought with the early policy, which heals with Tonics,
+beaten (the checkpoint named for Magus in leg B's chapter, frame 2160593 on a full run). The Guardian is fought with the early policy, which heals with Tonics,
 after Tonics to full HP: #422's load rates moved the fights before it, the
 party arrived with its magic spent, and the general policy, whose heals are
 spells, needed over 9,000 tries. Lab 16's Shadows,
