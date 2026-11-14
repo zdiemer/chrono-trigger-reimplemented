@@ -7964,8 +7964,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFDBE4u, 2424u, "menu_three_plane_tiles", 10, 29 },
     { 0xFFE55Cu, 896u, "menu_gate_tiles", 10, 29 },
     { 0xFFE8DCu, 684u, "menu_gate_swirl_graphics", 7, 3 },
-    { 0xFFEB88u, 1u, "menu_gate_swirl_graphics_after", 0, 29 },
-    { 0xFFEB89u, 1151u, "mixed_ffeb89", 5, 29 },
+    { 0xFFEB88u, 1152u, "menu_gate_screen_tiles", 10, 29 },
     { 0xFFF008u, 1344u, "menu_battle_mode_screen_tile", 1, 29 },
     { 0xFFF6F2u, 36u, "menu_gate_row_first_tile", 1, 29 },
     { 0xFFF759u, 128u, "menu_gate_wave", 1, 29 },
@@ -7979,8 +7978,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-const uint16_t asset_catalogue_count = 7911;
+const uint16_t asset_catalogue_count = 7910;
 
-const uint32_t asset_catalogue_version = 0x390181DFu;
+const uint32_t asset_catalogue_version = 0x4365B86Bu;
 
 const uint32_t asset_catalogue_bytes_crc32 = 0x315F7395u;

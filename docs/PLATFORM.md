@@ -133,7 +133,7 @@ techs, the enemies' attacks and their effects and animations), the battle's
 messages and fades, the menus' colours, tiles and window designs, the sound's
 songs' settings, boot blocks and sets of effects, the scripts the map view,
 the time dial and the Epoch run. Left `mixed`, `untyped` or `undetermined`:
-42 rows, 13,808 bytes, every one `unread` in its row's `found`: no accessor
+41 rows, 12,657 bytes, every one `unread` in its row's `found`: no accessor
 names it, and no read of the movies or the routes lands in it (mixed was 36
 rows, 117,842 bytes). `tools/assets.py check` fails a row of those types
 that doesn't say it is `unread`. A read that lands in one at run time is
@@ -145,8 +145,8 @@ typed: the accessories' data records the menus copy (`accessory_data_records`,
 $CC:0A1C), an enemy's message before its table's first entry
 (`enemy_messages_cd91`), a string past the table at $F6:B230
 (`strings_f6c7e5`), a palette the menus copy in a playthrough leg
-(`menu_colors_ce50`), the byte past the gate's swirl stream that the unpacker
-reads, and three tables the routes read further than the movies had
+(`menu_colors_ce50`), tiles the gate screen sends after its swirl's stream
+(`menu_gate_screen_tiles`), and three tables the routes read further than the movies had
 (`battle_palette_frames`, `battle_effect_frames`, `combination_tech_asks`).
 
 ### Palettes, the first decoded resource

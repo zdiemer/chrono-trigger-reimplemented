@@ -7914,8 +7914,7 @@ menu_more_four_colour_tiles	gfx	FF:D5E4	FF:DBE3	tiles:2bpp	accessor menu graphic
 menu_three_plane_tiles	gfx	FF:DBE4	FF:E55B	raw	accessor menu graphics
 menu_gate_tiles	gfx	FF:E55C	FF:E8DB	raw	accessor menu_upload_data
 menu_gate_swirl_graphics	lz	FF:E8DC	FF:EB87	lz	accessor menu_draw_gate_screen
-menu_gate_swirl_graphics_after	bytes	FF:EB88	FF:EB88	raw	read: the byte past the swirl stream the unpacker reads
-mixed_ffeb89	mixed	FF:EB89	FF:F007	raw	unread
+menu_gate_screen_tiles	gfx	FF:EB88	FF:F007	raw	read: $480 bytes of tiles an upload of the gate screen sends (a playthrough leg)
 menu_battle_mode_screen_tile	words	FF:F008	FF:F547	raw	accessor menu_battle_mode_screen_tile
 menu_gate_row_first_tile	words	FF:F6F2	FF:F715	raw	accessor menu_gate_row_first_tile
 menu_gate_wave	words	FF:F759	FF:F7D8	raw	accessor menu_gate_wave
