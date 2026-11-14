@@ -74,21 +74,29 @@ GRIND_RESERVE = 8
 # Then Marle wears the Wallet, which pays each fight's experience as gold,
 # until the purse holds PURSE. At stock_up's prices, in its order, 200,000
 # buys two Aeon Suits and two Aeon Helms (33,600), Full Tonics to 99 (at most
-# 69,300) and Mid Ethers with what is left (some 48 from an empty bag, 96,000);
-# the Mid Tonics and Ethers after them take only the change. Filling the bag
-# with all four to 99 from empty would cost about 390,000.
+# 69,300) and Mid Ethers with what is left (some 48 from an empty bag,
+# 96,000); the Mid Tonics and Ethers after them take only the change. Filling
+# the bag with all four to 99 from empty would cost about 390,000.
 PURSE = 200000
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
-# Crono back, he joins in Robo's place at the End of Time, grown with the
-# others (the experience the party wins is shared with those in reserve).
-# Lavos's inner form opens with a spell a member at full HP lives through
-# with about 70 magic defence (computed, policies.lavos_inner): Crono, Marle
-# and Lucca have it, Robo (67) does not. The purse the growing filled buys the 12000 B.C.
-# village's best armour and helms and its Full and Mid Tonics and Ethers,
-# before the End of Time's light and its bucket into Lavos's shell
+# Crono back, he joins in Marle's place: the party for Lavos is Crono, Lucca
+# and Robo, grown with the others (the experience the party wins is shared
+# with those in reserve). Robo's Heal Beam keeps everyone up without the bag
+# (cavesofnarshe.com's walkthrough, chapter 35: "healing with two of Marle,
+# Frog, and Robo is an absolute must"), Lucca's Flare takes the inner form's
+# arms (their defence of 127 halves blows; their magic defence is 50) and her
+# Protect guards against the core's blows, and Crono's Confuse and Robo's
+# Uzzi Punch are the blows the core's left and right bits want. Crono, Frog
+# and Robo, whose Triple Raid the guides aim at the core, lost the inner form
+# instead: this Frog knows four techs (no Leap Slash or Cure 2). Lavos's inner
+# form opens with a spell a member at full HP lives through with about 70
+# magic defence (computed, policies.lavos_inner): Crono has 86, Lucca 99, Robo
+# 73 at 999 HP. The purse the growing filled buys the 12000 B.C. village's
+# best armour and helms and its Full and Mid Tonics and Ethers, before the
+# End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
 # form to Haste and healing first.
@@ -131,7 +139,7 @@ FIRST_LIST_ROW = 4                                           # its cursor on the
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
-BEST_GEAR = [(MARLE, ARMOUR, AEON_SUIT), (MARLE, HELM, AEON_HELM), (LUCCA, ARMOUR, AEON_SUIT),
+BEST_GEAR = [(LUCCA, ARMOUR, AEON_SUIT), (ROBO, ARMOUR, AEON_SUIT), (ROBO, HELM, AEON_HELM),
              (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
 HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
@@ -445,9 +453,10 @@ def member_under_the_cursor(machine):
     return machine.b(A.PARTY_MEMBERS + (machine.b(EXCHANGE_ROWS + row) & ROW_PLACE))
 
 
-def exchange(run, joining, leaving):
-    """On the party exchange's screen: choose the member `leaving` the active
-    party, then the reserve's `joining`; the two change places."""
+def exchange(run, *swaps):
+    """On the party exchange's screen: for each (joining, leaving), choose the
+    member leaving the active party, then the reserve's joining; the two
+    change places."""
     machine = run.machine
 
     def choose(member, keys):
@@ -459,11 +468,12 @@ def exchange(run, joining, leaving):
         assert member_under_the_cursor(machine) == member, ("the exchange's cursor on", member)
         machine.run(4, "A")
         machine.run(60)
-    choose(leaving, ("DOWN", "LEFT"))
-    machine.run(4, "RIGHT")
-    machine.run(30)
-    choose(joining, ("RIGHT", "DOWN"))
-    assert joining in machine.peek(A.PARTY_MEMBERS, 3), ("in the party", joining)
+    for joining, leaving in swaps:
+        choose(leaving, ("DOWN", "LEFT"))
+        machine.run(4, "RIGHT")
+        machine.run(30)
+        choose(joining, ("RIGHT", "DOWN"))
+        assert joining in machine.peek(A.PARTY_MEMBERS, 3), ("in the party", joining)
     for _ in range(6):
         if machine.b(A.FIELD_PLAYER_CONTROL):
             break
@@ -712,7 +722,7 @@ def main():
             machine.run(30)
             machine.run(3, "A")                     # Yes
             machine.run(120)
-            exchange(run, CRONO, ROBO)
+            exchange(run, (CRONO, MARLE))
             run.checkpoint("crono_joins")
         later -= len(REUNITED)
         if later <= 0:

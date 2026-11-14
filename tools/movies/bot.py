@@ -143,6 +143,11 @@ class Bot:
         """Carry out an action. True when the command was accepted."""
         member = self.state.member
         kind = action[0]
+        if kind == "wait":
+            # Leave the menu open for `action[1]` frames: the others' turns
+            # come on meanwhile, which a double or triple tech needs.
+            self.step(action[1])
+            return True
         want_command = {"attack": 0, "tech": 1, "item": 2}[kind]
         self.step(4)
         if not self.move_cursor(lambda s: s.command_cursor[member] if s.member == member else -1, want_command):
