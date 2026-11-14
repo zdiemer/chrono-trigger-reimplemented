@@ -70,6 +70,7 @@ typedef struct {
     uint8_t clip[W], math_on[W];   /* the color window's effect */
     int width, left;               /* the view: pixels across, and the screen X of the first */
     int layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across */
+    int back_from, back_to;              /* the view's pixels the backdrop holds, black past them */
     const VidMapLayout *layout[4];       /* how each BG's one-screen map is laid out across the view, or NULL */
     const VidWindowParting *parting;     /* how the windows are parted, or NULL */
     int parted_row;                      /* the run of eight lines the window masks were parted for */
@@ -146,6 +147,7 @@ struct VidRenderer {
     const uint32_t *last_out;   /* the framebuffer the cached lines are in */
     int width, left;            /* the view the cached lines were drawn for */
     int16_t layer_left[4], layer_right[4];   /* and where its layers held the picture */
+    int16_t back_left, back_right;           /* and its backdrop */
     uint8_t layout_count;                    /* and how its panels were laid out */
     uint16_t layout_map[VID_MAP_LAYOUTS];
     VidMapLayout layouts[VID_MAP_LAYOUTS];
@@ -1123,6 +1125,14 @@ static void span_begin(VidRenderer *r, const VidSpan *span, const VidFrame *f, b
     sp->st = st;
     sp->width = r->width;
     sp->left = r->left;
+    {
+        /* the backdrop across: the original's screen always among it */
+        int from = f->back_left - r->left, to = f->back_right - r->left;
+        from = from < -r->left ? from : -r->left;
+        to = to > -r->left + SCREEN_W ? to : -r->left + SCREEN_W;
+        sp->back_from = from < 0 ? 0 : from > r->width ? r->width : from;
+        sp->back_to = to < sp->back_from ? sp->back_from : to > r->width ? r->width : to;
+    }
     for (int bg = 0; bg < 4; bg++) {
         sp->layer_left[bg] = f->layer_left[bg];
         sp->layer_right[bg] = f->layer_right[bg];
@@ -1257,8 +1267,9 @@ static void draw_line(VidRenderer *r, LineCtx *c, uint32_t *out)
 
     memset(main_s->z, 0, sizeof main_s->z);
     for (int x = 0; x < width; x++) {
-        main_s->color[x] = sp->pal[0];   /* backdrop */
-        main_s->math[x] = (layers_math & VID_LAYER_BIT(VID_BACK)) != 0;
+        bool held = x >= sp->back_from && x < sp->back_to;
+        main_s->color[x] = held ? sp->pal[0] : 0;   /* backdrop, or black past where it holds the picture */
+        main_s->math[x] = held && (layers_math & VID_LAYER_BIT(VID_BACK)) != 0;
     }
     if (sp->any_math) {
         memset(sub_s->z, 0, sizeof sub_s->z);
@@ -1464,6 +1475,101 @@ static void show_the_picture_beside_the_panels(VidRenderer *r, const VidFrame *f
     r->time_over = time_over;
 }
 
+/* A line laying a panel out across the view (vid_lay_out_a_map_across): some
+ * layer it shows draws a map a layout parts -- the battle window, its
+ * windows at the view's sides. */
+static bool lays_a_panel_out(const VidFrame *f, const VidSpan *span)
+{
+    const VidLineState *st = &span->state;
+    if (st->display.blank || st->mode.mode == 7)
+        return false;
+    for (int bg = 0; bg < 4; bg++) {
+        bool shown = ((st->main_layers | st->sub_layers) >> bg) & 1;
+        if (!shown || st->bg[bg].map_w != 32 || (st->bg[bg].hofs & 0xFF))
+            continue;
+        for (int n = 0; n < f->layout_count; n++)
+            if (f->layout_map[n] == st->bg[bg].map_base)
+                return true;
+    }
+    return false;
+}
+
+/* Whether the line leaves the view's pixel `x` clear: every layer it shows
+ * draws a laid-out panel there, and every layout shows nothing at it -- the
+ * gap a parted panel leaves between its windows. */
+static bool clear_between_the_windows(const VidFrame *f, const VidLineState *st, int line, int x, int left)
+{
+    bool any = false;
+    for (int bg = 0; bg < 4; bg++) {
+        const VidBg *b = &st->bg[bg];
+        if (!(((st->main_layers | st->sub_layers) >> bg) & 1))
+            continue;
+        const VidMapLayout *layout = NULL;
+        for (int n = 0; n < f->layout_count && b->map_w == 32 && !(b->hofs & 0xFF); n++)
+            if (f->layout_map[n] == b->map_base)
+                layout = &f->layouts[n];
+        if (!layout)
+            return false;
+        uint32_t row = (((uint32_t)line + b->vofs) & ((uint32_t)b->map_h * 8u - 1u)) >> 3;
+        uint32_t column = ((uint32_t)((b->hofs & 0xFF) + left + x) & (VID_LAYOUT_COLUMNS * 8u - 1u)) >> 3;
+        if (layout->column[row & (VID_LAYOUT_ROWS - 1)][column] != VID_LAYOUT_NOTHING)
+            return false;
+        any = true;
+    }
+    return any;
+}
+
+/* Between a parted panel's windows the view shows the picture behind them,
+ * as the nearest lines without a panel show it -- the lines above it, or
+ * below a panel at the top -- drawn at the panel's own lines: the battlefield
+ * the battle window hides on the original's screen goes on behind it. Where
+ * that picture has nothing of its own (an arena drawn only above the window)
+ * the gap stays as the panel's lines leave it. The lines are drawn afresh
+ * each frame, and drawing them again sets none of the frame's sprite flags. */
+static void show_the_picture_between_the_windows(VidRenderer *r, const VidFrame *f, uint32_t *out)
+{
+    if (r->left == 0)
+        return;
+    int width = r->width;
+    bool range_over = r->range_over, time_over = r->time_over;
+    for (int i = 0; i < f->span_count; i++) {
+        if (!lays_a_panel_out(f, &f->spans[i]))
+            continue;
+        int source = -1;
+        for (int k = i - 1; k >= 0 && source < 0; k--)
+            if (!f->spans[k].state.display.blank && !lays_a_panel_out(f, &f->spans[k]))
+                source = k;
+        for (int k = i + 1; k < f->span_count && source < 0; k++)
+            if (!f->spans[k].state.display.blank && !lays_a_panel_out(f, &f->spans[k]))
+                source = k;
+        int from = f->spans[i].line < 1 ? 1 : f->spans[i].line;
+        int to = i + 1 < f->span_count ? f->spans[i + 1].line - 1 : H;
+        if (to > H)
+            to = H;
+        if (source < 0 || from > to)
+            continue;
+        const VidLineState *panel = &f->spans[i].state;
+        const VidSpan *behind = &f->spans[source];
+        const uint8_t *vram = behind->vram ? behind->vram : f->vram;
+        span_begin(r, behind, f, vram != r->span.vram);
+        SpanCtx *sp = &r->span;
+        static uint32_t picture[W];
+        for (int line = from; line <= to; line++) {
+            if (sp->parting && parting_row(line) != sp->parted_row)
+                span_windows(sp, line);
+            LineCtx c = { .sp = sp, .line = line };
+            draw_line(r, &c, picture);
+            uint32_t *row = out + (size_t)(line - 1) * width;
+            for (int x = 0; x < width; x++)
+                if (r->main_s.z[x] && clear_between_the_windows(f, panel, line, x, r->left))
+                    row[x] = picture[x];
+            r->lines[line].valid = false;
+        }
+    }
+    r->range_over = range_over;
+    r->time_over = time_over;
+}
+
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
     r->range_over = r->time_over = false;
@@ -1477,6 +1583,7 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
                           !memcmp(f->layout_map, r->layout_map, sizeof *f->layout_map * f->layout_count) &&
                           (!f->layout_count || !memcmp(f->layouts, r->layouts, sizeof *f->layouts * f->layout_count));
     if (out != r->last_out || width != r->width || memcmp(f->layer_left, r->layer_left, sizeof r->layer_left) ||
+        f->back_left != r->back_left || f->back_right != r->back_right ||
         memcmp(f->layer_right, r->layer_right, sizeof r->layer_right) || f->margin_count != r->margin_count ||
         (f->margin_count && memcmp(f->margin, r->margin, sizeof *f->margin * f->margin_count)) || !laid_out_alike) {
         for (int line = 1; line <= H; line++)
@@ -1486,6 +1593,8 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         r->left = vid_view_left((VidView){ (uint16_t)width, H });
         r->sprites.valid = false;
         memcpy(r->layer_left, f->layer_left, sizeof r->layer_left);
+        r->back_left = f->back_left;
+        r->back_right = f->back_right;
         memcpy(r->layer_right, f->layer_right, sizeof r->layer_right);
         r->parted = f->parting != NULL;
         if (f->parting)
@@ -1582,8 +1691,11 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         }
     }
     show_the_picture_beside_the_panels(r, f, out);
+    show_the_picture_between_the_windows(r, f, out);
     if (flags) {
         flags->range_over = r->range_over;
         flags->time_over = r->time_over;
     }
 }
+
+size_t vid_render_bytes(void) { return sizeof(VidRenderer); }

@@ -2,6 +2,7 @@
 #ifndef CT_GAME_BATTLE_WIDE_WINDOW_H
 #define CT_GAME_BATTLE_WIDE_WINDOW_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "platform/platform.h"
@@ -15,8 +16,9 @@ typedef enum { WINDOW_SHOWS_OTHER, WINDOW_SHOWS_PARTY, WINDOW_SHOWS_TECHS, WINDO
  * decides reads. */
 typedef struct {
     uint8_t shows;      /* WindowShows */
-    uint8_t layout;     /* the settings' layout of the party's lines, when they were sent */
     uint8_t divider;    /* the frames' border between the windows at the left and the party's, 0 for none */
+    uint8_t command;    /* a command window's right side over the enemies' list, 0 for none */
+    bool shared;        /* the border is the left window's side, which the right one draws beside */
 } BattleWideWindow;
 /* Module storage supplied by the state owner, independent of mapped RAM. */
 BattleWideWindow *battle_wide_window(GameState *g);

@@ -599,7 +599,9 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   each layer holding the original's screen alone, so a tilemap never repeats
   or shows stale columns in the margins unless its mode built them, and what
   lies under it shows there instead -- in the end the backdrop, the colour the
-  original shows where no layer is opaque. A line whose tilemap is one screen
+  original shows where no layer is opaque. The backdrop too can be held to a
+  span (`VID_BACK`), past which the view is black: each frame starts with it
+  across the whole view. A line whose tilemap is one screen
   across (32 tiles: the menus', the battle's and the dialog's panels, which
   line effects switch to partway down) keeps to the original's screen. The
   original's screen itself is always drawn as before. Mode 7 continues its
@@ -648,8 +650,12 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   the room a column is built as its edge's, and shown only where the edge is
   one entry all the way down (a void), which is judged as the margins are
   built and kept for the frames between, when a battle's data may lie over
-  the map's looks; elsewhere the layer stops at the room and the backdrop
-  shows. Each frame
+  the map's looks; elsewhere the layer stops at the room. Past where the
+  ground's layers (BG1 and BG2) stop, BG3 stops too and the view is black:
+  BG3's edge is often one entry all the way down, a fill the map never meant
+  to be seen (Denadoro's grey-blue, which its battles moved into the view),
+  and so is the backdrop's colour there -- unless BG3 is a veil, which goes
+  on across the view with the backdrop under it (Death Peak's fog). Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
   within the room -- unless it is a veil, a layer drawn whole that the
@@ -694,19 +700,28 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   what they framed. `game/core/panel_layout.h` builds layouts: columns shown
   at a place, a window stretched with its inside's four-column pattern
   repeated.
-- **The battle window** (`game/battle/wide_window.c`) keeps the windows at its
-  left (the command windows, the enemies' list) at the view's left side,
-  stretches the party's window to its right side and spreads each member's
-  name, numbers and gauge across it; the tech page's two windows each stretch
-  to their side, and the item list and the message window across the view.
-  What the window's rows and frames show is noted as the vblank sends them
+- **The battle window** (`game/battle/wide_window.c`) keeps its windows the
+  size the original draws them. Where the frames have a border between
+  windows, those left of it (the enemies' list, a member's command window
+  over it, the tech page's list) go to the view's left side and the one right
+  of it (the party's, the tech page's MP) to its right side, with their text.
+  Between them the renderer shows the battlefield the window hides on the
+  original's screen: the nearest lines without the window, drawn at the
+  window's own lines, wherever every laid-out layer shows nothing; where that
+  picture has nothing of its own (an arena drawn only above the window) the
+  gap stays black. A command window drawn over the enemies' list stands alone: the
+  rest of the list, whose names it covers, is left out rather than shown as
+  an empty piece of a window. The item list and the message window, a screen
+  across, stay in the middle. What the window's rows and frames show is noted as the vblank sends them
   (from the transfer's source, and the frames' window corners), so the layout
   always fits what VRAM holds.
 - **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) take
   a layout per screen from an explicit list in that file. Most screens are
   framed: where a layer runs on in a four-column pattern across the edge of
-  its outer columns (a window's inside, the backdrop), the columns outside it
-  move out to the view's sides and the pattern fills the gap; the lists, text
+  its outer columns (a window's inside, the backdrop) -- and the pattern
+  holds none of the window sides or corners further out, as where the save
+  screen's slot number and title are two boxes side by side -- the columns
+  outside it move out to the view's sides and the pattern fills the gap; the lists, text
   and figures inside stay where the original drew them, and the windows'
   edges at the screen's sides move with the frame. The main menu, the
   equipment, the items, the techs, the settings, the party exchange, the save
@@ -760,6 +775,65 @@ it runs in the non-blocking `suite.py --long` batch rather than the gate.
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.
+
+### Memory, stacks and per-frame work against small targets
+
+`ct_native --measure` (frontend/measure.h) reports what a run holds and does,
+and `tools/measure.py --ct-native <ct_native>` runs it headless over eight
+movies that between them put every mode on screen (the attract sequence, a new
+game, `gato-battle`, `menu`, `field`, `events-epoch-lavos`, `battle-magus`,
+`endings-telepod-lavos`), taking the largest of each figure. The ctest
+`measure` runs one movie and checks the report is whole. Measuring changes
+nothing the game does: the resources are served by the same store through a
+counting wrapper.
+
+What it measures, and how:
+
+- **Sizes**: `sizeof` the GameState and its work RAM's parts, the renderer,
+  the sound player and the picture's observer (with the copies of memory it has
+  taken for the frames' lines), the arena's bytes taken, and the game library's
+  code, constants and static data (`size -t` of the `ct_game` library).
+- **Stacks**: the fiber stacks start zeroed in the arena and grow down, so
+  the lowest byte not zero in a slot is the deepest any fiber in it went
+  (`fiber_stack_high_water`): stack painting, over every frame the movies run.
+- **Resources a mode needs**: each stay in a mode (the vblank handler it
+  installed: the field, a battle, the menus, a scene, the time warp) starts the
+  store's cache afresh, and the bytes of the catalogue's resources the stay
+  reads are summed: the cartridge data a mode reads, in the catalogue's form.
+- **Per-frame work**: host nanoseconds a frame (the host's monotonic clock:
+  QueryPerformanceCounter on Windows, clock_gettime(CLOCK_MONOTONIC) elsewhere),
+  split into the game's frame (its threads and handlers), the sound
+  player and the renderer; the 99th percentile and the heaviest frame per mode.
+  The targets' figures are an estimate, and say so: host time times 12
+  instructions a nanosecond (a desktop core near 4 GHz retiring about three a
+  cycle; `--host-ipc-ghz`), against a frame's worth of the target's: the
+  GBA's ARM7TDMI at 16.78 MHz retiring about half an instruction a cycle from
+  the cartridge or EWRAM (about 140,000 a frame), the SNES's 65816 at 3.58 MHz
+  about one every four cycles (about 15,000 a frame). x86 instructions are
+  neither Thumb's nor the 65816's, and the host was shared with other work, so
+  the heaviest frames are noisy; the 99th percentile is the representative one.
+
+Measured on the gate's build (2026-11-13):
+
+| What | Host | Fits the SNES (128 KiB WRAM, 64 KiB VRAM, 3.58 MHz)? | Fits the GBA (256 KiB EWRAM, 32 KiB IWRAM, 96 KiB VRAM, 16.78 MHz)? |
+|---|---|---|---|
+| GameState | 529.1 KiB: work RAM's parts 372.0 KiB, diagnostics 136.2 KiB (`overlay_writer` 116.5, `crossed` 19.7), save RAM and the rest 21 KiB | No: the parts alone are 2.9x WRAM (244 KiB over); the original fits them by overlaying the modes' memory | No as a whole (372 KiB is 116 KiB over); a mode's set does (below) |
+| A mode's work RAM at once (core, event, palettes and the small parts, plus the mode's) | field 164.1, field with the menus 229.4, field with a battle 210.2, world map 150.9, scene 146.8, time warp 142.2 KiB | No: each is over 128 KiB (by 14-101 KiB) | Yes, each under 256 KiB (27-114 KiB to spare), the modes overlaid as the original overlays them |
+| Largest parts | event 110.5 (its script buffer 56.0), field 49.6, battle 46.1, world map 36.4, sprite-object mode 33.2, scene 32.3, menus 32.1, warp 27.7 KiB | Event alone is 86% of WRAM | Fits |
+| Game library | code and constants 1947.2 KiB, static data 117.5 KiB | Code: a ROM's, not WRAM; the static data is 92% of WRAM besides | Code in the cartridge's 32 MiB; static data 46% of EWRAM besides |
+| Renderer, observer | 253.6, 186.8 KiB | Not needed: the PPU draws | Not needed: the GBA's PPU draws, from VRAM the port fills |
+| Sound player | 126.4 KiB (the sound processor's 64 KiB and its mixer) | Not needed: the APU | Over budget as is: a GBA needs its own player in EWRAM |
+| Picture memory | the SNES's own: 64 KiB VRAM, 512 B CGRAM, 544 B OAM, kept by the observer | Fits: it is the SNES's | Fits 96 KiB VRAM, 32 KiB to spare, where 2bpp layers are widened to the GBA's 4bpp (BG3 doubles) |
+| Resources one stay reads | battle 565.8, field 518.5, menus 451.4, scene 379.0, warp 270.6 KiB; the catalogue 3.67 MiB | ROM: no RAM | Cartridge ROM: no RAM |
+| Fiber stacks | 16 slots of 512 KiB reserved; deepest use 3,432 bytes (the main thread), then 1,768 and under 1,300 in the six task slots used | 8 KiB of stack would do; the 65816's are in WRAM | Seven slots of 4 KiB fit IWRAM (28 KiB) |
+| Work a frame, 99th percentile (game; game and sound on the GBA) | battle 0.14+0.10 ms, field 0.24+0.13, menus 0.35+0.14, scene 0.08+0.11, warp 0.01+0.09 | No: 10-282x a frame's 65816 work (field 189x) | No: 9-42x a frame's ARM7 work (field 32x, menus 42x) |
+| Work a frame, heaviest | game up to 10.3 ms (field, a noisy single frame) | No | No |
+
+The figures say where the small targets' work lies: the work RAM fits a GBA
+mode by mode, and the stacks fit its fast RAM, once the host's diagnostics, its
+renderer and its sound processor are left out; the per-frame work is one to two
+orders of magnitude over both CPUs, so a GBA build needs the game's frame
+made far cheaper, not only fitted. Run `tools/measure.py` again to remeasure.
 
 ## Scene map fills
 

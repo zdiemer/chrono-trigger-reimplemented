@@ -20,6 +20,9 @@
 /* `read` fetches a byte of game memory without side effects (snes_bus_peek). */
 VidObserver *vid_obs_create(uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
 void vid_obs_destroy(VidObserver *ob);
+/* The bytes the observer holds: itself, and the copies of memory it has
+ * taken for the frames' lines so far (ct_native --measure). */
+size_t vid_obs_bytes(const VidObserver *ob);
 /* The observer as bytes for a snapshot: its memory, registers, the frame it
  * last built and the copies of memory that frame's lines read. Writes when
  * `room` is enough, and answers the bytes it needs either way. A restore

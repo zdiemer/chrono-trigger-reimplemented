@@ -787,6 +787,55 @@ void field_rooms_span(const GameState *g, int16_t *left, int16_t *right)
     *right = room.right;
 }
 
+/* What the layers hold across the view, shown: the ground's layers (BG1 and
+ * BG2, which draw the map) as far as they hold it, BG3 -- laid over or under
+ * them, whose edge is often one entry all the way down, an opaque fill or a
+ * see-through one -- no further than the ground goes, and the backdrop as far
+ * as the ground. Past that the view is black: past a room's edge that is no
+ * void, where the original's screen never goes, BG3's fill and the
+ * backdrop's colour are ones the map never meant to be seen (Denadoro's
+ * grey-blue beside its battles, issue #399). A veil is the exception, as it
+ * is for the map (veils_the_picture): a fog or shade the colour math lays
+ * over the picture goes on across the view, and the backdrop under it, as
+ * the original's screen shows them (Death Peak's fog beside its battles).
+ * The original's screen is always among it. */
+typedef struct {
+    int left, right;
+} Across;
+
+static void widen(Across *across, Across by)
+{
+    if (by.left < across->left)
+        across->left = by.left;
+    if (by.right > across->right)
+        across->right = by.right;
+}
+
+static void show_the_picture_across(Platform *pf, const Across span[FIELD_LAYERS], const bool held[FIELD_LAYERS],
+                                    const bool veil[FIELD_LAYERS])
+{
+    Across ground = { 0, VID_ORIGINAL_VIEW_WIDTH };
+    for (unsigned layer = FIELD_BG1; layer <= FIELD_BG2; layer++) {
+        if (!held[layer])
+            continue;
+        widen(&ground, span[layer]);
+    }
+    Across backdrop = ground;
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        if (!held[layer])
+            continue;
+        Across across = span[layer];
+        if (veil[layer])
+            widen(&backdrop, across);
+        else if (layer == FIELD_BG3) {
+            across.left = across.left > ground.left ? across.left : ground.left;
+            across.right = across.right < ground.right ? across.right : ground.right;
+        }
+        vid_show_a_layer_across(pf, (VidLayer)layer, (int16_t)across.left, (int16_t)across.right);
+    }
+    vid_show_a_layer_across(pf, VID_BACK, (int16_t)backdrop.left, (int16_t)backdrop.right);
+}
+
 void field_show_the_layers_across(GameState *g, Platform *pf)
 {
     VidView view = vid_view(pf);
@@ -795,6 +844,7 @@ void field_show_the_layers_across(GameState *g, Platform *pf)
     FieldMargins *m = field_margins(g);
     uint32_t mark = charge_uncounted_begin(g);
     FieldLayerSpan map = rooms_span(g);
+    Across span[FIELD_LAYERS];
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         bool shown = ((field_main_screen(g) | field_sub_screen(g)) >> layer) & 1;
         m->span[layer] = shown ? layer_span(g, layer, view, margin_columns(view))
@@ -806,8 +856,10 @@ void field_show_the_layers_across(GameState *g, Platform *pf)
             m->span[layer].right = map.right;
         m->held[layer] = shown;
         m->taken[layer] = false;
-        vid_show_a_layer_across(pf, (VidLayer)layer, m->span[layer].left, m->span[layer].right);
+        m->veil[layer] = shown && still && veils_the_picture(g, layer);
+        span[layer] = (Across){ m->span[layer].left, m->span[layer].right };
     }
+    show_the_picture_across(pf, span, m->held, m->veil);
     charge_uncounted_end(g, mark);
 }
 
@@ -819,11 +871,12 @@ void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint
     if (!vid_view_is_wider(vid_view(pf)))
         return;
     const FieldMargins *m = field_margins(g);
+    Across span[FIELD_LAYERS];
+    bool held[FIELD_LAYERS];
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
-        if (!m->held[layer] || m->taken[layer])
-            continue;
         int moved = around_the_ring(scroll[layer] - m->span[layer].scroll);
-        vid_show_a_layer_across(pf, (VidLayer)layer, (int16_t)(m->span[layer].left - moved),
-                                (int16_t)(m->span[layer].right - moved));
+        held[layer] = m->held[layer] && !m->taken[layer];
+        span[layer] = (Across){ m->span[layer].left - moved, m->span[layer].right - moved };
     }
+    show_the_picture_across(pf, span, held, m->veil);
 }

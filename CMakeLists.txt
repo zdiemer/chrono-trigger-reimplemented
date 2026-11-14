@@ -357,8 +357,8 @@ list(FILTER CT_GAME_SOURCES INCLUDE REGEX "^game/(event/|battle/script_|battle/n
 add_library(ct_languages_without_text OBJECT ${CT_GAME_SOURCES})
 target_compile_definitions(ct_languages_without_text PRIVATE CT_SCRIPT_TEXT=0)
 target_link_libraries(ct_languages_without_text PRIVATE ct_state_host)
-add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
-  frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
+add_executable(ct_native frontend/ct_native.c frontend/measure.c frontend/route_driver.c frontend/snapshot.c
+  frontend/presentation.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
   frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/scripts.c frontend/text.c
   frontend/commands.c frontend/battle_language.c frontend/menu_language.c frontend/enemy_scripts.c
@@ -380,7 +380,7 @@ else()
   endif()
 endif()
 if(CT_SDL2)
-  target_sources(ct_native PRIVATE frontend/window.c frontend/presentation.c frontend/audio_fill.c frontend/bindings.c frontend/bindings_config.c)
+  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c frontend/bindings_config.c)
   target_compile_definitions(ct_native PRIVATE CT_HAVE_SDL)
   target_link_libraries(ct_native PRIVATE ${CT_SDL2})
 else()
@@ -497,6 +497,8 @@ if(BUILD_TESTING)
   # The decoded maps drawn from their texts against ct_native's pictures (with the ROM staged).
   add_test(NAME map_pictures COMMAND ${Python3_EXECUTABLE} tests/frontend/map_pictures.py $<TARGET_FILE:ct_native>)
   set_tests_properties(map_pictures PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  add_test(NAME measure COMMAND ${Python3_EXECUTABLE} tools/measure.py --ct-native $<TARGET_FILE:ct_native> --check)
+  set_tests_properties(measure PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # ct_native's reporting options only look: play is the same with each of them (with the ROM staged).
   add_test(NAME observers COMMAND ${Python3_EXECUTABLE} tests/frontend/observers.py $<TARGET_FILE:ct_native>)
   set_tests_properties(observers PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

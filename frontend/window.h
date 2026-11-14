@@ -9,17 +9,15 @@
 #include <stdio.h>
 
 /* The picture's width in pixels (0: the original's 256; a wider view is the
- * driver's choice), the overscan rows cropped from its 224, and the displayed
- * width of a pixel relative to its height. Geometry belongs to the window
+ * driver's choice). Which of its rows show, and the shape of its pixels, are
+ * the presentation's (PresentSettings.pixels). Geometry belongs to the window
  * driver. */
 typedef struct {
     int width;
-    int crop_top, crop_bottom;
-    double pixel_aspect;
 } Display;
 
 /* `present` is how the picture is shown (frontend/presentation.h); the
- * window leaves it as play ended it -- the scaling, filter and fullscreen the
+ * window leaves it as play ended it -- the scaling, filter, fullscreen and pixels the
  * player last chose -- for the driver to remember. */
 typedef struct {
     int scale;
