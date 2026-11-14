@@ -20,8 +20,18 @@ LANDING_SPOTS = sorted(((dx, dy) for dx in range(-96, 97, 16) for dy in range(-9
 LANDING_SLOT = 3990
 
 
-def board(run):
-    """On a world map on foot: walk up to the Epoch and board it."""
+def wait_until(machine, condition, frames, step=10):
+    """Run without pressing anything until `condition()`, for at most `frames`."""
+    for _ in range(frames // step):
+        if condition():
+            return True
+        machine.run(step)
+    return condition()
+
+
+def board(run, settle=True):
+    """On a world map on foot: walk up to the Epoch and board it; with
+    `settle`, until it has risen and takes the pad."""
     machine = run.machine
     run.wait_world_control()
     moves, _ = bfs.ow_bfs(machine, lambda m, px, py: m.b(A.OVERWORLD_TRAVEL) != 0,
@@ -33,8 +43,9 @@ def board(run):
             break
     assert machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, "aboard the Epoch"
     # With its wings it rises first, and takes the pad once in the air.
-    machine.run(30)
-    assert run.wait_world_control(), "the Epoch in hand"
+    if settle:
+        machine.run(30)
+        assert run.wait_world_control(), "the Epoch in hand"
 
 
 def dial(run, period):
@@ -53,7 +64,8 @@ def dial(run, period):
 def dial_from_the_dock(run, period):
     """In the Epoch docked at the End of Time: Full speed ahead! opens the dial."""
     machine = run.machine
-    assert run.dialogs_until(lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 3000), "the Epoch's choice"
+    # No confirm until the choice takes the pad, which would pick a row.
+    assert wait_until(machine, lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 3000), "the Epoch's choice"
     machine.run(60)
     assert machine.b(CHOICE_ROW) == FULL_SPEED, "Full speed ahead!"
     machine.run(3, "A")
