@@ -73,21 +73,25 @@ GRIND_LEVEL = 58
 GRIND_RESERVE = 8
 # Then Marle wears the Wallet, which pays each fight's experience as gold,
 # until the purse holds PURSE. At stock_up's prices, in its order, 200,000
-# buys two Aeon Suits and two Aeon Helms (33,600), Full Tonics to 99 (at most
-# 69,300) and Mid Ethers with what is left (some 48 from an empty bag, 96,000);
-# the Mid Tonics and Ethers after them take only the change. Filling the bag
-# with all four to 99 from empty would cost about 390,000.
+# buys two Aeon Suits and three Aeon Helms (41,400), Full Tonics to 99 (at
+# most 69,300) and Mid Ethers with what is left (some 44 from an empty bag,
+# 88,000); the Mid Tonics and Ethers after them take only the change. Filling
+# the bag with all four to 99 from empty would cost about 390,000.
 PURSE = 200000
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
-# Crono back, he joins in Robo's place at the End of Time, grown with the
-# others (the experience the party wins is shared with those in reserve).
-# Lavos's inner form opens with a spell a member at full HP lives through
-# with about 70 magic defence (computed, policies.lavos_inner): Crono, Marle
-# and Lucca have it, Robo (67) does not. The purse the growing filled buys the 12000 B.C.
-# village's best armour and helms and its Full and Mid Tonics and Ethers,
+# Crono back, the party for Lavos is Crono, Frog and Robo, grown with the
+# others (the experience the party wins is shared with those in reserve):
+# their Triple Raid is the blow the guides aim at the core's bits, and Frog's
+# Heal and Robo's Heal Beam keep everyone up without the bag
+# (cavesofnarshe.com's walkthrough, chapter 35: "healing with two of Marle,
+# Frog, and Robo is an absolute must"). Lavos's inner form opens with a spell
+# a member at full HP lives through with about 70 magic defence (computed,
+# policies.lavos_inner): Crono and Frog have 86, Robo 73 at 999 HP. The purse
+# the growing filled buys the 12000 B.C. village's best armour and helms and
+# its Full and Mid Tonics and Ethers,
 # before the End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
@@ -122,7 +126,7 @@ CLONE_PRICE = 40
 MENU_CURSOR = 0x7E0054
 RESERVE_TOP, EXCHANGE_ROWS = 0x7E0080, 0x7E0F02   # the party exchange (menu/exchange.c)
 ACTIVE_ROWS, ROW_PLACE = 3, 0x3F
-CRONO, MARLE, LUCCA, ROBO = 0, 1, 2, 3   # character numbers
+CRONO, MARLE, LUCCA, ROBO, FROG = 0, 1, 2, 3, 4   # character numbers
 BELOW_CRONO = (472, 400)        # Crono at the End of Time once he is back, spoken to from below
 EQUIPMENT_LIST = 0x7E0F00       # the equipment screen's list of what the slot can take
 WEAPON, HELM, ARMOUR, ACCESSORY = 0, 1, 2, 3                 # its slots' rows
@@ -131,8 +135,8 @@ FIRST_LIST_ROW = 4                                           # its cursor on the
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
-BEST_GEAR = [(MARLE, ARMOUR, AEON_SUIT), (MARLE, HELM, AEON_HELM), (LUCCA, ARMOUR, AEON_SUIT),
-             (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
+BEST_GEAR = [(FROG, ARMOUR, AEON_SUIT), (FROG, HELM, AEON_HELM), (ROBO, ARMOUR, AEON_SUIT),
+             (ROBO, HELM, AEON_HELM), (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
 HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
 GOLD, MENU_SCREEN = 0x7E2C53, 0x7E0067
@@ -445,9 +449,10 @@ def member_under_the_cursor(machine):
     return machine.b(A.PARTY_MEMBERS + (machine.b(EXCHANGE_ROWS + row) & ROW_PLACE))
 
 
-def exchange(run, joining, leaving):
-    """On the party exchange's screen: choose the member `leaving` the active
-    party, then the reserve's `joining`; the two change places."""
+def exchange(run, *swaps):
+    """On the party exchange's screen: for each (joining, leaving), choose the
+    member leaving the active party, then the reserve's joining; the two
+    change places."""
     machine = run.machine
 
     def choose(member, keys):
@@ -459,11 +464,12 @@ def exchange(run, joining, leaving):
         assert member_under_the_cursor(machine) == member, ("the exchange's cursor on", member)
         machine.run(4, "A")
         machine.run(60)
-    choose(leaving, ("DOWN", "LEFT"))
-    machine.run(4, "RIGHT")
-    machine.run(30)
-    choose(joining, ("RIGHT", "DOWN"))
-    assert joining in machine.peek(A.PARTY_MEMBERS, 3), ("in the party", joining)
+    for joining, leaving in swaps:
+        choose(leaving, ("DOWN", "LEFT"))
+        machine.run(4, "RIGHT")
+        machine.run(30)
+        choose(joining, ("RIGHT", "DOWN"))
+        assert joining in machine.peek(A.PARTY_MEMBERS, 3), ("in the party", joining)
     for _ in range(6):
         if machine.b(A.FIELD_PLAYER_CONTROL):
             break
@@ -712,7 +718,7 @@ def main():
             machine.run(30)
             machine.run(3, "A")                     # Yes
             machine.run(120)
-            exchange(run, CRONO, ROBO)
+            exchange(run, (CRONO, MARLE), (FROG, LUCCA))
             run.checkpoint("crono_joins")
         later -= len(REUNITED)
         if later <= 0:
@@ -720,7 +726,7 @@ def main():
             leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
             land_by(run, COMMONS_SHOP)
             assert run.wait_control(), "the shop in hand"
-            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 2, 7800),
+            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 3, 7800),
                                              (FULL_TONICS, FULL_TONIC, 99, 700), (MID_ETHERS, MID_ETHER, 99, 2000),
                                              (MID_TONICS, MID_TONIC, 99, 100), (ETHERS, ETHER, 99, 800)])
             run.checkpoint("stocked")
