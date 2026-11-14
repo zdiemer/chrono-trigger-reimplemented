@@ -133,10 +133,21 @@ techs, the enemies' attacks and their effects and animations), the battle's
 messages and fades, the menus' colours, tiles and window designs, the sound's
 songs' settings, boot blocks and sets of effects, the scripts the map view,
 the time dial and the Epoch run. Left `mixed`, `untyped` or `undetermined`:
-48 rows, 16,393 bytes, every one `unread` in its row's `found` (no accessor
-names it and no read of the 87 movies, traced, lands in it; mixed was 36
+41 rows, 12,657 bytes, every one `unread` in its row's `found`: no accessor
+names it, and no read of the movies or the routes lands in it (mixed was 36
 rows, 117,842 bytes). `tools/assets.py check` fails a row of those types
-that doesn't say it is `unread`, so a read found later types its row.
+that doesn't say it is `unread`. A read that lands in one at run time is
+counted the way a read outside the catalogue is (`asset_unread_reads`, the
+first resources it read kept by name), and `ct_native` prints a `strays:`
+line for it, which fails the run in the gate and is a finding in
+`suite.py --long`. The first long batch found eight such readers, now
+typed: the accessories' data records the menus copy (`accessory_data_records`,
+$CC:0A1C), an enemy's message before its table's first entry
+(`enemy_messages_cd91`), a string past the table at $F6:B230
+(`strings_f6c7e5`), a palette the menus copy in a playthrough leg
+(`menu_colors_ce50`), tiles the gate screen sends after its swirl's stream
+(`menu_gate_screen_tiles`), and three tables the routes read further than the movies had
+(`battle_palette_frames`, `battle_effect_frames`, `combination_tech_asks`).
 
 ### Palettes, the first decoded resource
 
@@ -534,8 +545,11 @@ and refuses wrong text at its line (a command or action that isn't one, a
 value too long, an opcode not the command's, a condition short of its
 bytes, a script a byte longer, a byte shorter); with the ROM staged every
 script of the cartridge reads back as its bytes. The upload records the
-menus queue (`script_c2bece` and nine more) were typed `script` and are
-records, `struct:records:7`.
+menus queue are rows of their own, `struct:records:7` (a run of them the
+queue's eight bytes apart, `struct:records:8`), each named for what it
+sends (`menu_upload_front_layer`, `menu_uploads_window_sets`): the code
+names a record by its row (`MENU_UPLOAD_FRONT_LAYER`) and
+`menu_upload_record` reads it by name, no place in bank `$C2`.
 
 ### Text
 

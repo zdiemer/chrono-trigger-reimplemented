@@ -51,13 +51,13 @@ typedef enum {
 enum {
     MENU_AMOUNT_COLOURS = 4,
     MENU_FIRST_AMOUNT_COLOUR = 0x84,
-    MENU_UPLOAD_AMOUNT_DIGITS = 0xFC5A,
+    MENU_UPLOAD_AMOUNT_DIGITS = ASSET_MENU_UPLOAD_AMOUNT_DIGITS,
 };
 
 /* The upload records the sets are sent with (bank C2, menu_upload_record). */
 enum {
-    MENU_UPLOADS_FIRST_SETS = 0xFC6F, MENU_UPLOAD_SECOND_SET = 0xFC7F, MENU_UPLOAD_LAST_SET = 0xFC87,
-    MENU_UPLOADS_WINDOW_SETS = 0xFC8F, MENU_UPLOAD_WINDOW_DESIGN = 0xC548,
+    MENU_UPLOADS_FIRST_SETS = ASSET_MENU_UPLOADS_FIRST_SETS, MENU_UPLOAD_SECOND_SET = ASSET_MENU_UPLOAD_SECOND_SET, MENU_UPLOAD_LAST_SET = ASSET_MENU_UPLOAD_LAST_SET,
+    MENU_UPLOADS_WINDOW_SETS = ASSET_MENU_UPLOADS_WINDOW_SETS, MENU_UPLOAD_WINDOW_DESIGN = ASSET_MENU_UPLOAD_WINDOW_DESIGN,
 };
 
 /* ---- The items ------------------------------------------------------------------------------ */
@@ -165,27 +165,27 @@ enum { MENU_NAME_GRID_COLUMNS = 10 };
  * layer's whole ($1000 bytes) to the third layer's tilemap where the gate's
  * screen moves it. */
 enum {
-    MENU_UPLOAD_FRONT_LAYER_WHOLE = 0xFBCE,
-    MENU_UPLOAD_BACK_LAYER_WHOLE = 0xFBF8,
-    MENU_UPLOAD_FRONT_LAYER = 0xFBE3,
-    MENU_UPLOAD_FRONT_LAYER_LOWER_HALF = 0xFBEA,
-    MENU_UPLOAD_FRONT_LAYER_STRIPS = 0xFBF1,
-    MENU_UPLOAD_BACK_LAYER = 0xFBFF,
-    MENU_UPLOAD_TEXT_LAYER = 0xFC1B,
-    MENU_UPLOAD_LINE_TABLES = 0xFC3E,
-    MENU_UPLOAD_WINDOW_LINES = 0xFC37,
-    MENU_UPLOAD_TEXT_LAYER_WHOLE = 0xFC14,
+    MENU_UPLOAD_FRONT_LAYER_WHOLE = ASSET_MENU_UPLOAD_FRONT_LAYER_WHOLE,
+    MENU_UPLOAD_BACK_LAYER_WHOLE = ASSET_MENU_UPLOAD_BACK_LAYER_WHOLE,
+    MENU_UPLOAD_FRONT_LAYER = ASSET_MENU_UPLOAD_FRONT_LAYER,
+    MENU_UPLOAD_FRONT_LAYER_LOWER_HALF = ASSET_MENU_UPLOAD_FRONT_LAYER_LOWER_HALF,
+    MENU_UPLOAD_FRONT_LAYER_STRIPS = ASSET_MENU_UPLOAD_FRONT_LAYER_STRIPS,
+    MENU_UPLOAD_BACK_LAYER = ASSET_MENU_UPLOAD_BACK_LAYER,
+    MENU_UPLOAD_TEXT_LAYER = ASSET_MENU_UPLOAD_TEXT_LAYER,
+    MENU_UPLOAD_LINE_TABLES = ASSET_MENU_UPLOAD_LINE_TABLES,
+    MENU_UPLOAD_WINDOW_LINES = ASSET_MENU_UPLOAD_WINDOW_LINES,
+    MENU_UPLOAD_TEXT_LAYER_WHOLE = ASSET_MENU_UPLOAD_TEXT_LAYER_WHOLE,
 };
 
 /* The load screen's uploads: the era label's graphic, the slot's tilemap in
  * three parts, and the label of the question which finished game to carry
  * on from ($7E:5E00, $600 bytes). */
 enum {
-    MENU_UPLOAD_ERA_LABEL = 0xD45F,
-    MENU_UPLOAD_SLOT_TILEMAP = 0xFBDC,
-    MENU_UPLOAD_SLOT_TILEMAP_2 = 0xFC0D,
-    MENU_UPLOAD_SLOT_TILEMAP_3 = 0xFC29,
-    MENU_UPLOAD_CARRY_ON_LABEL = 0xE88A,
+    MENU_UPLOAD_ERA_LABEL = ASSET_MENU_UPLOAD_ERA_LABEL,
+    MENU_UPLOAD_SLOT_TILEMAP = ASSET_MENU_UPLOAD_SLOT_TILEMAP,
+    MENU_UPLOAD_SLOT_TILEMAP_2 = ASSET_MENU_UPLOAD_SLOT_TILEMAP_2,
+    MENU_UPLOAD_SLOT_TILEMAP_3 = ASSET_MENU_UPLOAD_SLOT_TILEMAP_3,
+    MENU_UPLOAD_CARRY_ON_LABEL = ASSET_MENU_UPLOAD_CARRY_ON_LABEL,
 };
 
 /* The graphic the load and save screens set the slots' labels into
@@ -201,7 +201,7 @@ enum {
     MENU_CHAPTER_LABELS_AT = 0x7000, MENU_CHAPTER_LABEL_BYTES = 0x200,
     MENU_CHAPTER_LABELS_VRAM = 0x7900, MENU_CHAPTER_LABEL_VRAM_WORDS = 0x100,
 };
-enum { MENU_UPLOAD_SLOT_LABELS = 0xFC53, MENU_UPLOAD_CHAPTER_LABELS = 0xCF30, MENU_UPLOAD_SLOT_NAMES = 0xD198 };
+enum { MENU_UPLOAD_SLOT_LABELS = ASSET_MENU_UPLOAD_SLOT_LABELS, MENU_UPLOAD_CHAPTER_LABELS = ASSET_MENU_UPLOAD_CHAPTER_LABELS, MENU_UPLOAD_SLOT_NAMES = ASSET_MENU_UPLOAD_SLOT_NAMES };
 
 /* The sprite scripts an object script gives its object, by number: where each
  * starts in their bank ($C3:E000, a word each). */
@@ -414,7 +414,7 @@ enum { MENU_SHOP_LIST_BYTES = 32 };
 
 /* The upload of the member sprites' graphics the shop unpacks ($C2:DB98, a
  * record of menu_upload_record's). */
-enum { MENU_UPLOAD_SHOP_SPRITES = 0xDB98 };
+enum { MENU_UPLOAD_SHOP_SPRITES = ASSET_MENU_UPLOAD_SHOP_SPRITES };
 
 /* ---- The End of Time's gate screen -------------------------------------------------------- */
 
@@ -773,15 +773,17 @@ static inline uint8_t menu_era_of_location(const GameState *g, uint16_t location
 
 /* ---- Uploads ------------------------------------------------------------------------------ */
 
-/* An upload of the menus' own, a record in bank C2 laid out as the VRAM
- * queue's entries (menu/vram.h): the VRAM word, the source's address and bank,
- * and the size. `at` is its place in the bank, which the record
- * wraps in. */
-static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
+/* An upload of the menus' own, record `n` of its resource (MENU_UPLOAD_...,
+ * laid out as the VRAM queue's entries, menu/vram.h): the VRAM word, the
+ * source's address and bank, and the size, seven bytes; a run of them the
+ * queue's eight bytes apart. */
+enum { MENU_UPLOAD_RECORD_BYTES = 7 };
+
+static inline MenuUpload menu_upload_record(const GameState *g, AssetId records, unsigned n)
 {
-    uint8_t b[7];
-    for (unsigned i = 0; i < 7; i++)
-        b[i] = rom_read8_in_bank_of(g, ASSET_MENU_NEW_GAME_SETTING, (uint16_t)(at + i));
+    uint8_t b[MENU_UPLOAD_RECORD_BYTES];
+    for (unsigned i = 0; i < MENU_UPLOAD_RECORD_BYTES; i++)
+        b[i] = asset_read8(g, records, n * MENU_UPLOAD_BYTES + i);
     /* The old queue copied an unused eighth byte, sometimes from code. */
     charge_rom_accesses((GameState *)g, 1);
     return (MenuUpload){ (uint16_t)(b[0] | b[1] << 8), (uint32_t)b[4] << 16 | (uint16_t)(b[2] | b[3] << 8),
@@ -1395,7 +1397,7 @@ static inline uint8_t menu_new_game_record_byte(const GameState *g, unsigned i)
 
 static inline uint8_t menu_new_game_setting(const GameState *g, unsigned i)
 {
-    return asset_read8(g, ASSET_MENU_NEW_GAME_SETTING, 0xD8u + i);
+    return asset_read8(g, ASSET_MENU_NEW_GAME_SETTING, i);
 }
 
 static inline uint8_t menu_weapon_colour_set(const GameState *g, uint8_t weapon)
@@ -1485,7 +1487,7 @@ static inline uint8_t menu_settings_button_choice(const GameState *g, unsigned i
 
 static inline uint8_t menu_default_button_assignment(const GameState *g, unsigned i)
 {
-    return asset_read8(g, ASSET_MENU_NEW_GAME_SETTING, 0xDBu + i);
+    return asset_read8(g, ASSET_MENU_NEW_GAME_SETTING, 3u + i);
 }
 
 static inline uint16_t menu_button_glyph(const GameState *g, unsigned bit_from_the_top)

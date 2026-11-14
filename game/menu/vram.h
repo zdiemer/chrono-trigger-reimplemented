@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include <stdbool.h>
+#include "data/assets.h"
 #include "state.h"
 
 /* An upload to VRAM: `size` bytes (0 for 64 KiB) from `source`, a 24-bit
@@ -31,7 +32,7 @@ bool menu_upload_queue_takes(const GameState *g, unsigned uploads);
 /* Queue one of the menus' own uploads by its record in bank C2
  * (menu_data.h's MENU_UPLOAD_*), as the original's queueing ($C2:8385) does,
  * its time that routine's. */
-void menu_queue_fixed_upload(GameState *g, uint16_t record);
+void menu_queue_fixed_upload(GameState *g, AssetId record);
 
 /* The sprite-object mode's queue (its own, in its own cells): uploads from
  * anywhere in memory, each record holding how the VRAM address steps as it
