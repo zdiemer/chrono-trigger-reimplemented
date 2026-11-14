@@ -101,9 +101,9 @@ def bundle_windows_dlls(dist: Path, search: list[Path]) -> list[str]:
 
 MACOS_SYSTEM = ("/usr/lib/", "/System/")
 # Libraries a bundled library loads by name at run time rather than links:
-# Homebrew's SDL2 is sdl2-compat, which looks for SDL3 beside the executable
+# Homebrew's SDL2 is sdl2-compat, which looks for libSDL3.dylib beside the executable
 # before anywhere else.
-MACOS_LOADED_LATER = {"libSDL2-2.0.0.dylib": ["libSDL3.0.dylib"]}
+MACOS_LOADED_LATER = {"libSDL2-2.0.0.dylib": ["libSDL3.dylib"]}
 
 
 def macos_imports(binary: Path) -> list[str]:

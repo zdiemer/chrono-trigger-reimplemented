@@ -168,7 +168,7 @@ Clang and Windows MinGW GCC, without a ROM. `tools/package_native.py --build-dir
 build/main --output build/player-artifact` packages the executable, the player
 README and the host libraries into an empty directory: on Windows the DLLs
 it imports; on macOS the dylibs, Homebrew's SDL2 (sdl2-compat) and the SDL3
-it loads, each named relative to the executable and signed again ad hoc;
+it loads by name, each named relative to the executable and signed again ad hoc;
 Linux players install SDL2 themselves. `tools/dist.py` does the same into `dist/`. CI smoke-tests the
 packaged `--help`, then runs it where it was never built -- in a Debian 12
 container with only `libsdl2-2.0-0` installed, and on macOS with Homebrew's

@@ -152,6 +152,7 @@ jobs:
           && /player/ct_native --help'
       - name: Run the packaged player without Homebrew's SDL
         if: runner.os == 'macOS'
+        timeout-minutes: 3   # a library that can't load SDL3 waits on a dialog
         run: |
           brew uninstall --ignore-dependencies --force sdl2-compat sdl3 sdl2 || true
           if ls "$(brew --prefix)"/lib/libSDL* 2> /dev/null; then echo "Homebrew's SDL is still installed"; exit 1; fi
