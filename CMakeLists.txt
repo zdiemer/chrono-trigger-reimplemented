@@ -32,11 +32,19 @@ endif()
 
 # The lean build: what a small target needs of the program and nothing else.
 # It leaves out the overlay crossings' tally, the port's own checks and the
-# timing report, and plays as the normal build does (tools/lean_check.py;
-# docs/PLATFORM.md, "Memory, stacks and per-frame work against small targets").
+# timing report, optimizes across files as a small target's build would (so
+# the state's accessors inline into the game), and plays as the normal build
+# does (tools/lean_check.py; docs/PLATFORM.md, "Memory, stacks and per-frame
+# work against small targets"). -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+# keeps it to one file at a time.
 option(CT_LEAN "Leave out the program's own diagnostics, as a small target would" OFF)
 if(CT_LEAN)
   add_compile_definitions(CT_LEAN)
+  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT CT_IPO)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ${CT_IPO})
+  endif()
 endif()
 
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
