@@ -109,11 +109,10 @@ SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # fight pays them: the party flies in from 1000 A.D. and wins it. It goes on
 # through the Omen for its treasure (black_omen: the Haste Helm, the Nova
 # Armor, the Vigil Hat, the Magic Seal, three MegaElixirs) and back out.
-REUNITED = ["restored", "crono_joins", "omen_treasure", "luminaire"]
-GROWN = ["stocked", "equipped"]
+REUNITED = ["restored", "crono_joins", "stocked", "omen_treasure", "luminaire", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + GRIND + CAVES
-          + SUMMIT + REUNITED + GROWN + LAVOS)
+          + SUMMIT + REUNITED + LAVOS)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg D of the playthrough, from the Blackbird to an ending (route playthrough_leg-d).
@@ -773,8 +772,21 @@ def main():
             exchange(run, (CRONO, MARLE))
             run.checkpoint("crono_joins")
         if later <= 2:
+            # The purse first: the Omen's monsters are many and the bag is
+            # all the healing the growing left.
             assert run.wait_control(), "the End of Time in hand"
-            leave_the_end_of_time(run, PERIOD_1000, WORLD_1000)
+            leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
+            land_by(run, COMMONS_SHOP)
+            assert run.wait_control(), "the shop in hand"
+            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 2, 7800),
+                                             (FULL_TONICS, FULL_TONIC, 99, 700), (MID_ETHERS, MID_ETHER, 99, 2000),
+                                             (MID_TONICS, MID_TONIC, 99, 100), (ETHERS, ETHER, 99, 800)])
+            assert run.exit_to(WORLD_12000), "out of the shop"
+            run.checkpoint("stocked")
+        if later <= 3:
+            board(run)
+            dial(run, PERIOD_1000)
+            go_through_time(run, WORLD_1000)
             fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN), machine.w(A.OVERWORLD_BLACK_OMEN + 2))
             machine.run(20)
             machine.run(3, "A")
@@ -785,7 +797,7 @@ def main():
             assert machine.b(A.PARTY_SINGLE_TECHS_KNOWN + CRONO) == ALL_SINGLE_TECHS, "Crono's Luminaire"
             black_omen.to_the_treasure(run, args.seed, rest=lambda r: patch_up(r, 0.6, mp_well=0.3))
             run.checkpoint("omen_treasure")
-        if later <= 3:
+        if later <= 4:
             black_omen.back_to_the_dock(run, args.seed, rest=lambda r: patch_up(r, 0.6, mp_well=0.3))
             leave_the_omen(run, OMEN_DOOR)
             # Away from the Omen: a confirm over it would go back in.
@@ -795,30 +807,15 @@ def main():
             machine.run(4, "A")
             disembark_at_the_end_of_time(run)
             run.checkpoint("luminaire")
-        later -= len(REUNITED)
-        if later <= 0:
+        if later <= 5:
+            # The best of the shop and of the Omen's chests on, then the light.
             assert run.wait_control(), "the End of Time in hand"
-            leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
-            land_by(run, COMMONS_SHOP)
-            assert run.wait_control(), "the shop in hand"
-            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 2, 7800),
-                                             (FULL_TONICS, FULL_TONIC, 99, 700), (MID_ETHERS, MID_ETHER, 99, 2000),
-                                             (MID_TONICS, MID_TONIC, 99, 100), (ETHERS, ETHER, 99, 800)])
-            run.checkpoint("stocked")
-        if later <= 1:
-            # The party's armour and helms, the best the shops have by now
-            # (Aeon Suit and Aeon Helm), and Crono's Rage Band from the bag.
             for member, slot, item in BEST_GEAR:
                 equip(run, member, slot, item)
             run.say("gear", [gear(machine, member) for member in machine.peek(A.PARTY_MEMBERS, 3)])
-            assert run.exit_to(WORLD_12000), "out of the shop"
-            board(run)
-            dial(run, PERIOD_END_OF_TIME)
-            machine.run(4, "A")
-            disembark_at_the_end_of_time(run)
             restore_at_the_light(run)
             run.checkpoint("equipped")
-        later -= len(GROWN)
+        later -= len(REUNITED)
         if later < 2:
             other_endings.bucket_to_shell(run, max(1, later + 1))
         # The bag is the middle game's (Lapis, Mid Tonics, Ethers); the party
