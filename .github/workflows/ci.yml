@@ -142,6 +142,21 @@ jobs:
         run: python3 tools/package_native.py --build-dir build/player --output build/player-artifact
       - name: Smoke test packaged player
         run: build/player-artifact/ct_native --help
+      # A machine that never built it: Debian 12 (glibc 2.36) with only the SDL2
+      # runtime package, and macOS with Homebrew's SDL gone (the bundle carries it).
+      - name: Run the packaged player on a clean Linux
+        if: runner.os == 'Linux'
+        run: >-
+          docker run --rm -v "$PWD/build/player-artifact:/player:ro" debian:12-slim
+          sh -c 'apt-get update -qq && apt-get install -y -qq --no-install-recommends libsdl2-2.0-0 > /dev/null
+          && /player/ct_native --help'
+      - name: Run the packaged player without Homebrew's SDL
+        if: runner.os == 'macOS'
+        run: |
+          brew uninstall --ignore-dependencies --force sdl2-compat sdl3 sdl2 || true
+          if ls "$(brew --prefix)"/lib/libSDL* 2> /dev/null; then echo "Homebrew's SDL is still installed"; exit 1; fi
+          otool -L build/player-artifact/ct_native build/player-artifact/*.dylib
+          build/player-artifact/ct_native --help
       - name: Upload native player
         uses: actions/upload-artifact@v4
         with:

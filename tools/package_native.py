@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Package an already built ct_native, its host DLLs and player instructions.
+"""Package an already built ct_native, its host libraries (Windows DLLs, macOS
+dylibs; Linux players install SDL2 themselves) and player instructions.
 
 No ROM, generated code, asset pack, save or other build output is copied.
 The destination must be empty so an old local pack cannot enter an artifact.
@@ -10,7 +11,7 @@ from pathlib import Path
 import shutil
 import sys
 
-from dist import bundle_windows_dlls, list_unix_libraries
+from dist import bundle_macos_dylibs, bundle_windows_dlls, list_unix_libraries
 
 
 def main():
@@ -33,6 +34,10 @@ def main():
         missing = bundle_windows_dlls(args.output, search)
         if missing:
             sys.exit("missing runtime libraries: " + ", ".join(missing))
+    elif sys.platform == "darwin":
+        missing = bundle_macos_dylibs(args.output)
+        if missing:
+            sys.exit("cannot bundle: " + ", ".join(missing))
     else:
         list_unix_libraries(binary)
 

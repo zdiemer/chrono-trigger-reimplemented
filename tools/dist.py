@@ -99,18 +99,75 @@ def bundle_windows_dlls(dist: Path, search: list[Path]) -> list[str]:
     return missing
 
 
+MACOS_SYSTEM = ("/usr/lib/", "/System/")
+# Libraries a bundled library loads by name at run time rather than links:
+# Homebrew's SDL2 is sdl2-compat, which looks for SDL3 beside the executable
+# before anywhere else.
+MACOS_LOADED_LATER = {"libSDL2-2.0.0.dylib": ["libSDL3.0.dylib"]}
+
+
+def macos_imports(binary: Path) -> list[str]:
+    """The libraries a Mach-O file links, its own install name left out."""
+    out = subprocess.run(["otool", "-L", str(binary)], capture_output=True, text=True, check=True).stdout
+    names = [line.split()[0] for line in out.splitlines()[1:] if line.strip()]
+    own = subprocess.run(["otool", "-D", str(binary)], capture_output=True, text=True).stdout.splitlines()[1:]
+    return [name for name in names if name not in own]
+
+
+def bundle_macos_dylibs(dist: Path) -> list[str]:
+    """Copy every non-system library ct_native loads into dist, each named
+    by @executable_path, and sign what changed again (ad hoc), so the player
+    runs where Homebrew never was. Returns the libraries that couldn't be found."""
+    missing, changed = [], set()
+    binary = dist / "ct_native"
+    queue, copied = [binary], {}
+
+    def copy(source: Path, needed_by: str) -> Path:
+        target = dist / source.name
+        shutil.copy2(source.resolve(), target)
+        target.chmod(0o755)
+        run(["install_name_tool", "-id", "@executable_path/" + source.name, str(target)])
+        changed.add(target)
+        copied[source.name] = target
+        queue.append(target)
+        print(f"copied {source.name} (needed by {needed_by}) from {source.resolve().parent}")
+        return target
+
+    while queue:
+        file = queue.pop()
+        for lib in macos_imports(file):
+            if lib.startswith(MACOS_SYSTEM) or lib.startswith("@executable_path/"):
+                continue
+            name = Path(lib).name
+            source = Path(lib)
+            if name not in copied:
+                if not source.is_file():
+                    missing.append(f"{lib} (needed by {file.name})")
+                    continue
+                copy(source, file.name)
+                for later in MACOS_LOADED_LATER.get(name, []):
+                    found = next((d / later for d in (source.resolve().parent, source.parent,
+                                                      Path("/opt/homebrew/lib"), Path("/usr/local/lib"))
+                                  if (d / later).is_file()), None)
+                    if found and later not in copied:
+                        copy(found, name)
+            run(["install_name_tool", "-change", lib, "@executable_path/" + name, str(file)])
+            changed.add(file)
+    for file in sorted(changed):
+        run(["codesign", "--force", "--sign", "-", str(file)])
+    left = [lib for f in [binary, *copied.values()] for lib in macos_imports(f)
+            if not lib.startswith(MACOS_SYSTEM) and not lib.startswith("@executable_path/")]
+    return missing + [f"{lib} still linked by path" for lib in left]
+
+
 def list_unix_libraries(binary: Path) -> None:
-    """Print the shared libraries a Linux or macOS player needs beyond the base system."""
-    if sys.platform == "darwin":
-        out = subprocess.run(["otool", "-L", str(binary)], capture_output=True, text=True).stdout
-        libs = [line.split()[0] for line in out.splitlines()[1:] if line.strip()]
-        extra = [lib for lib in libs if not lib.startswith(("/usr/lib/", "/System/"))]
-    else:
-        out = subprocess.run(["ldd", str(binary)], capture_output=True, text=True).stdout
-        libs = [line.split()[0] for line in out.splitlines() if "=>" in line]
-        base = ("libc.so", "libm.so", "libpthread.so", "libdl.so", "librt.so", "ld-linux", "linux-vdso",
-                "libgcc_s.so")
-        extra = [lib for lib in libs if not lib.startswith(base)]
+    """Print the shared libraries a Linux player needs beyond the base system,
+    which its machine installs from its package manager (SDL2: libsdl2-2.0-0)."""
+    out = subprocess.run(["ldd", str(binary)], capture_output=True, text=True).stdout
+    libs = [line.split()[0] for line in out.splitlines() if "=>" in line]
+    base = ("libc.so", "libm.so", "libpthread.so", "libdl.so", "librt.so", "ld-linux", "linux-vdso",
+            "libgcc_s.so")
+    extra = [lib for lib in libs if not lib.startswith(base)]
     print(f"{binary.name} needs, beyond the base system: {', '.join(extra) or 'nothing'}")
     if extra:
         print("  a player's machine installs these itself (SDL2 from its package manager); dist/ doesn't bundle them")
@@ -148,6 +205,11 @@ def main() -> None:
         if missing:
             sys.exit("cannot find " + ", ".join(missing) + ": put its directory on PATH and run again")
         print("every DLL ct_native.exe loads is in dist/ or part of Windows")
+    elif sys.platform == "darwin":
+        missing = bundle_macos_dylibs(DIST_DIR)
+        if missing:
+            sys.exit("cannot bundle " + ", ".join(missing))
+        print("every library ct_native loads is in dist/ or part of macOS")
     else:
         list_unix_libraries(DIST_DIR / "ct_native")
 
