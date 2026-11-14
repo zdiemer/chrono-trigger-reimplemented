@@ -3,14 +3,17 @@
  * done (targets/gba/main.c's "ct_gba: done"), or after a number of the
  * GBA's frames (docs/PLATFORM.md, "The GBA build, as built").
  *
- *   mgba_run ROM.gba [MAX_FRAMES] [--frame-at ADDRESS] [--shot FRAME FILE.png]...
+ *   mgba_run ROM.gba [MAX_FRAMES] [--frame-at ADDRESS] [--shot FRAME FILE.png]... [--samples FILE]
  *
  * It reports the GBA frames between the program's "ct_gba: playing" and
  * "ct_gba: done", and the processor's cycles a game frame from them (a GBA
  * frame is 280,896 cycles). With --frame-at, the address of the game frame
  * the program is in (main.c's ct_gba_frame), it writes the GBA's picture as
- * a PNG once the game's frame reaches each FRAME. It is a host tool, built
- * against libmgba and zlib (targets/gba/run.py builds it). */
+ * a PNG once the game's frame reaches each FRAME. With --samples, it notes
+ * where the processor is every SAMPLE_CYCLES cycles while the movie plays
+ * (to the driver's report of the frames played) and writes each address it was seen at with its count (run.py's
+ * --profile names the functions). It is a host tool, built against libmgba
+ * and zlib (targets/gba/run.py builds it). */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,12 +23,44 @@
 
 #include <mgba/core/core.h>
 #include <mgba/core/log.h>
+#include <mgba/core/timing.h>
+#include <mgba/internal/arm/arm.h>
 
 enum { GBA_FRAME_CYCLES = 280896, MAX_SHOTS = 32 };
 
 static struct mCore *core;
-static int done, playing_at = -1, done_at = -1;
+static int done, playing_at = -1, done_at = -1, played;
 static unsigned long game_frames;
+
+/* The sampler: a count for each halfword of the cartridge's code, fast RAM
+ * and work RAM, every SAMPLE_CYCLES cycles (prime, so it doesn't beat with
+ * the picture's lines). */
+enum { SAMPLE_CYCLES = 997, ROM_HALVES = 1 << 24, IWRAM_HALVES = 1 << 14, EWRAM_HALVES = 1 << 17 };
+static uint32_t *rom_samples, *iwram_samples, *ewram_samples;
+static unsigned long other_samples;
+static struct mTimingEvent sampling;
+
+static void sample(struct mTiming *timing, void *context, uint32_t late)
+{
+    (void)context;
+    if (playing_at >= 0 && !played) {
+        uint32_t pc = (uint32_t)((struct ARMCore *)core->cpu)->gprs[ARM_PC];
+        switch (pc >> 24) {
+        case 8: case 9: rom_samples[(pc - 0x08000000u) / 2 % ROM_HALVES]++; break;
+        case 3: iwram_samples[pc % 0x8000u / 2]++; break;
+        case 2: ewram_samples[pc % 0x40000u / 2]++; break;
+        default: other_samples++; break;
+        }
+    }
+    mTimingSchedule(timing, &sampling, SAMPLE_CYCLES - (int32_t)late);
+}
+
+static void write_region(FILE *f, const uint32_t *counts, uint32_t halves, uint32_t base)
+{
+    for (uint32_t i = 0; i < halves; i++)
+        if (counts[i])
+            fprintf(f, "%08x %u\n", (unsigned)(base + 2 * i), (unsigned)counts[i]);
+}
 
 static void log_line(struct mLogger *logger, int category, enum mLogLevel level, const char *format, va_list args)
 {
@@ -46,6 +81,8 @@ static void log_line(struct mLogger *logger, int category, enum mLogLevel level,
     if (!strncmp(text, "ct_gba: playing ", 16)) {
         playing_at = (int)core->frameCounter(core);
         game_frames = strtoul(text + 16, NULL, 10);
+    } else if (strstr(text, " lag frame(s)")) {
+        played = 1;
     } else if (!strcmp(text, "ct_gba: done") || !strcmp(text, "ct_gba: stopped")) {
         done_at = (int)core->frameCounter(core);
         done = 1;
@@ -111,16 +148,20 @@ static int write_png(const char *path, const color_t *pixels, unsigned width, un
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        fprintf(stderr, "usage: mgba_run ROM.gba [MAX_FRAMES] [--frame-at ADDRESS] [--shot FRAME FILE.png]...\n");
+        fprintf(stderr, "usage: mgba_run ROM.gba [MAX_FRAMES] [--frame-at ADDRESS] [--shot FRAME FILE.png]... "
+                        "[--samples FILE]\n");
         return 2;
     }
     unsigned long max_frames = 2000000ul, frame_at = 0;
     unsigned long shot_frame[MAX_SHOTS];
     const char *shot_path[MAX_SHOTS];
+    const char *samples_path = NULL;
     unsigned shots = 0, next_shot = 0;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--frame-at") && i + 1 < argc)
             frame_at = strtoul(argv[++i], NULL, 16);
+        else if (!strcmp(argv[i], "--samples") && i + 1 < argc)
+            samples_path = argv[++i];
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc && shots < MAX_SHOTS) {
             shot_frame[shots] = strtoul(argv[++i], NULL, 10);
             shot_path[shots++] = argv[++i];
@@ -144,6 +185,17 @@ int main(int argc, char **argv)
         return 2;
     }
     core->reset(core);
+    if (samples_path) {
+        rom_samples = calloc(ROM_HALVES, sizeof *rom_samples);
+        iwram_samples = calloc(IWRAM_HALVES, sizeof *iwram_samples);
+        ewram_samples = calloc(EWRAM_HALVES, sizeof *ewram_samples);
+        if (!rom_samples || !iwram_samples || !ewram_samples) {
+            fprintf(stderr, "mgba_run: no memory for the samples\n");
+            return 2;
+        }
+        sampling = (struct mTimingEvent){ .callback = sample, .name = "mgba_run samples", .priority = 0x100 };
+        mTimingSchedule(core->timing, &sampling, SAMPLE_CYCLES);
+    }
     unsigned long frames = 0;
     while (!done && frames < max_frames) {
         core->runFrame(core);
@@ -169,6 +221,19 @@ int main(int argc, char **argv)
         unsigned long gba = (unsigned long)(done_at - playing_at);
         printf("mgba_run: %lu game frames in %lu GBA frames: %.0f cycles a game frame, %.1f GBA frames each\n",
                game_frames, gba, (double)gba * GBA_FRAME_CYCLES / (double)game_frames, (double)gba / (double)game_frames);
+    }
+    if (samples_path) {
+        FILE *f = fopen(samples_path, "w");
+        if (!f) {
+            fprintf(stderr, "mgba_run: cannot write %s\n", samples_path);
+            rc = 2;
+        } else {
+            write_region(f, rom_samples, ROM_HALVES, 0x08000000u);
+            write_region(f, iwram_samples, IWRAM_HALVES, 0x03000000u);
+            write_region(f, ewram_samples, EWRAM_HALVES, 0x02000000u);
+            fprintf(f, "other %lu\n", other_samples);
+            fclose(f);
+        }
     }
     core->deinit(core);
     free(video);
