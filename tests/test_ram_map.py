@@ -364,6 +364,16 @@ host_alias = "items"''', "menu"))
         self.assertIn("1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0", projection)
         self.assertEqual(len(ram_map.owner_accessors(m)), 1)
 
+    def test_the_flat_state_reads_owned_bytes_in_place(self):
+        """In the flat state an accessor whose bytes an owner keeps reads them
+        where work RAM keeps them; an index out of range goes by address."""
+        m = ram_map.RamMap(text=var("items", 'addr = "7E:1000"\nsize = 2\ncount = 4\nindex = "slot"\nhost_module = "items"'))
+        flat = ram_map.render_backing(m, flat=True)
+        getter = flat[flat.index("uint16_t items(const GameState *g"):]
+        getter = getter[:getter.index("\n")]
+        self.assertIn("if (slot >= 4u) { return r16(g, 0x7E1000u + (uint32_t)slot * 0x02u); }", getter)
+        self.assertIn("return get16(g, 0x7E1000u + (uint32_t)slot * 0x02u);", getter)
+
     def test_an_overlay_keeps_its_own_typed_storage(self):
         """A mode whose bytes the original reuses for another's variables gets a
         field of its own; the address view writes a shared byte to every owner
@@ -381,8 +391,11 @@ host_alias = "items"''', "menu"))
         getter = c[c.index("uint8_t view(const GameState *g"):]
         self.assertIn("if (!peeking)\n        vars_host_check(h, 0x7E1001u, 1u, 2u);", getter[:getter.index("}")])
         self.assertIn("{ 1, 2, 0 },", backing)
-        self.assertIn("place = overlay_owner_sets[set][h->overlay_writer[slot - 1] - 1u];", backing)
-        self.assertIn("for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++)", backing)
+        # A read answers from the owner that wrote last; a write reaches every owner.
+        self.assertIn("*value = storage[shared_bytes[shared_first[slot] + (writer ? writer - 1u : 0u)]];", backing)
+        self.assertIn("for (const uint16_t *owner = overlay_owner_sets[set]; *owner; owner++, owners++)", backing)
+        self.assertIn("storage[*owner++] = value;", backing)
+        self.assertIn("return at_byte(h, &h->menu.view, sizeof h->menu.view, offset);", backing)
 
     def test_a_same_value_alias_reads_its_owners_own_field(self):
         """An alias marked same_value names its owner's value: it reads the
