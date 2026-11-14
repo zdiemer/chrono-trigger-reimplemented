@@ -30,7 +30,7 @@ WAKER = 9                       # $0DB's object 9, before the sealed door
 BATTLE_MENU_MEMBER = 0x7E95D5   # whose battle menu is open, $80 and up for none
 
 
-def play(run, start=1, seed=1):
+def play(run, start=1, seed=1, policy="party"):
     """From the dome's hall to the Guardian beaten and the field back in hand;
     `start` is the index in PHASES of the first phase to run."""
     machine = run.machine
@@ -64,7 +64,7 @@ def play(run, start=1, seed=1):
             if living:
                 seen.append(True)
             return bool(seen) and not living and any(state.hp(slot) for slot in range(3))
-        run.fight("party", won, party=3, seed=seed)
+        run.fight(policy, won, party=3, seed=seed)
         run.checkpoint("guardian_won")
     if start <= 6:
         assert run.wait_control(12000), "the field back in hand"

@@ -159,8 +159,6 @@ STORY_SPEKKIO_DOOR, STORY_SPEKKIO_MET, STORY_MAGIC = 0x4B, 0x4C, 0x4D
 HECKRANS_CHAMBER, WHIRLPOOL = "2f00", 3      # the object Heckran's chamber leaves by, into the water
 LEENE_EXHIBIT, LEENE_GATE = "0800", (140, 90)  # the Gate between the telepods, 1000 A.D.
 GATE_PLATFORM_DOOR = 0x7F020E                 # the End of Time: the platform reached
-LEADER_TILE_X, LEADER_TILE_Y = 0x7F0212, 0x7F0214
-TRUCE_PILLAR = (12, 7)                        # the pillar of light to Truce Canyon, 600 A.D.
 STORY_600_AGAIN = 0x54
 ZENAN_BRIDGE_600, ZENAN_CAPTAIN = 0x087, 13
 GUARDIA_KITCHEN, CASTLE_HALL, CHEF = "7b00", "7800", 10
@@ -1140,7 +1138,16 @@ def main():
             run.checkpoint("arris")
         if later <= len(FUTURE) + len(GUARDIAN) - 1:
             walking(run)
-            guardian.play(run, max(1, later - len(FUTURE) + 1), args.seed)
+            if later <= len(FUTURE):
+                # Tonics to full HP before the Guardian: the fight then starts
+                # from the same state however the time model's loads (#422)
+                # have moved the fights before it.
+                drink_tonics(run, margin=0)
+            # The early policy, which heals with Tonics: the party arrives with
+            # its magic spent, and the general policy's heals are spells. From
+            # the same start it won 5 seeds of 5 at once, the general 1 in 300
+            # tries (#422 had taken it from 214 tries to over 9,000).
+            guardian.play(run, max(1, later - len(FUTURE) + 1), args.seed, policy=early.early_party)
         later -= len(FUTURE) + len(GUARDIAN)
         if later <= 0:
             # The door the Guardian kept opens to the information center,
@@ -1371,14 +1378,10 @@ def main():
             assert dialogs_until_in_hand(run, END_OF_TIME_HALL), "the End of Time"
             run.checkpoint("leene_gate")
         if later <= 2:
-            # Truce Canyon's pillar, stepped onto and confirmed.
-            walking(run)
-            assert run.walk(lambda m, px, py: (m.b(LEADER_TILE_X), m.b(LEADER_TILE_Y)) == TRUCE_PILLAR) is not None
-            machine.run(4, "DOWN")
-            machine.run(3, "A")
-            machine.run(40)
-            assert run.dialog(), "the pillar's question"
-            machine.run(3, "A")
+            # Truce Canyon's pillar, stepped onto and confirmed (leg B's
+            # pillar, which tries again a pixel nearer where the question
+            # doesn't come).
+            LEG_B.pillar(run, LEG_B.PILLAR_600, TRUCE_CANYON_600)
             assert dialogs_until_in_hand(run, TRUCE_CANYON_600), "Truce Canyon"
             assert machine.b(A.EVENT_MEMORY) == STORY_600_AGAIN
             run.checkpoint("truce_600")
