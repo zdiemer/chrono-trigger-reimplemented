@@ -387,7 +387,8 @@ host_alias = "items"''', "menu"))
         self.assertIn("uint32_t crossed[3];", h)
         setter = c[c.index("void set_view(GameState *g"):]
         self.assertIn("h->menu.view = v;", setter[:setter.index("}")])
-        self.assertIn("vars_host_claim(h, 0x7E1001u, 1u, 2u);", setter[:setter.index("}")])
+        # the claim written out: the second owner of the byte at its writer slot
+        self.assertIn("h->overlay_writer[1u] = 2;", setter[:setter.index("}")])
         getter = c[c.index("uint8_t view(const GameState *g"):]
         self.assertIn("if (!peeking)\n        vars_host_check(h, 0x7E1001u, 1u, 2u);", getter[:getter.index("}")])
         self.assertIn("{ 1, 2, 0 },", backing)
