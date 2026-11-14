@@ -30,7 +30,6 @@
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "ram.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* The window's per-line effect is slot 7, beside the seven of the setup. */
@@ -300,7 +299,7 @@ void battle_closing_vblank(GameState *g, Platform *pf)
     tm_enable_interrupts(pf, PF_AT(0xD1F4D8), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD);
     release_the_fade(g);
     TIMED_AS(g, 0xCD09CE, battle_send_palette(pf));
-    if (!PORT_CHECK(field_line_effects_can_be_built(g))) {
+    if (!field_line_effects_can_be_built(g)) {
         (void)battle_contract_broken(g, FIELD_REBUILD_THE_LINE_EFFECTS_ENTRY, "line effects the port doesn't build");
         return;
     }

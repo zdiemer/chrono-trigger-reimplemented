@@ -26,7 +26,6 @@
 #include "battle/screen.h"
 #include "battle/setup.h"
 #include "charge.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* The member's nearest enemy, found as the battlefield's searches find it,
@@ -140,14 +139,14 @@ enum {
  * vblank handler to load the graphics, a step a frame. */
 static bool set_up(GameState *g, Platform *pf)
 {
-    if (!PORT_CHECK(battle_setup_inputs_fit(g)))
+    if (!battle_setup_inputs_fit(g))
         return battle_contract_broken(g, SET_UP_STATE_ENTRY, "a battle's setup from a party or enemies the port doesn't take");
     TIMED_AS(g, SET_UP_STATE_ENTRY, battle_setup_state(g));
-    if (!PORT_CHECK(battle_window_fits(g)))
+    if (!battle_window_fits(g))
         return battle_contract_broken(g, DRAW_WINDOW, "a menu state the window's port doesn't take");
     TIMED_AS(g, DRAW_WINDOW, battle_redraw_window(g));
     TIMED_AS(g, ALL_BOUNDS, battle_update_all_bounds(g));
-    if (!PORT_CHECK(setup_objects_parts_fit(g)))
+    if (!setup_objects_parts_fit(g))
         return battle_contract_broken(g, SET_UP_GRAPHICS_ENTRY, "a combatant's parts the port doesn't fit");
     TIMED_AS(g, SET_UP_GRAPHICS_ENTRY, battle_setup_graphics(g));
     // $CC:F05B (in the battle's setup, $CC:ED87)
@@ -182,7 +181,7 @@ bool battle_set_up_runs(GameState *g, Platform *pf)
         return false;
     while (battle_window_slide_frames(g) != 0)
         tm_wait_for_handlers(pf, PF_LOOP(0xC1003C, 0xC10042));
-    if (!PORT_CHECK(opening_fits(g)))
+    if (!opening_fits(g))
         return battle_contract_broken(g, FACES_THE_ENEMIES, "an opening search the port doesn't make");
     TIMED_AS(g, FACES_THE_ENEMIES, open_the_battle(g));
     return battle_party_strikes_its_poses(g, pf);

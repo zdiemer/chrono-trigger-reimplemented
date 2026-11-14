@@ -29,7 +29,6 @@
 #include "battle/program.h"
 #include "battle/steps.h"
 #include "charge.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* What a kind of timer running out does. */
@@ -257,7 +256,7 @@ static const struct { uint32_t routine; } handlers[BATTLE_TIMER_TURN] = {
 
 bool battle_run_out_timer_seen_to(GameState *g, Platform *pf, BattleTimer kind)
 {
-    if (!PORT_CHECK(handler_takes(g, kind)))
+    if (!handler_takes(g, kind))
         return battle_contract_broken(g, handlers[kind].routine, "a timer of nobody's the port doesn't see to");
     bool done = false;
     TIMED_AS(g, handlers[kind].routine, done = see_to_the_timer(g, pf, kind));

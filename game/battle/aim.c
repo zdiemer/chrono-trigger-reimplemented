@@ -45,7 +45,6 @@
 #include "battle/random.h"
 #include "battle/rules_data.h"
 #include "charge.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 enum { NO_TARGET = 0xFF };
@@ -878,7 +877,7 @@ static bool aim_fits(const GameState *g)
 /* Refused where the aim is one the port doesn't make (aim_fits). */
 bool battle_aim_action(GameState *g, Platform *pf)
 {
-    if (!PORT_CHECK(aim_fits(g)))
+    if (!aim_fits(g))
         return battle_contract_broken(g, 0xC1C1DD, "an action's aim the port doesn't make");
     return aim_the_action(g, pf);
 }

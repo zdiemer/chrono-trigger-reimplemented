@@ -28,7 +28,6 @@
 #include "battle/message.h"
 #include "battle/window.h"
 #include "charge.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The routines the steps call ------------------------------------------------------------- */
@@ -176,7 +175,7 @@ static bool frame_step_fits(const GameState *g) { return !menu_turn_due(g) || qu
  * it (battle/wait.c), by a long call that jumps on to it. */
 bool battle_menu_turn(GameState *g, Platform *pf)
 {
-    if (!PORT_CHECK(frame_step_fits(g)))
+    if (!frame_step_fits(g))
         return battle_contract_broken(g, BATTLE_MENU_TURN_ENTRY, "a menu queue the port doesn't take");
     return menu_turn_between_steps(g, pf);
 }
@@ -184,7 +183,7 @@ bool battle_menu_turn(GameState *g, Platform *pf)
 /* The frame step: the menu's turn, then the frame work's tail. */
 static bool frame_step(GameState *g, Platform *pf)
 {
-    if (!PORT_CHECK(frame_step_fits(g)))
+    if (!frame_step_fits(g))
         return battle_contract_broken(g, FRAME_STEP, "a menu queue the port doesn't take");
     return menu_turn_between_steps(g, pf) && finish_the_frame_work(g, pf);
 }
@@ -198,7 +197,7 @@ bool battle_frame_stepped(GameState *g, Platform *pf)
 
 bool battle_waits_a_frame(GameState *g, Platform *pf)
 {
-    if (!PORT_CHECK(frame_step_fits(g)))
+    if (!frame_step_fits(g))
         return battle_contract_broken(g, WAIT_STEP, "a menu queue the port doesn't take");
     return wait_step(g, pf);
 }

@@ -33,7 +33,6 @@
 #include "field/field.h"
 #include "field/streaming.h"
 #include "platform/video.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- Which battlefield --------------------------------------------------------------------- */
@@ -556,7 +555,7 @@ static bool fits(const GameState *g, uint16_t asked);
 
 static bool load_it(GameState *g, Platform *pf, uint16_t battlefield)
 {
-    if (!PORT_CHECK(fits(g, battlefield)))
+    if (!fits(g, battlefield))
         return battle_contract_broken(g, 0xCD0EBD, "a battlefield whose layout the port doesn't build");
     bool done = false;
     TIMED_AS(g, 0xCD0EBD, done = load_the_battlefield(g, pf, battlefield));
@@ -568,7 +567,7 @@ static bool load_it(GameState *g, Platform *pf, uint16_t battlefield)
  * its own scripts start. */
 bool battle_change_battlefield(GameState *g, Platform *pf, uint16_t battlefield)
 {
-    if (!PORT_CHECK(fits(g, battlefield)))
+    if (!fits(g, battlefield))
         return battle_contract_broken(g, 0xCD0018, "a battlefield whose layout the port doesn't build");
     set_battle_screen_scripts_running(g, 0);
     field_battle_takes_its_own_layer(g, FIELD_BG3);   /* a wider view no longer shows the field's there */

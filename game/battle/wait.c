@@ -29,7 +29,6 @@
 #include "battle/wait.h"
 #include "charge.h"
 #include "platform/timing.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The waits ------------------------------------------------------------------------------ */
@@ -87,7 +86,7 @@ void battle_wait_for_a_last_frame(GameState *g, Platform *pf)
  * text code can go on from a message being set up. */
 static bool type_a_letter(GameState *g)
 {
-    if (!PORT_CHECK(battle_message_typing_fits(g)))
+    if (!battle_message_typing_fits(g))
         return battle_contract_broken(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, "a message the menus' text code doesn't go on from");
     TIMED_AS(g, BATTLE_TYPE_THE_MESSAGE_ENTRY, battle_type_the_message(g));
     return true;

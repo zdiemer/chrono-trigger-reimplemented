@@ -35,7 +35,6 @@
 #include "charge.h"
 #include "core/sprite_table.h"
 #include "battle/program.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The sprite buffer ---------------------------------------------------------------- */
@@ -617,7 +616,7 @@ static bool someone_on_battlefield(const GameState *g)
 
 bool battle_objects_drawn(GameState *g)
 {
-    if (!PORT_CHECK(someone_on_battlefield(g)))
+    if (!someone_on_battlefield(g))
         return battle_contract_broken(g, 0xCFE83A, "a draw pass with nobody on the battlefield");
     uint32_t mark = charge_uncounted_begin(g);
     bool fits = draw_pass_fits(g);

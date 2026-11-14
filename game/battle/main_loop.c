@@ -50,7 +50,6 @@
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
-#include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -108,7 +107,7 @@ enum {
  * doesn't take. */
 static bool start_the_fight(GameState *g)
 {
-    if (!PORT_CHECK(setup_party_is_real(g)))
+    if (!setup_party_is_real(g))
         return battle_contract_broken(g, START_FIGHT, "a fight's start with a party the port doesn't take");
     TIMED_AS(g, START_FIGHT, battle_start_fight(g));
     return true;
@@ -148,7 +147,7 @@ static void give_the_gold(GameState *g) { TIMED_AS(g, GIVE_GOLD, (void)battle_gi
 
 static bool share_the_experience(GameState *g)
 {
-    if (!PORT_CHECK(battle_experience_can_be_shared(g)))
+    if (!battle_experience_can_be_shared(g))
         return battle_contract_broken(g, SHARE_EXPERIENCE, "the experience shared with records the port doesn't take");
     TIMED_AS(g, SHARE_EXPERIENCE, battle_share_experience(g));
     return true;
@@ -1028,7 +1027,7 @@ static bool finish_the_beaten(GameState *g, Platform *pf)
 
 static bool give_the_turn(GameState *g, Platform *pf)
 {
-    if (!PORT_CHECK(turn_names_a_combatant(g)))
+    if (!turn_names_a_combatant(g))
         return battle_contract_broken(g, GIVE_TURN, "a turn whose place names no combatant");
     bool done = false;
     TIMED_AS(g, GIVE_TURN, done = take_turns(g, pf));

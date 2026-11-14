@@ -284,7 +284,7 @@ static bool can_be_typed(const GameState *g, uint32_t strings, uint8_t string)
 bool battle_combatant_named(GameState *g, uint8_t combatant, bool with_hp)
 {
     uint32_t routine = with_hp ? 0xCD002D : 0xCD0030;
-    if (!PORT_CHECK(can_be_typed(g, BATTLE_MESSAGES, NAME)) || !PORT_CHECK(can_be_typed(g, BATTLE_MESSAGES, NAME_WITH_HP)))
+    if (!can_be_typed(g, BATTLE_MESSAGES, NAME) || !can_be_typed(g, BATTLE_MESSAGES, NAME_WITH_HP))
         return battle_contract_broken(g, routine, "a combatant's name the menus' text code doesn't type");
     TIMED_AS(g, routine, (void)name_a_combatant(g, combatant, with_hp ? NAME_WITH_HP : NAME));
     return true;
@@ -292,7 +292,7 @@ bool battle_combatant_named(GameState *g, uint8_t combatant, bool with_hp)
 
 bool battle_described(GameState *g, uint8_t description)
 {
-    if (!PORT_CHECK(can_be_typed(g, DESCRIPTIONS, description)))
+    if (!can_be_typed(g, DESCRIPTIONS, description))
         return battle_contract_broken(g, 0xCD0027, "a description the menus' text code doesn't type");
     TIMED_AS(g, 0xCD0027, (void)describe(g, description));
     return true;
@@ -301,7 +301,7 @@ bool battle_described(GameState *g, uint8_t description)
 /* Refused unless the menus' text code types the string. */
 bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 {
-    if (!PORT_CHECK(can_be_typed(g, ENEMY_MESSAGES, message)))
+    if (!can_be_typed(g, ENEMY_MESSAGES, message))
         return battle_contract_broken(g, 0xCD0033, "an enemy's message the menus' text code doesn't type");
     return show_an_enemy_message(g, pf, message);
 }
@@ -309,7 +309,7 @@ bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 /* Refused unless the menus' text code types the string. */
 bool battle_show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
 {
-    if (!PORT_CHECK(can_be_typed(g, BATTLE_MESSAGES, message)))
+    if (!can_be_typed(g, BATTLE_MESSAGES, message))
         return battle_contract_broken(g, 0xCD0021, "a battle message the menus' text code doesn't type");
     return show_a_battle_message(g, pf, message);
 }
