@@ -153,12 +153,26 @@ def world_toward(run, x, y, near=24):
 def forest_maze(run):
     run.wait_world_control()
     world_enter(run, FOREST_MAZE)
-    assert main_leg.in_hand(run, 20000)
+    assert main_leg.in_hand(run, 20000, policy=blows_for_crono)
+
+
+CRONO = 0
+
+
+def blows_for_crono(bot, state, rng, inventory):
+    """The maze's fights as the early policy fights them, but Crono strikes where it would
+    have him cast: his magic is kept for Nizbel, whose hide his Lightning lowers, and there
+    is nowhere to rest between the maze and the lair."""
+    action = early.early_party(bot, state, rng, inventory)
+    if action[0] == "tech" and policies.party_ids(bot)[state.member] == CRONO:
+        foes = policies.enemies(state)
+        return "attack", min(foes, key=state.hp) if foes else None
+    return action
 
 
 def maze_out(run):
     main_leg.through(run, *MAZE_FOOT, lambda: run.map_id() == WORLD_65M and run.world_pos()[1] > BELOW_MAZE,
-                     rounds=30, limit=MAZE_SEARCH)
+                     rounds=30, limit=MAZE_SEARCH, policy=blows_for_crono)
 
 
 def mystic_mountains(run):

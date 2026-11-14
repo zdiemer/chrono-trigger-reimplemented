@@ -68,6 +68,9 @@ DENADORO = ["dorino_supplies", "denadoro_foot", "denadoro", "denadoro_falls", "d
 # Ayla joining when the Gate Key is found gone (story $78, where leg B's save,
 # ctsave05 slot 1, stands).
 DREAMSTONE = ["hero_medal", "bent_hilt", "melchior_told", "prehistory", "ioka_feast", "soup_race", "ayla_joins"]
+# A rest at Ioka's healer before the Forest Maze: leg B's save starts there with
+# its party's magic whole, and Nizbel's hide wants Crono's Lightning.
+IOKA = ["ioka_rest"]
 # From the Forest Maze on, leg B's own play (route playthrough_leg-b, from its save's
 # place), its checkpoints named apart from this route's own (Run.chapter).
 LEG_B = importlib.import_module(".playthrough_leg-b", __package__)
@@ -75,7 +78,8 @@ LEG_B_CHAPTER = "b_"
 LEG_B_FROM = LEG_B.PHASES.index("forest_maze")
 FROM_LEG_B = [LEG_B_CHAPTER + name for name in LEG_B.PHASES[LEG_B_FROM:]]
 PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
-          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO + DREAMSTONE + FROM_LEG_B)
+          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO + DREAMSTONE + IOKA
+          + FROM_LEG_B)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -193,6 +197,7 @@ DENADORO_AWAY, DENADORO_BACK = ("9400", (968, 24)), ("9500", (56, 504))
 # Slash answered their Tornado energy); at 15 and up a handful.
 MASA_AND_MUNE_LEVEL = 15
 PORRE_NEAR, TATAS_HOUSE, TATA = (408, 870), 0x098, 9
+PREHISTORY_MID_TONICS = 50
 STORY_HERO_MEDAL, HERO_MEDAL = 0x66, 0xB3
 CURSED_WOODS, FROGS_BURROW = 0x08C, "8d00"
 FROG_IN_THE_BURROW, FROGS_BASKET = 11, 10   # the basket he stands before, which he moves from for the medal
@@ -200,6 +205,12 @@ STORY_HILT, BENT_HILT = 0x69, 0x51
 TRUCE_CANYON_NEAR, TRUCE_CANYON = (440, 248), 0x070
 CANYON_GATE_SPOT = (114, 124)               # left of the Gate, facing it
 STORY_MELCHIOR = 0x6C
+MELCHIOR_COUNTER = (648, 402)                # below Melchior, in his hut
+# His list: Red Katana, Robin Bow, Plasma Gun, Hammer Arm, Titan Vest, Tonic, Mid Tonic, Heal, Shelter.
+MELCHIORS_GEAR = [(0, 1, 4500), (1, 1, 2850), (4, 2, 1200)]
+RED_KATANA, ROBIN_BOW, TITAN_VEST = 0x05, 0x14, 0x60
+GEAR_FROM_MELCHIOR = [(0, "WEAPON", RED_KATANA), (1, "WEAPON", ROBIN_BOW),         # Crono, Marle
+                      (0, "ARMOUR", TITAN_VEST), (1, "ARMOUR", TITAN_VEST)]
 PILLAR_65M, MYSTIC_MOUNTAIN_TOP, WORLD_65M = (200, 199), "1001", "f301"
 MOUNTAIN_WAY_DOWN = ("1101", "1201", WORLD_65M)
 STORY_PREHISTORY = 0x6F
@@ -213,6 +224,7 @@ STORY_SOUP, STORY_DREAMSTONE, STORY_AYLA = 0x72, 0x75, 0x78
 DREAMSTONE_ITEM, GATE_KEY = 0xDC, 0xD7
 AYLA_ASLEEP_REACH = (171, 191)              # up to her row, then right until she stops the party
 AYLA = 5
+IOKA_HEALERS_HUT, IOKA_HEALERS_HUT_MAP, IOKA_HEALER = 0x116, "1601", 10
 CRONO, MARLE, LUCCA = 0, 1, 2
 SLASH, ICE, FIRE, AURA = 1, 2, 2, 0   # their places in Crono's, Marle's and Lucca's tech lists
 SLASH_MP = ICE_MP = FIRE_MP = 2
@@ -1505,8 +1517,13 @@ def main():
             run.checkpoint("masa_mune")
         later -= len(DENADORO)
         if later <= 0:
-            # Tata, at home in Porre, owns up and gives the Hero Medal; the
-            # party drinks Tonics there after Masa and Mune.
+            # Mid Tonics at Dorino again, for 65,000,000 B.C., where none are
+            # sold (Masa and Mune took the last). Tata, at home in Porre, owns
+            # up and gives the Hero Medal; the party drinks Tonics there.
+            world_enter(run, DORINO_SHOP)
+            buy(run, DORINO_COUNTER, [(DORINO_MID_TONIC_ROW, PREHISTORY_MID_TONICS, 100)])
+            run.say("supplies", "mid tonics", count_of(machine, policies.MID_TONIC), "gold", gold(machine))
+            assert leave_fighting(run, WORLD_600), "out of the shop"
             LEG_B.world_toward(run, *PORRE_NEAR, near=32)
             world_enter(run, TATAS_HOUSE)
             walking(run)
@@ -1561,6 +1578,14 @@ def main():
             LEG_B.medina(run)
             LEG_B.melchior(run)
             assert machine.b(A.EVENT_MEMORY) == STORY_MELCHIOR, "Melchior"
+            # His shop: a Red Katana for Crono, a Robin Bow for Marle and Titan
+            # Vests for both, for Nizbel, Magus's generals and Magus.
+            buy(run, MELCHIOR_COUNTER, MELCHIORS_GEAR)
+            leg_d = importlib.import_module(".playthrough_leg-d", __package__)
+            for member, slot, item in GEAR_FROM_MELCHIOR:
+                leg_d.equip(run, member, getattr(leg_d, slot), item)
+            run.say("equipped", [hex(machine.b(CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + 0x29)) for c in (0, 1)],
+                    "gold", gold(machine))
             run.checkpoint("melchior_told")
         if later <= 3:
             # Back to the End of Time by the Medina house's Gate, and its
@@ -1645,6 +1670,21 @@ def main():
             run.wait_world_control()
             run.checkpoint("ayla_joins")
         later -= len(DREAMSTONE)
+        if later <= 0:
+            # The south-east hut's woman, spoken to, restores everyone
+            # (cavesofnarshe.com's walkthrough: "she can restore your
+            # health"); then out to the world map again.
+            run.wait_world_control()
+            world_enter(run, IOKA_HEALERS_HUT)
+            walking(run)
+            assert speak(run, IOKA_HEALER), "Ioka's healer"
+            assert dialogs_until_in_hand(run, IOKA_HEALERS_HUT_MAP), "the rest"
+            party = [c for c in machine.peek(A.PARTY_MEMBERS, 3) if c < 0x80]
+            assert all(character_hp(machine, c)[0] == character_hp(machine, c)[1] for c in party), "HP restored"
+            assert leave_fighting(run, WORLD_65M), "out of the hut"
+            run.wait_world_control()
+            run.checkpoint("ioka_rest")
+        later -= len(IOKA)
         if later <= len(FROM_LEG_B) - 1:
             run.chapter = LEG_B_CHAPTER
             LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed)
