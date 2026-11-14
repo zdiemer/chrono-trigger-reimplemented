@@ -268,12 +268,18 @@ def party_with_ethers(bot, state, rng, inventory):
     return party_with_lapis(bot, state, rng, inventory)
 
 
+MID_TONIC_GAP = 300          # missing HP a Mid Tonic is enough for
+
+
 def keep_up(bot, state, inventory, well=0.6, badly=0.35):
     """The healing a long fight against an enemy that hits the whole party
     hard puts first, or None: the fallen raised with Revives; two or more hurt
-    (or one badly) healed, by Robo's Heal Beam where he has the MP, else a
-    Lapis for two or more, a Full or Mid Tonic for one; Robo short of MP
-    drinks an Ether."""
+    (or one badly) healed, by Robo's Heal Beam or Marle's Cure 2 where they
+    have the MP, else a Lapis for two or more, a Mid Tonic (some 200 HP) for
+    one missing less than MID_TONIC_GAP, a Full Tonic for more; Robo short of
+    MP drinks an Ether. The techs come first: a long run of fights (Lavos's
+    shell, its inner form and its core one after another) would otherwise
+    empty the bag before the last."""
     member = state.member
     members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
     ids = party_ids(bot)
@@ -289,7 +295,11 @@ def keep_up(bot, state, inventory, well=0.6, badly=0.35):
         if heal_all and len(hurt) >= 2 and state.mp(member) >= heal_all[1] and tech_known(bot, member, heal_all[0]):
             return ("tech", heal_all[0], None)
         worst = min(hurt or alive, key=lambda slot: fraction(state, slot))
-        items = ((LAPIS, None), (FULL_TONIC, worst), (MID_TONIC, worst)) if len(hurt) >= 2 else             ((FULL_TONIC, worst), (MID_TONIC, worst))
+        heal_one = CHARACTER_TECHS.get(ids[member], {}).get("heal_one")
+        if heal_one and state.mp(member) >= heal_one[1] and tech_known(bot, member, heal_one[0]):
+            return ("tech", heal_one[0], worst)
+        tonics = ((MID_TONIC, worst), (FULL_TONIC, worst)) if state.max_hp(worst) - state.hp(worst) < MID_TONIC_GAP             else ((FULL_TONIC, worst), (MID_TONIC, worst))
+        items = ((LAPIS, None),) + tonics if len(hurt) >= 2 else tonics
         for item, target in items:
             action = use(inventory, item, target)
             if action:
@@ -348,11 +358,22 @@ def refill(bot, state, inventory, low=20):
     return None
 
 
-def strongest_single(bot, state, target):
+# Against Lavos, each member's strongest single-target techs first, as
+# (tech list entry, MP): Crono's Confuse (four blows) and Spincut, Marle's
+# Ice 2, Lucca's Flare and Fire 2. Blows only, for the core's left bit,
+# which takes in magic (its elements' affinities absorb all four).
+LAVOS_SINGLES = {0: [(6, 12), (3, 4)], 1: [(5, 8)], 2: [(7, 20), (5, 8)]}
+LAVOS_BLOWS = {0: [(6, 12), (3, 4)]}
+
+
+def strongest_single(bot, state, target, table=None):
     """The member's strongest single-target tech it has the MP for, at
-    `target`, or an attack."""
+    `target` (from `table` where given, else CHARACTER_TECHS' singles), or an
+    attack."""
     member = state.member
-    for index, cost in CHARACTER_TECHS.get(party_ids(bot)[member], {}).get("one", []):
+    character = party_ids(bot)[member]
+    singles = table.get(character, []) if table is not None else CHARACTER_TECHS.get(character, {}).get("one", [])
+    for index, cost in singles:
         if state.mp(member) >= cost and single_tech_known(bot, member, index):
             return ("tech", index, target)
     return ("attack", target)
@@ -368,13 +389,15 @@ def lavos_inner(bot, state, rng, inventory):
     weapons and the arms raise it again, so the arms go first and together,
     the one with more HP left taken down (cavesofnarshe.com's walkthrough
     chapter 35, and gamercorner.net's: Span Death revives the body while an
-    arm stands); then the body. Healing first, Marle's Haste, a Barrier and a
-    Shield on everyone, then each member's strongest single hit."""
-    action = keep_up(bot, state, inventory) or hasten(bot, state) or guard_up(bot, state, inventory)
+    arm stands); then the body. Healing first, Marle's Haste, an Ether for
+    a member short of MP, then each member's strongest single hit
+    (LAVOS_SINGLES). The bag's Barriers and Shields are kept for the core."""
+    action = keep_up(bot, state, inventory) or hasten(bot, state) or refill(bot, state, inventory, low=8)
     if action:
         return action
     arms = [slot for slot in INNER_ARMS if state.hp(slot) > 0]
-    return strongest_single(bot, state, max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY)
+    return strongest_single(bot, state, max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY,
+                            LAVOS_SINGLES)
 
 
 # Lavos's core: its center (slot 3, 10000 HP), left bit (7, 2000) and right
@@ -404,11 +427,11 @@ def lavos_core(bot, state, rng, inventory):
     if action:
         return action
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
-        return ("attack", CORE_RIGHT)
+        return strongest_single(bot, state, CORE_RIGHT, LAVOS_BLOWS)
     if state.hp(CORE_LEFT) > 0:
-        return ("attack", CORE_LEFT)
+        return strongest_single(bot, state, CORE_LEFT, LAVOS_BLOWS)
     target = CORE_CENTER if state.hp(CORE_CENTER) > 0 else CORE_RIGHT
-    return strongest_single(bot, state, target)
+    return strongest_single(bot, state, target, LAVOS_SINGLES)
 
 
 LAVOS_SHELL, LAVOS_SHELL_HP = 3, 10000
