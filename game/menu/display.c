@@ -358,6 +358,7 @@ static void send_the_frame(GameState *g, Platform *pf)
     send_menu_screen_shadows(g, pf);
     menu_move_the_sprites_across(g);
     vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
+    tm_charge_transfer(pf, PF_AT(0xC28607), SPRITE_TABLE_BYTES);   /* the transfer the processor waits out */
     if (menu_line_effects(g) & BLOCK_MOVE_ASKED) {
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         move_the_block(g);
