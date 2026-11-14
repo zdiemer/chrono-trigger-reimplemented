@@ -80,8 +80,15 @@ address the original keeps it at, 174 call sites, the address a key the
 catalogue's rows are looked up by: a pack can't move those resources until
 it moves the pointers to them too. A region the catalogue hasn't
 typed is cut where each accessor's table starts, the piece named for its
-accessor and still `mixed`, so a read names its own table rather than the
-region it shares (issue #127 types them).
+accessor, so a read names its own table rather than the region it shares;
+then typed as its readers show it: `bytes` where every read of it is a
+byte, `words` where every read is a word (139 rows), and a table of places
+at its start `ptr16` up to the first place it names, what follows its own
+row (`screen_script_start` and the screen scripts, `battlefield_strip_place`
+and the strips, the demo's actions, the windows' strings). Left `mixed`:
+36 rows, 117,842 bytes, 14 of them read (records read a byte and a word,
+values tables of an odd length, and regions only the data's pointers
+reach); 6 `untyped` runs (5,121 bytes) no reader reaches.
 
 ### Palettes, the first decoded resource
 
