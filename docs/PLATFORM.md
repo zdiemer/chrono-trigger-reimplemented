@@ -974,26 +974,32 @@ Sampled, the claim falls from 5% of the field's and the menus' game frame to
 0-1%, from 14% of the battle's to 6%, and from 9-11% of a scene's to 6-7%.
 The flat state, a small target's, has no claim at all (below).
 
-**The time model in 32-bit sums** (issue #426). The account an access is
-charged to (`StateHostAccount`) follows the storage at the front of the
-state, so `state_host_game_access` is inline in every accessor. It holds the
-work as whole master clocks plus thousandths of one, and the current rate
-split the same way. An access adds its clocks times each part, which is
-exactly the sum the 64-bit product in thousandths gave, without the
-C library's 64-bit multiply. The thousandths are made whole as they pass 2^30, and once more
-when the timing backend takes the work. Anything the inline path can't
-bound goes through the out-of-line path, which saturates where the old
-64-bit sum clamped: an uncounted stretch, the per-routine report, an
-access over 65,535 clocks, or an account near full. A scope finds its row
-in a 128-entry table of the rows named lately (`row_of`), with the rate
-already split, instead of a binary search of all 2,318 rows. Every movie
-plays to the same lag frames and end states (the gate). In mGBA the game's
-frame falls from 2.6, 3.8 and 5.5 GBA frames to 2.3, 3.2 and 4.6
-(`title-start`, `new-game`, `gato-battle`; in all from 4.7, 7.2 and 10.5 to
-4.4, 6.6 and 9.6). The
-time model's own functions fall from 13% of the `new-game` run to about 7%.
-Only the timing report's totals (`StateHostTime`, outside the lean build)
-are still 64-bit.
+**The time model, priced a stretch at a time** (issue #426). The account
+an access is charged to (`StateHostAccount`) follows the storage at the
+front of the state, so `state_host_game_access` is inline in every
+accessor, and all it does is count the access's bus clocks. The count is
+priced where its price could change (`price_accesses`): as a `TIMED_AS`
+scope begins or ends, as an uncounted or retired stretch begins (its end
+puts the count back where it began), and as the timing backend takes the
+work, at the rate the accesses were made at. The work is whole master
+clocks plus thousandths of one, and the rate is split the same way, so a
+stretch's clocks times each part is exactly the sum each access's 64-bit
+product in thousandths gave, in 32-bit sums; the thousandths are made whole
+as they pass 2^30, and once more when the backend takes the work; the
+clocks go in runs of at most 65,535, whose products with a rate's whole
+clocks (16 bits) can't pass 2^32, so a pricing needs no division (the
+ARM7TDMI's Thumb has none, and the C library's took 2.5% of the battle's
+samples). A scope, and a charge at a routine's rate (`charge_as`), finds
+its row in a 128-entry table of the rows named lately (`row_of`), with the
+rate already split, instead of a binary search of all 2,318 rows.
+Every movie plays to the same lag frames and end states (the gate,
+`tools/lean_check.py`). Priced at every access, the time model was 15-20%
+of the GBA's samples, its pricing out of line at the accessors' 6,400 call
+sites; counted inline, the program grows by 210 KiB. Reads of work RAM by
+address go straight to its banks: the flat state's bytes no owner keeps
+hold 0 and are never written, so a read needs no look at the owners
+(`vars_flat_host.c`). Only the timing
+report's totals (`StateHostTime`, outside the lean build) are still 64-bit.
 
 **The interpreters decode what a row names, and reads go on through a run**
 (issue #429). The field's event engine and the menus' scripts decode a
@@ -1140,7 +1146,14 @@ mode 0's four tiled layers and its sprites:
   worked out where they change and kept where the GBA's registers change.
   The line counter's interrupt fires a line above each such line and the
   horizontal blank's at its end sets the registers, two interrupts a change
-  rather than one a line. The SNES's two windows are the GBA's two; its brightness is the
+  rather than one a line. A frame whose lines start from what the last
+  frame's did (the registers, the slots, the changes below a line, the
+  layers shown) and whose tables still hold what the last frame read of
+  them (each 32 bytes it read, up to 64 of them, read again; both compared
+  by a hash, kept in fast RAM) keeps the last frame's changes rather than working them
+  out again; a frame the layout was made in works them out. Where the tables
+  change every frame (a battle's, the jet bike race's), one frame in sixteen
+  tries again, since keeping each frame's reads costs more than it saves. The SNES's two windows are the GBA's two; its brightness is the
   GBA's fade to black.
 - **The view** is the middle of the SNES's 256x224 picture, fixed: 8 dots in
   from the left, 32 lines down. A camera that follows the action, and the
@@ -1234,12 +1247,12 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 17 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 2,048; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the driver's stack the 6.4 KiB above them, a canary at its end checked each frame (deepest use 2,048 bytes); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
 | The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.35 and 0.75, `new-game` 0.34 and 0.75, `gato-battle` 0.36 and 0.75, `events-jetbike-race` 0.36 and 0.75; of it the mixing 0.15, 0.14, 0.16 and 0.15 (the heaviest 0.31-0.38); with the silent mixer before it, the driver alone 0.2 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 1.4 and 2.0, sound 0.2 and 0.5, picture 0.2 and 1.0, in all 1.9; `new-game`: game 1.8 and 5.5, picture 0.5 and 1.0, in all 2.5; `gato-battle`: game 2.4 and 6.0, picture 0.9 and 4.5, in all 3.5; `events-jetbike-race`: game 2.8 and 7.3, picture 1.1 and 3.0, in all 4.1. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 1.0 and 1.25, sound 0.35 and 0.75, picture 0.16 and 1.0, in all 1.8; `new-game`: game 1.1 and 3.5, picture 0.37 and 1.25, in all 2.1; `gato-battle`: game 1.5 and 4.0, picture 0.87 and 4.75, in all 3.0; `events-jetbike-race`: game 1.7 and 4.5, picture 1.18 and 3.25, in all 3.5 ("in all" counts the vertical blanks waited for). Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-Without the native mixer the game's own frame is most of the cost: 1.4-2.8
+Without the native mixer the game's own frame is most of the cost: 1.0-1.7
 GBA frames, from 7-13 before the flat accessors read in place, the sends
-read spans, the time model charged in 32 bits and the interpreters decoded
-only what a row names; the picture is 0.2-1.1 more, made in the vertical blank after
+read spans, the time model was priced a stretch at a time and the interpreters decoded
+only what a row names; the picture is 0.1-1.2 more, made in the vertical blank after
 the game's frame so that no frame the GBA shows tears between two pictures
 (the wait isn't counted as work).
 
@@ -1264,7 +1277,7 @@ main thread past 3 KiB at -O2 (3,048 bytes in `gato-battle`); at -O3 it is
 1,792. Fast RAM's 32-bit bus with no waits fetches an instruction in one
 cycle where the cartridge's takes two to four; `toolchain/fast_code.ld` lists the
 functions with the most of the work a byte (`host/run.py --profile` over
-`new-game` and `gato-battle`): the time model's charges, the state's reads
+`new-game` and `gato-battle`): the time model's scopes, the state's reads
 and writes, the event interpreter's decoding, the cartridge's reads and the
 C library's copies, about 40% of the samples in 4.3 KiB. The event
 interpreter's decoding (`decode`, `names_what_it_says`) was there too, but
