@@ -14,6 +14,14 @@
  *   size at or above the output's, then smoothly down to it, so pixel edges
  *   blur by at most one output pixel.
  * - Scanlines darken the lower part of each picture row's output rows.
+ * - The pixels show as a television showed them -- a little wider than tall,
+ *   the original's 256 across filling a 4:3 screen's width, and the eight
+ *   rows top and bottom it hid in its overscan left out -- or square, with
+ *   every row shown.
+ * - The view's width (how much of the game's picture there is across) can be
+ *   worked out from a screen shape -- 4:3, 16:10, 16:9, 21:9 -- so that the
+ *   picture as shown has that shape. It is fixed at launch, since the game
+ *   draws the view it was started with.
  *
  * Nothing here calls SDL: window.c draws what this lays out. */
 #ifndef CT_FRONTEND_PRESENTATION_H
@@ -26,15 +34,36 @@ typedef enum { SCALING_INTEGER, SCALING_FIT, SCALINGS } Scaling;
 typedef enum { FILTER_NONE, FILTER_SCANLINES, FILTERS } Filter;
 typedef enum { FULLSCREEN_BORDERLESS, FULLSCREEN_EXCLUSIVE, FULLSCREEN_MODES } FullscreenMode;
 
-/* The window's settings: these four are what a launch remembers. */
+typedef enum { PIXELS_TV, PIXELS_SQUARE, PIXEL_SHAPES } PixelShape;
+/* The view: a width given in pixels, or a screen shape to work it out from. */
+typedef enum { VIEW_WIDTH, VIEW_4_3, VIEW_16_10, VIEW_16_9, VIEW_21_9, VIEW_SHAPES } ViewShape;
+
+/* The window's settings, which a launch remembers. */
 typedef struct {
     Scaling scaling;
     Filter filter;
     bool fullscreen;
     FullscreenMode fullscreen_mode;
+    PixelShape pixels;
+    ViewShape view;
+    int view_width;   /* VIEW_WIDTH: pixels across, 0 for the original's */
 } PresentSettings;
 
-#define PRESENT_SETTINGS_DEFAULT { SCALING_INTEGER, FILTER_NONE, false, FULLSCREEN_BORDERLESS }
+#define PRESENT_SETTINGS_DEFAULT { SCALING_INTEGER, FILTER_NONE, false, FULLSCREEN_BORDERLESS, PIXELS_TV, VIEW_WIDTH, 0 }
+
+/* How a pixel shape shows a picture `height` rows tall: the rows left out top
+ * and bottom, and how many times as wide as tall a pixel shows. */
+typedef struct {
+    int crop;
+    double aspect;
+} PixelLook;
+
+PixelLook present_pixel_look(PixelShape shape, int height);
+
+/* The view's width under the settings, for a picture `height` rows tall: the
+ * width given, or the one whose picture, as the settings' pixels show it, has
+ * the view's shape; held within least..most (none given: least). */
+int present_view_width(const PresentSettings *settings, int height, int least, int most);
 
 typedef struct {
     int x, y, w, h;
@@ -67,11 +96,15 @@ void present_window_size(int scale, int width, int rows, double aspect, int *w, 
 int present_scanlines(PresentRect place, int rows, PresentRect *out, int most);
 
 /* Names for the settings, as the command line and the settings text spell
- * them ("integer", "fit"; "none", "scanlines"; "borderless", "exclusive"). */
+ * them ("integer", "fit"; "none", "scanlines"; "borderless", "exclusive";
+ * "tv", "square"; a view "16:9", or a width "320"). */
 const char *present_scaling_name(Scaling s);
 const char *present_filter_name(Filter f);
 const char *present_fullscreen_mode_name(FullscreenMode m);
+const char *present_pixel_shape_name(PixelShape p);
 bool present_scaling_from(const char *name, Scaling *out);
+bool present_pixel_shape_from(const char *name, PixelShape *out);
+bool present_view_from(const char *name, ViewShape *view, int *width);
 bool present_filter_from(const char *name, Filter *out);
 bool present_fullscreen_mode_from(const char *name, FullscreenMode *out);
 

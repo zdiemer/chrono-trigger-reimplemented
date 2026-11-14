@@ -74,6 +74,7 @@
 #include "port/state_host.h"
 #include "port/vars_host.h"
 #include "port/vars_ram.h"
+#include "presentation.h"
 #ifdef CT_HAVE_SDL
 #define SDL_MAIN_HANDLED
 #include "window.h"
@@ -718,7 +719,8 @@ static void usage(FILE *out)
     fprintf(out, "usage: ct_native [ROM | --rom ROM] [--assets pack] [--frames N] [--sram save.srm] [--movie in.ctm]\n"
                  "                 [--load-state FILE] [--save-state FILE] [--record out.ctm] [--save-dir DIR] [--import ROM] [--keys FILE] [--bind INPUT=ACTION]\n"
                  "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--fullscreen-mode borderless|exclusive]\n"
-                 "                 [--scaling integer|fit] [--filter none|scanlines] [--mute] [--view WIDTHx224] [--present WxH]\n"
+                 "                 [--scaling integer|fit] [--filter none|scanlines] [--pixels tv|square] [--mute]\n"
+                 "                 [--view WIDTHx224|16:9|16:10|21:9|4:3] [--present WxH]\n"
                  "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
@@ -743,13 +745,16 @@ static bool count_from(const char *text, unsigned long *out)
 }
 
 /* --view WIDTHx224: a view as wide as the original's screen or wider, up to
- * the widest the renderer draws, and as tall. */
-static bool view_from(const char *text, VidView *out)
+ * the widest the renderer draws, and as tall; or a screen shape (16:9, 16:10,
+ * 21:9, 4:3) for the presentation to work the width out from. */
+static bool view_from(const char *text, ViewShape *shape, int *out)
 {
     char head[16];
     const char *x = strchr(text, 'x');
     size_t n = x ? (size_t)(x - text) : 0;
     unsigned long width, height;
+    if (strchr(text, ':'))
+        return present_view_from(text, shape, out) && *shape != VIEW_WIDTH;
     if (!x || n == 0 || n >= sizeof head)
         return false;
     memcpy(head, text, n);
@@ -757,7 +762,8 @@ static bool view_from(const char *text, VidView *out)
     if (!count_from(head, &width) || !count_from(x + 1, &height) || width < VID_ORIGINAL_VIEW_WIDTH ||
         width > VID_MAX_VIEW_WIDTH || height != VID_ORIGINAL_VIEW_HEIGHT)
         return false;
-    *out = (VidView){ (uint16_t)width, (uint16_t)height };
+    *shape = VIEW_WIDTH;
+    *out = (int)width;
     return true;
 }
 
@@ -812,15 +818,15 @@ int main(int argc, char **argv)
     bool drive = false;
     VidView view = { VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
     int display_mode = 0;   /* auto, headless, window */
+    /* The presentation as given on the command line, over what the last
+     * window play left (frontend/presentation.h): the view's width among it. */
+    PresentSettings asked = PRESENT_SETTINGS_DEFAULT;
+    bool scaling_asked = false, filter_asked = false, fullscreen_asked = false, mode_asked = false;
+    bool pixels_asked = false, view_asked = false;
 #ifdef CT_HAVE_SDL
     SDL_SetMainReady();
     bindings_reset();
-    /* The window's presentation as given on the command line, over what the
-     * last window play left (frontend/presentation.h). */
-    PresentSettings asked = PRESENT_SETTINGS_DEFAULT;
-    bool scaling_asked = false, filter_asked = false, fullscreen_asked = false, mode_asked = false;
     int present_w = 0, present_h = 0;
-
 #endif
     bool locations = false, outcomes = false, lag_log = false, timing_report = false;
     unsigned scenes = 0;
@@ -838,12 +844,13 @@ int main(int argc, char **argv)
 #ifdef CT_HAVE_SDL
         else if (!strcmp(a, "--keys") && v) keys_path = v, i++;
         else if (!strcmp(a, "--bind") && v && nbinds < 128) binds[nbinds++] = v, i++;
+        else if (!strcmp(a, "--present") && v && size_from(v, &present_w, &present_h)) i++;
+#endif
         else if (!strcmp(a, "--fullscreen")) asked.fullscreen = fullscreen_asked = true;
         else if (!strcmp(a, "--fullscreen-mode") && v && present_fullscreen_mode_from(v, &asked.fullscreen_mode)) mode_asked = true, i++;
         else if (!strcmp(a, "--scaling") && v && present_scaling_from(v, &asked.scaling)) scaling_asked = true, i++;
         else if (!strcmp(a, "--filter") && v && present_filter_from(v, &asked.filter)) filter_asked = true, i++;
-        else if (!strcmp(a, "--present") && v && size_from(v, &present_w, &present_h)) i++;
-#endif
+        else if (!strcmp(a, "--pixels") && v && present_pixel_shape_from(v, &asked.pixels)) pixels_asked = true, i++;
         else if (a[0] != '-' && !rom_path) rom_path = a;
         else if (!strcmp(a, "--sram") && v) sram_path = v, i++;
         else if (!strcmp(a, "--assets") && v) pack_path = v, i++;
@@ -853,7 +860,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--drive")) drive = true;
         else if (!strcmp(a, "--window")) display_mode = 2;
         else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
-        else if (!strcmp(a, "--view") && v && view_from(v, &view)) i++;
+        else if (!strcmp(a, "--view") && v && view_from(v, &asked.view, &asked.view_width)) view_asked = true, i++;
         else if (!strcmp(a, "--mute")) mute = true;
         else if (!strcmp(a, "--help")) help = true;
         else if (!strcmp(a, "--shot-every") && v && count_from(v, &shot_every)) i++;
@@ -873,12 +880,6 @@ int main(int argc, char **argv)
     }
 #ifdef CT_HAVE_SDL
     if (bindings_configure(keys_path, binds, nbinds)) return 2;
-#endif
-#ifdef CT_HAVE_SDL
-    /* The picture as the window shows it: the view's width, eight overscan
-     * rows cropped top and bottom, and pixels as wide as a 4:3 television
-     * made them. */
-    const Display display = { view.width, 8, 8, 4.0 / 3.0 * VID_RENDER_HEIGHT / VID_RENDER_WIDTH };
 #endif
     if (help) { usage(stdout); return 0; }
     if (shot_every && !shot_dir) {
@@ -926,6 +927,25 @@ int main(int argc, char **argv)
     const char *remembered_sram = NULL;
     if (preferences) snprintf(config, sizeof config, "%s/assets-path.txt", preferences);
     if (preferences) snprintf(window_settings, sizeof window_settings, "%s/window.txt", preferences);
+    /* The presentation: window play's remembered, then the command line's.
+     * The view's width is worked out once, here: the game draws this view. */
+    PresentSettings present = PRESENT_SETTINGS_DEFAULT;
+    if (windowed && window_settings[0]) {
+        size_t len = 0;
+        uint8_t *text = files_read(window_settings, &len, true, NULL);
+        if (text) present_settings_read(&present, (const char *)text, len);
+        free(text);
+    }
+    if (scaling_asked) present.scaling = asked.scaling;
+    if (filter_asked) present.filter = asked.filter;
+    if (fullscreen_asked) present.fullscreen = true;
+    if (mode_asked) present.fullscreen_mode = asked.fullscreen_mode;
+    if (pixels_asked) present.pixels = asked.pixels;
+    if (view_asked) present.view = asked.view, present.view_width = asked.view_width;
+    view.width = (uint16_t)present_view_width(&present, VID_RENDER_HEIGHT, VID_ORIGINAL_VIEW_WIDTH, VID_MAX_VIEW_WIDTH);
+#ifdef CT_HAVE_SDL
+    const Display display = { view.width };
+#endif
     if (!rom_path && !pack_path && config[0]) {
         size_t len;
         uint8_t *data = files_read(config, &len, false, NULL);
@@ -1054,18 +1074,8 @@ int main(int argc, char **argv)
 #ifdef CT_HAVE_SDL
     if (windowed) {
         WindowOptions options = {
-            .scale = (int)scale, .mute = mute, .display = display, .present = PRESENT_SETTINGS_DEFAULT
+            .scale = (int)scale, .mute = mute, .display = display, .present = present
         };
-        if (window_settings[0]) {
-            size_t len = 0;
-            uint8_t *text = files_read(window_settings, &len, true, NULL);
-            if (text) present_settings_read(&options.present, (const char *)text, len);
-            free(text);
-        }
-        if (scaling_asked) options.present.scaling = asked.scaling;
-        if (filter_asked) options.present.filter = asked.filter;
-        if (fullscreen_asked) options.present.fullscreen = true;
-        if (mode_asked) options.present.fullscreen_mode = asked.fullscreen_mode;
         WindowClient client = {
             .ctx = &driver, .name = "ct_native", .step = native_step, .pixels = native_pixels,
             .audio = { &driver, native_audio, native_discard }, .title = native_title,
@@ -1098,7 +1108,6 @@ int main(int argc, char **argv)
     }
 #ifdef CT_HAVE_SDL
     if (screenshot && present_w) {
-        PresentSettings present = asked;
         uint32_t *shown = malloc((size_t)present_w * (size_t)present_h * sizeof *shown);
         if (!shown || window_present_picture(picture.pixels, &display, &present, present_w, present_h, shown) ||
             ct_png_write(screenshot, shown, (unsigned)present_w, (unsigned)present_h))
