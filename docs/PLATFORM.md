@@ -1146,7 +1146,14 @@ mode 0's four tiled layers and its sprites:
   worked out where they change and kept where the GBA's registers change.
   The line counter's interrupt fires a line above each such line and the
   horizontal blank's at its end sets the registers, two interrupts a change
-  rather than one a line. The SNES's two windows are the GBA's two; its brightness is the
+  rather than one a line. A frame whose lines start from what the last
+  frame's did (the registers, the slots, the changes below a line, the
+  layers shown) and whose tables still hold what the last frame read of
+  them (each 32 bytes it read, up to 64 of them, read again and compared by
+  a hash, kept in fast RAM) keeps the last frame's changes rather than working them
+  out again; a frame the layout was made in works them out. Where the tables
+  change every frame (a battle's, the jet bike race's), one frame in sixteen
+  tries again, since keeping each frame's reads costs more than it saves. The SNES's two windows are the GBA's two; its brightness is the
   GBA's fade to black.
 - **The view** is the middle of the SNES's 256x224 picture, fixed: 8 dots in
   from the left, 32 lines down. A camera that follows the action, and the
@@ -1240,12 +1247,12 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 17 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 2,048; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the driver's stack the 6.4 KiB above them, a canary at its end checked each frame (deepest use 2,048 bytes); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
 | The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.35 and 0.75, `new-game` 0.34 and 0.75, `gato-battle` 0.36 and 0.75, `events-jetbike-race` 0.36 and 0.75; of it the mixing 0.15, 0.14, 0.16 and 0.15 (the heaviest 0.31-0.38); with the silent mixer before it, the driver alone 0.2 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 1.4 and 2.0, sound 0.2 and 0.5, picture 0.2 and 1.0, in all 1.9; `new-game`: game 1.8 and 5.5, picture 0.5 and 1.0, in all 2.5; `gato-battle`: game 2.4 and 6.0, picture 0.9 and 4.5, in all 3.5; `events-jetbike-race`: game 2.8 and 7.3, picture 1.1 and 3.0, in all 4.1. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 1.0 and 1.25, sound 0.35 and 0.75, picture 0.14 and 1.0, in all 1.8; `new-game`: game 1.1 and 3.5, picture 0.34 and 1.25, in all 2.1; `gato-battle`: game 1.5 and 3.75, picture 0.84 and 4.75, in all 3.0; `events-jetbike-race`: game 1.7 and 4.25, picture 1.15 and 3.25, in all 3.5 ("in all" counts the vertical blanks waited for). Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-Without the native mixer the game's own frame is most of the cost: 1.4-2.8
+Without the native mixer the game's own frame is most of the cost: 1.0-1.7
 GBA frames, from 7-13 before the flat accessors read in place, the sends
-read spans, the time model charged in 32 bits and the interpreters decoded
-only what a row names; the picture is 0.2-1.1 more, made in the vertical blank after
+read spans, the time model was priced a stretch at a time and the interpreters decoded
+only what a row names; the picture is 0.1-1.2 more, made in the vertical blank after
 the game's frame so that no frame the GBA shows tears between two pictures
 (the wait isn't counted as work).
 

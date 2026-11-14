@@ -1165,18 +1165,70 @@ typedef struct {
 } ReadLine;
 static ReadLine read_lines[READ_LINES];
 
+/* Where each 32 bytes of the tables a frame's lines read came from, as they
+ * read them, and a 32-bit FNV-1a hash of all their bytes in that order, so
+ * that the next frame can tell whether its tables are the same (below). In
+ * fast RAM, which has the room work RAM hasn't, as the rest of what the next
+ * frame keeps; a hash rather than the bytes, which it hasn't the room for
+ * either. */
+#define IN_FAST_RAM __attribute__((section(".iwram_bss")))
+enum { LINES_READ_KEPT = 64 };
+static uint32_t lines_read[LINES_READ_KEPT] IN_FAST_RAM;
+static uint32_t lines_read_hash IN_FAST_RAM;
+static uint8_t lines_read_count IN_FAST_RAM;
+static bool lines_read_overflowed IN_FAST_RAM;
+static bool lines_read_kept IN_FAST_RAM;   /* whether this frame keeps them */
+
+static void read_table_line(uint32_t line, uint8_t bytes[READ_LINE_BYTES])
+{
+    if (snes.read)
+        snes.read(snes.ctx, line * READ_LINE_BYTES, bytes, READ_LINE_BYTES);
+    else
+        memset(bytes, 0, READ_LINE_BYTES);
+}
+
+enum { FNV_START = 2166136261u, FNV_PRIME = 16777619u };
+
+static uint32_t hash_on(uint32_t h, const uint8_t bytes[READ_LINE_BYTES])
+{
+    for (unsigned i = 0; i < READ_LINE_BYTES; i++)
+        h = (h ^ bytes[i]) * FNV_PRIME;
+    return h;
+}
+
+static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
+{
+    if (lines_read_count == LINES_READ_KEPT) {
+        lines_read_overflowed = true;
+        return;
+    }
+    lines_read[lines_read_count++] = line;
+    lines_read_hash = hash_on(lines_read_hash, bytes);
+}
+
 static uint8_t line_read(uint32_t addr)
 {
     uint32_t line = addr / READ_LINE_BYTES;
     ReadLine *r = &read_lines[line % READ_LINES];
     if (r->tag != line + 1) {
         r->tag = line + 1;
-        if (snes.read)
-            snes.read(snes.ctx, line * READ_LINE_BYTES, r->bytes, READ_LINE_BYTES);
-        else
-            memset(r->bytes, 0, READ_LINE_BYTES);
+        read_table_line(line, r->bytes);
+        if (lines_read_kept)
+            keep_line_read(line, r->bytes);
     }
     return r->bytes[addr % READ_LINE_BYTES];
+}
+
+/* Whether the tables still hold what the last frame's lines read of them. */
+static bool tables_unchanged(void)
+{
+    uint8_t bytes[READ_LINE_BYTES];
+    uint32_t h = FNV_START;
+    for (unsigned i = 0; i < lines_read_count; i++) {
+        read_table_line(lines_read[i], bytes);
+        h = hash_on(h, bytes);
+    }
+    return h == lines_read_hash;
 }
 
 static void slot_entry(Slot *sl, const VidLineEffect *e)
@@ -1476,25 +1528,57 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
     BIOS_IF |= raised;
 }
 
+/* Everything a frame's lines are worked out from but the tables' bytes:
+ * the registers as the frame begins, the line effects as the game programmed
+ * them, the changes below a line, the layers shown and what of the layout a
+ * line's registers take (the backdrop's colour, the third layer's priority). */
+typedef struct {
+    LineState st;
+    VidLineEffect slot[8];
+    VidDisplay display_below;
+    uint16_t display_from, effects_from, layers_enabled, backdrop_color;
+    uint8_t line_effects, line_effects_below;
+    bool below_display, below_line_effects, bg3_priority;
+} LinesFrom;
+
+static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
+{
+    memset(f, 0, sizeof *f);
+    LineState *st = &f->st;
+    st->windows = snes.windows;
+    st->main_layers = snes.main_layers;
+    st->sub_layers = snes.sub_layers;
+    st->math = snes.math;
+    st->fixed_color = snes.fixed_color;
+    st->brightness = (uint8_t)(v->display.brightness & 15);
+    st->blank = v->display.blank;
+    for (unsigned n = 0; n < 3; n++)
+        st->hofs[n] = snes.bg[n].hofs, st->vofs[n] = snes.bg[n].vofs, st->map[n] = map_byte_of(&snes.bg[n]);
+    memcpy(f->slot, snes.slot, sizeof f->slot);
+    f->display_below = v->display_below;
+    f->display_from = v->display_from;
+    f->effects_from = v->effects_from;
+    f->layers_enabled = layers_enabled;
+    f->backdrop_color = snes.cgram[0];
+    f->line_effects = v->line_effects;
+    f->line_effects_below = v->line_effects_below;
+    f->below_display = v->below_display;
+    f->below_line_effects = v->below_line_effects;
+    f->bg3_priority = snes.mode.bg3_priority;
+}
+
 /* The frame's lines: the line effects read down the picture from its top,
  * the line handler's changes below its line, and the GBA's registers where
- * what a line shows changes. */
-static void present_lines(Platform *pf, uint16_t layers_enabled)
+ * what a line shows changes, as changes from the first line on; `st` ends as
+ * the effects leave the registers. */
+static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t layers_enabled)
 {
-    const VidHost *v = &pf->video;
-    LineState st, shown;
-    memset(&st, 0, sizeof st);
-    st.windows = snes.windows;
-    st.main_layers = snes.main_layers;
-    st.sub_layers = snes.sub_layers;
-    st.math = snes.math;
-    st.fixed_color = snes.fixed_color;
-    st.brightness = (uint8_t)(v->display.brightness & 15);
-    st.blank = v->display.blank;
-    for (unsigned n = 0; n < 3; n++)
-        st.hofs[n] = snes.bg[n].hofs, st.vofs[n] = snes.bg[n].vofs, st.map[n] = map_byte_of(&snes.bg[n]);
+    LineState st = *st_out, shown;
     uint8_t enabled = v->line_effects;
     memset(read_lines, 0, sizeof read_lines);
+    lines_read_count = 0;
+    lines_read_hash = FNV_START;
+    lines_read_overflowed = false;
     Slot slots[8];
     for (unsigned i = 0; i < 8; i++) {
         slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
@@ -1558,6 +1642,42 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
             if (sl->active && next < quiet_until)
                 quiet_until = next;
         }
+    }
+    *st_out = st;
+    return count;
+}
+
+/* The frame's lines, and the GBA's registers set for them. A frame that
+ * starts from what the last one did, its tables unchanged, makes the same
+ * changes and leaves the registers as it did: those stand, unworked. */
+static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
+{
+    static LinesFrom last_from IN_FAST_RAM;
+    static LineState last_left IN_FAST_RAM;
+    static bool last_stands IN_FAST_RAM;
+    /* Frames worked out one after another, and a count to try keeping them
+     * again by: where the tables change every frame (a battle's, the jet
+     * bike race's), keeping what each read costs more than it saves, so
+     * after two such frames one in sixteen tries. */
+    static uint8_t worked_out IN_FAST_RAM, tries IN_FAST_RAM;
+    LinesFrom from;
+    lines_from(&from, &pf->video, layers_enabled);
+    LineState st;
+    uint8_t count;
+    if (last_stands && !laid_out && memcmp(&from, &last_from, sizeof from) == 0 && tables_unchanged()) {
+        st = last_left;
+        count = changes;
+        worked_out = 0;
+    } else {
+        lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
+        st = from.st;
+        count = work_out_lines(&pf->video, &st, layers_enabled);
+        last_from = from;
+        last_left = st;
+        /* a layout's maps change what a line's registers name */
+        last_stands = lines_read_kept && !lines_read_overflowed && !laid_out;
+        if (worked_out < 2)
+            worked_out++;
     }
     changes = count;
     /* What the effects leave stands, as the SNES's registers do. */
@@ -1631,7 +1751,7 @@ void gba_video_present(Platform *pf)
             BGCNT(3) = layer_control(3, map_byte_of(&snes.bg[3]));
         layers_enabled |= (uint16_t)(1u << n);
     }
-    present_lines(pf, layers_enabled);
+    present_lines(pf, layers_enabled, laid_out);
 }
 
 size_t gba_video_bytes(void) { return sizeof snes; }
