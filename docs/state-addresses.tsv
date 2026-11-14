@@ -1,14 +1,14 @@
 file	line	category	expression
-game/battle/action_animation.c	129	layout-expression	<< 16 | script);
-game/battle/action_animation.c	231	layout-expression	0x7E2D00 };
+game/battle/action_animation.c	130	layout-expression	<< 16 | script);
+game/battle/action_animation.c	232	layout-expression	0x7E2D00 };
 game/battle/action_animation_data.h	215	resource-address	rom_read8(g, at) << 8 | rom_read8(g, at + 1));
 game/battle/action_animation_data.h	215	resource-address	rom_read8(g, at + 1));
 game/battle/action_animation_data.h	220	resource-address	rom_read16(g, (uint32_t)bank << 16 | at);
 game/battle/action_animation_data.h	214	layout-expression	<< 16) + set + (second_half ? 2u : 0u);
 game/battle/action_animation_data.h	220	layout-expression	<< 16 | at);
-game/battle/action_showing.c	68	unchecked-accessor	set_battle_script_subjects_unchecked(g, place, slot);
-game/battle/aim.c	376	unchecked-accessor	battle_enemy_standing_unchecked(g, slot);
-game/battle/aim.c	583	unchecked-accessor	battle_enemy_standing_unchecked(g, enemy);
+game/battle/action_showing.c	69	unchecked-accessor	set_battle_script_subjects_unchecked(g, place, slot);
+game/battle/aim.c	377	unchecked-accessor	battle_enemy_standing_unchecked(g, slot);
+game/battle/aim.c	584	unchecked-accessor	battle_enemy_standing_unchecked(g, enemy);
 game/battle/animation.c	402	unchecked-accessor	set_battle_party_frame_unchecked(g, slot, BEFORE_THE_FIRST_FRAME);
 game/battle/animation_data.h	107	resource-address	rom_read8(g, at); }
 game/battle/animation_data.h	198	resource-address	rom_read16(g, at); }
@@ -24,17 +24,17 @@ game/battle/battle_end.c	88	unchecked-accessor	set_character_records_record_byte
 game/battle/battlefield.c	22	unchecked-accessor	battle_slot_present_unchecked(g, slot)) != 0;
 game/battle/battlefield.c	27	unchecked-accessor	battle_object_x_unchecked(g, object);
 game/battle/battlefield.c	32	unchecked-accessor	battle_object_y_unchecked(g, object);
-game/battle/battlefield_change.c	455	video-source	PF_GAME((uint32_t)WORK_RAM_BANK << 16 | buffer), bytes);
-game/battle/battlefield_change.c	455	layout-expression	<< 16 | buffer), bytes);
+game/battle/battlefield_change.c	456	video-source	PF_GAME((uint32_t)WORK_RAM_BANK << 16 | buffer), bytes);
+game/battle/battlefield_change.c	456	layout-expression	<< 16 | buffer), bytes);
 game/battle/battlefield_restore.c	165	video-source	PF_GAME(RAM_FIELD_BG3_TILES_UNPACKED),
 game/battle/battlefield_restore.c	165	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED),
-game/battle/beaten_enemies.c	71	raw-helper	wram_write16(g, at, wram_read16(g, at) & kept);
-game/battle/beaten_enemies.c	71	raw-helper	wram_read16(g, at) & kept);
-game/battle/beaten_enemies.c	72	raw-helper	wram_write16(g, at + SECOND_PLANES, wram_read16(g, at + SECOND_PLANES) & kept);
-game/battle/beaten_enemies.c	72	raw-helper	wram_read16(g, at + SECOND_PLANES) & kept);
-game/battle/beaten_enemies.c	157	video-source	PF_GAME(tiles_of(g, slot)),
-game/battle/beaten_enemies.c	70	layout-expression	<< 16) + row_at;
-game/battle/beaten_enemies.c	130	layout-expression	<< 16 | battle_object_tile_buffer(g, slot);
+game/battle/beaten_enemies.c	72	raw-helper	wram_write16(g, at, wram_read16(g, at) & kept);
+game/battle/beaten_enemies.c	72	raw-helper	wram_read16(g, at) & kept);
+game/battle/beaten_enemies.c	73	raw-helper	wram_write16(g, at + SECOND_PLANES, wram_read16(g, at + SECOND_PLANES) & kept);
+game/battle/beaten_enemies.c	73	raw-helper	wram_read16(g, at + SECOND_PLANES) & kept);
+game/battle/beaten_enemies.c	158	video-source	PF_GAME(tiles_of(g, slot)),
+game/battle/beaten_enemies.c	71	layout-expression	<< 16) + row_at;
+game/battle/beaten_enemies.c	131	layout-expression	<< 16 | battle_object_tile_buffer(g, slot);
 game/battle/combatants.c	46	raw-helper	wram_read8(g, stray_stats_place(g, at));
 game/battle/combatants.c	55	raw-helper	wram_write8(g, stray_stats_place(g, at), v);
 game/battle/combatants.c	87	raw-helper	wram_read8(g, stray_place(g, slot, offset, wide));
@@ -48,16 +48,16 @@ game/battle/combatants.c	176	unchecked-accessor	set_battle_turn_wait_unchecked(g
 game/battle/combatants.c	345	unchecked-accessor	battle_combatant_fighting_unchecked(g, target);
 game/battle/damage.c	96	unchecked-accessor	battle_enemy_standing_unchecked(g, enemy),
 game/battle/damage.c	97	unchecked-accessor	battle_combatant_id_unchecked(g, place),
-game/battle/display.c	44	video-source	PF_GAME(table), .indirect = true,
-game/battle/display.c	61	layout-expression	RAM_BATTLE_LINE_TABLES + slot * RAM_BATTLE_LINE_TABLES_STRIDE);
-game/battle/display.c	61	layout-expression	RAM_BATTLE_LINE_TABLES_STRIDE);
-game/battle/display.c	72	layout-expression	RAM_BATTLE_WINDOW_LINE_TABLES
-game/battle/display.c	73	layout-expression	RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE);
-game/battle/display.c	197	layout-expression	RAM_BATTLE_WINDOW_TILEMAP, 0x0780, 0x7820, 0xCCE0AF },
-game/battle/display.c	200	layout-expression	RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, 0xCCE14B },
-game/battle/display.c	201	layout-expression	RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, 0xCCE17A },
-game/battle/display.c	206	layout-expression	RAM_BATTLE_WINDOW_FRAMES_TILEMAP, 0x0180, 0x7A00, 0xCCE1B3 },
-game/battle/display.c	207	layout-expression	RAM_BATTLE_DECODED_TILES, 0x0C00, 0x1800, 0xCCE1EE },
+game/battle/display.c	45	video-source	PF_GAME(table), .indirect = true,
+game/battle/display.c	62	layout-expression	RAM_BATTLE_LINE_TABLES + slot * RAM_BATTLE_LINE_TABLES_STRIDE);
+game/battle/display.c	62	layout-expression	RAM_BATTLE_LINE_TABLES_STRIDE);
+game/battle/display.c	73	layout-expression	RAM_BATTLE_WINDOW_LINE_TABLES
+game/battle/display.c	74	layout-expression	RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE);
+game/battle/display.c	198	layout-expression	RAM_BATTLE_WINDOW_TILEMAP, 0x0780, 0x7820, 0xCCE0AF },
+game/battle/display.c	201	layout-expression	RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, 0xCCE14B },
+game/battle/display.c	202	layout-expression	RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, 0xCCE17A },
+game/battle/display.c	207	layout-expression	RAM_BATTLE_WINDOW_FRAMES_TILEMAP, 0x0180, 0x7A00, 0xCCE1B3 },
+game/battle/display.c	208	layout-expression	RAM_BATTLE_DECODED_TILES, 0x0C00, 0x1800, 0xCCE1EE },
 game/battle/effect_amounts.c	40	unchecked-accessor	battle_action_targets_unchecked(g, place);
 game/battle/effect_amounts.c	62	unchecked-accessor	set_battle_damage_amount_unchecked(g, entry, battle_effect_amount(g));
 game/battle/effect_amounts.c	63	unchecked-accessor	set_battle_damage_flags_unchecked(g, entry, marks);
@@ -88,24 +88,24 @@ game/battle/equipment_data.h	78	resource-address	rom_read8_in_bank_of(g, ASSET_W
 game/battle/fight_party.c	44	unchecked-accessor	set_character_records_record_byte_unchecked(g, character, at, v);
 game/battle/fight_party.c	62	unchecked-accessor	set_inventory_items_unchecked(g, place, (uint8_t)place);
 game/battle/fight_party.c	63	unchecked-accessor	set_inventory_counts_unchecked(g, place, (uint8_t)place);
-game/battle/frame.c	280	unchecked-accessor	set_palette_working_unchecked(g, A_BANK_ON, kept);
+game/battle/frame.c	281	unchecked-accessor	set_palette_working_unchecked(g, A_BANK_ON, kept);
 game/battle/frame_data.h	255	resource-address	rom_data(source, bytes); }
 game/battle/frame_data.h	259	resource-address	rom_data_mode(source, bytes, mode);
-game/battle/from_field.c	56	raw-helper	wram_fill16(g, TABLES_AT, TABLES_WORDS, 0);
-game/battle/from_field.c	57	raw-helper	wram_fill16(g, PAGE_CELLS_AT, PAGE_CELLS_WORDS, 0);
-game/battle/from_field.c	46	layout-expression	0x7E0080, PAGE_CELLS_WORDS = 0x36, TABLES_AT = 0x7E2D01, TABLES_WORDS = 0x3FF6 };
-game/battle/from_field.c	46	layout-expression	0x7E2D01, TABLES_WORDS = 0x3FF6 };
+game/battle/from_field.c	57	raw-helper	wram_fill16(g, TABLES_AT, TABLES_WORDS, 0);
+game/battle/from_field.c	58	raw-helper	wram_fill16(g, PAGE_CELLS_AT, PAGE_CELLS_WORDS, 0);
+game/battle/from_field.c	47	layout-expression	0x7E0080, PAGE_CELLS_WORDS = 0x36, TABLES_AT = 0x7E2D01, TABLES_WORDS = 0x3FF6 };
+game/battle/from_field.c	47	layout-expression	0x7E2D01, TABLES_WORDS = 0x3FF6 };
 game/battle/inventory.c	108	layout-expression	<< 16 | party_gold_low(g); }
 game/battle/inventory.c	18	unchecked-accessor	inventory_items_unchecked(g, place);
 game/battle/inventory.c	22	unchecked-accessor	inventory_counts_unchecked(g, place);
 game/battle/inventory.c	30	unchecked-accessor	set_inventory_items_unchecked(g, place, item);
 game/battle/inventory.c	31	unchecked-accessor	set_inventory_counts_unchecked(g, place, held);
-game/battle/main_loop.c	255	raw-helper	wram_fill8(g, TURN_WORK_AT, TURN_WORK_BYTES, 0);
-game/battle/main_loop.c	248	layout-expression	0x7EAD89, TURN_WORK_BYTES = 0xB3F5 - 0xAD89 };
-game/battle/main_loop.c	902	unchecked-accessor	set_battle_chosen_actions_unchecked(g, at, 0);
-game/battle/main_loop.c	912	unchecked-accessor	battle_stats_status_unchecked(g, actor);
-game/battle/menu_window.c	109	unchecked-accessor	battle_menu_slot_members_unchecked(g, partner);
-game/battle/menu_window.c	115	unchecked-accessor	battle_member_disabled_unchecked(g, member)) != 0;
+game/battle/main_loop.c	256	raw-helper	wram_fill8(g, TURN_WORK_AT, TURN_WORK_BYTES, 0);
+game/battle/main_loop.c	249	layout-expression	0x7EAD89, TURN_WORK_BYTES = 0xB3F5 - 0xAD89 };
+game/battle/main_loop.c	903	unchecked-accessor	set_battle_chosen_actions_unchecked(g, at, 0);
+game/battle/main_loop.c	913	unchecked-accessor	battle_stats_status_unchecked(g, actor);
+game/battle/menu_window.c	110	unchecked-accessor	battle_menu_slot_members_unchecked(g, partner);
+game/battle/menu_window.c	116	unchecked-accessor	battle_member_disabled_unchecked(g, member)) != 0;
 game/battle/message.c	88	layout-expression	RAM_BATTLE_MESSAGE_TILES);
 game/battle/message.c	277	layout-expression	RAM_BATTLE_MESSAGE_TILES);
 game/battle/nmi.c	135	raw-helper	wram_copy(g, PAGE_CELLS, CELLS_ASIDE, SCRATCH_BYTES);
@@ -113,9 +113,9 @@ game/battle/nmi.c	149	raw-helper	wram_copy(g, CELLS_ASIDE, PAGE_CELLS, SCRATCH_B
 game/battle/nmi.c	120	layout-expression	0x7E0000 | BATTLE_PAGE, CELLS_ASIDE = 0x7E0000 | SCRATCH_ASIDE };
 game/battle/nmi.c	120	layout-expression	0x7E0000 | SCRATCH_ASIDE };
 game/battle/object_motion.c	212	unchecked-accessor	set_palette_working_unchecked(g, second, color);
-game/battle/party_work.c	234	raw-helper	wram_read8(g, MISREAD_BASE + (uint32_t)(tech * PARTY_TECH_BYTES)) & STOPS_AT_MISS)
-game/battle/party_work.c	201	layout-expression	0x7EB1F5 };
-game/battle/party_work.c	369	unchecked-accessor	battle_character_slot_unchecked(g, NO_MEMBER) == NO_SLOT;
+game/battle/party_work.c	235	raw-helper	wram_read8(g, MISREAD_BASE + (uint32_t)(tech * PARTY_TECH_BYTES)) & STOPS_AT_MISS)
+game/battle/party_work.c	202	layout-expression	0x7EB1F5 };
+game/battle/party_work.c	370	unchecked-accessor	battle_character_slot_unchecked(g, NO_MEMBER) == NO_SLOT;
 game/battle/positions.c	167	raw-helper	wram_read8(g, 0x7EA039u + index), wram_read8(g, 0x7EA050u + index) };
 game/battle/positions.c	167	raw-helper	wram_read8(g, 0x7EA050u + index) };
 game/battle/positions.c	167	layout-expression	0x7EA039u + index), wram_read8(g, 0x7EA050u + index) };
@@ -130,7 +130,7 @@ game/battle/rewards_levels.c	64	unchecked-accessor	battle_rewards_levels_gained_
 game/battle/rewards_levels.c	65	unchecked-accessor	set_battle_rewards_levels_gained_unchecked(g, member, count);
 game/battle/rewards_levels.c	67	unchecked-accessor	set_battle_rewards_levels_gained_unchecked(g, member + 1u, (uint8_t)(battle_rewards_levels_gained_unchecked(g, member + 1u) + 1));
 game/battle/rewards_levels.c	67	unchecked-accessor	battle_rewards_levels_gained_unchecked(g, member + 1u) + 1));
-game/battle/rewards_messages.c	85	layout-expression	<< 16);
+game/battle/rewards_messages.c	86	layout-expression	<< 16);
 game/battle/rewards_work.h	44	layout-expression	RAM_CHARACTER_RECORDS_STRIDE };
 game/battle/rewards_work.h	75	layout-expression	<< 16;
 game/battle/rewards_work.h	107	layout-expression	RAM_CHARACTER_RECORDS + who.who * RAM_CHARACTER_RECORDS_STRIDE);
@@ -160,7 +160,6 @@ game/battle/screen_sides.c	74	raw-helper	hw_port_seek(g, (uint16_t)(RAM_BATTLE_W
 game/battle/screen_sides.c	76	raw-helper	hw_port_leave_spill(g, (uint8_t)drawn.last_right);
 game/battle/screen_sides.c	69	layout-expression	RAM_BATTLE_WINDOW_LINES >> 16 };
 game/battle/screen_sides.c	74	layout-expression	RAM_BATTLE_WINDOW_LINES + line * LINE_BYTES + w * sizeof(Edges)), WINDOW_TABLE_BANK);
-game/battle/script_data.h	42	layout-expression	<< 16 | asset_read16(g, ASSET_BATTLE_SCRIPT_HANDLER, 2u * command);
 game/battle/script_effects.c	45	unchecked-accessor	set_battle_anchor_sources_unchecked(g, anchor, FOLLOWS_NOTHING);
 game/battle/script_effects.c	98	unchecked-accessor	battle_script_subjects_unchecked(g, named);
 game/battle/script_effects.c	105	unchecked-accessor	set_battle_object_effect_slots_unchecked(g, record, value);
@@ -261,33 +260,33 @@ game/cpu_io.h	57	raw-helper	hw_port_seek_bank(GameState *g, uint8_t bank);
 game/cpu_io.h	58	raw-helper	hw_port_read(GameState *g);
 game/cpu_io.h	59	raw-helper	hw_port_write(GameState *g, uint8_t v);
 game/cpu_io.h	65	raw-helper	hw_port_leave_spill(GameState *g, uint8_t low);
-game/data/assets.c	112	raw-helper	wram_data_read8(g, at & 0xFFFFFFu);
-game/data/assets.c	109	resource-address	rom_read8(const GameState *g, uint32_t at)
-game/data/assets.c	113	resource-address	rom_cartridge_read(g, at, served(at));
-game/data/assets.c	122	resource-address	rom_read8(g, e->at + offset);
-game/data/assets.c	124	resource-address	rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
-game/data/assets.c	138	resource-address	rom_read8(g, (e->at & 0xFF0000u) | place);
-game/data/assets.c	147	resource-address	rom_read16(g, (e->at & 0xFF0000u) | place);
-game/data/assets.c	155	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
-game/data/assets.c	157	resource-address	rom_read8(g, asset_place_address(resource, place));
-game/data/assets.c	160	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
-game/data/assets.c	162	resource-address	rom_read16(g, asset_place_address(resource, place));
-game/data/assets.c	165	resource-address	rom_read16(const GameState *g, uint32_t at)
-game/data/assets.c	167	resource-address	rom_read8(g, at);
-game/data/assets.c	168	resource-address	rom_read8(g, at + 1) << 8);
-game/data/assets.c	171	resource-address	rom_data(uint32_t at, uint32_t length)
-game/data/assets.c	201	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
-game/data/assets.c	204	resource-address	rom_data(at, length ? 1 : 0);
-game/data/assets.c	206	resource-address	rom_data(at, length);
-game/data/assets.c	208	resource-address	rom_data(first, length);
-game/data/assets.c	174	video-source	PF_GAME(at);
+game/data/assets.c	99	raw-helper	wram_data_read8(g, at & 0xFFFFFFu);
+game/data/assets.c	96	resource-address	rom_read8(const GameState *g, uint32_t at)
+game/data/assets.c	100	resource-address	rom_cartridge_read(g, at, served(at));
+game/data/assets.c	109	resource-address	rom_read8(g, e->at + offset);
+game/data/assets.c	111	resource-address	rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
+game/data/assets.c	125	resource-address	rom_read8(g, (e->at & 0xFF0000u) | place);
+game/data/assets.c	134	resource-address	rom_read16(g, (e->at & 0xFF0000u) | place);
+game/data/assets.c	142	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+game/data/assets.c	144	resource-address	rom_read8(g, asset_place_address(resource, place));
+game/data/assets.c	147	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+game/data/assets.c	149	resource-address	rom_read16(g, asset_place_address(resource, place));
+game/data/assets.c	152	resource-address	rom_read16(const GameState *g, uint32_t at)
+game/data/assets.c	154	resource-address	rom_read8(g, at);
+game/data/assets.c	155	resource-address	rom_read8(g, at + 1) << 8);
+game/data/assets.c	158	resource-address	rom_data(uint32_t at, uint32_t length)
+game/data/assets.c	188	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
+game/data/assets.c	191	resource-address	rom_data(at, length ? 1 : 0);
+game/data/assets.c	193	resource-address	rom_data(at, length);
+game/data/assets.c	195	resource-address	rom_data(first, length);
+game/data/assets.c	161	video-source	PF_GAME(at);
 game/data/assets.c	20	layout-expression	<< 16 | offset;
 game/data/assets.c	22	layout-expression	<< 16 | offset;
-game/data/assets.c	138	layout-expression	& 0xFF0000u) | place);
-game/data/assets.c	147	layout-expression	& 0xFF0000u) | place);
-game/data/assets.c	153	layout-expression	& 0xFF0000u) | place; }
-game/data/assets.c	196	layout-expression	& 0xFF0000u) | (uint16_t)(cursor + span);
-game/data/assets.c	207	layout-expression	& 0xFF0000u) | (uint16_t)(at - length + 1);
+game/data/assets.c	125	layout-expression	& 0xFF0000u) | place);
+game/data/assets.c	134	layout-expression	& 0xFF0000u) | place);
+game/data/assets.c	140	layout-expression	& 0xFF0000u) | place; }
+game/data/assets.c	183	layout-expression	& 0xFF0000u) | (uint16_t)(cursor + span);
+game/data/assets.c	194	layout-expression	& 0xFF0000u) | (uint16_t)(at - length + 1);
 game/data/decompress.c	77	raw-helper	hw_port_write(out->g, v);
 game/data/decompress.c	85	raw-helper	wram_write8(out->g, out->bank | out->at, wram_read8(out->g, out->bank | from));
 game/data/decompress.c	85	raw-helper	wram_read8(out->g, out->bank | from));

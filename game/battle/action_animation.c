@@ -30,6 +30,7 @@
 #include "data/decompress.h"
 #include "battle/positions.h"
 #include "charge.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* What the action shows (battle_action_type): nothing, an attack, a tech or
@@ -337,7 +338,7 @@ static bool target_fits(const GameState *g)
  * member's attack has no target to face. */
 static bool load_by_kind(GameState *g, Platform *pf, ShowingKind kind)
 {
-    if (!actor_fits(g) || (kind == SHOWS_AN_ATTACK && !target_fits(g)))
+    if (!PORT_CHECK(actor_fits(g)) || (kind == SHOWS_AN_ATTACK && !PORT_CHECK(target_fits(g))))
         return battle_contract_broken(g, loaders[kind].routine, "an animation the port doesn't load");
     bool done = false;
     TIMED_AS(g, loaders[kind].routine,

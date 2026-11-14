@@ -40,6 +40,7 @@
 #include "battle/setup_data.h"
 #include "battle/timers.h"
 #include "charge.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* The routines the party's turns call: a member's attack on the action's
@@ -431,14 +432,14 @@ bool battle_cancel_if_unable(GameState *g, Platform *pf, uint8_t member)
 
 bool battle_party_counters(GameState *g, Platform *pf)
 {
-    if (!members_hit_are_combatants(g))
+    if (!PORT_CHECK(members_hit_are_combatants(g)))
         return battle_contract_broken(g, 0xFDAC6E, "a member hit past the combatants");
     return counter_the_attack(g, pf);
 }
 
 bool battle_see_to_knocked_out_enemies(GameState *g, Platform *pf)
 {
-    if (!reaction_targets_are_combatants(g))
+    if (!PORT_CHECK(reaction_targets_are_combatants(g)))
         return battle_contract_broken(g, 0xC1B762, "a reaction's target past the combatants");
     return see_to_knocked_out(g, pf);
 }

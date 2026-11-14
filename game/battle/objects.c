@@ -24,6 +24,7 @@
 #include "battle/entries.h"
 #include "battle/script_language.h"
 #include "charge.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- Screen bounds ---------------------------------------------------------------------- */
@@ -218,7 +219,7 @@ bool battle_update_animation_positions(GameState *g, Platform *pf)
         uint8_t place;
         if (!animation_slot_follows(g, slot, &place))
             continue;
-        if (!script_place_known(g, place))
+        if (!PORT_CHECK(script_place_known(g, place)))
             return battle_contract_broken(g, 0xC1762E, "a place the scripts follow that the port doesn't find");
         keep_found_position(g, slot, script_find_place(g, place));
     }
