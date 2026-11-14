@@ -1194,9 +1194,9 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the C library's heap; 8.5 KiB free |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,212 bytes, the main thread; five slots used), the line interrupts 656 bytes, the tiles' conversion table 1 KiB, the driver's stack the 6.1 KiB above them |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.2 and 2.8, sound 0.4 and 0.5, picture 0.2 and 1.0, in all 3.0; `new-game`: game 2.5 and 6.8, picture 0.5 and 1.3, in all 3.4; `gato-battle`: game 3.4 and 8.3, picture 0.9 and 5.0, in all 4.7; `events-jetbike-race`: game 4.5 and 13, picture 1.2 and 3.3, in all 6.0. Before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425) the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.2 and 2.8, sound 0.4 and 0.5, picture 0.2 and 1.0, in all 3.0; `new-game`: game 2.5 and 6.8, picture 0.5 and 1.3, in all 3.4; `gato-battle`: game 3.4 and 8.3, picture 0.9 and 5.0, in all 4.7; `events-jetbike-race` (measured before #429): game 4.5 and 13, picture 1.2 and 3.3, in all 6.0. Before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425) the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-Without the native mixer the game's own frame is most of the cost: 2.3-4.5
+Without the native mixer the game's own frame is most of the cost: 2.2-3.4
 GBA frames, from 7-13 before the flat accessors read in place, the sends
 read spans and the time model charged in 32 bits; the picture is 0.2-1.2
 more. All of the code runs from the
