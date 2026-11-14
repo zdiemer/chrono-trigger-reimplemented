@@ -21,6 +21,8 @@
 #include "port/state_host.h"
 #include "sound_native.h"
 
+#include "services/direct_sound.h"
+#include "services/mixer.h"
 #include "services/video.h"
 #include "system/debug_log.h"
 #include "system/fiber.h"
@@ -32,6 +34,7 @@ typedef struct {
     uint32_t catalogue, count;
     uint32_t frames, pads_at;      /* the movie: its frames, and a pad word each (pack.py) */
     uint32_t sram_at;              /* 0: none, save RAM erased */
+    uint32_t samples_at;           /* the sound's samples (services/mixer.h, MixerSamples) */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
 
@@ -161,16 +164,21 @@ int main(void)
     }
     pf.save.bytes = state_host_sram(g);
     vid_host_start(&pf, read_game, g);
+    mixer_use_samples((const MixerSamples *)((const uint8_t *)head + head->samples_at));
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {
         fprintf(stderr, "ct_gba: no memory for the sound\n");
         abort();
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed, NULL }, 1);
+    direct_sound_start();
     fprintf(stderr, "ct_gba: playing %u frame(s)\n", (unsigned)frames);
 
-    /* Each frame's cycles, the game's, the sound's and the picture's. */
-    static Cycles game = { .name = "game" }, sounds = { .name = "sound" }, picture = { .name = "picture" };
+    /* Each frame's cycles: the game's, the sound driver's and the picture's,
+     * and the mixing's wherever the driver's time passed (the game's waits
+     * on the driver pass it too). */
+    static Cycles game = { .name = "game" }, sounds = { .name = "sound" }, picture = { .name = "picture" },
+                  mixing = { .name = "mixing" };
     cycles_start();
     for (uint32_t frame = 0; frame < frames; frame++) {
         ct_gba_frame = frame;
@@ -180,7 +188,6 @@ int main(void)
         tm_host_frame(&pf);
         uint32_t game_done = cycles_now();
         sound_native_frame(sound);
-        sound_native_discard_audio(sound);
         uint32_t sound_done = cycles_now();
         gba_video_await_blank();
         uint32_t blank = cycles_now();
@@ -188,6 +195,7 @@ int main(void)
         count_cycles(&game, game_done - began);
         count_cycles(&sounds, sound_done - game_done);
         count_cycles(&picture, cycles_now() - blank);
+        count_cycles(&mixing, mixer_take_cycles());
         if (frame % 600 == 599)
             fprintf(stderr, "ct_gba: frame %u\n", (unsigned)frame + 1);
     }
@@ -198,9 +206,12 @@ int main(void)
         report_cycles(&game, frames);
         report_cycles(&sounds, frames);
         report_cycles(&picture, frames);
+        report_cycles(&mixing, frames);
     }
     fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(g),
             (unsigned)ct_crc32(state_host_sram(g), STATE_HOST_SRAM_BYTES));
+    fprintf(stderr, "ct_gba: sound %u sample(s) queued, %u played, %u dropped\n", (unsigned)ct_gba_sound.queued,
+            (unsigned)ct_gba_sound.played, (unsigned)ct_gba_sound.dropped);
     fprintf(stderr, "ct_gba: arena %u bytes, the SNES's video memory %u\n", (unsigned)arena_used(),
             (unsigned)gba_video_bytes());
     for (unsigned s = 0; s < fiber_slots(); s++)

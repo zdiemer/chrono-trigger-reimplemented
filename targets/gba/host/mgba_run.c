@@ -4,6 +4,7 @@
  * GBA's frames (docs/PLATFORM.md, "The GBA build, as built").
  *
  *   mgba_run ROM.gba [MAX_FRAMES] [--frame-at ADDRESS] [--shot FRAME FILE.png]... [--samples FILE]
+ *            [--wav FILE.wav] [--stream ADDRESS FILE.wav]
  *
  * It reports the GBA frames between the program's "ct_gba: playing" and
  * "ct_gba: done", and the processor's cycles a game frame from them (a GBA
@@ -12,7 +13,12 @@
  * a PNG once the game's frame reaches each FRAME. With --samples, it notes
  * where the processor is every SAMPLE_CYCLES cycles while the movie plays
  * (to the driver's report of the frames played) and writes each address it was seen at with its count (run.py's
- * --profile names the functions). It is a host tool, built against libmgba
+ * --profile names the functions). With --wav, it writes what mGBA plays
+ * while the movie plays, in the GBA's time, gaps and all where the game's
+ * frame was late; with --stream and the address of the sound's ring
+ * (services/direct_sound.h, ct_gba_sound), every sample the program queued,
+ * one after another, as the GBA plays them where the game keeps its time.
+ * Nothing goes to a sound device. It is a host tool, built against libmgba
  * and zlib (targets/gba/host/run.py builds it). */
 #include <stdarg.h>
 #include <stdio.h>
@@ -21,6 +27,7 @@
 
 #include <zlib.h>
 
+#include <mgba/core/blip_buf.h>
 #include <mgba/core/core.h>
 #include <mgba/core/log.h>
 #include <mgba/core/timing.h>
@@ -89,6 +96,52 @@ static void log_line(struct mLogger *logger, int category, enum mLogLevel level,
     }
 }
 
+/* A WAV file of 16-bit stereo, its lengths written when it is closed. */
+typedef struct {
+    FILE *f;
+    uint32_t frames;
+} Wav;
+
+static void put_le(FILE *f, uint32_t v, int bytes)
+{
+    for (int i = 0; i < bytes; i++)
+        fputc((int)(v >> (8 * i)) & 0xFF, f);
+}
+
+static void wav_head(FILE *f, uint32_t rate, uint32_t frames)
+{
+    fwrite("RIFF", 1, 4, f), put_le(f, 36 + frames * 4, 4), fwrite("WAVEfmt ", 1, 8, f);
+    put_le(f, 16, 4), put_le(f, 1, 2), put_le(f, 2, 2), put_le(f, rate, 4), put_le(f, rate * 4, 4);
+    put_le(f, 4, 2), put_le(f, 16, 2), fwrite("data", 1, 4, f), put_le(f, frames * 4, 4);
+}
+
+static int wav_open(Wav *w, const char *path, uint32_t rate)
+{
+    w->f = fopen(path, "wb");
+    w->frames = 0;
+    if (w->f)
+        wav_head(w->f, rate, 0);
+    return w->f ? 0 : -1;
+}
+
+static void wav_put(Wav *w, int16_t left, int16_t right)
+{
+    put_le(w->f, (uint16_t)left, 2), put_le(w->f, (uint16_t)right, 2);
+    w->frames++;
+}
+
+static void wav_close(Wav *w, uint32_t rate)
+{
+    if (!w->f)
+        return;
+    fseek(w->f, 0, SEEK_SET);
+    wav_head(w->f, rate, w->frames);
+    fclose(w->f);
+}
+
+/* The sound's ring as services/direct_sound.h lays it out, and its rate. */
+enum { RING = 1024, RING_LEFT = 12, RING_RIGHT = RING_LEFT + RING, STREAM_RATE = 13379, WAV_RATE = 32768 };
+
 static void put32(unsigned char *at, uint32_t v)
 {
     at[0] = (unsigned char)(v >> 24), at[1] = (unsigned char)(v >> 16), at[2] = (unsigned char)(v >> 8), at[3] = (unsigned char)v;
@@ -155,13 +208,20 @@ int main(int argc, char **argv)
     unsigned long max_frames = 2000000ul, frame_at = 0;
     unsigned long shot_frame[MAX_SHOTS];
     const char *shot_path[MAX_SHOTS];
-    const char *samples_path = NULL;
+    const char *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
+    unsigned long stream_at = 0;
     unsigned shots = 0, next_shot = 0;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--frame-at") && i + 1 < argc)
             frame_at = strtoul(argv[++i], NULL, 16);
         else if (!strcmp(argv[i], "--samples") && i + 1 < argc)
             samples_path = argv[++i];
+        else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
+            wav_path = argv[++i];
+        else if (!strcmp(argv[i], "--stream") && i + 2 < argc) {
+            stream_at = strtoul(argv[++i], NULL, 16);
+            stream_path = argv[++i];
+        }
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc && shots < MAX_SHOTS) {
             shot_frame[shots] = strtoul(argv[++i], NULL, 10);
             shot_path[shots++] = argv[++i];
@@ -196,10 +256,43 @@ int main(int argc, char **argv)
         sampling = (struct mTimingEvent){ .callback = sample, .name = "mgba_run samples", .priority = 0x100 };
         mTimingSchedule(core->timing, &sampling, SAMPLE_CYCLES);
     }
+    Wav wav = { 0 }, stream = { 0 };
+    struct blip_t *left = core->getAudioChannel(core, 0), *right = core->getAudioChannel(core, 1);
+    if (wav_path) {
+        blip_set_rates(left, core->frequency(core), WAV_RATE);
+        blip_set_rates(right, core->frequency(core), WAV_RATE);
+        if (wav_open(&wav, wav_path, WAV_RATE)) {
+            fprintf(stderr, "mgba_run: cannot write %s\n", wav_path);
+            return 2;
+        }
+    }
+    if (stream_path && wav_open(&stream, stream_path, STREAM_RATE)) {
+        fprintf(stderr, "mgba_run: cannot write %s\n", stream_path);
+        return 2;
+    }
+    uint32_t streamed = 0;
     unsigned long frames = 0;
     while (!done && frames < max_frames) {
         core->runFrame(core);
         frames++;
+        if (wav_path) {
+            int16_t l[2048], r[2048];
+            int n = blip_samples_avail(left);
+            n = n < 2048 ? n : 2048;
+            blip_read_samples(left, l, n, 0);
+            blip_read_samples(right, r, n, 0);
+            if (playing_at >= 0 && !played)
+                for (int k = 0; k < n; k++)
+                    wav_put(&wav, l[k], r[k]);
+        }
+        if (stream_path) {
+            uint32_t queued = core->busRead32(core, (uint32_t)stream_at);
+            for (; streamed != queued; streamed++) {
+                int8_t l = (int8_t)core->busRead8(core, (uint32_t)(stream_at + RING_LEFT + streamed % RING));
+                int8_t r = (int8_t)core->busRead8(core, (uint32_t)(stream_at + RING_RIGHT + streamed % RING));
+                wav_put(&stream, (int16_t)(l * 256), (int16_t)(r * 256));
+            }
+        }
         if (frame_at && next_shot < shots) {
             unsigned long game = core->busRead32(core, (uint32_t)frame_at);
             while (next_shot < shots && game >= shot_frame[next_shot]) {
@@ -235,6 +328,8 @@ int main(int argc, char **argv)
             fclose(f);
         }
     }
+    wav_close(&wav, WAV_RATE);
+    wav_close(&stream, STREAM_RATE);
     core->deinit(core);
     free(video);
     return rc;

@@ -1,5 +1,5 @@
 /* Work RAM as the original lays it out, for a build of the flat state
- * (CT_FLAT_STATE: port/vars_host.h, vars_flat.c), native or the GBA's: its
+ * (CT_FLAT_STATE: port/vars_host.h, vars_flat.c), native or a small target's: its
  * two banks in the arena, a byte for each address. Bytes the map gives no
  * owner read 0 and drop writes, as the typed state's address view does: they
  * hold 0 from the start and are never written, so a span of the banks reads

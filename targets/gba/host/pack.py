@@ -10,10 +10,11 @@ committed.
 
 The pack after the program (targets/gba/system/main.c, PackHead): "CTGB", the
 catalogue's version and its count, the movie's frames and where its pads are,
-where the save RAM is (0: none); then each resource's place and length, in
-the catalogue's order; then the resources, the movie's pads (a word a frame,
-the first controller's in its low half and the second's in its high, as
-tools/movies/mkmovie.py's pad words) and the save RAM.
+where the save RAM is (0: none), where the sound's samples are; then each
+resource's place and length, in the catalogue's order; then the resources,
+the movie's pads (a word a frame, the first controller's in its low half and
+the second's in its high, as tools/movies/mkmovie.py's pad words), the save
+RAM, and the sound's samples converted to 8-bit PCM (samples.py).
 """
 import argparse
 import pathlib
@@ -27,8 +28,11 @@ sys.path.insert(0, str(ROOT))
 from tools import assets, rom  # noqa: E402
 from tools.movies import mkmovie  # noqa: E402
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import samples  # noqa: E402
+
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
-HEAD = struct.Struct("<4sIIIII")
+HEAD = struct.Struct("<4sIIIIII")
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 SRAM_BYTES = 0x2000
@@ -48,6 +52,11 @@ def resources(cartridge):
         at = assets.bus_to_offset(row.at)
         out.append(cartridge[at:at + row.end - row.at + 1])
     return out
+
+
+def sound_samples(cartridge):
+    """The sound's samples as the GBA's mixer plays them (samples.py)."""
+    return samples.table(cartridge, assets.load(), assets.bus_to_offset)
 
 
 def header_check(image):
@@ -85,7 +94,10 @@ def pack(program, cartridge, movie_text, sram):
         body += bytes(-(table + len(body)) % 4)
         sram_at = table + len(body)
         body += sram
-    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), frames, pads_at, sram_at)
+    body += bytes(-(table + len(body)) % 4)
+    samples_at = table + len(body)
+    body += sound_samples(cartridge)
+    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), frames, pads_at, sram_at, samples_at)
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body

@@ -40,6 +40,7 @@
 #include "platform/timing.h"
 
 #include "services/video.h"
+#include "system/interrupts.h"
 
 /* ---- The GBA's registers and memory ------------------------------------------------------------- */
 
@@ -1113,7 +1114,6 @@ static void present_sprites(void)
 #define REG_IE REG16(0x04000200)
 #define REG_IF REG16(0x04000202)
 #define REG_IME REG16(0x04000208)
-#define IRQ_HANDLER (*(void (*volatile *)(void))0x03007FFC)
 #define BIOS_IF REG16(0x03007FF8)
 enum {
     GBA_LINES = 160, SNES_LINES = 224, IRQ_HBLANK = 2, IRQ_VCOUNT = 4,
@@ -1580,7 +1580,7 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
         return;
     }
     if (!by_line) {
-        IRQ_HANDLER = on_line;
+        gba_interrupt_handler(IRQ_VCOUNT | IRQ_HBLANK, on_line);
         next_change = count;
         DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | DISPSTAT_VCOUNT_IRQ | GBA_LINES << 8);
         REG_IF = IRQ_VCOUNT | IRQ_HBLANK;

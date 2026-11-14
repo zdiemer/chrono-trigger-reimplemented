@@ -43,8 +43,8 @@ add_executable(ct_gba
   ${CT_ROOT}/runtime/platform/native/audio.c ${CT_ROOT}/runtime/platform/native/save.c
   ${CT_ROOT}/runtime/platform/voices.c
   ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/checksum.c
-  toolchain/start.s system/switch.s system/fiber.c system/system.c system/main.c
-  services/silent_mixer.c services/video.c)
+  toolchain/start.s system/switch.s system/fiber.c system/interrupts.c system/system.c system/main.c
+  services/mixer.c services/direct_sound.c services/video.c)
 # The C library's system calls are called only from the library, which
 # optimizing across files doesn't see: compiled apart, they stay.
 set_source_files_properties(system/system.c PROPERTIES COMPILE_OPTIONS -fno-lto)
@@ -53,8 +53,8 @@ set_source_files_properties(system/system.c PROPERTIES COMPILE_OPTIONS -fno-lto)
 # than Thumb's; their few cold functions run as ARM from the cartridge.
 set_source_files_properties(${CT_ROOT}/runtime/port/state_host.c ${CT_ROOT}/runtime/port/vars_flat.c
   PROPERTIES COMPILE_OPTIONS -marm)
-target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_FLAT_STATE SOUND_NATIVE_AUDIO_FRAMES=16
-  SOUND_NATIVE_MIXER="services/silent_mixer.h" VID_HOST_NO_WIDER_VIEW)
+target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_FLAT_STATE SOUND_NATIVE_AUDIO_FRAMES=1
+  SOUND_NATIVE_MIXER="services/mixer.h" SOUND_NATIVE_MIXER_PLAYS VID_HOST_NO_WIDER_VIEW)
 target_include_directories(ct_gba PRIVATE ${CT_ROOT}/game ${CT_ROOT}/runtime ${CT_ROOT}/frontend
   ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_options(ct_gba PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/toolchain/gba.ld -L${CMAKE_CURRENT_SOURCE_DIR}/toolchain -Wl,-Map=ct_gba.map)

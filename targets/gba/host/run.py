@@ -13,6 +13,9 @@ with the host's C compiler into the program's directory. The GBA build is
 packed first (targets/gba/host/pack.py) from the staged cartridge. With
 `--profile FILE`, the runner samples where the processor is as the movie
 plays and FILE gets each function's share of the samples, the largest first.
+With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
+every sample the program queued, without the gaps where its frames were
+late. Nothing is played aloud.
 """
 import argparse
 import bisect
@@ -49,11 +52,12 @@ def runner(prefix, out_dir):
     return exe
 
 
-def frame_symbol(elf):
-    """The address of the game frame the program is in (main.c's ct_gba_frame)."""
+def symbol(elf, name):
+    """The address of one of the program's symbols: the game frame it is in
+    (main.c's ct_gba_frame), the sound's ring (direct_sound.c's ct_gba_sound)."""
     nm = shutil.which("arm-none-eabi-nm")
     out = subprocess.run([nm, str(elf)], stdout=subprocess.PIPE, text=True, check=True).stdout
-    return next(line.split()[0] for line in out.splitlines() if line.endswith(" ct_gba_frame"))
+    return next(line.split()[0] for line in out.splitlines() if line.endswith(" " + name))
 
 
 def profile(elf, samples, out):
@@ -101,6 +105,10 @@ def main(argv=None):
                     help="write the GBA's picture once the game reaches FRAME")
     ap.add_argument("--profile", type=pathlib.Path, metavar="FILE",
                     help="sample where the processor is as the movie plays; FILE gets each function's share")
+    ap.add_argument("--wav", type=pathlib.Path, metavar="FILE.wav",
+                    help="write what mGBA plays as the movie plays, in the GBA's time")
+    ap.add_argument("--stream", type=pathlib.Path, metavar="FILE.wav",
+                    help="write every sample the program queued, as it plays where the game keeps its time")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
@@ -112,10 +120,14 @@ def main(argv=None):
     env["PATH"] = str(args.mgba.resolve() / "bin") + os.pathsep + env.get("PATH", "")
     command = [str(exe), str(image), str(args.max_gba_frames)]
     if args.shot:
-        command += ["--frame-at", frame_symbol(args.program.resolve().with_suffix(".elf"))]
+        command += ["--frame-at", symbol(args.program.resolve().with_suffix(".elf"), "ct_gba_frame")]
         for shot in args.shot:
             frame, _, path = shot.partition("=")
             command += ["--shot", frame, path]
+    if args.wav:
+        command += ["--wav", str(args.wav)]
+    if args.stream:
+        command += ["--stream", symbol(args.program.resolve().with_suffix(".elf"), "ct_gba_sound"), str(args.stream)]
     samples = out_dir / (args.movie.stem + ".samples")
     if args.profile:
         command += ["--samples", str(samples)]
