@@ -29,6 +29,7 @@
 #include "field/field.h"
 #include "field/layers.h"
 #include "platform/video.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The map's looks ------------------------------------------------------------------------ */
@@ -551,7 +552,7 @@ static const uint32_t drawing_entries[] = { [FIELD_BG1] = 0xC075E9, [FIELD_BG2] 
 
 bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
 {
-    bool fits = layer == FIELD_BG2 ? layer_drawing_fits(g, FIELD_BG2) : layers_repeat_within_the_maps(g);
+    bool fits = PORT_CHECK(layer == FIELD_BG2 ? layer_drawing_fits(g, FIELD_BG2) : layers_repeat_within_the_maps(g));
     if (!fits) {
         program_breaks_a_contract(g, drawing_entries[layer], "a layer the port doesn't draw at the map's load");
         return false;

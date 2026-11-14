@@ -245,7 +245,7 @@ static bool bitmap_fits(const GameState *g, uint16_t position, bool row_nudge);
 bool scene_scale_the_bitmap(GameState *g, bool row_nudge)
 {
     /* Native callers have just handed over a new picture with scaler_start. */
-    if (!bitmap_fits(g, 0, row_nudge)) {
+    if (!PORT_CHECK(bitmap_fits(g, 0, row_nudge))) {
         program_fail(g, ROW_LOOP, "a bitmap the port's scaler doesn't draw");
         return false;
     }

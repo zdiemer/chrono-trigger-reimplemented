@@ -264,7 +264,7 @@ void field_vblank(GameState *g, Platform *pf)
     start_vblank(pf);
     if (field_frame_pending(g) != 0 && !work_before_the_queue(g, pf)) {
         upload_the_queue(g, pf);
-        if (!edges(g)) {
+        if (!PORT_CHECK(edges(g))) {
             program_breaks_a_contract(g, FIELD_VBLANK_HANDLER, "layers' edges the port doesn't upload");
             return;
         }
