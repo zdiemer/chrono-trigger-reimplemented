@@ -60,9 +60,22 @@ ZENAN = (["whirlpool", "leene_gate", "truce_600", "zenan_captain", "chef", "jerk
 # South over the bridge: Dorino's supplies, the Denadoro Mountains' foot (where
 # ctsave04 slot 1 stands), up the mountains to the save point below their top,
 # and Masa and Mune, who keep the Masamune's blade.
-DENADORO = ["dorino_supplies", "denadoro_foot", "denadoro", "denadoro_falls", "denadoro_save", "masa_mune"]
+DENADORO = ["dorino_supplies", "denadoro_foot", "denadoro", "denadoro_falls", "denadoro_trained", "masa_mune"]
+# The Masamune's hilt: Tata's Hero Medal in Porre, shown to Frog in his burrow;
+# Melchior in 1000 A.D. (through Truce Canyon's Gate, the End of Time and the
+# Medina pillar), who needs a Dreamstone; 65,000,000 B.C. by the End of Time's
+# south-west pillar, Ioka's feast and Ayla's soup race for the Dreamstone, and
+# Ayla joining when the Gate Key is found gone (story $78, where leg B's save,
+# ctsave05 slot 1, stands).
+DREAMSTONE = ["hero_medal", "bent_hilt", "melchior_told", "prehistory", "ioka_feast", "soup_race", "ayla_joins"]
+# From the Forest Maze on, leg B's own play (route playthrough_leg-b, from its save's
+# place), its checkpoints named apart from this route's own (Run.chapter).
+LEG_B = importlib.import_module(".playthrough_leg-b", __package__)
+LEG_B_CHAPTER = "b_"
+LEG_B_FROM = LEG_B.PHASES.index("forest_maze")
+FROM_LEG_B = [LEG_B_CHAPTER + name for name in LEG_B.PHASES[LEG_B_FROM:]]
 PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
-          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO)
+          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO + DREAMSTONE + FROM_LEG_B)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -151,7 +164,7 @@ ZENAN_FLAGS = 0x7F00A9
 SUPPLIES_ASKED, CHEF_TOLD, JERKY_GIVEN = 0x04, 0x08, 0x10
 JERKY = 0xDB
 BENT_SWORD = 0x50
-CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP = 0x7E2600, 0x50, 3
+CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP, RECORD_LEVEL = 0x7E2600, 0x50, 3, 0x12
 ENERTRON = 14                   # Proto Dome's: a rest that restores HP and MP
 ARRIS_MERCHANT = 11
 ARRIS_TONIC_ROW, ARRIS_REVIVE_ROW = 3, 5     # of its list: Auto Gun, Iron Suit, Iron Helm, Tonic, Heal, Revive, Shelter
@@ -173,9 +186,35 @@ DENADORO_WEST_WAY = (11 * 16 + 8, 64)
 DENADORO_CLIMB = (("9200", (504, 24)), ("8f00", (8, 72)), ("9300", (504, 56)), ("9600", (568, 24)),
                   ("9000", (8, 168)), ("9400", (520, 264)), ("9500", (56, 504)))
 DENADORO_TOP = (("8f00", (1016, 456)), ("9700", (264, 56)))
-MARLE, LUCCA = 1, 2
-ICE, FIRE, AURA = 2, 2, 0        # their places in Marle's and Lucca's tech lists
-ICE_MP = FIRE_MP = 2
+# Training below the save point: the monsters of the map before it ($094),
+# which come back each time the party steps out and in again.
+DENADORO_AWAY, DENADORO_BACK = ("9400", (968, 24)), ("9500", (56, 504))
+# Masa and Mune at levels 13-14 took the party 18 tries (44 before Crono's
+# Slash answered their Tornado energy); at 15 and up a handful.
+MASA_AND_MUNE_LEVEL = 15
+PORRE_NEAR, TATAS_HOUSE, TATA = (408, 870), 0x098, 9
+STORY_HERO_MEDAL, HERO_MEDAL = 0x66, 0xB3
+CURSED_WOODS, FROGS_BURROW = 0x08C, "8d00"
+FROG_IN_THE_BURROW, FROGS_BASKET = 11, 10   # the basket he stands before, which he moves from for the medal
+STORY_HILT, BENT_HILT = 0x69, 0x51
+TRUCE_CANYON_NEAR, TRUCE_CANYON = (440, 248), 0x070
+CANYON_GATE_SPOT = (114, 124)               # left of the Gate, facing it
+STORY_MELCHIOR = 0x6C
+PILLAR_65M, MYSTIC_MOUNTAIN_TOP, WORLD_65M = (200, 203), "1001", "f301"
+MOUNTAIN_WAY_DOWN = ("1101", "1201", WORLD_65M)
+STORY_PREHISTORY = 0x6F
+CHIEFS_HUT, FEAST, AYLA_IN_THE_HUT = 0x113, "1801", 6
+FEAST_FRIENDS, FEAST_AYLA = (3, 5), 6        # Marle and Lucca, who must be spoken to before Ayla races
+SOUP_RACING = 0x0E                          # event variable: the race on
+STORY_SOUP, STORY_DREAMSTONE, STORY_AYLA = 0x72, 0x75, 0x78
+DREAMSTONE_ITEM, GATE_KEY = 0xDC, 0xD7
+AYLA_ASLEEP_REACH = (212, 189)              # the party walks up (to y 212) and right (x 189) to wake her
+AYLA = 5
+CRONO, MARLE, LUCCA = 0, 1, 2
+SLASH, ICE, FIRE, AURA = 1, 2, 2, 0   # their places in Crono's, Marle's and Lucca's tech lists
+SLASH_MP = ICE_MP = FIRE_MP = 2
+AURA_MP = 1
+MASA_AND_MUNE_AS_ONE_HP = 3600
 ENEMY_KIND_SLOTS = 4         # words at A.BATTLE_ENEMY_KINDS
 WAIT_MODE = 1              # the battle mode question's second row: Wait
 
@@ -519,11 +558,6 @@ def in_hand(run, max_frames=12000, seed=1, policy=early.early_party):
     return False
 
 
-def leg_b():
-    """The leg from 65,000,000 B.C. (route playthrough_leg-b), whose walks this one shares."""
-    return importlib.import_module(".playthrough_leg-b", __package__)
-
-
 def without(item, policy):
     """`policy` with `item` kept back in the bag."""
     def held_back(bot, state, rng, inventory):
@@ -547,16 +581,81 @@ def climb(run, want, aim):
         assert in_hand(run, policy=MOUNTAIN_FIGHTS), "the field in hand"
         walking(run)
         if run.walk(lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == want, max_nodes=6000) is None:
-            leg_b().search_walk(run, want, aim, policy=MOUNTAIN_FIGHTS)
+            LEG_B.search_walk(run, want, aim, policy=MOUNTAIN_FIGHTS)
     assert in_hand(run, policy=MOUNTAIN_FIGHTS), "the field in hand"
     run.say("climbed", want, run.me(), "story", hex(run.machine.b(A.EVENT_MEMORY)))
     assert run.map_id() == want, want
 
 
+def levels(machine):
+    """The active party's levels."""
+    return [machine.b(CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + RECORD_LEVEL)
+            for c in machine.peek(A.PARTY_MEMBERS, 3) if c < 0x80]
+
+
+def train(run, level, away, back, max_fights=200, policy=MOUNTAIN_FIGHTS):
+    """Fight the monsters about two neighbouring maps until every member of
+    the party is at `level`: each fight the walk finds is won with `policy`,
+    and when none is left on one map the party steps through to the other
+    (`away` and `back`, each a map and its way in, as climb takes them); the
+    monsters of the map it left are there again when it comes back."""
+    machine = run.machine
+    fights = crossings = 0
+    while min(levels(machine)) < level:
+        assert fights < max_fights and crossings < 2 * max_fights, (
+            "too long a training for level", level, levels(machine), fights, crossings)
+        walking(run)
+        moves = run.walk_here(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN), max_nodes=4000)
+        if moves is not None:
+            machine.run(30)
+            if run.dialogs_until(lambda: early.battle_ready(run) or bool(machine.b(A.FIELD_PLAYER_CONTROL)), 3000)                     and early.battle_ready(run):
+                win(run, policy=policy)
+                fights += 1
+                assert in_hand(run, policy=policy), "the field after the fight"
+                continue
+        climb(run, *(away if run.map_id() == back[0] else back))
+        crossings += 1
+    if run.map_id() != back[0]:
+        climb(run, *back)
+    run.say("trained", fights, "fights", crossings, "crossings: levels", levels(machine))
+
+
+def speak(run, obj, tries=3):
+    """Speak to object `obj` from beside it, below first: walked to, turned to
+    it and confirmed. True once a window opens."""
+    machine = run.machine
+    tx, ty = run.object_pos(obj)
+    for dx, dy, face in ((0, 18, "UP"), (-18, 0, "RIGHT"), (18, 0, "LEFT"), (0, -18, "DOWN")):
+        if run.walk_here(lambda m, x, y: abs(x - tx - dx) <= 4 and abs(y - ty - dy) <= 4, max_nodes=2000) is None:
+            continue
+        machine.run(3, face)
+        machine.run(5)
+        for _ in range(tries):
+            machine.run(3, "A")
+            machine.run(30)
+            if run.dialog():
+                return True
+    return False
+
+
+def read_through(run, max_windows=60):
+    """Confirm the windows that are open until none is."""
+    machine = run.machine
+    for _ in range(max_windows):
+        if not run.dialog():
+            return
+        machine.run(3, "A")
+        machine.run(30)
+
+
 def masa_and_mune(bot, state, rng, inventory):
     """Masa and Mune, and the two as one: Marle's Ice and Lucca's Fire, which hurt
-    them far more than blows; Crono keeps the party up with Mid Tonics, Marle
-    with Aura for one not yet low, and the fallen are raised with Revives."""
+    them far more than blows, on the weaker; against the two as one Crono's
+    Slash each turn, which undoes the Tornado energy they store up for a blow
+    at everyone (rpgclassics.com's and gamercorner.net's boss guides: "have
+    Crono use the Slash tech to neutralise it"), his magic kept for it by
+    blows against the two apart; Marle keeps the party up, with Aura for one
+    not yet low and Mid Tonics, and the fallen are raised with Revives."""
     member = state.member
     character = policies.party_ids(bot)[member]
     members = [slot for slot in range(bot.party) if state.max_hp(slot)]
@@ -567,8 +666,9 @@ def masa_and_mune(bot, state, rng, inventory):
                 return action
     living = [slot for slot in members if state.hp(slot)]
     lowest = min(living, key=lambda slot: policies.fraction(state, slot))
-    if policies.fraction(state, lowest) < 0.5:
-        if (character == MARLE and policies.fraction(state, lowest) > 0.25 and state.mp(member) >= 1
+    hurt = policies.fraction(state, lowest) < 0.5
+    if hurt and (character == MARLE or policies.fraction(state, lowest) < 0.25):
+        if (character == MARLE and policies.fraction(state, lowest) > 0.25 and state.mp(member) >= AURA_MP
                 and policies.tech_known(bot, member, AURA)):
             return "tech", AURA, lowest
         for item in (policies.MID_TONIC, policies.TONIC):
@@ -579,6 +679,9 @@ def masa_and_mune(bot, state, rng, inventory):
     if not foes:
         return "attack", None
     target = min(foes, key=state.hp)
+    as_one = any(state.max_hp(slot) >= MASA_AND_MUNE_AS_ONE_HP for slot in foes)
+    if as_one and character == CRONO and state.mp(member) >= SLASH_MP and policies.tech_known(bot, member, SLASH):
+        return "tech", SLASH, target
     if character == MARLE and state.mp(member) >= ICE_MP:
         return "tech", ICE, target
     if character == LUCCA and state.mp(member) >= FIRE_MP:
@@ -1362,15 +1465,17 @@ def main():
                 climb(run, want, aim)
             run.checkpoint("denadoro_falls")
         if later <= 4:
-            # Down to the save point below the top: a Shelter there restores
-            # everyone before Masa and Mune.
+            # Down to the save point below the top. The party trains on the
+            # monsters about it until all are at MASA_AND_MUNE_LEVEL, and a
+            # Shelter there restores everyone before Masa and Mune.
             for want, aim in DENADORO_CLIMB[-2:]:
                 climb(run, want, aim)
+            train(run, MASA_AND_MUNE_LEVEL, DENADORO_AWAY, DENADORO_BACK)
             walking(run)
             assert run.walk_here(lambda m, x, y: m.b(SAVE_POINT_FLAGS) & ON_A_SAVE_POINT) is not None, "the save point"
             machine.run(30)
             rest_with_a_shelter(run)
-            run.checkpoint("denadoro_save")
+            run.checkpoint("denadoro_trained")
         if later <= 5:
             # Up to the top and into the cave, where Masa and Mune stop the
             # party and fight, first apart and then as one; beaten, they give
@@ -1395,6 +1500,135 @@ def main():
             assert run.wait_world_control(), "the world map in hand"
             assert machine.b(A.EVENT_MEMORY) == STORY_BLADE and count_of(machine, BENT_SWORD), "the blade"
             run.checkpoint("masa_mune")
+        later -= len(DENADORO)
+        if later <= 0:
+            # Tata, at home in Porre, owns up and gives the Hero Medal; the
+            # party drinks Tonics there after Masa and Mune.
+            LEG_B.world_toward(run, *PORRE_NEAR, near=32)
+            world_enter(run, TATAS_HOUSE)
+            walking(run)
+            if machine.b(A.EVENT_MEMORY) < STORY_HERO_MEDAL:
+                run.talk(TATA, done=lambda: run.dialog() or machine.b(A.EVENT_MEMORY) >= STORY_HERO_MEDAL)
+            assert in_hand(run)
+            assert machine.b(A.EVENT_MEMORY) == STORY_HERO_MEDAL and count_of(machine, HERO_MEDAL), "the Hero Medal"
+            drink_tonics(run)
+            run.checkpoint("hero_medal")
+        if later <= 1:
+            # Frog greets the party in his burrow; shown the medal, he steps
+            # away from his basket, which holds the Masamune's hilt
+            # (thonky.com's walkthrough, "Tata and the Frog").
+            assert leave_fighting(run, WORLD_600), "out of Tata's house"
+            run.wait_world_control()
+            world_enter(run, CURSED_WOODS)
+            assert leave_fighting(run, FROGS_BURROW), "Frog's burrow"
+            walking(run)
+            run.walk_here(lambda m, x, y: not m.b(A.FIELD_PLAYER_CONTROL) or m.b(A.DIALOG_OPEN))
+            assert in_hand(run), "Frog's greeting"
+            walking(run)
+            assert speak(run, FROG_IN_THE_BURROW), "Frog"
+            read_through(run)
+            assert in_hand(run)
+            walking(run)
+            run.talk(FROGS_BASKET, done=lambda: run.dialog() or machine.b(A.EVENT_MEMORY) >= STORY_HILT)
+            assert settle_the_scene(run, STORY_HILT) and count_of(machine, BENT_HILT), "the hilt"
+            run.checkpoint("bent_hilt")
+        if later <= 2:
+            # Out of the woods, to Truce Canyon's Gate, which goes to the End
+            # of Time; its Medina pillar to 1000 A.D., and Melchior's hut,
+            # where he names the Dreamstone the sword wants.
+            LEG_B.woods_out(run)
+            LEG_B.world_toward(run, *TRUCE_CANYON_NEAR, near=40)
+            world_enter(run, TRUCE_CANYON)
+            assert leave_fighting(run, TRUCE_CANYON_600), "the Gate's clearing"
+            walking(run)
+            gx, gy = CANYON_GATE_SPOT
+            assert run.walk_here(lambda m, x, y: abs(x - gx) <= 2 and abs(y - gy) <= 2) is not None, "beside the Gate"
+            machine.run(3, "RIGHT")
+            machine.run(3, "A")
+            assert dialogs_until_in_hand(run, END_OF_TIME_HALL), "the End of Time"
+            LEG_B.medina(run)
+            LEG_B.melchior(run)
+            assert machine.b(A.EVENT_MEMORY) == STORY_MELCHIOR, "Melchior"
+            run.checkpoint("melchior_told")
+        if later <= 3:
+            # Back to the End of Time by the Medina house's Gate, and its
+            # south-west pillar to the Mystic Mountains' top; down them to the
+            # 65,000,000 B.C. world map.
+            LEG_B.medina_gate(run)
+            LEG_B.pillar(run, PILLAR_65M, MYSTIC_MOUNTAIN_TOP)
+            for want in MOUNTAIN_WAY_DOWN:
+                assert leave_fighting(run, want), want
+            assert machine.b(A.EVENT_MEMORY) == STORY_PREHISTORY, "65,000,000 B.C."
+            run.checkpoint("prehistory")
+        if later <= 4:
+            # In the chief's hut at Ioka, Ayla takes the party to the feast.
+            run.wait_world_control()
+            world_enter(run, CHIEFS_HUT)
+            walking(run)
+            assert speak(run, AYLA_IN_THE_HUT), "Ayla"
+            assert dialogs_until_in_hand(run, FEAST), "the feast"
+            run.checkpoint("ioka_feast")
+        if later <= 5:
+            # Spoken to after Marle and Lucca have joined in, Ayla races
+            # Crono for her red rock, the Dreamstone: A pressed as fast as
+            # the race counts it (the questions' "No way!" is on the second
+            # row, so Down goes with it). The party wakes in the hut to find
+            # the Gate Key gone.
+            for _ in range(8):
+                if event_variable(machine, SOUP_RACING):
+                    break
+                for friend in FEAST_FRIENDS:
+                    walking(run)
+                    speak(run, friend)
+                    read_through(run)
+                walking(run)
+                speak(run, FEAST_AYLA)
+                for _ in range(30):
+                    if event_variable(machine, SOUP_RACING) or not run.dialog():
+                        break
+                    machine.run(3, "A")
+                    machine.run(37)
+            assert event_variable(machine, SOUP_RACING), "the soup race"
+            for _ in range(3000):
+                if machine.b(A.EVENT_MEMORY) >= STORY_SOUP:
+                    break
+                machine.run(1, "A")
+                machine.run(1)
+                machine.run(1, "DOWN")
+                machine.run(1)
+            assert machine.b(A.EVENT_MEMORY) >= STORY_SOUP, "the race won"
+            assert settle_the_scene(run, STORY_DREAMSTONE), "the night"
+            assert count_of(machine, DREAMSTONE_ITEM) and not count_of(machine, GATE_KEY), "the Dreamstone; the Gate Key gone"
+            run.checkpoint("soup_race")
+        if later <= 6:
+            # Ayla snores by the door while the party is still, a window at
+            # a time; walked up and across the hut, the party wakes her and
+            # she joins it to go after the Gate Key, with Marle; out to the
+            # world map.
+            wx, wy = AYLA_ASLEEP_REACH
+            for way, reached in (("UP", lambda: run.me()[1] <= wy), ("RIGHT", lambda: run.me()[0] >= wx)):
+                for _ in range(600):
+                    if reached():
+                        break
+                    machine.run(1, way)
+            for _ in range(400):
+                if machine.b(A.EVENT_MEMORY) >= STORY_AYLA or not machine.b(A.FIELD_PLAYER_CONTROL):
+                    break
+                if run.dialog():
+                    machine.run(1)
+                else:
+                    machine.run(2, "UP")
+                    machine.run(2, "A")
+            assert in_hand(run, 30000), "Ayla's choice"
+            assert machine.b(A.EVENT_MEMORY) == STORY_AYLA and AYLA in machine.peek(A.PARTY_MEMBERS, 3), "Ayla joins"
+            assert leave_fighting(run, WORLD_65M), "out of the hut"
+            run.wait_world_control()
+            run.checkpoint("ayla_joins")
+        later -= len(DREAMSTONE)
+        if later <= len(FROM_LEG_B) - 1:
+            run.chapter = LEG_B_CHAPTER
+            LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed)
+            run.chapter = ""
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
