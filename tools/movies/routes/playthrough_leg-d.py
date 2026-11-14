@@ -22,6 +22,7 @@ from .. import policies
 from ..policies import ETHER, FULL_ETHER, FULL_TONIC, MID_ETHER, MID_TONIC
 from .. import other_endings
 from ..campaign import Run, route_arguments, run_route
+from . import black_omen
 from . import blackbird_save
 from . import dalton
 from . import death_peak
@@ -101,9 +102,12 @@ SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
 # form to healing first (holding_out). Crono comes back 48 tech points short
-# of Luminaire, his spell on every enemy, and the Black Omen's first fight
-# pays them: the party flies in from 1000 A.D., wins it and leaves.
-REUNITED = ["restored", "crono_joins", "luminaire"]
+# of Luminaire, his spell on every enemy (his record's points left for his
+# next tech, read at the crono_joins checkpoint), and the Black Omen's first
+# fight pays them: the party flies in from 1000 A.D. and wins it. It goes on
+# through the Omen for its treasure (black_omen: the Haste Helm, the Nova
+# Armor, the Vigil Hat, the Magic Seal, three MegaElixirs) and back out.
+REUNITED = ["restored", "crono_joins", "omen_treasure", "luminaire"]
 GROWN = ["stocked", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + GRIND + CAVES
@@ -142,8 +146,12 @@ FIRST_LIST_ROW = 4                                           # its cursor on the
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
-BEST_GEAR = [(LUCCA, ARMOUR, AEON_SUIT), (ROBO, ARMOUR, AEON_SUIT), (ROBO, HELM, AEON_HELM),
-             (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
+# The best of the shop and the Black Omen's chests: the Haste Helm (its
+# wearer's turns twice as fast) for Crono, the Nova Armor for Robo, the Vigil
+# Hat and the Magic Seal (magic and magic defence) for Lucca.
+BEST_GEAR = [(LUCCA, ARMOUR, AEON_SUIT), (ROBO, ARMOUR, black_omen.NOVA_ARMOR), (ROBO, HELM, AEON_HELM),
+             (CRONO, HELM, black_omen.HASTE_HELM), (CRONO, ACCESSORY, RAGE_BAND),
+             (LUCCA, HELM, black_omen.VIGIL_HAT), (LUCCA, ACCESSORY, black_omen.MAGIC_SEAL)]
 HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
 GOLD, MENU_SCREEN = 0x7E2C53, 0x7E0067
@@ -158,9 +166,9 @@ CRONOS_HOUSE, CRONOS_HOUSE_DOWNSTAIRS, CRONOS_ROOM = 0x001, "0100", "0200"
 DELIVERED_CLONE = 19            # Crono's room's object 19, the clone, once Bekkler has made it
 KEEPERS_DOME, KEEPERS_HANGAR = 0x0F1, "f200"
 WORLD_1000, WORLD_2300 = "f001", "f201"
-BLACK_OMEN = 0x7E02A2           # where the Omen stands on the world map: x, then y (overworld_black_omen)
-OMEN_DOCK = "c101"
-CLEAR_OF_THE_OMEN = 96          # world map pixels east of the Omen, where the Epoch's confirm travels              # the Omen's first room, where the Epoch docks
+OMEN_DOCK = "c101"              # the Omen's first room, where the Epoch docks
+OMEN_DOOR = (120, 322)          # where the party stands in it as it comes in
+CLEAR_OF_THE_OMEN = 96          # world map pixels east of the Omen, where the Epoch's confirm travels
 OMEN_FIRST_FIGHT_Y = 170        # past the monsters at the dock's head
 ALL_SINGLE_TECHS = 8
 BEFORE_THE_SEALED_DOOR = 330    # the dome's hall, below the door the pendant opens
@@ -547,7 +555,8 @@ def leave_the_omen(run, door):
     machine.run(3, "A")
     assert wait_until(machine, lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 300), "Leave the Omen?"
     machine.run(3, "A")                     # Yes
-    assert run.dialogs_until(lambda: run.map_id() == WORLD_1000 and machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, 3000),         "the Epoch over 1000 A.D."
+    assert run.dialogs_until(lambda: run.map_id() == WORLD_1000
+                             and machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, 3000), "the Epoch over 1000 A.D."
     assert run.wait_world_control(), "the Epoch in hand"
 
 
@@ -751,17 +760,22 @@ def main():
         if later <= 2:
             assert run.wait_control(), "the End of Time in hand"
             leave_the_end_of_time(run, PERIOD_1000, WORLD_1000)
-            fly_to(run, machine.w(BLACK_OMEN), machine.w(BLACK_OMEN + 2))
+            fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN), machine.w(A.OVERWORLD_BLACK_OMEN + 2))
             machine.run(20)
             machine.run(3, "A")
-            assert run.dialogs_until(lambda: run.map_id() == OMEN_DOCK and machine.b(A.FIELD_PLAYER_CONTROL), 8000),                 "into the Black Omen"
+            assert run.dialogs_until(lambda: run.map_id() == OMEN_DOCK and machine.b(A.FIELD_PLAYER_CONTROL),
+                                     8000), "into the Black Omen"
             assert run.wait_control() and run.find_player() is not None, "the Omen's field in hand"
-            door = run.me()
             fight_through(run, lambda m, px, py: py <= OMEN_FIRST_FIGHT_Y, "the Omen's first fight", args.seed)
             assert machine.b(A.PARTY_SINGLE_TECHS_KNOWN + CRONO) == ALL_SINGLE_TECHS, "Crono's Luminaire"
-            leave_the_omen(run, door)
+            black_omen.to_the_treasure(run, args.seed)
+            run.checkpoint("omen_treasure")
+        if later <= 3:
+            black_omen.back_to_the_dock(run, args.seed)
+            leave_the_omen(run, OMEN_DOOR)
             # Away from the Omen: a confirm over it would go back in.
-            fly_to(run, machine.w(BLACK_OMEN) + CLEAR_OF_THE_OMEN, machine.w(BLACK_OMEN + 2))
+            fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN) + CLEAR_OF_THE_OMEN,
+                   machine.w(A.OVERWORLD_BLACK_OMEN + 2))
             dial(run, PERIOD_END_OF_TIME)
             machine.run(4, "A")
             disembark_at_the_end_of_time(run)

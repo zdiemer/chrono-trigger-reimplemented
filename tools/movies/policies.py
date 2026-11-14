@@ -329,8 +329,7 @@ def holding_out(bot, state, rng, inventory):
 
 
 INNER_ARMS, INNER_BODY = (3, 6), 10     # the inner Lavos's arms (8000 and 12000 HP) and body (20000)
-BODY_LAST_BLOWS = 9000                  # the body's HP from which the party readies for the core first:
-                                        # Luminaire takes some 4,000 from it a cast
+BODY_LAST_BLOWS = 4000                  # the body's HP from which the party readies for the core first
 # The guards a member wears through a fight: the Barrier (0xCB) takes three
 # tenths off magic, the Shield (0xCC) and Lucca's Protect (her tech list's
 # entry 4) off blows; one member each. Their bits in the stat block's fourth
@@ -435,6 +434,15 @@ def unstop(bot, state, inventory):
     return None
 
 
+def whole_party(bot, state, inventory, low=0.4):
+    """A MegaElixir, which restores everyone's HP and MP, when two or more of
+    those standing are below `low` of their HP, or None."""
+    alive = [slot for slot in range(bot.party) if state.hp(slot) > 0]
+    if sum(fraction(state, slot) < low for slot in alive) >= 2:
+        return use(inventory, MEGA_ELIXIR, None)
+    return None
+
+
 def haste_fuel(bot, state, inventory):
     """An Ether for Marle while she lacks the MP for Haste and someone is not
     yet hasted, or None."""
@@ -520,7 +528,8 @@ def lavos_core(bot, state, rng, inventory):
     find a line through.
     (Gamercorner.net's and Neoseeker's core guides; the defence read is the
     port's own record.)"""
-    action = (keep_up(bot, state, inventory, well=0.4, badly=0.3) or unstop(bot, state, inventory)
+    action = (whole_party(bot, state, inventory) or keep_up(bot, state, inventory, well=0.4, badly=0.3)
+              or unstop(bot, state, inventory)
               or hasten(bot, state) or haste_fuel(bot, state, inventory)
               or (rng.random() < 0.8 and guard_up(bot, state, inventory))
               or (rng.random() < 0.7 and keep_up(bot, state, inventory, well=0.7, badly=0.55))
