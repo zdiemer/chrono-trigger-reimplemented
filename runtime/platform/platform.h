@@ -41,6 +41,10 @@ static inline const uint8_t *pf_data_pointer(PfData src, uint32_t i)
     return src.ptr ? src.ptr + i : src.byte_at ? src.byte_at(pf_data_address(src, i)) : NULL;
 }
 
+/* How a host reads the game's bytes a PF_GAME source names: `len` of them
+ * from `addr` on, into `out`, with no side effect on the game. */
+typedef void PfReadGame(void *ctx, uint32_t addr, uint8_t *out, uint32_t len);
+
 #define PF_API extern
 
 #endif

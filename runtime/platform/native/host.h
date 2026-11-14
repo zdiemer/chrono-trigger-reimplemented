@@ -155,7 +155,7 @@ struct Platform {
 
 /* The picture's state from the game's memory, read through the driver's
  * callback; and the frame it makes, its line effects run down the picture. */
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
+void vid_host_start(Platform *pf, PfReadGame *read, void *ctx);
 void vid_host_stop(Platform *pf);
 /* How much of the picture the game shows (vid_view): the driver's to choose,
  * the original's screen until it does. A snapshot leaves it as it is. */

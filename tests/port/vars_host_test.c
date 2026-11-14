@@ -62,7 +62,7 @@ void party_fill_mp(GameState *g) { (void)g; abort(); }
 void party_wear_it_shows(GameState *g) { (void)g; abort(); }
 bool party_record_shows_characters(const GameState *g) { (void)g; abort(); }
 
-static uint8_t read_game(void *ctx, uint32_t at) { return state_host_read8(ctx, at); }
+static void read_game(void *ctx, uint32_t at, uint8_t *out, uint32_t len) { state_host_read_span(ctx, at, out, len); }
 
 static void address_view(void)
 {

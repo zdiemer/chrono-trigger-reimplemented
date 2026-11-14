@@ -52,7 +52,7 @@ static const uint8_t *pack_resource(void *ctx, AssetId id, uint32_t *length)
     return (const uint8_t *)head + e->at;
 }
 
-static uint8_t read_game(void *ctx, uint32_t addr) { return state_host_read8(ctx, addr); }
+static void read_game(void *ctx, uint32_t addr, uint8_t *out, uint32_t len) { state_host_read_span(ctx, addr, out, len); }
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
 static void run_line(Platform *pf, void *ctx) { program_line(ctx, pf); }
