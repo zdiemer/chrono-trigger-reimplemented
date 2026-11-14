@@ -23,6 +23,7 @@
 
 struct GameState {
     VarsHost vars;
+    StateHostAccount account;   /* the game's time, where state_host_game_access reaches it (state_host.h) */
     ProgramHandlers handlers;
     MenuCoroutines menus;
     SpritePlaces sprite_places;
@@ -53,15 +54,8 @@ struct GameState {
     uint32_t stopped_at;
     const char *stopped_what;
     uint32_t owed;            /* the original's time charged since the timing backend last took it (master clocks) */
-    uint32_t raw_bus;         /* accesses inside a retired operation, before its rate is applied */
-    uint32_t rate;            /* the cost_milli the game's accesses are timed at now (charge_time_as_begin); 0, none */
-    uint32_t rate_clocks, rate_milli;   /* the rate as whole clocks and thousandths of one */
     unsigned timed;           /* index in time_rates, or time_rate_count for untagged work */
     StateHostTime *time;      /* optional diagnostic totals; never used to schedule work */
-    unsigned uncounted;       /* nested stretches whose accesses aren't the game's own time */
-    /* the game's own accesses' time since it was last taken: whole master
-     * clocks, and thousandths of one (kept under 2^31, made whole as they pass it) */
-    uint32_t work_clocks, work_milli;
     bool lasting;             /* in the arena, for the run's whole life (state_host_create_lasting) */
 };
 
@@ -123,6 +117,7 @@ void state_host_restore(GameState *g, const uint8_t *in)
 #endif
     memcpy(g, in, sizeof *g);
     g->time = time;
+    g->account.reporting = time != NULL;
     g->lasting = lasting;
 #ifdef CT_FLAT_STATE
     g->vars = banks;
@@ -143,7 +138,8 @@ MenuSpritesPast *menu_sprites_past(GameState *g) { return &g->menu_sprites_past;
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 /* state_host_vars (state_host.h) reaches the storage as the state's first member. */
-_Static_assert(offsetof(GameState, vars) == 0, "the state's storage is its first member");
+_Static_assert(offsetof(GameState, vars) == offsetof(StateHostHead, vars), "the state's storage is its first member");
+_Static_assert(offsetof(GameState, account) == offsetof(StateHostHead, account), "the time account follows the storage");
 
 unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *kept)
 {
@@ -398,55 +394,61 @@ static unsigned rate_search(uint32_t routine)
     return lo < time_rate_count && time_rates[lo].routine == routine ? lo : time_rate_count;
 }
 
-/* The rows the scopes named lately, so a scope finds its row with one
- * comparison rather than a search of the whole table. */
+/* The rows the scopes named lately, with their rates as whole clocks and
+ * thousandths, so a scope finds its row with one comparison rather than a
+ * search of the whole table, and its rate with no division. */
 enum { RECENT = 128 };
-static struct { uint32_t routine; uint16_t index; bool known; } recent[RECENT];
+typedef struct {
+    uint32_t routine, rate;
+    uint16_t index, rate_milli, rate_clocks;
+    bool known;
+} RecentRow;
+static RecentRow recent[RECENT];
 
-static unsigned rate_index(uint32_t routine)
+static const RecentRow *row_of(uint32_t routine)
 {
     routine &= 0xFFFFFF;
-    unsigned slot = (routine ^ routine >> 7 ^ routine >> 14) & (RECENT - 1u);
-    if (!recent[slot].known || recent[slot].routine != routine) {
-        recent[slot].routine = routine;
-        recent[slot].index = (uint16_t)rate_search(routine);
-        recent[slot].known = true;
+    RecentRow *r = &recent[(routine ^ routine >> 7 ^ routine >> 14) & (RECENT - 1u)];
+    if (!r->known || r->routine != routine) {
+        unsigned index = rate_search(routine);
+        uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
+        *r = (RecentRow){ routine, rate, (uint16_t)index, (uint16_t)(rate % 1000u), (uint16_t)(rate / 1000u), true };
     }
-    return recent[slot].index;
+    return r;
 }
 
-static void set_rate(GameState *g, uint32_t rate)
+static unsigned rate_index(uint32_t routine) { return row_of(routine)->index; }
+
+static void set_rate(GameState *g, const RecentRow *row)
 {
-    g->rate = rate;
-    g->rate_clocks = rate / 1000u;
-    g->rate_milli = rate % 1000u;
+    g->account.rate = row ? row->rate : 0;
+    g->account.rate_clocks = row ? row->rate_clocks : 0;
+    g->account.rate_milli = row ? row->rate_milli : 0;
 }
 
 /* The work's thousandths of a clock made whole, short of the last clock. */
 static void whole_clocks(GameState *g)
 {
-    uint32_t clocks = g->work_milli / 1000u;
-    g->work_clocks = clocks > UINT32_MAX - g->work_clocks ? UINT32_MAX : g->work_clocks + clocks;
-    g->work_milli %= 1000u;
+    uint32_t clocks = g->account.work_milli / 1000u;
+    g->account.work_clocks = clocks > UINT32_MAX - g->account.work_clocks ? UINT32_MAX : g->account.work_clocks + clocks;
+    g->account.work_milli %= 1000u;
 }
 
 /* `clocks` of the machine's bus at a rate of `whole` clocks and `milli`
  * thousandths each, added to the work exactly as their product in
  * thousandths would be, in 32-bit sums: a run of them at a time small enough
  * that the thousandths stay under 2^32. */
-enum { MILLI_LIMIT = 0x80000000u, CLOCKS_AT_ONCE = MILLI_LIMIT / 1000u };
-/* What an access's clocks times the largest rate's whole clocks keeps under 2^32. */
-enum { ONE_ACCESS_MOST = 0xFFFF };
+enum { MILLI_LIMIT = STATE_HOST_MILLI_LIMIT, CLOCKS_AT_ONCE = MILLI_LIMIT / 1000 };
 
 static void add_work(GameState *g, uint32_t clocks, uint32_t whole, uint32_t milli)
 {
     while (clocks) {
         uint32_t n = clocks < CLOCKS_AT_ONCE ? clocks : CLOCKS_AT_ONCE;
         uint32_t add = n * whole;
-        g->work_clocks = add > UINT32_MAX - g->work_clocks || (whole && add / whole != n) ? UINT32_MAX
-                                                                                          : g->work_clocks + add;
-        g->work_milli += n * milli;
-        if (g->work_milli >= MILLI_LIMIT)
+        g->account.work_clocks = add > UINT32_MAX - g->account.work_clocks || (whole && add / whole != n) ? UINT32_MAX
+                                                                                          : g->account.work_clocks + add;
+        g->account.work_milli += n * milli;
+        if (g->account.work_milli >= MILLI_LIMIT)
             whole_clocks(g);
         clocks -= n;
     }
@@ -475,6 +477,7 @@ bool state_host_record_time(GameState *g)
     g->time = calloc(time_rate_count + 1u, sizeof *g->time);
     if (!g->time)
         return false;
+    g->account.reporting = true;
     for (unsigned i = 0; i < time_rate_count; i++)
         g->time[i].routine = time_rates[i].routine;
     return true;
@@ -506,22 +509,14 @@ static void owe(GameState *g, uint32_t clocks)
     g->owed = clocks > UINT32_MAX - g->owed ? UINT32_MAX : g->owed + clocks;
 }
 
-void state_host_game_access(const GameState *g, uint32_t clocks)
+void state_host_game_access_slowly(const GameState *g, uint32_t clocks)
 {
     GameState *m = (GameState *)g;   /* the account is the backing's own, not the game's state */
-    m->raw_bus += clocks;
-    if (!m->uncounted) {
-        if (clocks <= ONE_ACCESS_MOST) {
-            uint32_t whole = clocks * m->rate_clocks;
-            m->work_clocks = whole > UINT32_MAX - m->work_clocks ? UINT32_MAX : m->work_clocks + whole;
-            m->work_milli += clocks * m->rate_milli;
-            if (m->work_milli >= MILLI_LIMIT)
-                whole_clocks(m);
-        } else {
-            add_work(m, clocks, m->rate_clocks, m->rate_milli);
-        }
-        record_work(m, m->timed, clocks, 0, m->rate);
-    }
+    m->account.raw_bus += clocks;
+    if (m->account.uncounted)
+        return;
+    add_work(m, clocks, m->account.rate_clocks, m->account.rate_milli);
+    record_work(m, m->timed, clocks, 0, m->account.rate);
 }
 
 /* The block move stub's routine ($7E:9690), whose rate a byte moved is
@@ -532,8 +527,8 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 {
     unsigned index = rate_index(routine);
     uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
-    add_work_at(g, accesses * ACCESS_CLOCKS, rate ? rate : g->rate);
-    record_work(g, rate ? index : g->timed, 0, accesses * ACCESS_CLOCKS, rate ? rate : g->rate);
+    add_work_at(g, accesses * ACCESS_CLOCKS, rate ? rate : g->account.rate);
+    record_work(g, rate ? index : g->timed, 0, accesses * ACCESS_CLOCKS, rate ? rate : g->account.rate);
 }
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
@@ -556,8 +551,8 @@ void charge_accesses(GameState *g, uint32_t accesses)
 uint32_t state_host_take_owed(GameState *g)
 {
     whole_clocks(g);
-    owe(g, g->work_clocks);
-    g->work_clocks = 0;
+    owe(g, g->account.work_clocks);
+    g->account.work_clocks = 0;
     uint32_t owed = g->owed;
     g->owed = 0;
     return owed;
@@ -565,17 +560,17 @@ uint32_t state_host_take_owed(GameState *g)
 
 uint32_t charge_retired_begin(GameState *g)
 {
-    g->uncounted++;
-    return g->raw_bus;
+    g->account.uncounted++;
+    return g->account.raw_bus;
 }
 
 void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses)
 {
-    uint32_t bus = g->raw_bus - mark;
-    g->raw_bus = mark;
-    g->uncounted--;
+    uint32_t bus = g->account.raw_bus - mark;
+    g->account.raw_bus = mark;
+    g->account.uncounted--;
     unsigned index = rate_index(routine);
-    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : g->rate;
+    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : g->account.rate;
     uint32_t charged = accesses * ACCESS_CLOCKS;
     add_work_at(g, bus, rate);
     add_work_at(g, charged, rate);
@@ -586,14 +581,14 @@ void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t 
 
 uint32_t charge_uncounted_begin(GameState *g)
 {
-    g->uncounted++;
-    return g->raw_bus;
+    g->account.uncounted++;
+    return g->account.raw_bus;
 }
 
 void charge_uncounted_end(GameState *g, uint32_t mark)
 {
-    g->raw_bus = mark;
-    g->uncounted--;
+    g->account.raw_bus = mark;
+    g->account.uncounted--;
 }
 
 /* A tag the rates don't name leaves the work at the rate it was at, as the
@@ -601,10 +596,10 @@ void charge_uncounted_end(GameState *g, uint32_t mark)
 int charge_time_as_begin(GameState *g, uint32_t routine)
 {
     int was = (int)g->timed;
-    unsigned index = rate_index(routine);
-    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
-    if (rate) {
-        set_rate(g, rate);
+    const RecentRow *row = row_of(routine);
+    unsigned index = row->index;
+    if (row->rate) {
+        set_rate(g, row);
         g->timed = index;
     }
     if (REPORTING(g))
@@ -615,7 +610,7 @@ int charge_time_as_begin(GameState *g, uint32_t routine)
 void charge_time_as_end(GameState *g, int was)
 {
     g->timed = (unsigned)was;
-    set_rate(g, g->timed < time_rate_count ? time_rates[g->timed].cost_milli : 0);
+    set_rate(g, g->timed < time_rate_count ? row_of(time_rates[g->timed].routine) : NULL);
 }
 
 /* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
