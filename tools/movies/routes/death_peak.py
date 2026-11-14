@@ -130,10 +130,11 @@ def spawn(run, bit, seed):
     assert m.b(0x7F0064) & bit, "the Spawn's victory flag"
 
 
-def play(run, start=1, seed=1):
+def play(run, start=1, seed=1, rest=None):
     """From the mountain's save point ($0F6), up through the first two Lavos
     Spawn and across the ridge, to the last save point ($1EF), saved over slot
-    1; `start` is the index in PHASES of the first phase to run."""
+    1; `start` is the index in PHASES of the first phase to run. `rest(run)`,
+    where given, readies the party before each Spawn."""
     m = run.machine
     assert run.find_player() is not None
     if start <= 1:
@@ -144,6 +145,8 @@ def play(run, start=1, seed=1):
         arrive(run, 672, 64, "0801")
         run.checkpoint("cave")
     if start <= 2:
+        if rest:
+            rest(run)
         m.run(55, "UP+B")
         spawn(run, 8, seed)
         run.checkpoint("spawn1")
@@ -176,6 +179,8 @@ def play(run, start=1, seed=1):
             arrive(run, x, y, destination)
             run.checkpoint(name)
     if start <= 13:
+        if rest:
+            rest(run)
         m.run(20, "UP+B")
         spawn(run, 16, seed)
         run.checkpoint("spawn2")
