@@ -185,7 +185,10 @@ void measure_report(const Measure *m, FILE *out, const Platform *pf)
 #define PART(name) fprintf(out, "measure: part %s %zu\n", #name, sizeof(((const VarsHost *)0)->name))
     PART(battle); PART(cartridge); PART(core); PART(data); PART(event); PART(field); PART(locations);
     PART(menu); PART(menu_object); PART(overworld); PART(palettes); PART(scene); PART(sound); PART(warp);
-    PART(overlay_writer); PART(crossed); PART(crossed_writer);
+    PART(overlay_writer);
+#ifndef CT_LEAN
+    PART(crossed); PART(crossed_writer);   /* the crossings' tally, which the lean build keeps none of */
+#endif
 #undef PART
     fprintf(out, "measure: size arena_used %zu\n", arena_used());
     fprintf(out, "measure: size renderer %zu\n", vid_render_bytes());
