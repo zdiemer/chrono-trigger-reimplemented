@@ -386,8 +386,19 @@ static unsigned rate_index(uint32_t routine)
     return lo < time_rate_count && time_rates[lo].routine == routine ? lo : time_rate_count;
 }
 
+/* Whether the run keeps the totals; the lean build (CT_LEAN) keeps none. */
+#ifdef CT_LEAN
+#define REPORTING(g) ((void)(g), false)
+#else
+#define REPORTING(g) ((g)->time != NULL)
+#endif
+
 bool state_host_record_time(GameState *g)
 {
+#ifdef CT_LEAN
+    (void)g;
+    return false;
+#else
     if (g->time)
         return true;
     g->time = calloc(time_rate_count + 1u, sizeof *g->time);
@@ -396,6 +407,7 @@ bool state_host_record_time(GameState *g)
     for (unsigned i = 0; i < time_rate_count; i++)
         g->time[i].routine = time_rates[i].routine;
     return true;
+#endif
 }
 
 const StateHostTime *state_host_time(const GameState *g, unsigned *count)
@@ -406,7 +418,7 @@ const StateHostTime *state_host_time(const GameState *g, unsigned *count)
 
 static void record_work(GameState *g, unsigned index, uint32_t bus, uint32_t charged, uint64_t milli)
 {
-    if (g->time) {
+    if (REPORTING(g)) {
         StateHostTime *t = &g->time[index];
         t->bus_clocks += bus;
         t->charged_clocks += charged;
@@ -487,7 +499,7 @@ void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t 
     uint64_t milli = ((uint64_t)bus + charged) * rate;
     g->work_milli += milli;
     record_work(g, index < time_rate_count ? index : g->timed, bus, charged, milli);
-    if (g->time)
+    if (REPORTING(g))
         g->time[index < time_rate_count ? index : g->timed].tags++;
 }
 
@@ -514,7 +526,7 @@ int charge_time_as_begin(GameState *g, uint32_t routine)
         g->rate = rate;
         g->timed = index;
     }
-    if (g->time)
+    if (REPORTING(g))
         g->time[index].tags++;
     return was;
 }

@@ -30,6 +30,23 @@ else()
   endif()
 endif()
 
+# The lean build: what a small target needs of the program and nothing else.
+# It leaves out the overlay crossings' tally, the port's own checks and the
+# timing report, optimizes across files as a small target's build would (so
+# the state's accessors inline into the game), and plays as the normal build
+# does (tools/lean_check.py; docs/PLATFORM.md, "Memory, stacks and per-frame
+# work against small targets"). -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+# keeps it to one file at a time.
+option(CT_LEAN "Leave out the program's own diagnostics, as a small target would" OFF)
+if(CT_LEAN)
+  add_compile_definitions(CT_LEAN)
+  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT CT_IPO)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ${CT_IPO})
+  endif()
+endif()
+
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 include(CTest)
 
@@ -502,8 +519,11 @@ if(BUILD_TESTING)
   add_test(NAME measure COMMAND ${Python3_EXECUTABLE} tools/measure.py --ct-native $<TARGET_FILE:ct_native> --check)
   set_tests_properties(measure PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   # ct_native's reporting options only look: play is the same with each of them (with the ROM staged).
-  add_test(NAME observers COMMAND ${Python3_EXECUTABLE} tests/frontend/observers.py $<TARGET_FILE:ct_native>)
-  set_tests_properties(observers PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  # It holds the options to the timing report's, which the lean build hasn't.
+  if(NOT CT_LEAN)
+    add_test(NAME observers COMMAND ${Python3_EXECUTABLE} tests/frontend/observers.py $<TARGET_FILE:ct_native>)
+    set_tests_properties(observers PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  endif()
   if(CT_SDL2)
     add_executable(bindings_test tests/frontend/bindings_test.c frontend/bindings.c frontend/bindings_config.c frontend/storage.c)
     target_include_directories(bindings_test PRIVATE frontend)

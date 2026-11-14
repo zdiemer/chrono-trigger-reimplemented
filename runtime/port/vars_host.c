@@ -28701,6 +28701,7 @@ static unsigned overlay_at(uint32_t addr, unsigned *set)
     return *set ? (page - 1u) * 256u + (addr & 255u) + 1u : 0u;
 }
 
+#ifndef CT_LEAN
 /* What each owner field is called, for the crossings report. */
 static const char *const place_names[3361] = {
     "",
@@ -32065,6 +32066,7 @@ static const char *const place_names[3361] = {
     "menu_object_palette_banks_remainder_1.first_bank_part_3",
     "menu_object_palette_banks_remainder_1.first_bank_part_4",
 };
+#endif
 
 static void place_read8(const VarsHost *h, unsigned place, uint32_t addr, uint8_t *value)
 {
@@ -70221,6 +70223,17 @@ void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)
     }
 }
 
+#ifdef CT_LEAN
+unsigned vars_host_crossings(const VarsHost *h,
+                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),
+                             void *ctx)
+{
+    (void)h; (void)each; (void)ctx;
+    return 0;
+}
+
+void vars_host_crossings_reset(VarsHost *h) { (void)h; }
+#else
 void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)
 {
     /* The tally is the diagnostics' own, not the game's: a read counts it. */
@@ -70257,3 +70270,4 @@ void vars_host_crossings_reset(VarsHost *h)
     memset(h->crossed, 0, sizeof h->crossed);
     memset(h->crossed_writer, 0, sizeof h->crossed_writer);
 }
+#endif

@@ -29,7 +29,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { FIBER_STACK_SIZE = 512u * 1024u, FIBER_SLOTS = 16 };
+/* Each slot's stack, from the deepest any fiber has gone (ct_native
+ * --measure, docs/PLATFORM.md "Memory, stacks and per-frame work against
+ * small targets"): 3.7 KiB in an optimized build and 20 KiB unoptimized, so
+ * 64 KiB keeps three times the deepest of either. The lowest GUARD_BYTES of
+ * each stay zero while no fiber goes that deep; a switch away from a fiber
+ * that has gone into them stops the program, saying so, rather than letting
+ * it run on over the slot below. */
+enum { FIBER_STACK_SIZE = 64u * 1024u, FIBER_SLOTS = 16, GUARD_BYTES = 256 };
 
 #if defined(_WIN32)
 #if !defined(__x86_64__)
@@ -143,7 +150,9 @@ static Fiber *current = &main_fiber;
 
 static uint8_t *stack_top(const Fiber *f) { return f->stack + FIBER_STACK_SIZE; }
 
-void fiber_body(void);
+/* Reached only from the switch's assembly: kept for a build that optimizes
+ * across files (CT_LEAN's), which would otherwise drop it as unused. */
+__attribute__((used)) void fiber_body(void);
 void fiber_body(void)
 {
     Fiber *f = current;
@@ -153,6 +162,19 @@ void fiber_body(void)
 
 Fiber *fiber_main(void) { return &main_fiber; }
 Fiber *fiber_current(void) { return current; }
+
+/* A fiber that went into its guard has overrun, or very nearly, its slot. */
+static void check_guard(const Fiber *f)
+{
+    if (!f->stack)
+        return;
+    for (unsigned i = 0; i < GUARD_BYTES; i++)
+        if (f->stack[i]) {
+            fprintf(stderr, "fiber: slot %u's fiber went past its %u-byte stack\n",
+                    (unsigned)(f - pool), (unsigned)FIBER_STACK_SIZE);
+            abort();
+        }
+}
 
 #ifdef _WIN32
 static void prepare(Fiber *f)
@@ -177,6 +199,7 @@ static uintptr_t live_from(const Fiber *f) { return (uintptr_t)f->ctx.sp; }
 void fiber_switch(Fiber *to)
 {
     Fiber *from = current;
+    check_guard(from);
     current = to;
     fiber_swap(&from->ctx.sp, to->ctx.sp);
 }
@@ -208,6 +231,7 @@ static uintptr_t live_from(const Fiber *f) { return f->ctx.live; }
 void fiber_switch(Fiber *to)
 {
     Fiber *from = current;
+    check_guard(from);
     current = to;
     from->ctx.live = stack_here() - SWITCH_MARGIN;
     if (swapcontext(&from->ctx.uc, &to->ctx.uc) != 0)

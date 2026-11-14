@@ -1036,6 +1036,12 @@ int main(int argc, char **argv)
     }
     GameState *g = state_host_create_lasting(sram);
     static Platform pf;
+#ifdef CT_LEAN
+    if (timing_report) {
+        fprintf(stderr, "ct_native: the lean build (CT_LEAN) keeps no timing report\n");
+        return 2;
+    }
+#endif
     if (!g || (timing_report && !state_host_record_time(g))) {
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;

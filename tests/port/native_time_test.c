@@ -114,8 +114,16 @@ int main(void)
     transition_clear();
     port_moves();
     GameState *plain = state_host_create(NULL), *reported = state_host_create(NULL);
-    if (!plain || !reported || !state_host_record_time(reported))
+    if (!plain || !reported)
         return 1;
+    /* The time model is the game's, in every build; the report of it per
+     * routine isn't the lean build's (CT_LEAN). */
+#ifdef CT_LEAN
+    CHECK(!state_host_record_time(reported));
+#else
+    if (!state_host_record_time(reported))
+        return 1;
+#endif
     work(plain);
     work(reported);
     CHECK(state_host_take_owed(plain) == 64);
@@ -124,12 +132,14 @@ int main(void)
     state_host_game_access(reported, 1);
     charge_time_as_end(reported, was);
     CHECK(state_host_take_owed(reported) == 2); /* half clock carried across the take */
+#ifndef CT_LEAN
     unsigned count;
     const StateHostTime *rows = state_host_time(reported, &count);
     CHECK(count == 3);
     CHECK(rows[0].tags == 2 && rows[0].bus_clocks == 18 && rows[0].charged_clocks == 16);
     CHECK(rows[0].milli_clocks == 51000);
     CHECK(rows[1].tags == 1 && rows[1].bus_clocks == 6 && rows[1].milli_clocks == 15000);
+#endif
     was = charge_time_as_begin(reported, 0xC01235);
     charge_accesses(reported, 2);
     charge_io_accesses(reported, 3);
@@ -139,11 +149,16 @@ int main(void)
     was = charge_time_as_begin(reported, 0xC01235);
     charge_time_as_end(reported, was);
     CHECK(state_host_take_owed(reported) == 0); /* never counted by the host */
+#ifndef CT_LEAN
     CHECK(rows[2].routine == 0 && rows[2].tags == 1 && rows[2].bus_clocks == 16 && rows[2].milli_clocks == 0);
     CHECK(state_host_record_time(reported)); /* enabling twice preserves the totals */
     CHECK(rows[0].milli_clocks == 51000);
+#endif
     GameState *retired = state_host_create(NULL);
-    CHECK(retired && state_host_record_time(retired));
+    CHECK(retired);
+#ifndef CT_LEAN
+    CHECK(state_host_record_time(retired));
+#endif
     int parent = charge_time_as_begin(retired, 0xC01235);
     uint32_t begin = charge_retired_begin(retired);
     state_host_game_access(retired, 6);
@@ -160,10 +175,12 @@ int main(void)
     state_host_game_access(retired, 4);
     charge_time_as_end(retired, parent);
     CHECK(state_host_take_owed(retired) == 115);
+#ifndef CT_LEAN
     const StateHostTime *retired_rows = state_host_time(retired, &count);
     CHECK(retired_rows[0].bus_clocks == 54 && retired_rows[0].charged_clocks == 16);
     CHECK(retired_rows[0].milli_clocks == 105000);
     CHECK(retired_rows[1].milli_clocks == 10000);
+#endif
     state_host_destroy(retired);
     state_host_destroy(plain);
     state_host_destroy(reported);

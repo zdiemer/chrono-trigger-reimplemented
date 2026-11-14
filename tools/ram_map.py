@@ -1748,9 +1748,12 @@ def render_host_header(m):
                 "    uint8_t overlay_writer[%d];" % slots]
     out += ["    /* The reads that found another owner's bytes, by reader: how often, and",
             "     * the owner that wrote them the first time (vars_host_crossings). A",
-            "     * diagnostic tally, kept with the state it describes. */",
+            "     * diagnostic tally, kept with the state it describes; the lean build",
+            "     * (CT_LEAN) keeps none. */",
+            "#ifndef CT_LEAN",
             "    uint32_t crossed[%d];" % (len(ov.placed) + 1),
-            "    uint16_t crossed_writer[%d];" % (len(ov.placed) + 1)]
+            "    uint16_t crossed_writer[%d];" % (len(ov.placed) + 1),
+            "#endif"]
     out += ["} VarsHost;", ""]
     for v in alias_owners(m):
         out += ["/* Byte views of %s's storage; no independent alias fields. */" % v.name,
@@ -1758,8 +1761,13 @@ def render_host_header(m):
                 "void vars_host_%s_write8(VarsHost *h, uint32_t offset, uint8_t value);" % v.name]
     out += ["", "/* An owner beside others (re/ram.toml's `overlays`) wrote these bytes. */",
             "void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);",
-            "/* An owner beside others reads these bytes: count any another owner wrote last. */",
+            "/* An owner beside others reads these bytes: count any another owner wrote last.",
+            " * The lean build counts nothing, and reports no crossings. */",
+            "#ifdef CT_LEAN",
+            "#define vars_host_check(h, addr, bytes, place) ((void)(h))",
+            "#else",
             "void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);",
+            "#endif",
             "/* The reads that found another owner's bytes: each reader, the owner that",
             " * wrote them and how often, through `each`; returns how many readers. */",
             "unsigned vars_host_crossings(const VarsHost *h,",
@@ -1974,12 +1982,12 @@ def render_host_backing(m):
                 "    unsigned page = overlay_pages[(addr - 0x7E0000u) >> 8];",
                 "    *set = overlay_fields[page][addr & 255u];",
                 "    return *set ? (page - 1u) * 256u + (addr & 255u) + 1u : 0u;", "}", ""]
-    out += ["/* What each owner field is called, for the crossings report. */",
+    out += ["#ifndef CT_LEAN", "/* What each owner field is called, for the crossings report. */",
             "static const char *const place_names[%d] = {" % (len(placed) + 1), "    \"\","]
     out += ["    \"%s%s\"," % (a.var.name + ("." + a.field.name if a.field else ""),
                                "[%d]" % instance if a.var.on_instances() else "")
             for a, instance, _ in placed]
-    out += ["};", ""]
+    out += ["};", "#endif", ""]
     for write in (False, True):
         out += ["static void place_%s8(%sVarsHost *h, unsigned place, uint32_t addr, uint8_t %svalue)" %
                 ("write" if write else "read", "" if write else "const ", "" if write else "*"), "{"]
@@ -2028,6 +2036,10 @@ def render_host_backing(m):
                 "    }", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)bytes; (void)place;", "}", ""]
+    out += ["#ifdef CT_LEAN", "unsigned vars_host_crossings(const VarsHost *h,",
+            "                             void (*each)(const char *reader, const char *writer, uint32_t times, void *ctx),",
+            "                             void *ctx)", "{", "    (void)h; (void)each; (void)ctx;", "    return 0;", "}", "",
+            "void vars_host_crossings_reset(VarsHost *h) { (void)h; }", "#else"]
     out += ["void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:
         out += ["    /* The tally is the diagnostics' own, not the game's: a read counts it. */",
@@ -2051,7 +2063,8 @@ def render_host_backing(m):
             "            each(place_names[place], place_names[h->crossed_writer[place]], h->crossed[place], ctx);",
             "    }", "    return readers;", "}", "",
             "void vars_host_crossings_reset(VarsHost *h)", "{",
-            "    memset(h->crossed, 0, sizeof h->crossed);", "    memset(h->crossed_writer, 0, sizeof h->crossed_writer);", "}", ""]
+            "    memset(h->crossed, 0, sizeof h->crossed);", "    memset(h->crossed_writer, 0, sizeof h->crossed_writer);", "}",
+            "#endif", ""]
     return "\n".join(out)
 
 
