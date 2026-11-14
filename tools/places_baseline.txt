@@ -47,7 +47,7 @@ events-cyrus 19 # issue #321: a lag frame gets the main thread time its own hand
 events-death-peak-ascent 5
 events-death-peak-wind 5
 events-death-peak 4
-events-end-of-time-gate 4 # issue #376: the original stalls 8 frames from frame 3121 in the End of Time ($1D0), ct_native 1 frame, now at 3121 as the original's (at 3116 on main); the presses after it meet the pillar's Yes/No prompt otherwise, and $024 comes at 5023 against the reference's 3826 (tools/outcomes_exceptions.txt)
+events-end-of-time-gate 5 # Native retired-work accounting restores the final reference visit within 30 frames.
 events-epoch-lavos 5
 events-fair-clone 6
 events-fair-rescue 6
