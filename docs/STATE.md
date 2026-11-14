@@ -168,8 +168,12 @@ memory by address keeps the original's one byte: the address view writes a
 shared byte to every owner of it and answers a read from the owner that wrote
 it last (`VarsHost.overlay_writer`, a byte per shared byte holding the
 writer's place among that byte's owners, 0 when every owner holds the same
-value: 116 KB). Cartridge saves, route peeks and video sources therefore see
-what the original would. An alias of shared bytes reads the same way, and its
+value: 116 KB). An owner's own write claims its bytes for it, the stores
+written out where every index stores alike (`direct_claim` in
+tools/ram_map.py), `vars_host_claim` otherwise. Cartridge saves, route peeks
+and video sources therefore see what the original would. A small target's
+build shares the overlaid owners' storage instead (The flat state, below):
+one byte for every owner, no writer table and no claim. An alias of shared bytes reads the same way, and its
 writes reach every mode's copy as the original's one byte does (for example
 `menu_story_flags_top_layer_first`), except an alias marked `same_value`: the
 same cell under two names, which reads and writes its owner's own field with
