@@ -604,8 +604,7 @@ experience_for_next_level	words	CC:2632	CC:26F9	raw	accessor experience_for_next
 tech_points_for_next	words	CC:26FA	CC:2769	raw	accessor tech_points_for_next
 character_techs	bytes	CC:276A	CC:2777	raw	accessor character_techs
 combination_records	struct	CC:2778	CC:27F9	struct:records:5	accessor combination_record
-combination_tech_asks	bytes	CC:27FA	CC:288D	raw	accessor combination_tech_asks
-mixed_cc288e	mixed	CC:288E	CC:28DA	raw	unread
+combination_tech_asks	bytes	CC:27FA	CC:28DA	raw	accessor combination_tech_asks
 menu_double_tech_part	bytes	CC:28DB	CC:2934	raw	accessor menu_double_tech_part
 menu_triple_tech_part	bytes	CC:2935	CC:2952	raw	accessor menu_triple_tech_part
 menu_rock_tech_needs	bytes	CC:2953	CC:2962	raw	accessor menu_rock_tech_needs
@@ -1221,8 +1220,7 @@ battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor b
 battle_color_cycle_color	words	CE:0100	CE:036B	palette:16	accessor battle_color_cycle_color
 padding_ce036c	padding	CE:036C	CE:037F	raw	read
 battle_animations_ce	script	CE:0380	CE:886F	script:battle-animation	read
-battle_effect_frames	struct	CE:8870	CE:D167	struct:records:4	accessor battle_effect_frame_record
-mixed_ced168	mixed	CE:D168	CE:D427	raw	unread
+battle_effect_frames	struct	CE:8870	CE:D427	struct:records:4	accessor battle_effect_frame_record
 battle_animation_subroutines	script	CE:D428	CE:DC19	script:battle-animation	read
 background_ripple_sway	bytes	CE:E08E	CE:E18D	raw	accessor background_ripple_sway
 battle_messages	ptr16	CE:EF11	CE:EF2C	raw	accessor battle_messages
@@ -3796,7 +3794,7 @@ strings_f6b230.139	text	F6:C6F8	F6:C758	text:dialog	read
 strings_f6b230.140	text	F6:C759	F6:C78C	text:dialog	read
 strings_f6b230.141	text	F6:C78D	F6:C7BB	text:dialog	read
 strings_f6b230.142	text	F6:C7BC	F6:C7E4	text:dialog	read
-untyped_f6c7e5	untyped	F6:C7E5	F6:C82F	raw	unread
+strings_f6c7e5	text	F6:C7E5	F6:C82F	text:dialog	read: strings past the table at $F6:B230
 field_packed_script.75	lz	F6:C830	F6:CA54	lz:event	field_packed_script entry
 field_packed_script.76	lz	F6:CA55	F6:CE5F	lz:event	field_packed_script entry
 field_packed_script.77	lz	F6:CE60	F6:D48E	lz:event	field_packed_script entry

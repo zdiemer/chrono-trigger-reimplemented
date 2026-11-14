@@ -654,8 +654,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xCC26FAu, 112u, "tech_points_for_next", 1, 29 },
     { 0xCC276Au, 14u, "character_techs", 0, 29 },
     { 0xCC2778u, 130u, "combination_records", 4, 43 },
-    { 0xCC27FAu, 148u, "combination_tech_asks", 0, 29 },
-    { 0xCC288Eu, 77u, "mixed_cc288e", 5, 29 },
+    { 0xCC27FAu, 225u, "combination_tech_asks", 0, 29 },
     { 0xCC28DBu, 90u, "menu_double_tech_part", 0, 29 },
     { 0xCC2935u, 30u, "menu_triple_tech_part", 0, 29 },
     { 0xCC2953u, 16u, "menu_rock_tech_needs", 0, 29 },
@@ -1271,8 +1270,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xCE0100u, 620u, "battle_color_cycle_color", 1, 24 },
     { 0xCE036Cu, 20u, "padding_ce036c", 12, 29 },
     { 0xCE0380u, 34032u, "battle_animations_ce", 9, 30 },
-    { 0xCE8870u, 18680u, "battle_effect_frames", 4, 42 },
-    { 0xCED168u, 704u, "mixed_ced168", 5, 29 },
+    { 0xCE8870u, 19384u, "battle_effect_frames", 4, 42 },
     { 0xCED428u, 2034u, "battle_animation_subroutines", 9, 30 },
     { 0xCEE08Eu, 256u, "background_ripple_sway", 0, 29 },
     { 0xCEEF11u, 28u, "battle_messages", 2, 29 },
@@ -3846,7 +3844,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xF6C759u, 52u, "strings_f6b230.140", 8, 49 },
     { 0xF6C78Du, 47u, "strings_f6b230.141", 8, 49 },
     { 0xF6C7BCu, 41u, "strings_f6b230.142", 8, 49 },
-    { 0xF6C7E5u, 75u, "untyped_f6c7e5", 15, 29 },
+    { 0xF6C7E5u, 75u, "strings_f6c7e5", 8, 49 },
     { 0xF6C830u, 549u, "field_packed_script.75", 7, 14 },
     { 0xF6CA55u, 1035u, "field_packed_script.76", 7, 14 },
     { 0xF6CE60u, 1583u, "field_packed_script.77", 7, 14 },
@@ -7979,8 +7977,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-const uint16_t asset_catalogue_count = 7911;
+const uint16_t asset_catalogue_count = 7909;
 
-const uint32_t asset_catalogue_version = 0xCFD8BBB5u;
+const uint32_t asset_catalogue_version = 0x57045F6Au;
 
 const uint32_t asset_catalogue_bytes_crc32 = 0x315F7395u;
