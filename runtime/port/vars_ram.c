@@ -15,6 +15,23 @@ static bool peeking;
 void vars_peek(bool on) { peeking = on; }
 bool vars_peeking(void) { return peeking; }
 
+static unsigned looks;   /* PORT_CHECK's nesting, over a peek begun outside it */
+static bool before_the_looks;
+
+void vars_peek_enter(void)
+{
+    if (looks++ == 0)
+        before_the_looks = peeking;
+    peeking = true;
+}
+
+bool vars_peek_leave(bool value)
+{
+    if (looks && --looks == 0)
+        peeking = before_the_looks;
+    return value;
+}
+
 #include "port/state_host.h"
 #include "port/vars_host.h"
 
@@ -7367,6 +7384,28 @@ void set_field_object_frame_delay(GameState *g, unsigned slot, uint8_t v)
     uint32_t address = 0x7E1601u + (uint32_t)slot * 0x02u;
     vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
+uint8_t field_object_frame_delay_unchecked(const GameState *g, unsigned slot)
+{
+    if (slot >= 64u) { return r8(g, 0x7E1601u + (uint32_t)slot * 0x02u); }
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    uint32_t address = 0x7E1601u + (uint32_t)slot * 0x02u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
+}
+void set_field_object_frame_delay_unchecked(GameState *g, unsigned slot, uint8_t v)
+{
+    if (slot >= 64u) { w8(g, 0x7E1601u + (uint32_t)slot * 0x02u, v); return; }
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    uint32_t address = 0x7E1601u + (uint32_t)slot * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+}
 uint8_t field_object_looped_animation(const GameState *g, unsigned slot)
 {
     IN_RANGE(g, 96, "field_object_looped_animation", "count", slot, 64u);
@@ -7391,6 +7430,28 @@ void set_field_object_looped_animation(GameState *g, unsigned slot, uint8_t v)
     uint32_t address = 0x7E1680u + (uint32_t)slot * 0x02u;
     vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
+uint8_t field_object_looped_animation_unchecked(const GameState *g, unsigned slot)
+{
+    if (slot >= 64u) { return r8(g, 0x7E1680u + (uint32_t)slot * 0x02u); }
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    uint32_t address = 0x7E1680u + (uint32_t)slot * 0x02u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
+}
+void set_field_object_looped_animation_unchecked(GameState *g, unsigned slot, uint8_t v)
+{
+    if (slot >= 64u) { w8(g, 0x7E1680u + (uint32_t)slot * 0x02u, v); return; }
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    uint32_t address = 0x7E1680u + (uint32_t)slot * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+}
 uint8_t field_object_animation_frame(const GameState *g, unsigned slot)
 {
     IN_RANGE(g, 97, "field_object_animation_frame", "count", slot, 64u);
@@ -7408,6 +7469,28 @@ uint8_t field_object_animation_frame(const GameState *g, unsigned slot)
 void set_field_object_animation_frame(GameState *g, unsigned slot, uint8_t v)
 {
     IN_RANGE(g, 97, "set_field_object_animation_frame", "count", slot, 64u);
+    if (slot >= 64u) { w8(g, 0x7E1681u + (uint32_t)slot * 0x02u, v); return; }
+    if (!peeking)
+        state_host_game_access(g, 8);
+    VarsHost *h = state_host_vars(g);
+    uint32_t address = 0x7E1681u + (uint32_t)slot * 0x02u;
+    vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
+}
+uint8_t field_object_animation_frame_unchecked(const GameState *g, unsigned slot)
+{
+    if (slot >= 64u) { return r8(g, 0x7E1681u + (uint32_t)slot * 0x02u); }
+    if (!peeking)
+        state_host_game_access(g, 8);
+    const VarsHost *h = state_host_vars_const(g);
+    uint32_t address = 0x7E1681u + (uint32_t)slot * 0x02u;
+    uint8_t value = 0;
+    uint8_t byte = 0;
+    vars_host_read8(h, address + 0u, &byte);
+    value |= (uint8_t)((uint8_t)byte << 0);
+    return value;
+}
+void set_field_object_animation_frame_unchecked(GameState *g, unsigned slot, uint8_t v)
+{
     if (slot >= 64u) { w8(g, 0x7E1681u + (uint32_t)slot * 0x02u, v); return; }
     if (!peeking)
         state_host_game_access(g, 8);

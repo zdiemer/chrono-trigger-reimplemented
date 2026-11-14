@@ -38,10 +38,11 @@ class RouteDone(Exception):
     """Raised by Run.checkpoint at the phase --until names: the route stops there."""
 
 
-def route_arguments(description, save=None, blank=False):
+def route_arguments(description, save=None, blank=False, seed=1):
     """The command line every route script takes. `save` is the route's cartridge
     save, relative to the repo (saves), the default for --sram; a route that
-    starts from a blank cartridge (`blank`) has none."""
+    starts from a blank cartridge (`blank`) has none. `seed` is the fights'
+    seed the route is checked with."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--sram", required=save is None and not blank, default=save and os.path.join(REPO, save),
                         help="cartridge save the route starts from" + (" (default %s)" % save if save else ""))
@@ -49,7 +50,7 @@ def route_arguments(description, save=None, blank=False):
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")
     parser.add_argument("--drive", help="ct_native binary (default build/main/ct_native, or $CT_NATIVE)")
     parser.add_argument("--movie", help="write the finished run as this .ctm")
-    parser.add_argument("--seed", type=int, default=1, help="seed for the fights' choices")
+    parser.add_argument("--seed", type=int, default=seed, help="seed for the fights' choices")
     parser.add_argument("--until", metavar="PHASE", help="stop once this phase's checkpoint is written")
     return parser.parse_args()
 
@@ -124,6 +125,18 @@ class Run:
             frame = self.machine.frame
             self.close()
             raise RouteDone("%s frame %d" % (name, frame))
+
+    def from_movie(self, movie, frame, ready, max_frames=3000):
+        """Come to a fight where the route's own movie does: the movie's presses
+        to `frame` (the field plays them on time), then frames until `ready()`.
+        A fight route starts so rather than walking there again, which took most
+        of its time; the fight itself is still the bot's. True once ready."""
+        self.machine.play_movie(str(movie), frame)
+        for _ in range(max_frames // 4):
+            if ready():
+                return True
+            self.machine.run(4)
+        return ready()
 
     def finish(self, what):
         """The route reached its goal: say so, with the frame, its fights'

@@ -40,6 +40,14 @@ Fiber *fiber_current(void);
  * fiber_restorable answers whether fiber_restore would succeed, changing
  * nothing, for a caller that has more to restore before the fibers switch. */
 size_t fiber_snapshot(uint8_t *out, size_t room);
+
+/* The fiber stacks' slots, how big each is, and the most of slot `slot`'s
+ * stack any fiber has used so far: its stacks start zeroed (port/arena.h)
+ * and grow down, so the lowest byte not zero marks the deepest a fiber went
+ * (ct_native --measure). */
+unsigned fiber_slots(void);
+size_t fiber_stack_size(void);
+size_t fiber_stack_high_water(unsigned slot);
 bool fiber_restorable(const uint8_t *in, size_t len);
 bool fiber_restore(const uint8_t *in, size_t len);
 

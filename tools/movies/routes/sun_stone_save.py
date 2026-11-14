@@ -8,6 +8,7 @@ from .epoch_lavos import wait_until
 from .save_point import press, to_slot, MENU_SCREEN, SAVE_POINT_SCREEN
 
 SAVE = stone.SAVE
+ON_A_SAVE_POINT = 0x7F01CF
 PHASES = stone.PHASES + ["return_epoch", "end_of_time", "saved"]
 HEADER = """\
 # Hand-run Sun Stone preparation: win Son of Sun, plant the Moon Stone in prehistory,
@@ -55,12 +56,16 @@ def main():
         run.checkpoint("end_of_time")
     if start <= 15:
         assert run.find_player()
-        # The sprite's anchor is below the trigger tile (24, 22).
-        assert run.go(392, 360, tolerance=4), "stand on the End of Time save point"
-        # Move within the trigger tile and face left before confirming.
-        m.run(8, "LEFT")
-        m.run(30)
-        press(m, "A", 90)
+        # Onto the save point's tile (24, 22), which marks the party on it.
+        assert run.walk(lambda machine, x, y: machine.b(ON_A_SAVE_POINT) & 0x80) is not None, \
+            "stand on the End of Time save point"
+        # A press just after the walk can go unanswered (as the pillars'
+        # can, heckran_prepare): press again until its screen opens.
+        for _ in range(6):
+            press(m, "A", 90)
+            if m.b(MENU_SCREEN) == SAVE_POINT_SCREEN:
+                break
+            m.run(7)
         assert m.b(MENU_SCREEN) == SAVE_POINT_SCREEN, "the save point's screen opens"
         to_slot(m, 0)
         before = m.peek(0x306000, 8192)

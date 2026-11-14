@@ -9,7 +9,12 @@ ct_native is the product. The last commit containing the emulator and oracle too
 portsmell, doc-names (no doc or RAM-map prose naming code that is gone), Python unit tests and the native CTest tests. Every sampled movie
 must reach its declared frame count, exit successfully and avoid an unexplained
 dark ending. `suite OK` is the final pass line; wall time includes every stage
-and must be below 600 seconds. The separate `--long` batch runs the whole library, every public route
+and must be below 600 seconds. Its stages run side by side in lanes: the movies
+(then their outcomes), the routes, the snapshots, the unit tests and the source
+checks. The three that run ct_native, and the native tests' map pictures, share two slots (`tools/native_slots.py`,
+lock files the suite names in `CT_NATIVE_SLOTS`), so no more than two of its
+processes run at once and none waits for another stage to end; movies and
+routes start longest first (routes by the times `route_check --scratch` keeps). The separate `--long` batch runs the whole library, every public route
 module and the wide-view end-state check at `-j 2`, with stage logs and `findings.json` under `build/suite-long`.
 Gameplay failures remain findings, but a missing binary or a stage launch
 failure aborts the batch with nonzero status and a diagnostic. It reports
@@ -38,12 +43,14 @@ trips, asset loading, route protocol, audio replay, persistence and bindings.
 
 ## Validation receipt
 
-With the fight routes carried and their facts checked, the sampled native
-gate finished `suite OK` in **447.2 seconds** at `-j 2`, on a machine other
-agents shared: 251 Python tests (109.1 s), 24 native C tests (6.0 s),
-58 movies (191.3 s), 58 outcome ratchets (0.4 s), the fast pair and 16 fight
-routes (135.1 s), snapshots (120.3 s), portstyle (0.4 s), portsmell (94.7 s)
-and doc-names (1.0 s). All three native picture fingerprints passed.
+With the fight routes carried and their facts checked, and the plays stages
+side by side on the two ct_native slots, the sampled native gate finished
+`suite OK` in **351.7 seconds** at `-j 2` (321.4 in a quieter run; 447.2 with the
+stages in turn), on a machine other agents shared: 252 Python tests (113.0 s),
+29 native C tests (19.8 s), 58 movies (329.0 s), 58 outcome ratchets (0.2 s),
+the fast pair and 19 fight routes (351.7 s), snapshots (231.5 s), portstyle
+(0.2 s), portsmell (96.7 s) and doc-names (1.3 s); the three plays stages
+overlap, so their times add to more than the wall. All three native picture fingerprints passed.
 
 Windows MinGW GCC and WSL GCC/Clang built with warnings as errors; both Linux
 builds passed all 15 C tests. Opening, menu and battle quick-load continuations
@@ -125,13 +132,16 @@ Giga Gaia), it showed where native battle time fell short:
   `$C2:85AE`) have their scopes back; with them most rates match the original
   within 10%. The long arithmetic (`$C1:C90B`, `$C1:C92A`), the name converter
   (`$C1:01A9`) and the empty place's pass (`$FD:B01C`) are charged their
-  routines' time. The rest is issue-tracked.
+  routines' time. The field's are the next stretch (below); the rest is
+  issue #349's.
 - The handlers took ~65k clocks a frame against the original's ~160k. A
   handler's wait for a line (the frame work's wait for line 64 while effects
   run, `$CD:3B82`) now holds the frame until the beam is there, and a
   handler's transfers are charged; 40 handler routines' rates are recalibrated
   by the ratio of the original's clocks a call to native's, which agreed
-  within ±15% across the three fights. Most ratios are 1.2 to 2.8; seven fall
+  within ±15% across the three fights for all but `$FD:FFFD` (2.72 in
+  Dalton's and the Golem Twins' fights, 2.07 in Giga Gaia's; its rate takes
+  the ratio of the three fights' clocks pooled, 2.59). Most ratios are 1.2 to 2.8; seven fall
   outside: `$CD:05B2` 3.38, `$CD:0ADE` 3.16, `$CD:0AEE` 4.28, `$CD:2DD6` 4.54
   and `$CD:2EB5` 3.75 are small routines of a few hundred clocks a call whose
   ports keep in locals what the original reads and writes in memory, so few
@@ -142,7 +152,74 @@ Giga Gaia), it showed where native battle time fell short:
 - Ten more rates are calibrated from the battle setup's profile
   (`$CC:ED87` ×2.72, `$CD:088D` ×15, `$CD:09F1` ×46, `$C1:C90B` ×2.38,
   `$C1:C92A` ×3.2, `$C2:84EC` ×2.27, `$FD:AF80` ×3.42, `$C1:C96A` ×0.49,
-  `$C1:CA1A` ×0.52, `$C1:1C55` ×1.2).
+  `$C1:CA1A` ×0.52, `$C1:1C55` ×1.2). The frame's input `$C2:84EC` was
+  wrong there: over every frame of 25 movies and the three fights it reads at
+  0.61 of that figure, and `$C2:85AE` at 1.19, which their rates now take.
+  The script that summed native's time added a routine's charged clocks to
+  its milli clocks, which already hold them; rechecked with the sum
+  corrected, the handlers' 40 rates stay within 0.89-1.10 of the original,
+  and only the name converter's figure moves (0.90 to 1.01).
+- The field (issue #349). The scopes of 26 field routines the original calls
+  every frame are back: the line effects' builders for each table set
+  (`$FD:C2EB`-`$FD:D27E`, the scroll sends, BG2's and window 2's tables, the
+  wave), the party's steps (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`), the step's
+  start and look ahead (`$C0:ACFD`, `$C0:5B95`), the walk animations
+  (`$C0:5614`, `$C0:568B`), the freed sprite areas, the dialog shading and
+  the leader's touch (`$C0:3154`).
+  Over whole runs of the 25 gate movies whose field follows the reference
+  (each routine's calls within 10% of the original's), 61 field and event
+  rates take the ratio of the original's clocks a call to native's, each
+  steady across the movies (no movie's ratio more than 1.35 times another's);
+  the ratios are in `tools/timing_ratios.txt`. The dialog window's four
+  builders take theirs too (1.39-1.42), though the window opens on other
+  frames in ct_native, so their calls differ by more. Most are 1.2 to 2.4; the line
+  effects' setup in the vblank (`$FD:C1EE`) is 21.7, its register writes
+  being a service call in the port. Left as they are: the frame's wait
+  (`$C0:EC60`), the layer streaming (`$C0:93E1` with `$C0:7F9A`, 1.07 together;
+  the original reaches `$C0:7F9A` without a call), routines whose ratio
+  differs from movie to movie (`$C0:AA07`, `$C0:A810`, `$C0:B1B2`,
+  `$C0:1F87`, and `$C0:CAD9`, 0.94-0.99 in its busiest movies and 0.74 in
+  another) and the song changes, where the original waits 1-10 frames on
+  the sound processor. Across the 84 movies native_check runs, places on time
+  go from 589 to 599 and in the reference's order from 691 to 694 (the gate's
+  58: 394 to 395, 478 to 476). Four move away, each with its measured evidence
+  on its line in `tools/outcomes_exceptions.txt`: the Epoch's Lavos movie (its
+  lag before `$474`), Bucket Lavos's order (it parts from the reference
+  earlier, though 2 more places are on time), Crono's trial (the original
+  stalls 8 frames at each redraw of the courtroom's layers, ct_native 1-3,
+  with or without this change) and MotherBrain (its lag by thousands of
+  frames through `$07E`).
+- The menus (issue #349). The menus' sprite objects took 2 to 9 times the
+  original's time in the vblank: the port's checks of what it handles (an
+  object's handler `takes`, a script routine's, the frame steps' and the
+  screens' guards) read the game's state as the game's own work, at the rate
+  of whatever routine ran them. They are now looks (`PORT_CHECK`,
+  port/vars_ram.h), as the event engine's already were, and the objects'
+  work comes to 0.4-1.0 of the original's. A script command's operands are
+  read in its own scope, as its handler reads them in the original. The
+  glyph line (`$C2:5E89`), the text's tile (`$C2:EF97`) and the sprite list's
+  insert (`$C2:0B53`) have their scopes back, and 39 menu rates take the
+  ratio of the original's clocks a call to native's (in
+  `tools/timing_ratios.txt`): a battle message's glyph now takes 26.4k clocks
+  against the original's 26.2k (22.0k before). The vblank uploads
+  (`$C2:85D6`, `$C2:86A9`) read 8-40 times under, as the port charges its
+  palette's transfer outside the routines; the sprite table's it didn't
+  charge at all, and now does, which brings the menus' vblank to 78.8k
+  clocks a frame against the original's 83.7k (menus-shop-inn, frames
+  3000-6000; 74.4k before). Across the 84 movies, places on time stay 599
+  and in order go 694 to 695 (the gate's 58: 395 to 395, 476 to 478); one
+  moves away, the Black Omen's Zeal fight, with its evidence on its line.
+- The checks outside the menus (issue #349). The field's, the events', the
+  scenes', the world map's and the time gates' checks are looks too:
+  measured again, the field's rates stay within 2% of the original's but
+  two. `$C0:A810` takes its steady ×0.85; `$C0:21E1`'s ×1.82 is measured,
+  not applied, as it runs 1.43-2.19 from movie to movie. Across the 84
+  movies places on time go 599 to 606 and in order 695 to 705 (the gate's
+  58: 395 to 394, 478 to 478); the rescue game at the fair moves away, its
+  lag on its line. The battle's checks still count: as looks they leave its
+  main thread's routines 1.2 to 30 times under the original's, steadily
+  across the three fights, and with those rates the Death Peak ascent's
+  recorded fight ends in a game over (issue #376).
 - A lag frame gets the main thread time its own handlers leave (issue #321),
   so a frame whose handlers made a load's sends no longer shortens every lag
   frame after it.
@@ -158,9 +235,8 @@ The turn timers' first tick, frames before the original's, before and after:
 | Bucket's Lavos | 11 | 1 |
 | Lavos game over | 24 | 15 |
 
-The Lavos game over's 15 and the Golem Twins' last 3 are the field's before the
-fight: the field's main routines run 2 to 5 times under the original, about
-54k clocks a frame, which is its own follow-up.
+The Lavos game over's 15 and the Golem Twins' last 3 stay as they were with the
+field's rates calibrated, so they are not the field's main routines' time.
 
 ### Warp as the subsystem pattern
 

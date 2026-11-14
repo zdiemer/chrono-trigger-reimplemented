@@ -46,7 +46,8 @@ static inline uint8_t battle_sprite_digit_tile(const GameState *g, uint16_t digi
  * it can join a combination tech ($CC:FA41, $CC:FA6B). */
 static inline uint8_t battle_command_window_tile(const GameState *g, bool combo, unsigned i)
 {
-    return rom_read8(g, (combo ? 0xCCFA6Bu : 0xCCFA41u) + i);
+    enum { COMBO_TILES = 0x2A };   /* the combo window's, after the command window's */
+    return asset_read8(g, ASSET_BATTLE_COMMAND_WINDOW_TILES, (combo ? COMBO_TILES : 0) + i);
 }
 
 /* The command windows' frame, seven cells by six, a tile and its attributes

@@ -3,6 +3,7 @@
 These routes keep their movies in scratch storage: each fight and ending is
 too long to replay in every gate. Checkpoints contain only the winning input.
 """
+from . import addresses as A
 from .campaign import Run, route_arguments
 from .routes.telepod_lavos import to_the_shell
 
@@ -10,6 +11,7 @@ from .routes.telepod_lavos import to_the_shell
 TELEPOD_PHASES = ["fair", "exhibit", "shell", "cavern", "inner", "core", "ending"]
 BUCKET_PHASES = ["eot", "dayoflavos", "shell", "cavern", "inner", "core", "ending"]
 BUCKET = 9                      # the End of Time's object 9
+INSIDE_LAVOS = "da01"           # the cavern inside the shell, once it is beaten
 
 
 def bucket_to_shell(run, start):
@@ -89,15 +91,53 @@ def watch_ending(run, *, selected, done, max_frames=48000, settle_frames=120):
     raise AssertionError("ending did not finish: maps %s, selection seen %s" % (seen, selection_seen))
 
 
-def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None):
-    """The shell, cavern and two inner fights, shared by the ending routes."""
-    policy = "crono_and_marle" if party == 2 else "party"
+MEGA_ELIXIR = 0xC5
+CHARACTER_RECORDS, CHARACTER_RECORD_BYTES, RECORD_HP = 0x7E2600, 0x50, 3
+
+
+def restore_the_party(run):
+    """A Mega Elixir from the items screen where the shell's fight left the
+    party short: the inner Lavos opens with its laser beams before anyone's
+    first turn, which a party below its full HP doesn't stand."""
+    from .routes import menu_sweep as menus
+    machine = run.machine
+    party = [c for c in machine.peek(A.PARTY_MEMBERS, 3) if c < 0x80]
+    at = lambda c: CHARACTER_RECORDS + CHARACTER_RECORD_BYTES * c + RECORD_HP
+    if all(machine.w(at(c)) == machine.w(at(c) + 2) for c in party) or not menus.count_of(machine, MEGA_ELIXIR):
+        return
+    menus.open_menu(machine)
+    menus.open_option(machine, menus.ITEMS)
+    machine.run(20)
+    menus.use_item(run, MEGA_ELIXIR, choose_member=True)
+    menus.back_to_main_menu(machine)
+    menus.press(machine, "B", 60)
+    assert run.wait_control(), "the field after the Mega Elixir"
+    run.say("restored", [machine.w(at(c)) for c in party])
+
+
+def walking_into_lavos(run, between=None):
+    """The fight's idle step between the shell's imitations: the party walks
+    into Lavos again, readied first by `between(run)` where given."""
+    def walk_on(bot):
+        if between and run.machine.b(A.FIELD_PLAYER_CONTROL) and run.find_player() is not None:
+            between(run)
+            bot.step(0)
+        bot.step(22, "UP")
+    return walk_on
+
+
+def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None, policy=None, between=None):
+    """The shell, cavern and two inner fights, shared by the ending routes.
+    `between(run)`, where given, readies the party on the field between the
+    shell's imitations, before it walks into Lavos again."""
+    policy = policy or ("crono_and_marle" if party == 2 else "party")
     if start <= 3:
         run.fight(policy, lambda r, s: r.map_id() == "da01", party=party, seed=seed,
-                  idle=lambda bot: bot.step(22, "UP"))
+                  idle=walking_into_lavos(run, between))
         run.checkpoint("cavern")
     if start <= 4:
         assert run.wait_control(), "control inside Lavos"
+        restore_the_party(run)
         assert run.exit_to("db01"), "the inner cavern's second chamber"
         run.checkpoint("inner")
     if start <= 5:
@@ -107,7 +147,7 @@ def lavos(run, start, *, party, seed, core_seed_offset=0, core_policy=None):
         def core_beaten(r, state):
             return (state.max_hp(9) == 30000 and state.hp(9) == 0
                     and any(state.hp(slot) for slot in range(party)))
-        run.fight(core_policy or ("crono_and_marle_core" if party == 2 else "party"), core_beaten,
+        run.fight(core_policy or ("crono_and_marle_core" if party == 2 else policy), core_beaten,
                   party=party, seed=seed + core_seed_offset)
         run.checkpoint("ending")
 

@@ -147,7 +147,11 @@ static void run_screen_transition(GameState *g, Platform *pf, int step)
 }
 
 /* A move to a map, or a step of the transition; true where the frame's work
- * ended with it (and is finished). */
+ * ended with it (and is finished). A send ending the frame has sent the
+ * layer's whole tile map, its columns past the screen from the map round
+ * from its other side, so a wider view's margins are built over them in the
+ * same vblank rather than shown for a frame or two (Crono's mother opening
+ * the blinds). */
 static bool run_map_transition(GameState *g, Platform *pf, uint8_t asked)
 {
     field_margins_due(g);
@@ -156,6 +160,7 @@ static bool run_map_transition(GameState *g, Platform *pf, uint8_t asked)
         start_map_move(g, (FieldMapMove)asked);
         TIMED_AS(g, FIELD_SEND_STAGED_SCREEN_ENTRY, field_send_staged_layer(g, pf, false));
         finish_map_move(g, (FieldMapMove)asked);
+        field_fill_the_views_margins(g, pf, true);
         finish_frame(g, pf);
         return true;
     }
@@ -180,6 +185,7 @@ static bool run_map_transition(GameState *g, Platform *pf, uint8_t asked)
             TIMED_AS(g, sends[k].routine, field_send_staged_bg2_screen(g, pf, sends[k].asked == FIELD_SEND_BG2_RIGHT));
         set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~sends[k].asked));
         if (sends[k].ends_the_frame) {
+            field_fill_the_views_margins(g, pf, true);
             finish_frame(g, pf);
             return true;
         }
@@ -264,7 +270,7 @@ void field_vblank(GameState *g, Platform *pf)
     start_vblank(pf);
     if (field_frame_pending(g) != 0 && !work_before_the_queue(g, pf)) {
         upload_the_queue(g, pf);
-        if (!edges(g)) {
+        if (!PORT_CHECK(edges(g))) {
             program_breaks_a_contract(g, FIELD_VBLANK_HANDLER, "layers' edges the port doesn't upload");
             return;
         }

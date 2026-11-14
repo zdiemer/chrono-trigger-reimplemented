@@ -22,5 +22,7 @@
 void *arena_take(size_t bytes);
 /* Whether the arena is at its usual address (or not yet reserved). */
 bool arena_fixed(void);
+/* How many of its bytes have been taken (ct_native --measure). */
+size_t arena_used(void);
 
 #endif

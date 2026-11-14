@@ -120,7 +120,7 @@ events-fair-clone/native game
 events-fair-clone/native places 0 1 2 3 4 5
 events-fair-clone/native sram end
 events-fair-rescue/native game end
-events-fair-rescue/native places 0 1 2 3 4 5 6
+events-fair-rescue/native places 0 1 2 3 4 5
 events-fair-rescue/native sram end
 events-fair-shuffle/native game
 events-fair-shuffle/native places 0 1 2 3 4 5

@@ -219,7 +219,7 @@ static bool take_a_turn(GameState *g, Platform *pf, uint16_t address, uint16_t h
         program_breaks_a_contract(g, HANDLERS_BANK | handler, h ? h->name : "an object's handler the port doesn't have");
         return false;
     }
-    if (h->takes && !h->takes(g, self)) {
+    if (h->takes && !PORT_CHECK(h->takes(g, self))) {
         program_breaks_a_contract(g, HANDLERS_BANK | handler, h->name);
         return false;
     }
@@ -227,7 +227,7 @@ static bool take_a_turn(GameState *g, Platform *pf, uint16_t address, uint16_t h
     TIMED_AS(g, HANDLERS_BANK | handler, t = h->run(g, pf, self));
     if (t == MENU_TURN_WENT_NO_FURTHER)
         return false;
-    if (!menu_object_address_names_one(menu_object_current(g))) {
+    if (!PORT_CHECK(menu_object_address_names_one(menu_object_current(g)))) {
         program_breaks_a_contract(g, HANDLERS_BANK | handler, "a handler that left the running object off its slot");
         return false;
     }

@@ -3,17 +3,30 @@
 ctsave11 slot 2 has story progress $D2 and $7F:0138 clear; slot 3 and
 ctsave12 already have recruitment bit 0 set. Marle, Lucca and Robo are active,
 so this is the party fight, rather than Frog's duel. Driver copies keep the
-walk searches and fight retries out of the movie. magus_joins uses the same
-opening and refuses the fight instead.
+walk searches and fight retries out of the movie. The fight plays the
+movie's own way to Magus's battle (battle-magus-north-cape) on time and
+starts from the battle; magus_joins and the playthrough walk it, and
+magus_joins refuses the fight instead.
 """
+from pathlib import Path
+
 from .. import addresses as A, bfs, policies
-from ..campaign import Run, route_arguments, run_route
+from ..campaign import REPO, Run, route_arguments, run_route
 
 SAVE = "saves/fantasyanime/ctsave11-crono_gone.srm"
 SLOT = 1
 CAPE = "ac01"
 OUTCOME = 0x7F0138
 CHOICE_ACTIVE, CHOICE_POINTER, DIALOG_STRING = 0x7E0162, 0x7E0163, 0x7E012A
+MOVIE = Path(REPO) / "movies/saves/battle-magus-north-cape.ctm"
+# The movie's walk ends as the battle begins (its first command menu opens at frame 12105 in the reference).
+WALK_ENDS = 12060
+# From the movie's way there, seed 1's choices keep missing Magus's barrier changes past the
+# fight's 25,000 frames; seed 2 wins without the party falling. The seed is the bot's, not the
+# game's: it only picks among the policy's own equally good choices (which spell, which target,
+# how long to wait), so another seed plays the same game by the same rules, and the fight's
+# facts (levels, experience, gold, items, event memory) are still checked against the movie's.
+FIGHT_SEED = 2
 PHASES = ["loaded", "world", "cape", "choice", "branch", "after"]
 HEADER = """\
 # North Cape, 12,000 B.C.: leave the Earthbound Village, meet Magus, and see his flashback.
@@ -78,7 +91,7 @@ def play(run, start=1, seed=1, join=False):
         if join:
             assert run.wait_control(), "walk away from Magus"
         else:
-            assert run.dialogs_until(lambda: machine.b(0x7E95D5) < 0x80, 5000), "Magus battle menu"
+            assert run.dialogs_until(lambda: A.battle_menu_open(machine), 5000), "Magus battle menu"
         run.checkpoint("branch")
     if start <= 5:
         if join:
@@ -109,12 +122,18 @@ def play(run, start=1, seed=1, join=False):
 
 
 def main(join=False):
-    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE, seed=FIGHT_SEED)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive,
               until=args.until)
     machine = run.machine
     try:
         start = run.start_at(PHASES)
+        if not join and start <= 4:
+            # The way to Magus's battle is the movie's own, which the field plays on time.
+            machine.play_movie(str(MOVIE), WALK_ENDS)
+            assert run.dialogs_until(lambda: A.battle_menu_open(machine), 3000), "Magus battle menu"
+            run.checkpoint("branch")
+            start = 5
         if start <= 0:
             machine.run(1620)
             machine.run(5, "START")

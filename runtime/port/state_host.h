@@ -32,6 +32,10 @@ GameState *state_host_create(const uint8_t *sram);
 /* The same, placed in the arena (port/arena.h) for a run that snapshots it:
  * at the same address in every run that makes the same allocations first. */
 GameState *state_host_create_lasting(const uint8_t *sram);
+/* The bytes of a GameState, and of the game's work RAM and save RAM in it
+ * (ct_native --measure). */
+size_t state_host_bytes(void);
+size_t state_host_vars_bytes(void);
 void state_host_destroy(GameState *g);
 
 /* The state as bytes for a snapshot, and put back from them: the game's
@@ -70,6 +74,9 @@ uint32_t state_host_take_owed(GameState *g);
  * RAM through the save service), of `clocks` master clocks on the machine,
  * timed at the rate of the routine its work is timed as. */
 void state_host_game_access(const GameState *g, uint32_t clocks);
+/* The clocks a cartridge read takes, which a read through a pointer the
+ * data holds takes too, into RAM as into the cartridge. */
+enum { STATE_HOST_CARTRIDGE_CLOCKS = 6 };
 
 /* Host audio replay preserves the accounting effects of resource reads as
  * well as the replies it returned. These counters are additive over a host

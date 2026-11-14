@@ -309,7 +309,7 @@ enum { PARTY_BACK_TOGETHER = 0xC0034B };
 
 static bool come_back_together(GameState *g, Platform *pf)
 {
-    if (!party_can_come_back_together(g)) {
+    if (!PORT_CHECK(party_can_come_back_together(g))) {
         program_breaks_a_contract(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
         return false;
     }
@@ -334,7 +334,7 @@ static bool battle_fits(const GameState *g);
 
 FieldBattleStart field_battle_set_up(GameState *g, Platform *pf)
 {
-    if (!battle_fits(g)) {
+    if (!PORT_CHECK(battle_fits(g))) {
         program_breaks_a_contract(g, FIELD_BATTLE_BEGINS_ENTRY, "a battle's start the port doesn't take");
         return FIELD_BATTLE_START_STOPPED;
     }

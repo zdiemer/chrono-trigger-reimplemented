@@ -83,6 +83,10 @@ The default fast set is `new_game_plus` and `menu_sweep:items`: the first checks
 New Game+ and erasure, the second loads cartridge progress and uses an item.
 A route whose ct_native printed a runtime fault (tools/outcomes.py's: an
 overlay crossing, an accessor out of range) fails, as a movie does.
+A route writes only to its scratch directory (`--prefix`): one that changes a
+file under `saves/`, or leaves git's account of the working tree otherwise
+changed, fails (`tree_state`), so a long batch can't replace the saves the
+movies start from.
 
 ### Fights carried by routes
 
@@ -92,13 +96,21 @@ place after it, follow the time model rather than the game. A route from the
 same save chooses its commands by game state and wins (or, for the Lavos
 game over, loses) whatever the frames. `tools/fight_routes.txt` names the gate
 movies whose fight such a route carries, each movie's own route, the one its
-header names (or, for a hand recording, the route that names the movie): 19
+header names (or, for a hand recording, the route that names the movie): 20
 movies, from Dalton, Giga Gaia, the Golem Twins, the Black Tyrano, Son of
 Sun, Magus at North Cape and the Lavos game over to Cyrus, Fiona's forest,
-Death Peak's summit, the unequipped armor's fights and the TerraMutant. Two
+Death Peak's ascent and its summit, the unequipped armor's fights and the
+TerraMutant. The ascent (`death_peak`) joined the gate's sample for it: its
+first two Lavos Spawn, fought by recorded presses, are lost
+or won by a frame of the battle's time, so its route carries them. Six
 routes take the movie's own presses for the field before their fights, which
 the field plays on time: `unequipped_armor` to Truce Canyon (16 s where the
-world map's searches took 41) and `terramutant` to the boss; the TerraMutant's
+world map's searches took 41), `terramutant` to the boss, and `black_tyrano`,
+`giga_gaia`, `rust_tyrano` and `north_cape` (the fight) to their battles' first
+command menus, where walking there took 40-80% of each route's time (black_tyrano
+23 s to 7, north_cape 23 to 4). Their `play` functions still walk the way for the
+playthrough legs and `magus_joins`; from the movie's start, Magus's fight is
+checked with seed 2, the first that wins without the party falling. The TerraMutant's
 movie ends partway through the fight, so its route stops there too, the head
 hurt as far as the movie's, both parts up. The gate runs those routes beside the fast
 pair (`routes` in the gate's `times:` line). For those movies the outcome check
@@ -197,29 +209,60 @@ and items, and plays on through `play()` of `blackbird_save`, `dalton`,
 instead of flying), the Black Omen's rising, Gaspar's Chrono Trigger, Gato's
 silver points and Bekkler's clone (`fair_clone`; the clone is delivered to
 Crono's room), Belthasar in the Keeper's Dome, Death Peak (`death_peak_wind`,
-`death_peak`, `death_peak_return`; a Shelter before the last Spawn), Crono
-joining in Lucca's place, and the bucket into Lavos (`other_endings`), whose
-imitations of the earlier bosses it beats. It ends where the shell's own form
-stands (frame 359416): at levels 34-38 the party takes 400-500 HP a member
-from each of its blows and deals it some 40, so an ending waits on a party
-grown by the Black Omen or by fighting. The
+`death_peak`, `death_peak_return`; a Shelter before the last Spawn), and the
+bucket into Lavos (`other_endings`). The save's party, at levels 34-38, is
+no match for Lavos (its shell's blows take 400-500 HP a member, and its inner
+form wipes a party at 45 before anyone acts), so the leg grows it at Death
+Peak on the way up, where crossing between the slope's top and the lower
+field brings back the monsters by the way in, healing from the bag and Robo's
+Heal Beam between rounds, until everyone is at level 52 (those in reserve
+take a share, so Crono comes back at 50). It has to be then: above the slope
+the field's ledges drop one way, and only the summit's scene leaves it (the
+frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
+1). Crono joins in Robo's place at the End of Time, and the grown purse buys
+Aeon Suits and Helms and Full and Mid Tonics and Ethers in the 12000 B.C.
+village's shop. The fights take the `lavos_shell` policy (the imitations with
+the party's techs, healed from the bag between them; the shell's own form
+with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
+acts, an arm casts a spell that hits each member once: 37 power on the arm's
+level 50 and magic 50 (read from its stat block in ct_native, $C1:E0F5),
+(50 x 12 + 50 x 12) x 37 / 15 = 2,960, of which a member keeps 256 less two
+and a half times its magic defence, over 256 ($C1:E65F), plus 0-16 of
+variance. Computed so, a member at full HP needs magic defence of about 70
+to live through it (69 at 999 HP, 73 at 891); ct_native showed the hits at
+105, 651 and 999 for Marle (99), Crono (80) and Robo (67, all his 999 HP:
+1,029 before the cap), and the ROM's constants at $C1:E203 and $C1:E65F are
+the port's. So Crono, Marle and Lucca (94) go in; Barriers and Shields from
+the bag, then the arms together and the body. `lavos_core` reads the right
+bit's defence from its stat block: 255 while the others stand, lower in the
+moment one falls, when everyone hits it. Measured end (the leg played to
+there at 2e22ad12, before the merge of main that followed; this head is
+checked only by the gate): the inner form is beaten (the core's fight
+begins at frame 1,207,252) and the core wipes the party every time, which
+enters it at about half its HP with no MP and an empty bag (the shell's
+imitations and the inner form spend all 94 Full Tonics, the Lapis, the
+Barriers and the Shields).
+The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
 `playthrough_leg-b` starts from fantasyanime ctsave05 slot 1 (the Forest
 Maze, 65,000,000 B.C.) with the save's party and items: the maze and the
 Reptite Lair (`nizbel`'s piece), the Mystic Mountains' Gate, Melchior forging
-the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, Mid Tonics from
-Dorino (the save has none), the Cursed Woods, where Frog joins, the Magic
+the Masamune in 1000 A.D., Medina's and Truce Canyon's Gates, 50 Mid Tonics
+and 2 Revives from Dorino (the save has no Mid Tonics), the Cursed Woods, where Frog joins, the Magic
 Cave (`magic_cave`'s piece) and Magus's castle: the castle's approach,
 `castle_slash`'s and `castle_flea`'s pieces, the hall's trapdoor, Ozzie's
 corridor and the inner rooms (a search that plays ladders and stairs through),
 a rest with a Shelter at the save point in the dark room off the tower
 (`$1D7`), Ozzie's last stand (the party strikes the levers beside him, not
-Ozzie), a second rest at the save point in his hall, and the stair down to
-Magus's chamber (`$0AC`, frame 403039). It stops before Magus: at levels 21-22
-the bot's best tries leave him 4042 of his 6666 HP (X-Strike about 120 a hit,
-Frog's blows about 100), while his spells take the party's 330-370 HP down
-in a few turns.
+Ozzie), a second rest at the save point in his hall, and Magus at levels
+21-22: the policy reads his barrier's open element from his elemental
+affinities and casts Lightning or Ice to match, and uses X-Strike only when
+Frog is ready and Aura Whirl only when Marle is. After the Gate to
+65,000,000 B.C. it plays Laruba's hut, Dactyl's Nest and Ayla's dactyls, the
+flight to Tyrano Lair, `nizbel_ii`'s piece with a frugal policy and rests at
+the lair's save points (its Shelters), the switch room's west part, and
+`black_tyrano`'s piece to Lavos's fall (`tyrano_after`, frame 738065).
 
 `python3 tools/suite.py --ct-native build/main/ct_native -j 2 --long` runs the
 whole library, every public route module and the wide-view end-state check

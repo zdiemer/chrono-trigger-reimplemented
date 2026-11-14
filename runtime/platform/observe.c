@@ -917,8 +917,10 @@ void vid_obs_frame_start(VidObserver *ob)
 void vid_obs_frame_end(VidObserver *ob) { ob->recording = false; }
 
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
-                  const VidMarginEntry *margin, uint16_t margin_count)
+                  int16_t back_left, int16_t back_right, const VidMarginEntry *margin, uint16_t margin_count)
 {
+    ob->frame.back_left = back_left;
+    ob->frame.back_right = back_right;
     ob->frame.view = view;
     ob->frame.margin = margin;
     ob->frame.margin_count = margin_count;
@@ -1104,4 +1106,15 @@ bool vid_frame_diff(const VidFrame *a, const VidFrame *b, VidDiff *out)
         if (a->vram[i] != b->vram[i])
             DIFF("vram", "VRAM $%04X is $%02X, commands $%02X", i, a->vram[i], b->vram[i]);
     return false;
+}
+
+size_t vid_obs_bytes(const VidObserver *ob)
+{
+    if (!ob)
+        return 0;
+    size_t bytes = sizeof *ob;
+    for (unsigned i = 0; i < VID_MAX_SPANS; i++)
+        bytes += (ob->vram_snap[i] ? sizeof ob->vram : 0) + (ob->cgram_snap[i] ? sizeof ob->cgram : 0) +
+                 (ob->sprite_snap[i] ? sizeof(VidSpriteSet) : 0);
+    return bytes;
 }

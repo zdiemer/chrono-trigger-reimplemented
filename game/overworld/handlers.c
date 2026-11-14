@@ -200,14 +200,14 @@ static bool the_map_can_follow_the_vehicle(const GameState *g, MenuObject vehicl
  * map; otherwise it hovers where it is. The Epoch confirmed over the Black
  * Omen hovers so for the frames the map takes to leave, the location already
  * the Omen's. */
-static bool flown_this_frame(const GameState *g) { return overworld_mode(g) == OVERWORLD_ON_THE_MAP; }
+static bool steered_this_frame(const GameState *g) { return overworld_mode(g) == OVERWORLD_ON_THE_MAP; }
 
 bool overworld_epoch_takes(const GameState *g, MenuObject self)
 {
     EpochStep step = overworld_epoch_step(g, self);
     bool ok = step < EPOCH_STEPS && menu_object_slots_facing(g, self) < 4
               && epoch_animates(g, self, step == EPOCH_SETS_DOWN || step == EPOCH_RUNS_A_SCENE);
-    if (ok && (step == EPOCH_FLIES_A_TILE || (step == EPOCH_FLIES && flown_this_frame(g))))
+    if (ok && (step == EPOCH_FLIES_A_TILE || (step == EPOCH_FLIES && steered_this_frame(g))))
         ok = on_a_world_map(g) && the_map_can_follow_the_vehicle(g, self, step == EPOCH_FLIES_A_TILE);
     if (ok && step == EPOCH_RUNS_A_SCENE)
         ok = menu_object_script_can_run(g, menu_object_slots_script(g, self));

@@ -47,6 +47,19 @@
 
 /* ---- Tables ------------------------------------------------------------------------- */
 
+/* The original has a routine for each table set where this file has one
+ * function taking the set; the work is timed as the set's routine. */
+typedef struct {
+    uint32_t first, second;
+} SetRoutines;
+
+static uint32_t routine_for(SetRoutines r, uint8_t set) { return set ? r.second : r.first; }
+
+static const SetRoutines BG2_TABLE = { 0xFDC4B5, 0xFDC52E }, WINDOW2_TABLE = { 0xFDC439, 0xFDC477 },
+                         WAVE_PART = { 0xFDCC5E, 0xFDCCB8 }, SCROLL_SENT = { 0xFDC5A7, 0xFDC6F7 },
+                         NO_WINDOW = { 0xFDC2EB, 0xFDC847 }, TOP_WINDOW = { 0xFDC995, 0xFDCD0C },
+                         BOTTOM_WINDOW = { 0xFDCFCF, 0xFDD27E };
+
 enum {
     LINES_EACH = 0x80,  /* a count with this bit: each line has values of its own */
     TABLE_END = 0x00,
@@ -302,7 +315,7 @@ static void build_no_window(GameState *g, uint8_t set)
 {
     whole_screen(g, table_of(set, SLOT_BG_MAPS), maps_values(false));
     whole_screen(g, table_of(set, SLOT_BG1_SCROLL), scroll_values(FIELD_BG1, set));
-    set_bg2_table(g, set);
+    TIMED_AS(g, routine_for(BG2_TABLE, set), set_bg2_table(g, set));
     if (!bg3_waves(g))
         whole_screen(g, table_of(set, SLOT_BG3_SCROLL), scroll_values(FIELD_BG3, set));
     else
@@ -314,11 +327,11 @@ static void build_no_window(GameState *g, uint8_t set)
     put(g, &t, LINES_EACH | WHOLE_SCREEN_BOTTOM, (uint16_t)(edges + 2 * WHOLE_SCREEN_TOP));
     end_table(g, t);
     whole_screen(g, table_of(set, SLOT_COLOR_MATH), color_math_values(set, false));
-    set_window2_table(g, set);
+    TIMED_AS(g, routine_for(WINDOW2_TABLE, set), set_window2_table(g, set));
     if (overridden(g))
         send_scroll_override(g, set);
     else
-        send_scroll(g, set);
+        TIMED_AS(g, routine_for(SCROLL_SENT, set), send_scroll(g, set));
 }
 
 /* The dialog window: a band `half` lines either side of its middle. All of it
@@ -367,7 +380,7 @@ static void wave_band_table(GameState *g, TableWriter t, uint8_t set, const Layo
             put(g, &t, l->lines[i], inside);
             line = (uint8_t)(line + l->lines[i]);
         } else {
-            wave_part(g, &t, set, l->lines[i], &line);
+            TIMED_AS(g, routine_for(WAVE_PART, set), wave_part(g, &t, set, l->lines[i], &line));
         }
     }
     end_table(g, t);
@@ -465,7 +478,7 @@ static void build_window(GameState *g, uint8_t set, WindowPosition position)
     band_table(g, table_of(set, SLOT_BG_MAPS), &plain, maps_values(false), maps_values(true));
     band_table(g, table_of(set, SLOT_BG1_SCROLL), &plain, scroll_values(FIELD_BG1, set),
                window_scroll_values(position, false));
-    set_bg2_table(g, set);
+    TIMED_AS(g, routine_for(BG2_TABLE, set), set_bg2_table(g, set));
     uint16_t bg3_inside = window_scroll_values(position, true);
     if (!bg3_waves(g))
         band_table(g, table_of(set, SLOT_BG3_SCROLL), &plain, scroll_values(FIELD_BG3, set), bg3_inside);
@@ -474,8 +487,8 @@ static void build_window(GameState *g, uint8_t set, WindowPosition position)
     screens_table(g, table_of(set, SLOT_SCREENS), &screens, &b);
     window1_table(g, set, position, &plain);
     color_math_table(g, table_of(set, SLOT_COLOR_MATH), set, &plain, &b);
-    set_window2_table(g, set);
-    send_scroll(g, set);
+    TIMED_AS(g, routine_for(WINDOW2_TABLE, set), set_window2_table(g, set));
+    TIMED_AS(g, routine_for(SCROLL_SENT, set), send_scroll(g, set));
 }
 
 /* Whether the dialog window takes a band: it is at the top or the bottom,
@@ -489,9 +502,10 @@ static bool window_open(const GameState *g, WindowPosition position)
 static void build_for(GameState *g, uint8_t set, WindowPosition position)
 {
     if (!window_open(g, position))
-        build_no_window(g, set);
+        TIMED_AS(g, routine_for(NO_WINDOW, set), build_no_window(g, set));
     else
-        build_window(g, set, position);
+        TIMED_AS(g, routine_for(position == WINDOW_AT_TOP ? TOP_WINDOW : BOTTOM_WINDOW, set),
+                 build_window(g, set, position));
 }
 
 /* The set the line effects aren't reading, which is the one built. */
@@ -552,6 +566,8 @@ static void copy_dialog_shading(GameState *g)
         set_field_dialog_shading_copy(g, i, line);
     }
 }
+
+enum { DIALOG_SHADING = 0xFDD52D };
 
 static void fill_dialog_shading(GameState *g)
 {
@@ -618,7 +634,7 @@ static void init_line_effect_values(GameState *g)
     set_screens(g, SCREENS_WINDOW_BODY, SCREENS_WINDOW_BODY_LAYERS, 0);
     set_screens(g, SCREENS_WINDOW_EDGE, SCREENS_WINDOW_EDGE_LAYERS, 0);
     set_dialog_window_state(g, 0);
-    fill_dialog_shading(g);
+    TIMED_AS(g, DIALOG_SHADING, fill_dialog_shading(g));
 }
 
 // $FD:C1EE

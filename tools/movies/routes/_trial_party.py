@@ -11,6 +11,19 @@ def battle_ready(run):
     return A.battle_menu_open(run.machine) and run.machine.w(0x7E5E32) > 0
 
 
+def approach_battle(run, direction):
+    """Keep walking past arrival scenes until a battle menu opens."""
+    for _ in range(8):
+        assert advance(run, direction, lambda: battle_ready(run)), ("the boss approach", run.map_id(), run.me())
+        if battle_ready(run):
+            return
+        assert run.dialogs_until(lambda: battle_ready(run) or run.machine.b(PLAYER_CONTROL), 12000)
+        if battle_ready(run):
+            return
+        assert run.wait_control()
+    raise AssertionError("too many scenes before the boss")
+
+
 def settle(run, seed=1, policy=None):
     """A script can briefly enable movement while still staging a battle."""
     machine = run.machine
@@ -60,14 +73,29 @@ def walk_through(run, direction, goal, seed=1, interact=False):
     raise AssertionError("too many encounters in one corridor")
 
 
+TILE_EXITS, TILE_EXIT_ROW, NO_EXIT = 0x7E7080, 0x100, 0x80   # field_tile_exits
+
+
+def on_an_exit(machine, x, y):
+    """Whether the leader at (x, y) stands on one of the map's exits."""
+    column, row = int(x) // 16, int(y) // 16
+    if not (0 <= column < 64 and 0 <= row < 64):
+        return False
+    return not machine.b(TILE_EXITS + row * TILE_EXIT_ROW + column) & NO_EXIT
+
+
 def search_through(run, goal, seed=1, inside=lambda x, y: True, policy=None):
     """Search a room, stopping to resolve scripted encounters on the way."""
     from .. import bfs
     machine = run.machine
     for _ in range(8):
         assert run.wait_control(), "the room in hand"
+        # An encounter stops the search where it takes the field; a door,
+        # which takes it too as the party steps onto it, leads out of the
+        # room, not to the goal.
         moves, visited = bfs.bfs_walk(machine,
-            lambda m, x, y: inside(x, y) and (goal(m, x, y) or not m.b(PLAYER_CONTROL)),
+            lambda m, x, y: inside(x, y) and (goal(m, x, y) or not m.b(PLAYER_CONTROL)
+                                              and not on_an_exit(m, x, y)),
             run._pos(), lambda m: (run.map_id(), m.b(PLAYER_CONTROL), inside(*run.me())),
             step=16, cell=6, max_nodes=3000)
         run.say("room search", "steps", None if moves is None else len(moves),
@@ -154,6 +182,16 @@ def early_party(bot, state, rng, inventory):
     if character == 2 and state.mp(state.member) >= 1:
         return ("tech", 0, target)
     return ("attack", target)
+
+
+def battle_item(bot, item, target):
+    """Find a usable item in the battle list, which retains depleted slots."""
+    records = bot.machine.peek(0x7E1580, 256 * 5)
+    for index in range(256):
+        record = records[index * 5:index * 5 + 5]
+        if record[0] == item and record[3]:
+            return ("item", index, target)
+    return None
 
 
 def fight(run, seed=1, party=3, policy=early_party, after=True):

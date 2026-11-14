@@ -121,13 +121,18 @@ static uint32_t glyph_byte_place(Tiles t, uint32_t first, uint8_t byte)
 
 /* ---- Drawing ----------------------------------------------------------------------------- */
 
+/* A line of the glyph read from the font and put at the pen. */
+static void draw_glyph_line(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t first, uint8_t byte)
+{
+    put_pixels(g, t, glyph_byte_place(t, first, byte), p, glyph_pixels(g, glyph, byte));
+}
+
+enum { GLYPH_LINE = 0xC25E89 };   /* the drawer's routine for a line of a glyph */
+
 static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t first)
 {
-    uint16_t pixels = 0;
-    for (uint8_t byte = 0; byte < GLYPH_BYTES; byte++) {
-        pixels = glyph_pixels(g, glyph, byte);
-        put_pixels(g, t, glyph_byte_place(t, first, byte), p, pixels);
-    }
+    for (uint8_t byte = 0; byte < GLYPH_BYTES; byte++)
+        TIMED_AS(g, GLYPH_LINE, draw_glyph_line(g, t, glyph, p, first, byte));
     /* Two-byte progress, one-byte count and three-byte destination. */
 }
 

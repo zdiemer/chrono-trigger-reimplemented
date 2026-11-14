@@ -82,3 +82,5 @@ void *arena_take(size_t bytes)
 }
 
 bool arena_fixed(void) { return fixed; }
+
+size_t arena_used(void) { return used; }

@@ -29,6 +29,7 @@
 #include "field/field.h"
 #include "field/layers.h"
 #include "platform/video.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The map's looks ------------------------------------------------------------------------ */
@@ -551,7 +552,7 @@ static const uint32_t drawing_entries[] = { [FIELD_BG1] = 0xC075E9, [FIELD_BG2] 
 
 bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
 {
-    bool fits = layer == FIELD_BG2 ? layer_drawing_fits(g, FIELD_BG2) : layers_repeat_within_the_maps(g);
+    bool fits = PORT_CHECK(layer == FIELD_BG2 ? layer_drawing_fits(g, FIELD_BG2) : layers_repeat_within_the_maps(g));
     if (!fits) {
         program_breaks_a_contract(g, drawing_entries[layer], "a layer the port doesn't draw at the map's load");
         return false;
@@ -579,6 +580,20 @@ bool field_layer_drawn_at_the_load(GameState *g, unsigned layer)
  * map already, and layers the map doesn't show have no looks to build from:
  * both are left alone. */
 enum { RING_ROWS = FIELD_TILE_MAP_ROWS, MOST_MARGIN_COLUMNS = (FIELD_TILE_MAP_COLUMNS - FIELD_SCREEN_COLUMNS - 1) / 2 };
+
+enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS };
+
+static int around_the_ring(int pixels)
+{
+    pixels &= RING_PIXELS - 1;
+    return pixels >= RING_PIXELS / 2 ? pixels - RING_PIXELS : pixels;
+}
+
+/* How far a layer's scroll is into the screen's first column, in pixels. */
+static int fine_scroll(const GameState *g, unsigned layer)
+{
+    return around_the_ring(field_layer_scroll_h(g, layer) - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
+}
 
 /* The map's own columns, which its tables hold (past them they repeat it). */
 static int map_columns_of(const GameState *g, unsigned layer)
@@ -688,6 +703,14 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
         RoomColumns room = room_of(g, layer);
         m->void_left[layer] = edge_is_a_void(g, layer, room.first);
         m->void_right[layer] = edge_is_a_void(g, layer, room.past - 1);
+        /* The screen's last column, which the original's screen shows only
+         * while it is scrolled partway into its first: held at the room's
+         * right edge, the screen has it past the room, where the game draws
+         * the map round from its other side -- in an interior, a neighbouring
+         * room (Crono's when his mother opens the blinds). A margin shows it
+         * whole, so it is built as the margin's columns are. */
+        if (e.right >= room.past && fine_scroll(g, layer) == 0)
+            send_a_margin_column(g, pf, layer, e.right, (uint8_t)((x + FIELD_SCREEN_COLUMNS) & (FIELD_TILE_MAP_COLUMNS - 1)));
         for (int k = 1; k <= margin; k++) {
             send_a_margin_column(g, pf, layer, e.left - k, (uint8_t)((x - k) & (FIELD_TILE_MAP_COLUMNS - 1)));
             send_a_margin_column(g, pf, layer, e.right + k,
@@ -708,7 +731,7 @@ void field_fill_the_views_margins(GameState *g, Platform *pf, bool moved)
  * a pattern the original repeats as it drifts, so it goes on across the map
  * as the picture under it does, rather than ending in an edge. Kept for the
  * battle, which is fought over the field's layers. */
-enum { RING_PIXELS = FIELD_TILE_MAP_COLUMNS * FIELD_ENTRY_PIXELS, ONE_SCREEN_TILES = 16 };
+enum { ONE_SCREEN_TILES = 16 };
 
 static bool veils_the_picture(const GameState *g, unsigned layer)
 {
@@ -718,12 +741,6 @@ static bool veils_the_picture(const GameState *g, unsigned layer)
     bool blended = math.half && (math.layers & bit);
     bool beneath = (field_sub_screen(g) & bit) && !(field_main_screen(g) & bit);
     return blended || beneath;
-}
-
-static int around_the_ring(int pixels)
-{
-    pixels &= RING_PIXELS - 1;
-    return pixels >= RING_PIXELS / 2 ? pixels - RING_PIXELS : pixels;
 }
 
 static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int margin)
@@ -739,7 +756,7 @@ static FieldLayerSpan layer_span(GameState *g, unsigned layer, VidView view, int
     }
     bool own = keeps_own_edges(g, layer);
     ScreenEdges e = screen_edges(g, own);
-    int fine = around_the_ring(scroll - field_layer_position_x(g, layer) * FIELD_ENTRY_PIXELS);
+    int fine = fine_scroll(g, layer);
     int first = e.left - margin, last = e.right + margin + 1;   /* the columns built, the last one past */
     RoomColumns room = room_of(g, layer);
     if (first < room.first && !m->void_left[layer])
@@ -770,6 +787,55 @@ void field_rooms_span(const GameState *g, int16_t *left, int16_t *right)
     *right = room.right;
 }
 
+/* What the layers hold across the view, shown: the ground's layers (BG1 and
+ * BG2, which draw the map) as far as they hold it, BG3 -- laid over or under
+ * them, whose edge is often one entry all the way down, an opaque fill or a
+ * see-through one -- no further than the ground goes, and the backdrop as far
+ * as the ground. Past that the view is black: past a room's edge that is no
+ * void, where the original's screen never goes, BG3's fill and the
+ * backdrop's colour are ones the map never meant to be seen (Denadoro's
+ * grey-blue beside its battles, issue #399). A veil is the exception, as it
+ * is for the map (veils_the_picture): a fog or shade the colour math lays
+ * over the picture goes on across the view, and the backdrop under it, as
+ * the original's screen shows them (Death Peak's fog beside its battles).
+ * The original's screen is always among it. */
+typedef struct {
+    int left, right;
+} Across;
+
+static void widen(Across *across, Across by)
+{
+    if (by.left < across->left)
+        across->left = by.left;
+    if (by.right > across->right)
+        across->right = by.right;
+}
+
+static void show_the_picture_across(Platform *pf, const Across span[FIELD_LAYERS], const bool held[FIELD_LAYERS],
+                                    const bool veil[FIELD_LAYERS])
+{
+    Across ground = { 0, VID_ORIGINAL_VIEW_WIDTH };
+    for (unsigned layer = FIELD_BG1; layer <= FIELD_BG2; layer++) {
+        if (!held[layer])
+            continue;
+        widen(&ground, span[layer]);
+    }
+    Across backdrop = ground;
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        if (!held[layer])
+            continue;
+        Across across = span[layer];
+        if (veil[layer])
+            widen(&backdrop, across);
+        else if (layer == FIELD_BG3) {
+            across.left = across.left > ground.left ? across.left : ground.left;
+            across.right = across.right < ground.right ? across.right : ground.right;
+        }
+        vid_show_a_layer_across(pf, (VidLayer)layer, (int16_t)across.left, (int16_t)across.right);
+    }
+    vid_show_a_layer_across(pf, VID_BACK, (int16_t)backdrop.left, (int16_t)backdrop.right);
+}
+
 void field_show_the_layers_across(GameState *g, Platform *pf)
 {
     VidView view = vid_view(pf);
@@ -778,6 +844,7 @@ void field_show_the_layers_across(GameState *g, Platform *pf)
     FieldMargins *m = field_margins(g);
     uint32_t mark = charge_uncounted_begin(g);
     FieldLayerSpan map = rooms_span(g);
+    Across span[FIELD_LAYERS];
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
         bool shown = ((field_main_screen(g) | field_sub_screen(g)) >> layer) & 1;
         m->span[layer] = shown ? layer_span(g, layer, view, margin_columns(view))
@@ -789,8 +856,10 @@ void field_show_the_layers_across(GameState *g, Platform *pf)
             m->span[layer].right = map.right;
         m->held[layer] = shown;
         m->taken[layer] = false;
-        vid_show_a_layer_across(pf, (VidLayer)layer, m->span[layer].left, m->span[layer].right);
+        m->veil[layer] = shown && still && veils_the_picture(g, layer);
+        span[layer] = (Across){ m->span[layer].left, m->span[layer].right };
     }
+    show_the_picture_across(pf, span, m->held, m->veil);
     charge_uncounted_end(g, mark);
 }
 
@@ -802,11 +871,12 @@ void field_show_the_layers_under_a_battle(GameState *g, Platform *pf, const uint
     if (!vid_view_is_wider(vid_view(pf)))
         return;
     const FieldMargins *m = field_margins(g);
+    Across span[FIELD_LAYERS];
+    bool held[FIELD_LAYERS];
     for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
-        if (!m->held[layer] || m->taken[layer])
-            continue;
         int moved = around_the_ring(scroll[layer] - m->span[layer].scroll);
-        vid_show_a_layer_across(pf, (VidLayer)layer, (int16_t)(m->span[layer].left - moved),
-                                (int16_t)(m->span[layer].right - moved));
+        held[layer] = m->held[layer] && !m->taken[layer];
+        span[layer] = (Across){ m->span[layer].left - moved, m->span[layer].right - moved };
     }
+    show_the_picture_across(pf, span, held, m->veil);
 }

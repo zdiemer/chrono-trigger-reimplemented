@@ -71,14 +71,34 @@ An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
 offset past the resource's end reads on by address, as the original's
-indexing does. 491 of the data headers' reads (call sites) name their
-resource. What the data's own pointers lead to (a stream a table points
-to, a script's text, a bank and a 16-bit place the data gives) is still
-read by the address the original keeps it at, 200 call sites, the address
-a key the catalogue's rows are looked up by. A region the catalogue hasn't
+indexing does. 526 of the game's reads (call sites) name their resource,
+every one whose table starts at a place the code names, two tables in a
+row of the catalogue each an offset in it (`SECOND_UPLOADS_SLOTS`). What
+the data's own pointers lead to (a stream a table points to, a script's
+text, a bank and a 16-bit place the data gives) is still read by the
+address the original keeps it at, 160 call sites, the address a key the
+catalogue's rows are looked up by: a pack can't move those resources until
+it moves the pointers to them too. The scene program's resources it copies
+as they are (the scenes' colours, the planet's order of tiles) are read by
+their number in its table at `$FE:0000` through a list of the rows they lie
+in (`SCENE_RESOURCE_ROWS`, `game/scene/scene_data.h`); the streams it
+unpacks are found where the table, read by name, points. A pointer in the data may name RAM (a
+script or text the game copied or built in work RAM, `$7E:2C35`,
+`$7F:8020`): those reads are the game's RAM's (`wram_data_read8`,
+`game/wram.h`), sent there by `rom_read8` before any cartridge store is
+asked, at the time a cartridge read takes, so a backing's cartridge read
+answers only the cartridge (`runtime/port/rom_host.c`); `assets_test` holds
+a work-RAM and a low-RAM read to it. A region the catalogue hasn't
 typed is cut where each accessor's table starts, the piece named for its
-accessor and still `mixed`, so a read names its own table rather than the
-region it shares (issue #127 types them).
+accessor, so a read names its own table rather than the region it shares;
+then typed as its readers show it: `bytes` where every read of it is a
+byte, `words` where every read is a word (139 rows), and a table of places
+at its start `ptr16` up to the first place it names, what follows its own
+row (`screen_script_start` and the screen scripts, `battlefield_strip_place`
+and the strips, the demo's actions, the windows' strings). Left `mixed`:
+36 rows, 117,842 bytes, 14 of them read (records read a byte and a word,
+values tables of an odd length, and regions only the data's pointers
+reach); 6 `untyped` runs (5,121 bytes) no reader reaches.
 
 ### Palettes, the first decoded resource
 
@@ -123,7 +143,8 @@ each resource under `[name]`), reads it with comments and blank lines dropped
 and refuses wrong text at its line, serves what it read over the store
 beneath, and checks that every resource written and read again gives back its
 bytes. `ct_native` keeps each kind's text beside the pack (`<pack>.palettes`,
-`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.scripts`, `<pack>.text`, `<pack>.records`): where there is none it checks the round trip, writes the file
+`<pack>.fonts`, `<pack>.graphics`, `<pack>.maps`, `<pack>.scripts`, `<pack>.commands`, `<pack>.text`,
+`<pack>.records`): where there is none it checks the round trip, writes the file
 (create-only, so two players starting on one pack don't overwrite each
 other), and on every start stacks each kind's store over the one before and
 remakes the pack in memory from the top, so the game's existing accessors
@@ -278,8 +299,8 @@ two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
 effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
 `lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
 digit a cell; `lz:colors:16` the world maps' packed palettes
-(`menu_scene_stream_c6fea0.N`); and `lz` for the streams that have no
-text of their own yet (the world maps' scene scripts, issue #130), in hex. A
+(`menu_scene_stream_c6fea0.N`); and `lz` for the three attract streams
+whose layout no reader has shown yet, in hex. A
 tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
 so a map is edited by its tile numbers, flips, priority and palettes.
 
@@ -359,6 +380,10 @@ it names (`var:`, `var16:`, `obj:`, `member:`, `story:`, `bit:`; `self`,
 A command whose length its operands decide (the colour effects, the tint's
 short form, the screen commands, the data a copy carries) has its row's
 `MEASURED` length, the same function the engine's operations take it from.
+The names and measures are the text's alone: a build without it (the
+65816's) leaves them out of the table with `CT_SCRIPT_TEXT 0`
+(`game/script_text.h`), which `ct_languages_without_text` compiles every
+build, the battle's and the menus' languages with it.
 Bits of an operand byte no parameter reads would be kept as byteN=XX (N
 its operand) and a command's own data after its operands as
 `data=XX.XX...`; the places a
@@ -372,15 +397,34 @@ rather than `$BA`), the line keeps it as `@AD`. Every byte of the
 cartridge's scripts is read as a command; 6,800 of their 190,000 lines carry
 an opcode, and one jump lands where no command starts (`to=+06`).
 
+A command that says a line (`say`, `ask`) shows it beside the command as a
+comment, which reading leaves alone: the line of the table of strings the
+script last chose (`use_text`, followed in the script's order), as the
+pack's text spells it, cut at 95 bytes:
+
+    say window=00 line=13   # "LARA: Oh no…! Help!!"
+
+5,257 of the cartridge's commands show their line.
+
+The commands the field keeps whole to copy into a script
+(`built_in_command_byte`, `script:event-commands`, 55 bytes) are written as
+a script of no objects, `objects 0` and the commands, and keep their
+length, since the field copies them by place.
+
 A world map's places are its lists, each a record a line in the game's
-order (`game/overworld/setup.c`): `exit` (column, row, name, location, x,
-y), `event`, `halt`, `script`, then the bytes after the lists as `rest`;
+order and layout (`overworld_place_streams`, `game/overworld/places.h`, from
+the work-RAM map's fields, which the map's load and the places' lookups go
+by too): `exit` (column, row, name, location, x, y), `event`, `halt`,
+`script`, then the bytes after the lists as `rest`;
 each list's count is its records', and a list with none is refused, since
 the game reads a count of 0 as 65,536.
 
 An edited resource is packed again and must fit its slot, as the other
 packed kinds; a script may unpack to as much as the game's buffer for it
-(`$1700` bytes). Packed slots are exact, so an edit that packs no smaller
+(`$1700` bytes), which is as long as a command made from its line may be:
+its bytes are made in a scratch the reading allocates, not on the stack.
+A jump's distance is a byte inside its command; the table has no row whose
+jump a measure could move outside it, and the text reads none there. Packed slots are exact, so an edit that packs no smaller
 rarely fits until a pack can give a resource more room (issue #128).
 
 Measured: `scripts_test` (ROM-free) writes and reads back a made-up script
@@ -390,8 +434,70 @@ edited places, only what a text names, and refuses wrong text at its line
 (a parameter no form of the command has, a command that isn't one, a place
 not named or named twice, a jump out of reach, an opcode not the command's,
 a short table, an empty list, lists out of order); with the ROM staged every
-script and list of places of the cartridge reads back as its bytes. The
+script and list of places of the cartridge reads back as its bytes. It also
+checks the table's jumps lie inside their commands and the places' fields
+are bytes and words filling their records. The
 lean gate runs every movie on the decoded scripts.
+
+### Commands
+
+The battle's animation scripts (`script:battle-animation`, four resources),
+the menus' object scripts (`script:object`, three), the world maps' scenes'
+object scripts (`lz:object`, the eight `scene_script_ptrs.N`, packed) and
+the enemies' scripts (`script:enemy-ai`) are the commands kind,
+`frontend/commands.c`, kept as `<pack>.commands`. The first three are
+written from their interpreters' own tables as the event scripts are: the
+battle's (`battle/script_language.h`) and the menus' (`menu/script.h`)
+languages share their C names, so `frontend/battle_language.c` and
+`frontend/menu_language.c` each read one table into a common description
+(`frontend/languages.h`), a row an opcode with its operation's name (the
+table's `OPERATION`, or `NAMED` for the battle's sound rows, which have no
+operation) and its parameters: operand bytes, words and addresses (`slot:`
+before a byte of the running object's, `cell:` before a cell of low RAM),
+and the ones the opcode fixes, which a line gives too and reading matches:
+
+    wait_frames frames=08
+    play_sound voices=18 sound=4E
+    change_byte change=03 byte=cell:0045 value=02
+    jump to=046C
+
+The screen effect, whose settings it carries are as many as its first says,
+is `MEASURED` like the event commands, its settings after the first as
+`data=`; a screen effect giving none reads its count from the next byte, so
+reading measures it over zeros. Where two rows read a line alike (the
+battle's halts, its two forms of `play_and_wait`) `@XX` names the opcode:
+3,513 of the 52,900 lines. Bytes no row reads are `bytes` (the battle's
+commands the port leaves to the original, 569 lines).
+
+The enemies' scripts aren't a table's language (`frontend/enemy_scripts.c`):
+where each enemy's starts is a row of words, then each script's two
+sections, blocks of conditions by their test's name (the conditions' table,
+`enemy_condition_name`) and the actions they choose by name
+(`enemy_action_name`), as many bytes as the battle's table of their lengths
+says; `then` and `done` end a block's conditions and actions, `end` a
+section, and a comment names the enemies whose script starts there:
+
+    # enemy 00
+    if always 00 00 00
+    then
+    do attack 01 05 05
+    done
+    end
+
+Every byte of the enemies' scripts reads as one of these. The names and
+measures are the text's, left out without it (`CT_SCRIPT_TEXT`).
+
+Other tables point into these scripts by place, and the scenes' scripts name
+places in themselves by address, so a script keeps its length: an edit must
+leave it as many bytes as the cartridge's (and the scenes' must pack into
+their slot). Measured: `commands_test` (ROM-free) writes and reads back
+made-up scripts of each language and an enemy's, serves an edited command,
+and refuses wrong text at its line (a command or action that isn't one, a
+value too long, an opcode not the command's, a condition short of its
+bytes, a script a byte longer, a byte shorter); with the ROM staged every
+script of the cartridge reads back as its bytes. The upload records the
+menus queue (`script_c2bece` and nine more) were typed `script` and are
+records, `struct:records:7`.
 
 ### Text
 
@@ -399,19 +505,29 @@ The dialog's and the menus' strings (`text:dialog`, 4695 of them), the
 battle's names and the equipment screen's slot labels (`text:names:11`,
 `text:names:10`) and the dictionary the strings share words from
 (`text:dialog-dictionary`) are the text kind, `frontend/text.c`, kept as
-`<pack>.text`. A string is written as the typesetter reads it
-(`game/menu/typeset.c`): a glyph its letter, digit or sign (the dialog
-font's `“ ” ♪ ♥ … ∞` in UTF-8), a word of the dictionary its glyphs in angle
-brackets, and a control code its name in braces (`{line indent}`, `{page
-read}`, `{wait 0A}`, `{Crono}`, `{member 2}`, `{tech}`), each break ending
-a line of the text; anything else, and a space at a line's ends, in braces
-too (`{F3}`, `{01 7F}`, `{space}`), so every byte has a spelling. A name is
+`<pack>.text`. A string is written as it reads (`game/menu/typeset.c`): a
+glyph its letter, digit or sign (the dialog font's `“ ” ♪ ♥ … ∞` in UTF-8),
+a word of the dictionary its glyphs, and a control code its name in braces
+(`{line indent}`, `{page read}`, `{wait 0A}`, `{Crono}`, `{member 2}`,
+`{tech}`), each break ending a line of the text; anything else in hex in
+braces (`{F3}`, `{01 7F}`), and a space at a line's ends `{space}`, so every
+byte has a spelling. Read back, a string's glyphs are packed with the
+dictionary's words: from the left, at each glyph the longest word starting
+there, the first kept of those. Where the cartridge packed a string
+otherwise, the text says so where it must, so an unedited string reads
+back as its bytes: a word in angle brackets is that word (`<you>r`), `|`
+ends a run that is packed on its own, a glyph in hex is that glyph, and
+`{unpacked}` keeps the run after it as its glyphs (the menus' strings,
+which the cartridge doesn't pack). The writer reads each string back as it
+writes it and, should that ever differ, writes the string's bytes in hex.
+Of the cartridge's 20,700 lines, 172 carry a word and 47 runs are
+`{unpacked}`; none falls back to hex. A name is
 its glyphs in quotes, in the small font, whose signs past `%` differ from
 the dialog font's and are written in hex. The dictionary is its 128 words a
-line, `XX "glyphs"`, in the order they are kept. A word in a string is the
-word the store under the text has with those glyphs (the pack's), so an
-edited dictionary changes every string that uses the word, as in the game;
-two words alike would be ambiguous and are written in hex.
+line, `XX "glyphs"`, in the order they are kept. A string is packed with
+the words the store under the text has (the pack's), so an edited
+dictionary changes every string that uses the word, as in the game; two
+words alike would be ambiguous and are written in hex.
 
 Read back, a string may be no longer than the cartridge's slot for it, its
 end included; a shorter one is ended there and the rest of its slot is
@@ -425,7 +541,8 @@ words from the dictionary quick.
 
 Measured: `text_test` (ROM-free) writes and reads back made-up strings of
 every code, words, signs and bytes no glyph spells, names and a dictionary
-with two words alike; serves a string written afresh (a word, a name, a
+with two words alike; packs plain text (the longest word, a run ended by
+`|`, one `{unpacked}`); serves a string written afresh (a word, a name, a
 wait, a two-byte glyph, a tech) and an edited name, and only what a text
 names; and refuses wrong text at its line (a code that isn't one, braces
 not closed, a word that isn't the dictionary's or is ambiguous, a sign that
@@ -482,7 +599,9 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   each layer holding the original's screen alone, so a tilemap never repeats
   or shows stale columns in the margins unless its mode built them, and what
   lies under it shows there instead -- in the end the backdrop, the colour the
-  original shows where no layer is opaque. A line whose tilemap is one screen
+  original shows where no layer is opaque. The backdrop too can be held to a
+  span (`VID_BACK`), past which the view is black: each frame starts with it
+  across the whole view. A line whose tilemap is one screen
   across (32 tiles: the menus', the battle's and the dialog's panels, which
   line effects switch to partway down) keeps to the original's screen. The
   original's screen itself is always drawn as before. Mode 7 continues its
@@ -517,7 +636,12 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   (`$C0:A88D`), and draws past them: as its edges come in, and for two frames
   after a map's screen is sent, `field_fill_the_views_margins` builds the
   layers' columns either side of the screen from the map into a line of its
-  own and sends them in the vblank (`vid_send_view_vram`, below): the columns
+  own and sends them in the vblank (`vid_send_view_vram`, below) -- in the
+  same vblank where a map transition's send of a whole tile map ends the
+  frame's work, since that send fills the columns past the screen from the
+  map round from its other side (Crono's mother opening the blinds showed the
+  next room for two frames), and with the screen's own last column where it
+  lies past the room unscrolled into: the columns
   of the room the screen is held to, the map's edges it doesn't scroll past
   (`field_map_edges`) -- an interior lays several rooms side by side in one
   map (Truce's houses are one), and the original never shows a room's
@@ -526,8 +650,12 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   the room a column is built as its edge's, and shown only where the edge is
   one entry all the way down (a void), which is judged as the margins are
   built and kept for the frames between, when a battle's data may lie over
-  the map's looks; elsewhere the layer stops at the room and the backdrop
-  shows. Each frame
+  the map's looks; elsewhere the layer stops at the room. Past where the
+  ground's layers (BG1 and BG2) stop, BG3 stops too and the view is black:
+  BG3's edge is often one entry all the way down, a fill the map never meant
+  to be seen (Denadoro's grey-blue, which its battles moved into the view),
+  and so is the backdrop's colour there -- unless BG3 is a veil, which goes
+  on across the view with the backdrop under it (Death Peak's fog). Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
   within the room -- unless it is a veil, a layer drawn whole that the
@@ -572,19 +700,28 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   what they framed. `game/core/panel_layout.h` builds layouts: columns shown
   at a place, a window stretched with its inside's four-column pattern
   repeated.
-- **The battle window** (`game/battle/wide_window.c`) keeps the windows at its
-  left (the command windows, the enemies' list) at the view's left side,
-  stretches the party's window to its right side and spreads each member's
-  name, numbers and gauge across it; the tech page's two windows each stretch
-  to their side, and the item list and the message window across the view.
-  What the window's rows and frames show is noted as the vblank sends them
+- **The battle window** (`game/battle/wide_window.c`) keeps its windows the
+  size the original draws them. Where the frames have a border between
+  windows, those left of it (the enemies' list, a member's command window
+  over it, the tech page's list) go to the view's left side and the one right
+  of it (the party's, the tech page's MP) to its right side, with their text.
+  Between them the renderer shows the battlefield the window hides on the
+  original's screen: the nearest lines without the window, drawn at the
+  window's own lines, wherever every laid-out layer shows nothing; where that
+  picture has nothing of its own (an arena drawn only above the window) the
+  gap stays black. A command window drawn over the enemies' list stands alone: the
+  rest of the list, whose names it covers, is left out rather than shown as
+  an empty piece of a window. The item list and the message window, a screen
+  across, stay in the middle. What the window's rows and frames show is noted as the vblank sends them
   (from the transfer's source, and the frames' window corners), so the layout
   always fits what VRAM holds.
 - **The menus** (`game/menu/panels_across.c`, the mode at `$C2:800E`) take
   a layout per screen from an explicit list in that file. Most screens are
   framed: where a layer runs on in a four-column pattern across the edge of
-  its outer columns (a window's inside, the backdrop), the columns outside it
-  move out to the view's sides and the pattern fills the gap; the lists, text
+  its outer columns (a window's inside, the backdrop) -- and the pattern
+  holds none of the window sides or corners further out, as where the save
+  screen's slot number and title are two boxes side by side -- the columns
+  outside it move out to the view's sides and the pattern fills the gap; the lists, text
   and figures inside stay where the original drew them, and the windows'
   edges at the screen's sides move with the frame. The main menu, the
   equipment, the items, the techs, the settings, the party exchange, the save
@@ -638,6 +775,65 @@ it runs in the non-blocking `suite.py --long` batch rather than the gate.
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.
+
+### Memory, stacks and per-frame work against small targets
+
+`ct_native --measure` (frontend/measure.h) reports what a run holds and does,
+and `tools/measure.py --ct-native <ct_native>` runs it headless over eight
+movies that between them put every mode on screen (the attract sequence, a new
+game, `gato-battle`, `menu`, `field`, `events-epoch-lavos`, `battle-magus`,
+`endings-telepod-lavos`), taking the largest of each figure. The ctest
+`measure` runs one movie and checks the report is whole. Measuring changes
+nothing the game does: the resources are served by the same store through a
+counting wrapper.
+
+What it measures, and how:
+
+- **Sizes**: `sizeof` the GameState and its work RAM's parts, the renderer,
+  the sound player and the picture's observer (with the copies of memory it has
+  taken for the frames' lines), the arena's bytes taken, and the game library's
+  code, constants and static data (`size -t` of the `ct_game` library).
+- **Stacks**: the fiber stacks start zeroed in the arena and grow down, so
+  the lowest byte not zero in a slot is the deepest any fiber in it went
+  (`fiber_stack_high_water`): stack painting, over every frame the movies run.
+- **Resources a mode needs**: each stay in a mode (the vblank handler it
+  installed: the field, a battle, the menus, a scene, the time warp) starts the
+  store's cache afresh, and the bytes of the catalogue's resources the stay
+  reads are summed: the cartridge data a mode reads, in the catalogue's form.
+- **Per-frame work**: host nanoseconds a frame (the host's monotonic clock:
+  QueryPerformanceCounter on Windows, clock_gettime(CLOCK_MONOTONIC) elsewhere),
+  split into the game's frame (its threads and handlers), the sound
+  player and the renderer; the 99th percentile and the heaviest frame per mode.
+  The targets' figures are an estimate, and say so: host time times 12
+  instructions a nanosecond (a desktop core near 4 GHz retiring about three a
+  cycle; `--host-ipc-ghz`), against a frame's worth of the target's: the
+  GBA's ARM7TDMI at 16.78 MHz retiring about half an instruction a cycle from
+  the cartridge or EWRAM (about 140,000 a frame), the SNES's 65816 at 3.58 MHz
+  about one every four cycles (about 15,000 a frame). x86 instructions are
+  neither Thumb's nor the 65816's, and the host was shared with other work, so
+  the heaviest frames are noisy; the 99th percentile is the representative one.
+
+Measured on the gate's build (2026-11-13):
+
+| What | Host | Fits the SNES (128 KiB WRAM, 64 KiB VRAM, 3.58 MHz)? | Fits the GBA (256 KiB EWRAM, 32 KiB IWRAM, 96 KiB VRAM, 16.78 MHz)? |
+|---|---|---|---|
+| GameState | 529.1 KiB: work RAM's parts 372.0 KiB, diagnostics 136.2 KiB (`overlay_writer` 116.5, `crossed` 19.7), save RAM and the rest 21 KiB | No: the parts alone are 2.9x WRAM (244 KiB over); the original fits them by overlaying the modes' memory | No as a whole (372 KiB is 116 KiB over); a mode's set does (below) |
+| A mode's work RAM at once (core, event, palettes and the small parts, plus the mode's) | field 164.1, field with the menus 229.4, field with a battle 210.2, world map 150.9, scene 146.8, time warp 142.2 KiB | No: each is over 128 KiB (by 14-101 KiB) | Yes, each under 256 KiB (27-114 KiB to spare), the modes overlaid as the original overlays them |
+| Largest parts | event 110.5 (its script buffer 56.0), field 49.6, battle 46.1, world map 36.4, sprite-object mode 33.2, scene 32.3, menus 32.1, warp 27.7 KiB | Event alone is 86% of WRAM | Fits |
+| Game library | code and constants 1947.2 KiB, static data 117.5 KiB | Code: a ROM's, not WRAM; the static data is 92% of WRAM besides | Code in the cartridge's 32 MiB; static data 46% of EWRAM besides |
+| Renderer, observer | 253.6, 186.8 KiB | Not needed: the PPU draws | Not needed: the GBA's PPU draws, from VRAM the port fills |
+| Sound player | 126.4 KiB (the sound processor's 64 KiB and its mixer) | Not needed: the APU | Over budget as is: a GBA needs its own player in EWRAM |
+| Picture memory | the SNES's own: 64 KiB VRAM, 512 B CGRAM, 544 B OAM, kept by the observer | Fits: it is the SNES's | Fits 96 KiB VRAM, 32 KiB to spare, where 2bpp layers are widened to the GBA's 4bpp (BG3 doubles) |
+| Resources one stay reads | battle 565.8, field 518.5, menus 451.4, scene 379.0, warp 270.6 KiB; the catalogue 3.67 MiB | ROM: no RAM | Cartridge ROM: no RAM |
+| Fiber stacks | 16 slots of 512 KiB reserved; deepest use 3,432 bytes (the main thread), then 1,768 and under 1,300 in the six task slots used | 8 KiB of stack would do; the 65816's are in WRAM | Seven slots of 4 KiB fit IWRAM (28 KiB) |
+| Work a frame, 99th percentile (game; game and sound on the GBA) | battle 0.14+0.10 ms, field 0.24+0.13, menus 0.35+0.14, scene 0.08+0.11, warp 0.01+0.09 | No: 10-282x a frame's 65816 work (field 189x) | No: 9-42x a frame's ARM7 work (field 32x, menus 42x) |
+| Work a frame, heaviest | game up to 10.3 ms (field, a noisy single frame) | No | No |
+
+The figures say where the small targets' work lies: the work RAM fits a GBA
+mode by mode, and the stacks fit its fast RAM, once the host's diagnostics, its
+renderer and its sound processor are left out; the per-frame work is one to two
+orders of magnitude over both CPUs, so a GBA build needs the game's frame
+made far cheaper, not only fitted. Run `tools/measure.py` again to remeasure.
 
 ## Scene map fills
 

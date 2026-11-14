@@ -352,7 +352,7 @@ void menu_draw_member_card(GameState *g, Platform *pf)
  * card's figures were worked out on. */
 bool menu_redraw_member_card(GameState *g, Platform *pf)
 {
-    if (!menu_member_card_can_be_drawn(g)) {
+    if (!PORT_CHECK(menu_member_card_can_be_drawn(g))) {
         program_breaks_a_contract(g, 0xC2A22F, "a member card the port doesn't draw");
         return false;
     }

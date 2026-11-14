@@ -184,7 +184,7 @@ static void go_dark(GameState *g, Platform *pf) { TIMED_AS(g, DISPLAY_BLANK_AND_
 /* The field put aside for a menu, where the party is one the port keeps. */
 static bool put_aside(GameState *g)
 {
-    if (!field_party_can_be_kept(g)) {
+    if (!PORT_CHECK(field_party_can_be_kept(g))) {
         program_breaks_a_contract(g, FIELD_PUT_ASIDE_ENTRY, "a party the port doesn't keep for a menu");
         return false;
     }
@@ -332,7 +332,7 @@ static bool party_links_readable(const GameState *g);
 /* The party brought back, where it is one the port brings back. */
 static bool party_back(GameState *g, Platform *pf)
 {
-    if (!party_links_readable(g)) {
+    if (!PORT_CHECK(party_links_readable(g))) {
         program_breaks_a_contract(g, BRING_THE_PARTY_BACK, "a party the port doesn't bring back");
         return false;
     }

@@ -108,8 +108,9 @@ slot 1: defeat Retinite, leave Robo with Fiona in 600 A.D., fly the Epoch to
 1000 A.D., land and save. `tools/movies/routes/prepare_luccas_mother.py`
 repeats those prerequisites and exports the game's SRAM; its long movie is a
 hand-run route kept outside the library. The library's `luccas_mother` route
-starts from this boundary. The preparation's 40031-frame replay reproduces
-this SRAM byte for byte.
+starts from this boundary. The preparation took 40031 frames when this save
+was made; a rerun writes the same story state, its frame count and so the
+save's play time following the current build's timing.
 
 The stock saves bracket too much: fantasyanime `ctsave12` slot 3 still has
 the desert closed (`$7F:00F7 = $00`), while `ctsave13` slot 1 has Lara already
@@ -157,6 +158,9 @@ route plays the 4400-frame `events-blackbird` opening, recovers Marle's,
 Robo's and Lucca's equipment and the inventory, clears the corridor patrols,
 and returns through the ducts to the cell. A Shelter restores the party;
 the normal save-point screen writes slot 1. Preparation took 74786 frames.
+Run again, the route writes the cartridge's battery RAM to `<prefix>.srm` in
+its scratch directory, as every route does; `route_check` fails a route that
+changes anything under `saves/` or leaves the working tree otherwise changed.
 No memory edits or machine state are needed to load it.
 
 The save is in the cell (`$173`), story `$7F:0000 = $CF`, with equipment

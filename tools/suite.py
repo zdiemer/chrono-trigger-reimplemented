@@ -15,7 +15,7 @@ BUDGET = 600
 if __package__ in (None, ""):
     sys.path.insert(0, str(ROOT))
 from tools.movies.route_check import DEFAULT_ROUTES, all_routes
-from tools import outcomes
+from tools import native_slots, outcomes
 
 GATE_MOVIES = ROOT / "tools/gate_movies.txt"
 
@@ -135,11 +135,15 @@ def main(argv=None):
         ('portsmell', [py, 'tools/portsmell.py', '--check']),
         ('doc-names', [py, 'tools/doc_names.py', '--check']),
     ]
-    # Two lanes: the stages that run ct_native take turns (movies already uses
-    # both of its -j processes), while the source checks and unit tests, which
-    # don't, run beside them. Each stage's output is printed whole as it ends.
-    plays = {'movies', 'outcomes', 'routes', 'snapshots'}
-    lanes = [[s for s in stages if s[0] in plays], [s for s in stages if s[0] not in plays]]
+    # Lanes run side by side: the movies (then their outcomes), the routes and
+    # the snapshots, whose ct_native processes share the gate's two slots
+    # (tools/native_slots.py) so that none waits for another stage to end;
+    # the unit tests; and the source checks with the native tests, whose map
+    # pictures' ct_native takes a slot too.
+    plays = {'movies', 'routes', 'snapshots', 'native-unit'}
+    lane_of = {'movies': 0, 'outcomes': 0, 'routes': 1, 'snapshots': 2, 'unit': 3}
+    lanes = [[s for s in stages if lane_of.get(s[0], 4) == n] for n in range(5)]
+    slots = '%s:%d' % (args.out / 'native-slots', max(1, min(args.jobs, 2)))
     results, printing = {}, threading.Lock()
 
     def run_lane(lane):
@@ -149,7 +153,8 @@ def main(argv=None):
             with log.open('wb') as out:
                 try:
                     status = subprocess.run(command, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT,
-                                            env=dict(os.environ, CT_TEST_BUILD=str(binary.parent))).returncode
+                                            env=dict(os.environ, CT_TEST_BUILD=str(binary.parent),
+                                                     **({native_slots.ENV: slots} if name in plays else {}))).returncode
                 except OSError as error:
                     out.write(str(error).encode() + b'\n')
                     status = 1
