@@ -193,8 +193,21 @@ from his basket, which holds the hilt; Truce Canyon's Gate, the End of Time's
 Medina pillar and Melchior, who wants a Dreamstone; the south-west pillar to
 65,000,000 B.C.; at Ioka's feast a fixed round of talk brings on Ayla's soup
 race, won by pressing A as fast as it counts; and in the morning, the Gate Key
-gone, Ayla joins (Crono 17, Ayla 18, Marle 16). It ends there, at story $78
-(frame 1067447), where leg B's save stands. Lab 16's Shadows,
+gone, Ayla joins (Crono 17, Ayla 18, Marle 16), at story $78, where leg B's
+save stands. On the way it buys Mid Tonics at Dorino for 65,000,000 B.C. and,
+at Melchior's, a Red Katana, a Robin Bow and Titan Vests; Ioka's healer rests
+the party before the Forest Maze. From there it plays leg B's own phases
+(`playthrough_leg-b`'s `play()`, their checkpoints named apart with
+`Run.chapter`), with Crono's magic kept for Nizbel. After Frog joins, the party
+that fights Magus trains at the Denadoro Mountains' foot, whose monsters come
+back each time it steps between the entrance and the map above (87 experience a
+thousand frames with this party; Lab 16 gave 6, and the Cursed Woods' fights
+the walk didn't find), 144 fights to levels 25/24/24; Magus then falls without a
+retry (at 19-20 the bot needed 1,764 tries, at 21-22 522). It ends with Magus
+beaten (the checkpoint named for Magus in leg B's chapter, frame 2160593 on a full run). The Guardian is fought with the early policy, which heals with Tonics,
+after Tonics to full HP: #422's load rates moved the fights before it, the
+party arrived with its magic spent, and the general policy, whose heals are
+spells, needed over 9,000 tries. Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 

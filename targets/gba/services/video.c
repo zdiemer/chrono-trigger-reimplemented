@@ -1153,6 +1153,7 @@ typedef struct {
 typedef struct {
     bool active, transfer;
     uint8_t bank, count;
+    uint8_t unit;       /* the bytes a transfer takes, by its target */
     uint16_t cursor, indirect, wakes;
 } Slot;
 
@@ -1207,9 +1208,9 @@ static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
     lines_read_hash = hash_on(lines_read_hash, bytes, READ_LINE_BYTES);
 }
 
-static uint8_t line_read(uint32_t addr)
+/* The 32 bytes of the tables at `line` (an address / READ_LINE_BYTES). */
+static const uint8_t *line_bytes(uint32_t line)
 {
-    uint32_t line = addr / READ_LINE_BYTES;
     ReadLine *r = &read_lines[line % READ_LINES];
     if (r->tag != line + 1) {
         r->tag = line + 1;
@@ -1217,7 +1218,28 @@ static uint8_t line_read(uint32_t addr)
         if (lines_read_kept)
             keep_line_read(line, r->bytes);
     }
-    return r->bytes[addr % READ_LINE_BYTES];
+    return r->bytes;
+}
+
+static uint8_t line_read(uint32_t addr)
+{
+    return line_bytes(addr / READ_LINE_BYTES)[addr % READ_LINE_BYTES];
+}
+
+/* A transfer's `n` bytes from `at` on in `bank`, the address wrapping in the
+ * bank as HDMA's does: from one read of the tables where they lie in one 32
+ * bytes (which a bank's end never splits), a byte at a time where not. */
+static void table_unit(uint8_t bank, uint16_t at, uint8_t n, uint8_t out[4])
+{
+    uint32_t from = (uint32_t)bank << 16;
+    if ((at % READ_LINE_BYTES) + n <= READ_LINE_BYTES) {
+        const uint8_t *p = line_bytes((from | at) / READ_LINE_BYTES) + at % READ_LINE_BYTES;
+        for (unsigned k = 0; k < n; k++)
+            out[k] = p[k];
+        return;
+    }
+    for (unsigned k = 0; k < n; k++)
+        out[k] = line_read(from | (uint16_t)(at + k));
 }
 
 /* Whether the tables still hold what the last frame's lines read of them. */
@@ -1583,7 +1605,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
     Slot slots[8];
     for (unsigned i = 0; i < 8; i++) {
         slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
-                           .cursor = (uint16_t)snes.slot[i].table.addr };
+                           .unit = unit_bytes(snes.slot[i].target), .cursor = (uint16_t)snes.slot[i].table.addr };
         if (slots[i].active)
             slot_entry(&slots[i], &snes.slot[i]);
     }
@@ -1625,12 +1647,18 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 continue;
             }
             touched |= sl->transfer;
-            if (sl->transfer)
-                for (unsigned k = 0, n = unit_bytes(e->target); k < n; k++) {
-                    uint32_t src = e->indirect ? (uint32_t)e->indirect_bank << 16 | sl->indirect++
-                                               : (uint32_t)sl->bank << 16 | sl->cursor++;
-                    line_apply(&st, e->target, k, line_read(src));
+            if (sl->transfer) {
+                uint8_t unit[4];
+                if (e->indirect) {
+                    table_unit(e->indirect_bank, sl->indirect, sl->unit, unit);
+                    sl->indirect = (uint16_t)(sl->indirect + sl->unit);
+                } else {
+                    table_unit(sl->bank, sl->cursor, sl->unit, unit);
+                    sl->cursor = (uint16_t)(sl->cursor + sl->unit);
                 }
+                for (unsigned k = 0; k < sl->unit; k++)
+                    line_apply(&st, e->target, k, unit[k]);
+            }
             sl->count--;
             sl->transfer = (sl->count & 0x80) != 0;
             if (!(sl->count & 0x7F))
@@ -1663,15 +1691,20 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     static uint8_t worked_out IN_FAST_RAM, tries IN_FAST_RAM;
     LinesFrom from;
     lines_from(&from, &pf->video, layers_enabled);
-    uint32_t from_hash = hash_on(FNV_START, &from, sizeof from);
     LineState st;
     uint8_t count;
-    if (last_stands && !laid_out && from_hash == last_from && tables_unchanged()) {
+    bool may_stand = last_stands && !laid_out;
+    if (!may_stand)
+        lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
+    /* the starting point's hash, where it is compared or kept */
+    uint32_t from_hash = may_stand || lines_read_kept ? hash_on(FNV_START, &from, sizeof from) : 0;
+    if (may_stand && from_hash == last_from && tables_unchanged()) {
         st = last_left;
         count = changes;
         worked_out = 0;
     } else {
-        lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
+        if (may_stand)
+            lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
         st = from.st;
         count = work_out_lines(&pf->video, &st, layers_enabled);
         last_from = from_hash;
