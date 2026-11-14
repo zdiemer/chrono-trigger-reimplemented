@@ -48,17 +48,20 @@ void state_host_restore(GameState *g, const uint8_t *in);
 
 /* The game's time since the timing backend last took it, at the front of the
  * state after its storage, so that an accessor charges its access with no
- * call. The rate is the routine's the work is timed as
- * (charge_time_as_begin), as whole clocks and thousandths of one; the work is
+ * call. An access only counts its bus clocks (raw_bus); they are priced when
+ * the rate changes, as a stretch begins or ends and as the backend takes the
+ * work (state_host_take_owed): at the rate of the routine the work is timed as
+ * (charge_time_as_begin), as whole clocks and thousandths of one. The work is
  * whole master clocks and thousandths, kept under MILLI_LIMIT and made whole
- * as they pass it: the same sum as their product in thousandths, in 32 bits. */
+ * as they pass it: the same sum as each access's product in thousandths, in
+ * 32 bits. */
 typedef struct {
-    uint32_t raw_bus;         /* accesses inside a retired operation, before its rate is applied */
+    uint32_t raw_bus;         /* every access's bus clocks, the uncounted ones too */
+    uint32_t priced;          /* raw_bus when the clocks before it were priced */
     unsigned uncounted;       /* nested stretches whose accesses aren't the game's own time */
     uint32_t rate;            /* the cost_milli the game's accesses are timed at now; 0, none */
     uint32_t rate_clocks, rate_milli;
     uint32_t work_clocks, work_milli;
-    bool reporting;           /* the run keeps the per-routine totals (state_host_record_time) */
 } StateHostAccount;
 /* A state's first member, its head: the storage, then the time account. The
  * accessors reach both with no call, through C's own rule that a pointer to a
@@ -99,26 +102,11 @@ unsigned long state_host_strays(const GameState *g, uint32_t *first, unsigned *k
 uint32_t state_host_take_owed(GameState *g);
 /* An access the game made (its accessors, its reads of the cartridge, save
  * RAM through the save service), of `clocks` master clocks on the machine,
- * timed at the rate of the routine its work is timed as. */
-/* An access the inline path takes: its clocks times a rate's whole clocks and
- * thousandths can't carry either sum past 2^32 while every rate is at most
- * 4,096 whole clocks (tests/test_time_rates.py holds the table to it). */
-enum { STATE_HOST_MILLI_LIMIT = 0x40000000, STATE_HOST_ONE_ACCESS_MOST = 0xFFFF };
-#define STATE_HOST_CLOCKS_NEAR_FULL 0xF0000000u
-
-/* An access of `clocks` the machine's bus takes, at the current rate. */
-void state_host_game_access_slowly(const GameState *g, uint32_t clocks);
+ * timed at the rate of the routine its work is timed as: counted here, and
+ * priced with the rest of its stretch's. */
 static inline void state_host_game_access(const GameState *g, uint32_t clocks)
 {
-    StateHostAccount *a = &state_host_head(g)->account;
-    if (a->uncounted || a->reporting || clocks > STATE_HOST_ONE_ACCESS_MOST ||
-        a->work_milli >= STATE_HOST_MILLI_LIMIT || a->work_clocks >= STATE_HOST_CLOCKS_NEAR_FULL) {
-        state_host_game_access_slowly(g, clocks);
-        return;
-    }
-    a->raw_bus += clocks;
-    a->work_clocks += clocks * a->rate_clocks;
-    a->work_milli += clocks * a->rate_milli;
+    state_host_head(g)->account.raw_bus += clocks;
 }
 /* The clocks a cartridge read takes, which a read through a pointer the
  * data holds takes too, into RAM as into the cartridge. */

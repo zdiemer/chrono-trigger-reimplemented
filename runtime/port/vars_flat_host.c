@@ -30,11 +30,13 @@ void vars_host_init(VarsHost *h)
             h->bank[at >> 16][at & 0xFFFF] = 0;
 }
 
+/* A byte no owner keeps reads as the 0 it holds (above), so a read needs no
+ * look at its owners. */
 bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value)
 {
-    if (!vars_flat_owned(addr))
-        return false;
     uint32_t at = addr - WORK_RAM;
+    if (at >= 2u * BANK_BYTES)
+        return false;
     *value = h->bank[at >> 16][at & 0xFFFF];
     return true;
 }
