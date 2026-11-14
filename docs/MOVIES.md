@@ -243,7 +243,7 @@ frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
 1). Crono joins in Marle's place at the End of Time, and the purse buys in
 the 12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
 the party's techs, healed from the bag between them; the shell's own form
-with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
+with `holding_out`, which heals first), then `lavos_inner`. Before anyone
 acts, an arm casts a spell that hits each member once: 37 power on the arm's
 level 50 and magic 50 (read from its stat block in ct_native, $C1:E0F5),
 (50 x 12 + 50 x 12) x 37 / 15 = 2,960, of which a member keeps 256 less two
@@ -259,9 +259,15 @@ defence of 127, and the party's strongest single techs go on the arms
 together and then the body. Crono, Frog and Robo, for the Triple Raid the
 guides aim at the core, lost the inner form instead (arms at 11,654 of
 20,000 together after 1,009 retries): this save's Frog knows four techs, no
-Leap Slash or Cure 2. The party is healed and its MP topped up
-before the body's last 4,000 HP, since the core's fight follows with no field
-between. `lavos_core` heals first, frees a member the core's spell stops
+Leap Slash or Cure 2: techs come from tech points, which only the members
+fighting earn (game/battle/rewards_techs.c), and this player's Frog has sat
+in reserve since. Crono comes back 48 points short of Luminaire, his spell on
+every enemy, and the route flies into the Black Omen from 1000 A.D. for its
+first fight, which pays them, and leaves; he casts it on the inner form,
+and on the core once its left bit, which takes in all four elements, is
+down. The party is healed and its MP topped up before the body's last 9,000
+HP (a Luminaire takes some 4,000), since the core's fight follows with no
+field between. `lavos_core` heals first, frees a member the core's spell stops
 (the stat block's Stop bit) with a Heal, hastens where Marle is in the
 party, and guards everyone: the
 center strikes all three at once with a blow of 240 power on its attack of
@@ -272,14 +278,14 @@ lower in the moment one falls, when it is hit), and leaves some choices to
 chance so the bot's retries can vary. The core's stats in ct_native are the
 ROM's enemy records' ($CC:4700: the center's attack 100 and defence 127,
 the right bit's defence 255). Measured end, played on this branch: Crono,
-Lucca and Robo beat the inner form (the core's fight begins at frame
-1,294,691, the party at 929, 981 and 999 HP), and in 1,320 retries of the
-core the deepest line reaches its 55th decision, with the right bit at
-23,236 of 30,000 at best (Crono, Marle and Lucca reached 19,622). This
-party has neither Crono's Luminaire nor a healer's party-wide cure beyond
-Robo's Heal Beam, and the bag has 2 Elixirs and no Megalixirs; the Black
-Omen's chests hold six Megalixirs, the Haste Helm and four Speed Tabs
-(issue #340).
+with Luminaire, Lucca and Robo beat the inner form in 12 seconds of the
+bot's search, and enter the core at about 60% of their HP; in 753 retries
+of the core the deepest line reaches its 31st decision, with the right bit
+at 26,237 of 30,000 at best. Without Luminaire this party reached its 55th
+decision and 23,236, and Crono, Marle and Lucca 19,622. The Black Omen's
+chests (bank $F5's lists: its locations $139-$145) hold six Megalixirs, the
+Haste Helm and four Speed Tabs past the Mega Mutant, whose fight a probe
+reached and the route does not yet take (issue #340).
 The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
