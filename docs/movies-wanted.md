@@ -679,13 +679,10 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   scoreboard (`$0DF`/`$0E1`) shows a 16-bit number.
 
 ### 13. The story events no movie plays
-The library now plays the story from the Cathedral to Lavos, the side quests and the fair's games
-(their accounts are in history/movie-routes.md). Of the story's events with a save just before
-them (saves/README.md), one is left:
-
-| Era | Event | Save before it | Boss |
-|---|---|---|---|
-| 600 A.D. | Denadoro and the Masamune | ctsave04 slot 2 | Masa & Mune (`battle-denadoro` may hold the fight) |
+The library and the routes now play the story from the Cathedral to Lavos, the side quests and the
+fair's games (their accounts are in history/movie-routes.md); the last event with a save just
+before it that no movie played, Denadoro and the Masamune (ctsave04), the playthrough route plays
+(MOVIES.md, "Routes as a test").
 
 ### 14. The original's known glitches
 A faithful port reproduces the original's mistakes, so plays that lean on its documented glitches
