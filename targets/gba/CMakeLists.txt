@@ -38,7 +38,7 @@ add_executable(ct_gba
   ${CT_ROOT}/runtime/platform/native/timing.c ${CT_ROOT}/runtime/platform/native/input.c
   ${CT_ROOT}/runtime/platform/native/audio.c ${CT_ROOT}/runtime/platform/native/save.c
   ${CT_ROOT}/runtime/platform/voices.c
-  ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/movie.c ${CT_ROOT}/frontend/checksum.c
+  ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/checksum.c
   start.s switch.s fiber.c system.c silent_mixer.c video.c main.c)
 target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_FLAT_STATE SOUND_NATIVE_AUDIO_FRAMES=16
   SOUND_NATIVE_MIXER="silent_mixer.h" VID_HOST_NO_WIDER_VIEW)

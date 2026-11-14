@@ -9,9 +9,11 @@ committed.
         --movie movies/title-start.ctm --out build/gba/title-start.gba
 
 The pack after the program (targets/gba/main.c, PackHead): "CTGB", the
-catalogue's version and its count, where the movie's text is and its length,
+catalogue's version and its count, the movie's frames and where its pads are,
 where the save RAM is (0: none); then each resource's place and length, in
-the catalogue's order; then the resources, the movie and the save RAM.
+the catalogue's order; then the resources, the movie's pads (a word a frame,
+the first controller's in its low half and the second's in its high, as
+tools/movies/mkmovie.py's pad words) and the save RAM.
 """
 import argparse
 import pathlib
@@ -23,6 +25,7 @@ import zlib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools import assets, rom  # noqa: E402
+from tools.movies import mkmovie  # noqa: E402
 
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
 HEAD = struct.Struct("<4sIIIII")
@@ -52,6 +55,15 @@ def header_check(image):
     return (-(sum(image[0xA0:0xBD]) + 0x19)) & 0xFF
 
 
+def movie_pads(text):
+    """A movie's frames (its `# frames` line, or its last event's end) and
+    its pad words, a frame each."""
+    events = mkmovie.parse_movie(text)
+    found = re.search(r"^# frames (\d+)", text, re.M)
+    frames = int(found.group(1)) if found else max((start + count for start, count, _ in events), default=0)
+    return frames, mkmovie.pads_from_events(events, frames)
+
+
 def pack(program, cartridge, movie_text, sram):
     parts = resources(cartridge)
     out = bytearray(program)
@@ -64,14 +76,16 @@ def pack(program, cartridge, movie_text, sram):
         body += bytes(-(table + len(body)) % 4)
         entries.append((table + len(body), len(data)))
         body += data
-    movie_at = table + len(body)
-    body += movie_text
+    frames, pads = movie_pads(movie_text.decode("utf-8"))
+    body += bytes(-(table + len(body)) % 4)
+    pads_at = table + len(body)
+    body += struct.pack("<%dI" % frames, *pads)
     sram_at = 0
     if sram is not None:
         body += bytes(-(table + len(body)) % 4)
         sram_at = table + len(body)
         body += sram
-    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), movie_at, len(movie_text), sram_at)
+    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), frames, pads_at, sram_at)
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body

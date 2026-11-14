@@ -15,7 +15,6 @@
 #include "checksum.h"
 #include "core/program.h"
 #include "data/assets.h"
-#include "movie.h"
 #include "platform/native/host.h"
 #include "port/arena.h"
 #include "port/fiber.h"
@@ -26,11 +25,11 @@
 #include "gba_video.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
- * order, the movie's text and the save RAM it starts from. */
+ * order, the movie's pads and the save RAM it starts from. */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
-    uint32_t movie_at, movie_length;
+    uint32_t frames, pads_at;      /* the movie: its frames, and a pad word each (pack.py) */
     uint32_t sram_at;              /* 0: none, save RAM erased */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
@@ -138,16 +137,8 @@ int main(void)
     source = (AssetSource){ pack_resource, (void *)head };
     assets_use(&source);
 
-    ct_movie movie;
-    if (ct_movie_parse(&movie, (const char *)head + head->movie_at, head->movie_length, "movie") != 0)
-        abort();
-    uint32_t frames = movie.length;
-    const char *text = (const char *)head + head->movie_at;
-    for (const char *line = text; line < text + head->movie_length; line++)
-        if (!strncmp(line, "# frames ", 9)) {
-            frames = (uint32_t)strtoul(line + 9, NULL, 10);
-            break;
-        }
+    uint32_t frames = head->frames;
+    const uint32_t *pads = (const uint32_t *)((const uint8_t *)head + head->pads_at);
 
     GameState *g = state_host_create_lasting(head->sram_at ? (const uint8_t *)head + head->sram_at : NULL);
     static Platform pf;
@@ -170,10 +161,8 @@ int main(void)
     cycles_start();
     for (uint32_t frame = 0; frame < frames; frame++) {
         ct_gba_frame = frame;
-        uint16_t buttons = frame < movie.length ? ct_movie_buttons(&movie, frame) : 0;
-        uint16_t second = frame < movie.length ? ct_movie_buttons2(&movie, frame) : 0;
-        in_host_set(&pf, 0, buttons);
-        in_host_set(&pf, 1, second);
+        in_host_set(&pf, 0, (uint16_t)pads[frame]);
+        in_host_set(&pf, 1, (uint16_t)(pads[frame] >> 16));
         uint32_t began = cycles_now();
         tm_host_frame(&pf);
         uint32_t game_done = cycles_now();
