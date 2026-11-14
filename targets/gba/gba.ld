@@ -5,9 +5,9 @@
  * appends the cartridge's resources and the movie after `__rom_end`. Work
  * RAM (EWRAM, 256 KiB at 0x02000000) holds the data and the zeroed state,
  * then the arena (port/arena.h) up to its end. Fast RAM (IWRAM, 32 KiB at
- * 0x03000000) holds the driver's own stack at its top. Video RAM holds the
- * game's second bank of work RAM (targets/gba/memory.c), as no picture is
- * drawn. */
+ * 0x03000000) holds the code that must be fast (the picture's line
+ * interrupt), the fibers' stacks and the driver's own stack at its top.
+ * Video RAM is the picture's (targets/gba/video.c). */
 OUTPUT_FORMAT("elf32-littlearm")
 OUTPUT_ARCH(arm)
 ENTRY(_start)

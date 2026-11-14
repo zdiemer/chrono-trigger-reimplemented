@@ -284,8 +284,8 @@ of the core the deepest line reaches its 31st decision, with the right bit
 at 26,237 of 30,000 at best. Without Luminaire this party reached its 55th
 decision and 23,236, and Crono, Marle and Lucca 19,622. The Black Omen's
 chests (bank $F5's lists: its locations $139-$145) hold six Megalixirs, the
-Haste Helm and four Speed Tabs past the Mega Mutant, whose fight the route
-reaches but does not yet take (issue #340).
+Haste Helm and four Speed Tabs past the Mega Mutant, whose fight a probe
+reached and the route does not yet take (issue #340).
 The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
