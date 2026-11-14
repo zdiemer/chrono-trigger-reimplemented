@@ -1182,7 +1182,7 @@ end as ct_native's with the sound playing.
   queued, the sound as it plays once the game keeps its time. Neither plays
   anything aloud.
 
-Approximated, or not heard (the S-DSP's own detail the GBA can't afford):
+Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #457):
 
 - The Gaussian interpolation: the nearest sample, at a third of the S-DSP's
   rate, so what lies above 6.7 kHz is lost or folds back.
