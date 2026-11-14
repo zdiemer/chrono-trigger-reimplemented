@@ -215,13 +215,18 @@ no match for Lavos (its shell's blows take 400-500 HP a member, and its inner
 form wipes a party at 45 before anyone acts), so the leg grows it at Death
 Peak on the way up, where crossing between the slope's top and the lower
 field brings back the monsters by the way in, healing from the bag and Robo's
-Heal Beam between rounds, until everyone is at level 52 (those in reserve
-take a share, so Crono comes back at 50). It has to be then: above the slope
+Heal Beam between rounds, until everyone is at level 58 or the bag's
+healing is down to 8 (those in reserve take a share, at most a level a
+fight, so Crono comes back at 54); then Marle wears the Wallet, which pays
+each fight's experience as gold, until the purse holds 200,000: at the
+route's prices, two Aeon Suits and Helms (33,600), Full Tonics to 99 (up to
+69,300) and some 48 Mid Ethers (96,000), with change for Mid Tonics and
+Ethers; filling the bag with all four to 99 would cost about 390,000. It has to be
+then: above the slope
 the field's ledges drop one way, and only the summit's scene leaves it (the
 frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
-1). Crono joins in Robo's place at the End of Time, and the grown purse buys
-Aeon Suits and Helms and Full and Mid Tonics and Ethers in the 12000 B.C.
-village's shop. The fights take the `lavos_shell` policy (the imitations with
+1). Crono joins in Robo's place at the End of Time, and the purse buys in
+the 12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
 the party's techs, healed from the bag between them; the shell's own form
 with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
 acts, an arm casts a spell that hits each member once: 37 power on the arm's
@@ -232,16 +237,23 @@ variance. Computed so, a member at full HP needs magic defence of about 70
 to live through it (69 at 999 HP, 73 at 891); ct_native showed the hits at
 105, 651 and 999 for Marle (99), Crono (80) and Robo (67, all his 999 HP:
 1,029 before the cap), and the ROM's constants at $C1:E203 and $C1:E65F are
-the port's. So Crono, Marle and Lucca (94) go in; Barriers and Shields from
-the bag, then the arms together and the body. `lavos_core` reads the right
-bit's defence from its stat block: 255 while the others stand, lower in the
-moment one falls, when everyone hits it. Measured end (the leg played to
-there at 2e22ad12, before the merge of main that followed; this head is
-checked only by the gate): the inner form is beaten (the core's fight
-begins at frame 1,207,252) and the core wipes the party every time, which
-enters it at about half its HP with no MP and an empty bag (the shell's
-imitations and the inner form spend all 94 Full Tonics, the Lapis, the
-Barriers and the Shields).
+the port's. So Crono, Marle and Lucca (94) go in, with each member's
+strongest single techs on the arms together and then the body; Marle's
+Cure 2 heals before the tonics, and the party is healed and its MP topped up
+before the body's last 4,000 HP, since the core's fight follows with no field
+between. `lavos_core` heals first, frees a member the core's spell stops
+(the stat block's Stop bit) with a Heal, hastens, and guards everyone: the
+center strikes all three at once with a blow of 240 power on its attack of
+100 (2,666 before defence, recorded in ct_native), which kills Lucca (155
+defence) unless Lucca's Protect or a Shield takes three tenths off. It reads
+the right bit's defence from its stat block (255 while the others stand,
+lower in the moment one falls, when it is hit), and leaves some choices to
+chance so the bot's retries can vary. Measured end, played on this branch:
+the inner form is beaten (the core's fight begins at frame 1,458,280, the
+party at 970, 884 and 979 HP), and in 1,381 retries of the core the deepest
+line reaches its 107th decision with the right bit at 19,622 of 30,000
+before the party falls, the bag by then down to its Revives and Heals
+(issue #340).
 The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
