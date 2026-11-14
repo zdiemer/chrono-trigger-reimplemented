@@ -1189,10 +1189,11 @@ static void read_table_line(uint32_t line, uint8_t bytes[READ_LINE_BYTES])
 
 enum { FNV_START = 2166136261u, FNV_PRIME = 16777619u };
 
-static uint32_t hash_on(uint32_t h, const uint8_t bytes[READ_LINE_BYTES])
+static uint32_t hash_on(uint32_t h, const void *bytes, size_t count)
 {
-    for (unsigned i = 0; i < READ_LINE_BYTES; i++)
-        h = (h ^ bytes[i]) * FNV_PRIME;
+    const uint8_t *b = bytes;
+    for (size_t i = 0; i < count; i++)
+        h = (h ^ b[i]) * FNV_PRIME;
     return h;
 }
 
@@ -1203,7 +1204,7 @@ static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
         return;
     }
     lines_read[lines_read_count++] = line;
-    lines_read_hash = hash_on(lines_read_hash, bytes);
+    lines_read_hash = hash_on(lines_read_hash, bytes, READ_LINE_BYTES);
 }
 
 static uint8_t line_read(uint32_t addr)
@@ -1226,7 +1227,7 @@ static bool tables_unchanged(void)
     uint32_t h = FNV_START;
     for (unsigned i = 0; i < lines_read_count; i++) {
         read_table_line(lines_read[i], bytes);
-        h = hash_on(h, bytes);
+        h = hash_on(h, bytes, READ_LINE_BYTES);
     }
     return h == lines_read_hash;
 }
@@ -1652,7 +1653,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
  * changes and leaves the registers as it did: those stand, unworked. */
 static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
 {
-    static LinesFrom last_from IN_FAST_RAM;
+    static uint32_t last_from IN_FAST_RAM;   /* its hash */
     static LineState last_left IN_FAST_RAM;
     static bool last_stands IN_FAST_RAM;
     /* Frames worked out one after another, and a count to try keeping them
@@ -1662,9 +1663,10 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     static uint8_t worked_out IN_FAST_RAM, tries IN_FAST_RAM;
     LinesFrom from;
     lines_from(&from, &pf->video, layers_enabled);
+    uint32_t from_hash = hash_on(FNV_START, &from, sizeof from);
     LineState st;
     uint8_t count;
-    if (last_stands && !laid_out && memcmp(&from, &last_from, sizeof from) == 0 && tables_unchanged()) {
+    if (last_stands && !laid_out && from_hash == last_from && tables_unchanged()) {
         st = last_left;
         count = changes;
         worked_out = 0;
@@ -1672,7 +1674,7 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
         lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
         st = from.st;
         count = work_out_lines(&pf->video, &st, layers_enabled);
-        last_from = from;
+        last_from = from_hash;
         last_left = st;
         /* a layout's maps change what a line's registers name */
         last_stands = lines_read_kept && !lines_read_overflowed && !laid_out;
