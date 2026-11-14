@@ -5,8 +5,8 @@ house, the Millennial Fair, Marle and Lucca's telepod. From the 600 A.D.
 world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
-on only past checkpoints that succeeded. It ends with Masa and Mune beaten
-in the Denadoro Mountains, 600 A.D., and the Masamune's blade found.
+on only past checkpoints that succeeded. It ends with Ayla joining the party
+in 65,000,000 B.C., the Gate Key stolen (story $78), where leg B's save stands.
 """
 import importlib
 import os
@@ -68,14 +68,10 @@ DENADORO = ["dorino_supplies", "denadoro_foot", "denadoro", "denadoro_falls", "d
 # Ayla joining when the Gate Key is found gone (story $78, where leg B's save,
 # ctsave05 slot 1, stands).
 DREAMSTONE = ["hero_medal", "bent_hilt", "melchior_told", "prehistory", "ioka_feast", "soup_race", "ayla_joins"]
-# From the Forest Maze on, leg B's own play (route playthrough_leg-b, from its save's
-# place), its checkpoints named apart from this route's own (Run.chapter).
+# Leg B's walks (route playthrough_leg-b), which this route's later phases share.
 LEG_B = importlib.import_module(".playthrough_leg-b", __package__)
-LEG_B_CHAPTER = "b_"
-LEG_B_FROM = LEG_B.PHASES.index("forest_maze")
-FROM_LEG_B = [LEG_B_CHAPTER + name for name in LEG_B.PHASES[LEG_B_FROM:]]
 PHASES = (OPENING + CATHEDRAL + cronos_trial.PHASES + ESCAPE + TANK + FUTURE + GUARDIAN + INFO + KEY
-          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO + DREAMSTONE + FROM_LEG_B)
+          + LAB32 + PROTO + FACTORY + END_OF_TIME + CAVE + HECKRAN + ZENAN + DENADORO + DREAMSTONE)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # A playthrough from a new game (route playthrough), on a blank cartridge.
@@ -1644,11 +1640,6 @@ def main():
             assert leave_fighting(run, WORLD_65M), "out of the hut"
             run.wait_world_control()
             run.checkpoint("ayla_joins")
-        later -= len(DREAMSTONE)
-        if later <= len(FROM_LEG_B) - 1:
-            run.chapter = LEG_B_CHAPTER
-            LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed)
-            run.chapter = ""
         run.finish("the playthrough's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

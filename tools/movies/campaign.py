@@ -93,10 +93,6 @@ class Run:
         self.machine = Driver(rom=rom, sram=sram, drive=drive)
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
-        # Put before each checkpoint's name: a route that plays another's
-        # pieces (the playthrough playing a leg's) keeps their checkpoints apart
-        # from its own pieces' of the same name.
-        self.chapter = ""
         self.fight_tries = []   # each fight's retries this session (fight_facts)
         self.progress("started")
         stall = int(os.environ.get("CT_ROUTE_STALL", STALL_SECONDS))
@@ -152,7 +148,6 @@ class Run:
     # ---- checkpoints ---------------------------------------------------------------------
 
     def checkpoint(self, name):
-        name = self.chapter + name
         self.machine.save_state("%s_%s.st" % (self.prefix, name))
         self.say("checkpoint", name, "frame", self.machine.frame, "map", self.map_id())
         self.progress("checkpoint %s" % name)
