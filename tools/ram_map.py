@@ -1862,7 +1862,11 @@ def render_host_header(m):
             "void vars_host_crossings_reset(VarsHost *h);"]
     out += ["", "void vars_host_init(VarsHost *h);",
             "bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);",
-            "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);", "", "#endif", ""]
+            "bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);",
+            "/* `len` bytes of work RAM from `addr`, as vars_host_read8 reads each (0 where",
+            " * no owner keeps one), in one call: what a send names by address. */",
+            "void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_t len);",
+            "", "#endif", ""]
     return "\n".join(out)
 
 
@@ -2110,6 +2114,13 @@ def render_host_backing(m):
         out += ["    place_write8(h, place, addr, value);", "    return true;", "}", ""]
     else:
         out += ["    (void)h; (void)addr; (void)value;", "    return false;", "}", ""]
+    out += ["void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_t len)", "{",
+            "    for (uint32_t i = 0; i < len; i++) {",
+            "        uint8_t value = 0;",
+            "        vars_host_read8(h, addr + i, &value);",
+            "        out[i] = value;",
+            "    }",
+            "}", ""]
     out += ["void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:
         out += ["    for (unsigned i = 0; i < bytes; i++) {",

@@ -288,7 +288,12 @@ static void beside_charges_main(Platform *p, void *ctx)
  * where VRAM's address stands take a transfer's time on the main thread. */
 static unsigned dma_main_calls;
 static uint32_t dma_reads;
-static uint8_t dma_read(void *ctx, uint32_t at) { (void)ctx; (void)at; dma_reads++; return 0x5A; }
+static void dma_read(void *ctx, uint32_t at, uint8_t *out, uint32_t len)
+{
+    (void)ctx; (void)at;
+    dma_reads += len;
+    memset(out, 0x5A, len);
+}
 static void dma_main(Platform *p, void *ctx)
 {
     (void)ctx;
@@ -341,10 +346,11 @@ static Platform pf;
 
 /* The scene's horizontal BG2 wave changes one coordinate on each line.
  * The other layers and BG2's vertical position must retain their scroll. */
-static uint8_t wave_table_byte(void *ctx, uint32_t at)
+static void wave_table_bytes(void *ctx, uint32_t at, uint8_t *out, uint32_t len)
 {
     const uint8_t *table = ctx;
-    return at < 20 ? table[at] : 0;
+    for (uint32_t i = 0; i < len; i++)
+        out[i] = at + i < 20 ? table[at + i] : 0;
 }
 
 static void test_second_layer_wave(void)
@@ -353,7 +359,7 @@ static void test_second_layer_wave(void)
     table[16] = 3;
     table[18] = 0xFF;
     table[19] = 3;
-    VidObserver *ob = vid_obs_create(wave_table_byte, table);
+    VidObserver *ob = vid_obs_create(wave_table_bytes, table);
     CHECK(ob != NULL, "video observer allocated for the wave");
     if (!ob)
         return;

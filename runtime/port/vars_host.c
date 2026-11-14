@@ -70212,6 +70212,15 @@ bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value)
     return true;
 }
 
+void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; i++) {
+        uint8_t value = 0;
+        vars_host_read8(h, addr + i, &value);
+        out[i] = value;
+    }
+}
+
 void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)
 {
     for (unsigned i = 0; i < bytes; i++) {

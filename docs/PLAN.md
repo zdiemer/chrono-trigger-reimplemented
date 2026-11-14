@@ -26,14 +26,14 @@ C. Observable divergence is accepted where the game stays structurally the same.
 The GBA port is the focus. Its bar is full speed on real hardware (a flash
 cart, an Analogue Pocket). ct_gba (targets/gba/; PLATFORM.md, "The GBA build,
 as built") plays movies in mGBA, headless, to the same end as ct_native, and
-shows the field, the dialog and the battles as ct_native does, at 9-19 GBA
+shows the field, the dialog and the battles as ct_native does, at 7.5-16 GBA
 frames of work a frame with no sound mixed. The order from there:
 
 1. **The hot spots** (PLATFORM.md, "Memory, stacks and per-frame work
    against small targets", and "The GBA build, as built"): the state's
    address view (issue #424), which the flat state's every access goes
    through, the time model's per-access charges (#426), the interpreters'
-   byte-at-a-time reads (#429) and the video uploads' (#425); and a sound
+   byte-at-a-time reads (#429); and a sound
    mixer the GBA can afford (#428), the native one being 26 GBA frames a
    frame. Hot code goes into fast RAM where it pays.
 2. **The rest of the video (issue #367),** the effects "The GBA build, as

@@ -21,7 +21,7 @@ typedef struct {
 } ObsSlot;
 
 struct VidObserver {
-    uint8_t (*read)(void *ctx, uint32_t addr);
+    PfReadGame *read;
     void *ctx;
 
     VidLineState state;
@@ -59,7 +59,7 @@ struct VidObserver {
     VidFrame frame;
 };
 
-VidObserver *vid_obs_create(uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
+VidObserver *vid_obs_create(PfReadGame *read, void *ctx)
 {
     VidObserver *ob = calloc(1, sizeof *ob);
     if (!ob)
@@ -290,13 +290,37 @@ static uint16_t vram_mapped(const VidObserver *ob)
     return (uint16_t)(a & 0x7FFF);
 }
 
-/* The `i`th byte of the data an upload names: the game's, through `read`, or
- * a host's own. */
+static uint8_t game_byte(const VidObserver *ob, uint32_t addr)
+{
+    uint8_t byte;
+    ob->read(ob->ctx, addr, &byte, 1);
+    return byte;
+}
+
+/* `n` bytes of the data an upload names, from its `i`th: a host's own, or the
+ * game's, read through `read` a span at a time. */
+static void data_bytes(const VidObserver *ob, PfData src, uint32_t i, uint8_t *out, uint32_t n)
+{
+    if (src.ptr) {
+        memcpy(out, src.ptr + i, n);
+    } else if (src.byte_at) {
+        for (uint32_t k = 0; k < n; k++) {
+            const uint8_t *byte = pf_data_pointer(src, i + k);
+            out[k] = byte ? *byte : game_byte(ob, pf_data_address(src, i + k));
+        }
+    } else {
+        ob->read(ob->ctx, src.addr + i, out, n);
+    }
+}
+
 static uint8_t data_byte(const VidObserver *ob, PfData src, uint32_t i)
 {
-    const uint8_t *byte = pf_data_pointer(src, i);
-    return byte ? *byte : ob->read(ob->ctx, pf_data_address(src, i));
+    uint8_t byte;
+    data_bytes(ob, src, i, &byte, 1);
+    return byte;
 }
+
+enum { CHUNK = 256 };
 
 static void vram_put(VidObserver *ob, bool high, uint8_t v)
 {
@@ -544,6 +568,19 @@ void vid_obs_write_vram(VidObserver *ob, uint16_t value, int half)
     }
 }
 
+/* `len` bytes of `src` through the VRAM port: words, low byte first (half
+ * -1), or one byte of each word (half 0 the low, 1 the high). */
+static void put_vram(VidObserver *ob, PfData src, uint32_t len, int half)
+{
+    uint8_t bytes[CHUNK];
+    for (uint32_t i = 0; i < len; i += CHUNK) {
+        uint32_t n = len - i < CHUNK ? len - i : CHUNK;
+        data_bytes(ob, src, i, bytes, n);
+        for (uint32_t k = 0; k < n; k++)
+            vram_put(ob, half < 0 ? ((i + k) & 1) != 0 : half == 1, bytes[k]);
+    }
+}
+
 void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32_t len, bool fill,
                          const VidVramPort *port)
 {
@@ -552,16 +589,20 @@ void vid_obs_upload_vram(VidObserver *ob, uint16_t vram_addr, PfData src, uint32
     if (len == 0)
         return;
     ob->vram_addr = vram_addr;
-    for (uint32_t i = 0; i < len; i++)
-        vram_put(ob, (i & 1) != 0, data_byte(ob, src, fill ? 0 : i));
+    if (fill) {
+        uint8_t byte = data_byte(ob, src, 0);
+        for (uint32_t i = 0; i < len; i++)
+            vram_put(ob, (i & 1) != 0, byte);
+        return;
+    }
+    put_vram(ob, src, len, -1);
 }
 
 /* An upload from where the last writes left off: words (half -1), or one
  * byte of each word. */
 void vid_obs_continue_vram(VidObserver *ob, PfData src, uint32_t len, int half)
 {
-    for (uint32_t i = 0; i < len; i++)
-        vram_put(ob, half < 0 ? (i & 1) != 0 : half == 1, data_byte(ob, src, i));
+    put_vram(ob, src, len, half);
 }
 
 /* A wider view's own upload: shown, but kept out of what the game reads back,
@@ -594,8 +635,7 @@ void vid_obs_upload_vram_half(VidObserver *ob, uint16_t vram_addr, PfData src, u
     if (len == 0)
         return;
     ob->vram_addr = vram_addr;
-    for (uint32_t i = 0; i < len; i++)
-        vram_put(ob, half == VID_VRAM_HIGH_BYTES, data_byte(ob, src, i));
+    put_vram(ob, src, len, half == VID_VRAM_HIGH_BYTES);
 }
 
 void vid_obs_fill_vram_half(VidObserver *ob, PfData value, uint32_t len, VidVramHalf half)
@@ -613,10 +653,12 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
         return;
     keep_palette(ob);
     uint8_t at = first;
-    for (uint16_t i = 0; i < count; i++) {
-        uint8_t lo = data_byte(ob, src, 2u * i);
-        uint8_t hi = data_byte(ob, src, 2u * i + 1);
-        ob->cgram[at++] = (uint16_t)((hi & 0x7F) << 8 | lo);
+    uint8_t bytes[CHUNK];
+    for (uint32_t i = 0; i < count; i += CHUNK / 2) {
+        uint32_t n = count - i < CHUNK / 2 ? count - i : CHUNK / 2;
+        data_bytes(ob, src, 2u * i, bytes, 2u * n);
+        for (uint32_t k = 0; k < n; k++)
+            ob->cgram[at++] = (uint16_t)((bytes[2 * k + 1] & 0x7F) << 8 | bytes[2 * k]);
     }
     ob->palette_dirty = true;
 }
@@ -624,8 +666,7 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places)
 {
     keep_sprites(ob);
-    for (uint32_t i = 0; i < sizeof ob->oam; i++)
-        ob->oam[i] = data_byte(ob, oam, i);
+    data_bytes(ob, oam, 0, ob->oam, sizeof ob->oam);
     if (places)
         memcpy(ob->places, places, sizeof ob->places);
     else
@@ -826,11 +867,11 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
 static void slot_load_entry(VidObserver *ob, ObsSlot *sl)
 {
     uint32_t bank = (uint32_t)sl->table_bank << 16;
-    sl->count = ob->read(ob->ctx, bank | sl->cursor);
+    sl->count = game_byte(ob, bank | sl->cursor);
     sl->cursor++;
     if (sl->e.indirect) {
-        sl->indirect = (uint16_t)(ob->read(ob->ctx, bank | sl->cursor) |
-                                  ob->read(ob->ctx, bank | (uint16_t)(sl->cursor + 1)) << 8);
+        sl->indirect = (uint16_t)(game_byte(ob, bank | sl->cursor) |
+                                  game_byte(ob, bank | (uint16_t)(sl->cursor + 1)) << 8);
         sl->cursor = (uint16_t)(sl->cursor + 2);
     }
     if (sl->count == 0)
@@ -871,7 +912,7 @@ static void effects_line(VidObserver *ob)
                     src = (uint32_t)sl->table_bank << 16 | sl->cursor;
                     sl->cursor++;
                 }
-                effect_apply(ob, sl->e.target, k, ob->read(ob->ctx, src));
+                effect_apply(ob, sl->e.target, k, game_byte(ob, src));
             }
         }
         sl->count--;
