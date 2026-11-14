@@ -159,7 +159,8 @@ DELIVERED_CLONE = 19            # Crono's room's object 19, the clone, once Bekk
 KEEPERS_DOME, KEEPERS_HANGAR = 0x0F1, "f200"
 WORLD_1000, WORLD_2300 = "f001", "f201"
 BLACK_OMEN = 0x7E02A2           # where the Omen stands on the world map: x, then y (overworld_black_omen)
-OMEN_DOCK = "c101"              # the Omen's first room, where the Epoch docks
+OMEN_DOCK = "c101"
+CLEAR_OF_THE_OMEN = 96          # world map pixels east of the Omen, where the Epoch's confirm travels              # the Omen's first room, where the Epoch docks
 OMEN_FIRST_FIGHT_Y = 170        # past the monsters at the dock's head
 ALL_SINGLE_TECHS = 8
 BEFORE_THE_SEALED_DOOR = 330    # the dome's hall, below the door the pendant opens
@@ -547,6 +548,7 @@ def leave_the_omen(run, door):
     assert wait_until(machine, lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 300), "Leave the Omen?"
     machine.run(3, "A")                     # Yes
     assert run.dialogs_until(lambda: run.map_id() == WORLD_1000 and machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, 3000),         "the Epoch over 1000 A.D."
+    assert run.wait_world_control(), "the Epoch in hand"
 
 
 def beat_gato(run, seed=1):
@@ -758,6 +760,8 @@ def main():
             fight_through(run, lambda m, px, py: py <= OMEN_FIRST_FIGHT_Y, "the Omen's first fight", args.seed)
             assert machine.b(A.PARTY_SINGLE_TECHS_KNOWN + CRONO) == ALL_SINGLE_TECHS, "Crono's Luminaire"
             leave_the_omen(run, door)
+            # Away from the Omen: a confirm over it would go back in.
+            fly_to(run, machine.w(BLACK_OMEN) + CLEAR_OF_THE_OMEN, machine.w(BLACK_OMEN + 2))
             dial(run, PERIOD_END_OF_TIME)
             machine.run(4, "A")
             disembark_at_the_end_of_time(run)
