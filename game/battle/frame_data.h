@@ -48,19 +48,6 @@ enum { LINE_ARRANGEMENT_LISTS = 10, LINE_ARRANGEMENT_LIST_BYTES = 30, RIPPLING_B
 
 /* ---- What the uploads send from the ROM -------------------------------------------------- */
 
-/* The graphics a battle loads from the ROM as it is set up
- * (battle_load_graphics): the first tiles of the layer the battle's messages
- * are drawn on, and five 64-byte blocks of the window layer's tiles (what
- * each block shows isn't mapped yet: issue #25). */
-enum {
-    BATTLE_MESSAGE_LAYER_TILES = 0xFF8C60,
-    BATTLE_WINDOW_TILE_BLOCK_1 = 0xD15E82,
-    BATTLE_WINDOW_TILE_BLOCK_2 = 0xD15EC2,
-    BATTLE_WINDOW_TILE_BLOCK_3 = 0xD15F02,
-    BATTLE_WINDOW_TILE_BLOCK_4 = 0xFF9CF0,
-    BATTLE_WINDOW_TILE_BLOCK_5 = 0xFF9D30,
-};
-
 /* ---- The battlefields ------------------------------------------------------------------- */
 
 /* What a battlefield brings with it ($D1:6240, four bytes a battlefield): the
@@ -80,8 +67,6 @@ typedef struct {
     uint16_t first_strip;
     uint8_t kept, rows;
 } BattlefieldLayout;
-
-enum { BATTLEFIELD_STRIP_BANK = 0xD10000 };
 
 /* A fade the battle runs through palette animation slot 10's preset, laid
  * out as a palette animation slot from its first color: which colors, how
@@ -139,7 +124,7 @@ static inline uint8_t line_arrangement_byte(const GameState *g, uint8_t arrangem
 {
     uint16_t lists = asset_read16(g, ASSET_LINE_ARRANGEMENT_BYTE, (uint8_t)(arrangement * 2));
     uint16_t at = asset_read16(g, ASSET_LINE_ARRANGEMENT_BYTE_F58E, (uint16_t)(lists + 2u * list));
-    return rom_read8(g, 0xCE0000u + (uint16_t)(at + i));
+    return asset_read8_at_place(g, ASSET_LINE_ARRANGEMENT_BYTE_F58E, (uint16_t)(at + i));
 }
 
 static inline uint16_t background_ripple_sway(const GameState *g, unsigned i)
@@ -175,7 +160,14 @@ static inline uint16_t battlefield_strip_place(const GameState *g, uint16_t stri
     return asset_read16(g, ASSET_BATTLEFIELD_STRIP_PLACE, (uint16_t)(strip * 2u));
 }
 
-static inline uint8_t battlefield_strip_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
+/* A byte of the strips, at a place in their bank the strip's place gives. */
+static inline uint8_t battlefield_strip_byte(const GameState *g, uint16_t place)
+{
+    return asset_read8_at_place(g, ASSET_BATTLEFIELD_STRIPS, place);
+}
+
+/* The strips' bank, which the map's builder leaves in a cell. */
+static inline uint8_t battlefield_strips_bank(void) { return (uint8_t)(asset_address(ASSET_BATTLEFIELD_STRIPS) >> 16); }
 
 /* Which tiles of the battlefield's sheet take the layer's other palette
  * ($CF:E200): a bit a 16x16 tile, a byte each row of eight, the tile set's
@@ -190,27 +182,33 @@ static inline uint8_t battlefield_tile_palettes(const GameState *g, uint8_t at)
  * ($CE:F046). */
 static inline uint8_t battlefield_palette_bit_mask(const GameState *g, uint8_t column)
 {
-    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0x12Du + column);
+    return asset_read8(g, ASSET_BATTLEFIELD_PALETTE_BIT_MASK, column);
 }
 
 static inline uint8_t battlefield_column_place(const GameState *g, uint8_t column)
 {
-    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0x135u + column);
+    return asset_read8(g, ASSET_BATTLEFIELD_COLUMN_PLACE, column);
 }
 
 /* The battlefield's 8x8 tiles: a tile set's descriptors ($CF:8000, 64 bytes a
  * set, wrapping in the bank as the original's pointer does), each a tile's
  * graphics (in 16-byte units from $CF:0000, two bit planes) and whether it is
  * mirrored or flipped. */
-static inline uint16_t battlefield_tile_descriptor(const GameState *g, uint16_t at) { return rom_read16(g, 0xCF0000u | at); }
+static inline uint16_t battlefield_tile_descriptor(const GameState *g, uint16_t at)
+{
+    return asset_read16_at_place(g, ASSET_BATTLEFIELD_TILE_SET_DESCRIPTORS, at);
+}
 
-static inline uint8_t battlefield_tile_graphics_byte(const GameState *g, uint32_t at) { return rom_read8(g, 0xCF0000u + at); }
+static inline uint8_t battlefield_tile_graphics_byte(const GameState *g, uint32_t at)
+{
+    return asset_read8(g, ASSET_BATTLEFIELD_TILES, at);
+}
 
 /* Where each of the four tile sets of a battlefield's layer goes in VRAM
  * ($CE:EFF2, a word a set). */
 static inline uint16_t battlefield_tile_set_vram(const GameState *g, uint8_t set)
 {
-    return asset_read16(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0xE1u + set * 2u);
+    return asset_read16(g, ASSET_BATTLEFIELD_TILE_SET_VRAM, set * 2u);
 }
 
 /* Where each of the six slots of an effect's tile rows goes in VRAM ($CD:1308,
@@ -220,21 +218,22 @@ static inline uint16_t effect_tile_rows_vram(const GameState *g, uint8_t slot)
     return asset_read16(g, ASSET_BATTLE_PALETTE_PLANE_MASK, 0x8u + (uint8_t)(slot * 2));
 }
 
-static inline BattlePaletteFade battle_palette_fade_at(const GameState *g, uint32_t from)
+static inline BattlePaletteFade battle_palette_fade_at(const GameState *g, AssetId fades, uint32_t at)
 {
-    return (BattlePaletteFade){ rom_read8(g, from), rom_read8(g, from + 1), rom_read8(g, from + 2),
-                                rom_read8(g, from + 3), rom_read8(g, from + 4), rom_read8(g, from + 5),
-                                rom_read8(g, from + 6), rom_read8(g, from + 7) };
+    uint8_t b[BATTLEFIELD_FADE_BYTES];
+    for (unsigned i = 0; i < BATTLEFIELD_FADE_BYTES; i++)
+        b[i] = asset_read8(g, fades, at + i);
+    return (BattlePaletteFade){ b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] };
 }
 
 /* A beaten enemy's colors fade to white as it dissolves ($CE:EFE1: the
  * animation's kind, then the fade). */
 static inline uint8_t battle_dissolve_fade_kind(const GameState *g)
 {
-    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0xD0u);
+    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0);
 }
 
-static inline BattlePaletteFade battle_dissolve_fade(const GameState *g) { return battle_palette_fade_at(g, 0xCEEFE2u); }
+static inline BattlePaletteFade battle_dissolve_fade(const GameState *g) { return battle_palette_fade_at(g, ASSET_BATTLE_DISSOLVE_FADE, 0); }
 
 /* The fade that takes the old battlefield's layer away before a new one is
  * loaded ($CE:EFFA, its kind by whether the battle started with color math
@@ -243,13 +242,13 @@ static inline BattlePaletteFade battle_dissolve_fade(const GameState *g) { retur
 
 static inline uint8_t battlefield_fade_kind(const GameState *g, uint8_t backdrop_math)
 {
-    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0xE9u + backdrop_math);
+    return asset_read8(g, ASSET_BATTLEFIELD_FADE_KIND, backdrop_math);
 }
 
 static inline BattlePaletteFade battlefield_fade(const GameState *g, bool gradient, bool back_in)
 {
     unsigned record = (gradient ? BATTLEFIELD_GRADIENT_FADES : 0) + (back_in ? 1 : 0);
-    return battle_palette_fade_at(g, 0xCEEFFEu + record * BATTLEFIELD_FADE_BYTES);
+    return battle_palette_fade_at(g, ASSET_BATTLEFIELD_FADES, record * BATTLEFIELD_FADE_BYTES);
 }
 
 /* Tiles selected by battle loads and queued uploads; built tiles may live in RAM. */

@@ -72,7 +72,10 @@ static inline ScriptPlace enemy_script_start(const GameState *g, uint8_t enemy_i
     return asset_read16(g, ASSET_ENEMY_SCRIPTS, (uint16_t)(enemy_id * 2));
 }
 
-static inline uint8_t enemy_script_byte(const GameState *g, ScriptPlace at) { return rom_read8(g, 0xCC0000u | at); }
+static inline uint8_t enemy_script_byte(const GameState *g, ScriptPlace at)
+{
+    return asset_read8_at_place(g, ASSET_ENEMY_SCRIPTS, (uint16_t)at);
+}
 
 /* How many bytes an action takes in a script, by the action ($FD:BA4A). */
 static inline uint8_t enemy_action_length(const GameState *g, uint8_t action)

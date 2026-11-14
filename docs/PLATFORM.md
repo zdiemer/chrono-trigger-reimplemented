@@ -88,18 +88,32 @@ An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
 offset past the resource's end reads on by address, as the original's
-indexing does. 526 of the game's reads (call sites) name their resource,
-every one whose table starts at a place the code names, two tables in a
-row of the catalogue each an offset in it (`SECOND_UPLOADS_SLOTS`). What
-the data's own pointers lead to (a stream a table points to, a script's
-text, a bank and a 16-bit place the data gives) is still read by the
-address the original keeps it at, 160 call sites, the address a key the
-catalogue's rows are looked up by: a pack can't move those resources until
-it moves the pointers to them too. The scene program's resources it copies
+indexing does. Where the data gives a 16-bit place (a table of places, a
+record's link, a script's offset), `asset_read8_at_place` reads that place
+in the named resource, and a place outside it that place of the resource's
+bank. 582 of the game's reads (call sites) name their resource. No routine
+names a cartridge address: where the game keeps a pointer to a resource (a
+table of strings it hands the text code, a script it starts, a stream it
+unpacks, a bank it leaves in a cell or compares), it takes it from
+`asset_address` or `asset_place_address` of the named resource
+(`menu_time_dial_script`, `field_sprite_graphics_first_bank`), and a run of
+colours or tiles from several resources is a table of resource and offset
+(`menu_rom_colour_past`). What the data's own pointers lead to (a stream a
+table points to, a script's text, a sprite's graphics and frames) is still
+read by the address the original keeps it at, 38 call sites, the address a
+key the catalogue's rows are looked up by; 11 more read a place the data
+gives in a bank of tables that link to one another, in a named resource's
+bank (`rom_read8_in_bank_of`: the equipment's records, the menus' upload
+records, the sprites' tables). A pack can't move those resources until it
+moves the pointers to them too. `docs/state-addresses.tsv` counts the ROM
+reads in `game/` as `resource-address` rows: 185 before the routines'
+addresses were named, 87 after. The scene program's resources it copies
 as they are (the scenes' colours, the planet's order of tiles) are read by
 their number in its table at `$FE:0000` through a list of the rows they lie
 in (`SCENE_RESOURCE_ROWS`, `game/scene/scene_data.h`); the streams it
-unpacks are found where the table, read by name, points. A pointer in the data may name RAM (a
+unpacks are found where the table, read by name, points, and a number no
+scene copies is read where the table says in the table's own bank, so no
+scene code names bank `$FE`. A pointer in the data may name RAM (a
 script or text the game copied or built in work RAM, `$7E:2C35`,
 `$7F:8020`): those reads are the game's RAM's (`wram_data_read8`,
 `game/wram.h`), sent there by `rom_read8` before any cartridge store is
@@ -112,10 +126,28 @@ then typed as its readers show it: `bytes` where every read of it is a
 byte, `words` where every read is a word (139 rows), and a table of places
 at its start `ptr16` up to the first place it names, what follows its own
 row (`screen_script_start` and the screen scripts, `battlefield_strip_place`
-and the strips, the demo's actions, the windows' strings). Left `mixed`:
-36 rows, 117,842 bytes, 14 of them read (records read a byte and a word,
-values tables of an odd length, and regions only the data's pointers
-reach); 6 `untyped` runs (5,121 bytes) no reader reaches.
+and the strips, the demo's actions, the windows' strings). The regions that held several tables were then split where their readers
+divide them, each table a row of its own type: bank `$CC`'s and `$CD`'s
+battle records (the characters' start, the equipment and its boosts, the
+techs, the enemies' attacks and their effects and animations), the battle's
+messages and fades, the menus' colours, tiles and window designs, the sound's
+songs' settings, boot blocks and sets of effects, the scripts the map view,
+the time dial and the Epoch run. Left `mixed`, `untyped` or `undetermined`:
+41 rows, 12,657 bytes, every one `unread` in its row's `found`: no accessor
+names it, and no read of the movies or the routes lands in it (mixed was 36
+rows, 117,842 bytes). `tools/assets.py check` fails a row of those types
+that doesn't say it is `unread`. A read that lands in one at run time is
+counted the way a read outside the catalogue is (`asset_unread_reads`, the
+first resources it read kept by name), and `ct_native` prints a `strays:`
+line for it, which fails the run in the gate and is a finding in
+`suite.py --long`. The first long batch found eight such readers, now
+typed: the accessories' data records the menus copy (`accessory_data_records`,
+$CC:0A1C), an enemy's message before its table's first entry
+(`enemy_messages_cd91`), a string past the table at $F6:B230
+(`strings_f6c7e5`), a palette the menus copy in a playthrough leg
+(`menu_colors_ce50`), tiles the gate screen sends after its swirl's stream
+(`menu_gate_screen_tiles`), and three tables the routes read further than the movies had
+(`battle_palette_frames`, `battle_effect_frames`, `combination_tech_asks`).
 
 ### Palettes, the first decoded resource
 
@@ -228,7 +260,7 @@ same packed, which the game unpacks as it loads them
 the locations' records load them into BG3, the rest four), the characters'
 sprites (`setup_character_graphics.N`), the world maps' tiles
 (`overworld_map_graphics.N`, the top layer's two planes), the menus' scenes'
-(`menu_scene_stream.N`) and the credits' letters
+(`overworld_sprite_graphics.N`) and the credits' letters
 (`field_credits_letters_packed`). The tiles kept as they are are the
 battlefield's two-plane sheet (`battlefield_tiles`, `$CF:0000`, split from
 the descriptors and palettes after it) and the sprites' four banks
@@ -316,7 +348,7 @@ two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
 effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
 `lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
 digit a cell; `lz:colors:16` the world maps' packed palettes
-(`menu_scene_stream_c6fea0.N`); and `lz` for the three attract streams
+(`overworld_palettes.N`); and `lz` for the three attract streams
 whose layout no reader has shown yet, in hex. A
 tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
 so a map is edited by its tile numbers, flips, priority and palettes.
@@ -513,8 +545,11 @@ and refuses wrong text at its line (a command or action that isn't one, a
 value too long, an opcode not the command's, a condition short of its
 bytes, a script a byte longer, a byte shorter); with the ROM staged every
 script of the cartridge reads back as its bytes. The upload records the
-menus queue (`script_c2bece` and nine more) were typed `script` and are
-records, `struct:records:7`.
+menus queue are rows of their own, `struct:records:7` (a run of them the
+queue's eight bytes apart, `struct:records:8`), each named for what it
+sends (`menu_upload_front_layer`, `menu_uploads_window_sets`): the code
+names a record by its row (`MENU_UPLOAD_FRONT_LAYER`) and
+`menu_upload_record` reads it by name, no place in bank `$C2`.
 
 ### Text
 

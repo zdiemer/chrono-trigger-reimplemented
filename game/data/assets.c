@@ -49,9 +49,38 @@ AssetId asset_containing(uint32_t at)
     return last;
 }
 
-static AssetFault outside;
+static AssetFault outside, unread;
 
 const AssetFault *asset_outside_reads(void) { return &outside; }
+const AssetFault *asset_unread_reads(void) { return &unread; }
+
+static bool left_untyped(AssetId id)
+{
+    uint8_t type = asset_catalogue[id].type;
+    return type == ASSET_TYPE_MIXED || type == ASSET_TYPE_UNTYPED || type == ASSET_TYPE_UNDETERMINED;
+}
+
+static AssetId unread_rows[ASSET_UNREAD_KEPT];
+static unsigned unread_rows_kept;
+
+unsigned asset_unread_rows(const AssetId **rows)
+{
+    *rows = unread_rows;
+    return unread_rows_kept;
+}
+
+static void note_if_unread(AssetId id, uint32_t at)
+{
+    if (!left_untyped(id))
+        return;
+    if (unread.count++ == 0)
+        unread.first = cartridge_address(at);
+    for (unsigned i = 0; i < unread_rows_kept; i++)
+        if (unread_rows[i] == id)
+            return;
+    if (unread_rows_kept < ASSET_UNREAD_KEPT)
+        unread_rows[unread_rows_kept++] = id;
+}
 
 void asset_note_outside(uint32_t at)
 {
@@ -87,6 +116,7 @@ static const uint8_t *served(uint32_t at)
         asset_note_outside(at);
         return NULL;
     }
+    note_if_unread(id, at);
     const uint8_t *bytes = resource_bytes(id);
     return bytes ? bytes + (cartridge_address(at) - asset_catalogue[id].at) : NULL;
 }
@@ -107,6 +137,7 @@ uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
     const AssetEntry *e = &asset_catalogue[resource];
     if (offset >= e->length)
         return rom_read8(g, e->at + offset);
+    note_if_unread(resource, e->at + offset);
     const uint8_t *bytes = resource_bytes(resource);
     return rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
 }
@@ -115,6 +146,38 @@ uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset)
 {
     uint8_t low = asset_read8(g, resource, offset);
     return (uint16_t)(low | asset_read8(g, resource, offset + 1) << 8);
+}
+
+uint8_t asset_read8_at_place(const GameState *g, AssetId resource, uint16_t place)
+{
+    const AssetEntry *e = &asset_catalogue[resource];
+    uint16_t offset = (uint16_t)(place - (uint16_t)e->at);
+    if (offset >= e->length)
+        return rom_read8(g, (e->at & 0xFF0000u) | place);
+    return asset_read8(g, resource, offset);
+}
+
+uint16_t asset_read16_at_place(const GameState *g, AssetId resource, uint16_t place)
+{
+    const AssetEntry *e = &asset_catalogue[resource];
+    uint16_t offset = (uint16_t)(place - (uint16_t)e->at);
+    if (offset >= e->length)
+        return rom_read16(g, (e->at & 0xFF0000u) | place);
+    return asset_read16(g, resource, offset);
+}
+
+uint32_t asset_address(AssetId resource) { return asset_catalogue[resource].at; }
+
+uint32_t asset_place_address(AssetId resource, uint16_t place) { return (asset_catalogue[resource].at & 0xFF0000u) | place; }
+
+uint8_t rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+{
+    return rom_read8(g, asset_place_address(resource, place));
+}
+
+uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+{
+    return rom_read16(g, asset_place_address(resource, place));
 }
 
 uint16_t rom_read16(const GameState *g, uint32_t at)

@@ -59,7 +59,6 @@ enum { WEAPON_VIEW_BYTES = 5, WEAPON_VIEWS = 3, CHARACTER_SCRIPTS_PER_VIEW = 7 }
  * first, and $CD:4F26), six bytes each by the enemy's number. */
 enum { ENEMY_ATTACK_BYTES = 6, ANIMATION_BYTES = 7 };
 
-enum { ANIMATION_TILES_BANK = 0xD1 };
 
 /* A script set: which of the sixteen channels run a script, for the set's
  * two halves (a word each, high byte first, the first channel the top bit),
@@ -107,94 +106,109 @@ static inline ActionAnimation battle_weapon_animation(const GameState *g, uint8_
     };
 }
 
-static inline ActionAnimation animation_record(const GameState *g, uint32_t at, bool background)
+static inline ActionAnimation animation_record(const GameState *g, AssetId table, uint32_t at, bool background)
 {
     return (ActionAnimation){
-        .scripts = rom_read8(g, at),
-        .graphics = rom_read8(g, at + 1),
-        .second_graphics = rom_read8(g, at + 2),
-        .tiles = rom_read8(g, at + 3),
-        .palette = rom_read8(g, at + 4),
-        .records = rom_read8(g, at + 5),
-        .background = background ? rom_read8(g, at + 6) : ANIMATION_NO_BACKGROUND,
+        .scripts = asset_read8(g, table, at),
+        .graphics = asset_read8(g, table, at + 1),
+        .second_graphics = asset_read8(g, table, at + 2),
+        .tiles = asset_read8(g, table, at + 3),
+        .palette = asset_read8(g, table, at + 4),
+        .records = asset_read8(g, table, at + 5),
+        .background = background ? asset_read8(g, table, at + 6) : ANIMATION_NO_BACKGROUND,
     };
 }
 
+/* An enemy's attack's ($CD:4926, or its second $CD:4F26), by the enemy. */
 static inline ActionAnimation battle_enemy_attack_animation(const GameState *g, uint16_t enemy, bool second)
 {
-    uint32_t table = second ? 0xCD4F26u : 0xCD4926u;
-    return animation_record(g, table + (uint16_t)(enemy * ENEMY_ATTACK_BYTES), false);
+    return animation_record(g, second ? ASSET_ENEMY_ATTACK_SECOND_ANIMATIONS : ASSET_ENEMY_ATTACK_ANIMATIONS,
+                            (uint16_t)(enemy * ENEMY_ATTACK_BYTES), false);
 }
 
 /* A tech's, the party's ($CD:45A6) or an enemy's ($CD:5526), by its number;
  * an item's ($CD:5C26), by its number past the items' first. */
 static inline ActionAnimation battle_tech_animation(const GameState *g, bool enemy, uint8_t tech)
 {
-    uint32_t table = enemy ? 0xCD5526u : 0xCD45A6u;
-    return animation_record(g, table + (uint16_t)(tech * ANIMATION_BYTES), true);
+    return animation_record(g, enemy ? ASSET_ENEMY_TECH_ANIMATIONS : ASSET_PARTY_TECH_ANIMATIONS,
+                            (uint16_t)(tech * ANIMATION_BYTES), true);
 }
 
 static inline ActionAnimation battle_item_animation(const GameState *g, uint8_t item)
 {
-    return animation_record(g, 0xCD5C26u + (uint16_t)(item * ANIMATION_BYTES), true);
+    return animation_record(g, ASSET_ITEM_ANIMATIONS, (uint16_t)(item * ANIMATION_BYTES), true);
 }
 
 /* ---- The parts ----------------------------------------------------------------------------- */
 
-/* A part's number picks a word from its keeper's table. */
-static inline uint16_t keeper_word(const GameState *g, uint32_t table, uint8_t number)
+/* A part's number picks a word from its keeper's table, `first` words in. */
+static inline uint16_t keeper_word(const GameState *g, AssetId table, uint16_t first, uint8_t number)
 {
-    return rom_read16(g, table + (uint16_t)(number * 2));
+    return asset_read16(g, table, (uint16_t)(first + number * 2));
 }
 
 /* Where the script set starts, and the bank its scripts are in: the party's
- * and the items' in bank $CE, the enemies' in bank $CD. */
+ * and the items' with the animations in bank $CE, the enemies' with those in
+ * bank $CD. */
 static inline uint8_t battle_script_set_bank(AnimationKeeper keeper)
 {
-    return keeper == ANIMATIONS_OF_ENEMY_ATTACKS || keeper == ANIMATIONS_OF_ENEMY_TECHS ? 0xCD : 0xCE;
+    AssetId scripts = keeper == ANIMATIONS_OF_ENEMY_ATTACKS || keeper == ANIMATIONS_OF_ENEMY_TECHS
+                          ? ASSET_BATTLE_ANIMATIONS_CD : ASSET_BATTLE_ANIMATIONS_CE;
+    return (uint8_t)(asset_address(scripts) >> 16);
 }
 
 static inline uint16_t battle_script_set_at(const GameState *g, AnimationKeeper keeper, uint8_t set)
 {
-    static const uint32_t tables[] = {
-        [ANIMATIONS_OF_PARTY_ATTACKS] = 0xCD5EC6u, [ANIMATIONS_OF_ENEMY_ATTACKS] = 0xCD5FF0u,
-        [ANIMATIONS_OF_PARTY_TECHS] = 0xCD5EF0u,   [ANIMATIONS_OF_ENEMY_TECHS] = 0xCD61F0u,
-        [ANIMATIONS_OF_ITEMS] = 0xCD63F0u,
+    static const AssetId tables[] = {
+        [ANIMATIONS_OF_PARTY_ATTACKS] = ASSET_PARTY_ATTACK_SCRIPT_SETS, [ANIMATIONS_OF_ENEMY_ATTACKS] = ASSET_ENEMY_ATTACK_SCRIPT_SETS,
+        [ANIMATIONS_OF_PARTY_TECHS] = ASSET_PARTY_TECH_SCRIPT_SETS,     [ANIMATIONS_OF_ENEMY_TECHS] = ASSET_ENEMY_TECH_SCRIPT_SETS,
+        [ANIMATIONS_OF_ITEMS] = ASSET_ITEM_SCRIPT_SETS,
     };
-    return keeper_word(g, tables[keeper], set);
+    return keeper_word(g, tables[keeper], 0, set);
 }
 
 /* Where the compressed sprite tiles are in bank $D1: the party's attacks' own
  * table, everyone else's after it. */
+enum { OTHERS_TILES = 0x60 };
+
 static inline uint16_t battle_animation_tiles_place(const GameState *g, AnimationKeeper keeper, uint8_t tiles)
 {
-    return keeper_word(g, keeper == ANIMATIONS_OF_PARTY_ATTACKS ? 0xD10000u : 0xD10060u, tiles);
+    return keeper_word(g, ASSET_BATTLE_ANIMATION_TILES_PLACE, keeper == ANIMATIONS_OF_PARTY_ATTACKS ? 0 : OTHERS_TILES, tiles);
+}
+
+/* The long pointer to a stream of those tiles, by its place. */
+static inline uint32_t battle_animation_tiles_stream(uint16_t place)
+{
+    return asset_place_address(ASSET_BATTLE_ANIMATION_TILES_PLACE, place);
 }
 
 /* Where the palette animation's frames are (battle_palette_anim_frames): the
  * enemies share a table. */
 static inline uint16_t battle_animation_palette_frames(const GameState *g, AnimationKeeper keeper, uint8_t palette)
 {
-    static const uint32_t tables[] = {
-        [ANIMATIONS_OF_PARTY_ATTACKS] = 0xCD686Eu, [ANIMATIONS_OF_ENEMY_ATTACKS] = 0xCD6A2Cu,
-        [ANIMATIONS_OF_PARTY_TECHS] = 0xCD692Cu,   [ANIMATIONS_OF_ENEMY_TECHS] = 0xCD6A2Cu,
-        [ANIMATIONS_OF_ITEMS] = 0xCD6C2Cu,
+    static const AssetId tables[] = {
+        [ANIMATIONS_OF_PARTY_ATTACKS] = ASSET_PARTY_ATTACK_PALETTE_FRAMES_AT, [ANIMATIONS_OF_ENEMY_ATTACKS] = ASSET_ENEMY_PALETTE_FRAMES_AT,
+        [ANIMATIONS_OF_PARTY_TECHS] = ASSET_PARTY_TECH_PALETTE_FRAMES_AT,     [ANIMATIONS_OF_ENEMY_TECHS] = ASSET_ENEMY_PALETTE_FRAMES_AT,
+        [ANIMATIONS_OF_ITEMS] = ASSET_ITEM_PALETTE_FRAMES_AT,
     };
-    return keeper_word(g, tables[keeper], palette);
+    return keeper_word(g, tables[keeper], 0, palette);
 }
 
 /* Where the animation records are (battle_effect_records): the enemies share
  * a table, and the party's techs share one with the items. */
 static inline uint16_t battle_animation_records_place(const GameState *g, AnimationKeeper keeper, uint8_t records)
 {
-    static const uint32_t tables[] = {
-        [ANIMATIONS_OF_PARTY_ATTACKS] = 0xCD64B0u, [ANIMATIONS_OF_ENEMY_ATTACKS] = 0xCD666Eu,
-        [ANIMATIONS_OF_PARTY_TECHS] = 0xCD656Eu,   [ANIMATIONS_OF_ENEMY_TECHS] = 0xCD666Eu,
-        [ANIMATIONS_OF_ITEMS] = 0xCD656Eu,
+    static const AssetId tables[] = {
+        [ANIMATIONS_OF_PARTY_ATTACKS] = ASSET_PARTY_ATTACK_EFFECT_RECORDS_AT, [ANIMATIONS_OF_ENEMY_ATTACKS] = ASSET_ENEMY_EFFECT_RECORDS_AT,
+        [ANIMATIONS_OF_PARTY_TECHS] = ASSET_PARTY_TECH_EFFECT_RECORDS_AT,     [ANIMATIONS_OF_ENEMY_TECHS] = ASSET_ENEMY_EFFECT_RECORDS_AT,
+        [ANIMATIONS_OF_ITEMS] = ASSET_PARTY_TECH_EFFECT_RECORDS_AT,
     };
-    return keeper_word(g, tables[keeper], records);
+    return keeper_word(g, tables[keeper], 0, records);
 }
 
+/* A script set's channels and scripts, at the place its table gives in the
+ * bank its scripts are in: read on in long addressing, as the original does,
+ * so a set at the bank's end runs on into the next. */
 static inline uint16_t battle_script_set_channels(const GameState *g, uint8_t bank, uint16_t set, bool second_half)
 {
     uint32_t at = ((uint32_t)bank << 16) + set + (second_half ? 2u : 0u);

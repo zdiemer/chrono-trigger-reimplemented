@@ -813,7 +813,7 @@ static void ask_for_description(GameState *g, uint16_t line, uint8_t pace, uint8
     set_menu_description_pace(g, pace);
     if (!menu_description_shows_another(g, which))
         return;
-    menu_describe(g, which, (uint32_t)MENU_TECH_DESCRIPTIONS_BANK << 16 | MENU_TECH_DESCRIPTIONS, DESCRIPTION_ROW_VRAM);
+    menu_describe(g, which, menu_tech_description_strings(), DESCRIPTION_ROW_VRAM);
 }
 
 // $C2:BE33
@@ -940,8 +940,8 @@ static void draw_targets(GameState *g, Platform *pf)
 enum {
     TARGET_LINES = OFFSETS_THE_FRONT_LAYER | 0x0C7,
     TARGET_BLOCKS = 3,
-    UPLOAD_TARGET_ROWS = 0xBECE,
-    UPLOAD_TARGET_WINDOW = 0xBED5,
+    UPLOAD_TARGET_ROWS = ASSET_MENU_UPLOAD_TECH_TARGET_ROWS,
+    UPLOAD_TARGET_WINDOW = ASSET_MENU_UPLOAD_TECH_TARGET_WINDOW,
 };
 
 void menu_techs_show_targets(GameState *g, Platform *pf)

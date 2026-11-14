@@ -27,6 +27,30 @@
 uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset);
 uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset);
 
+/* The same where the data gives a 16-bit place in the resource's bank (a
+ * table of places, a record's link): the place is the original's, so it lies
+ * as far into the resource as it is past the resource's own place. A place
+ * outside the resource reads that place of its bank, as the original does. */
+uint8_t asset_read8_at_place(const GameState *g, AssetId resource, uint16_t place);
+uint16_t asset_read16_at_place(const GameState *g, AssetId resource, uint16_t place);
+
+/* A byte where a 16-bit place the data gives leads in the bank a named
+ * resource is in, which may be any of that bank's resources (a bank of tables
+ * whose records link to one another by place): read by the address, a key
+ * the catalogue's rows are looked up by. */
+uint8_t rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place);
+uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place);
+
+/* The address of a 16-bit place the data gives, in the bank a named
+ * resource is in: what the game hands on where it keeps a long pointer to
+ * what the place leads to (the stream the unpacker reads, a script it runs). */
+uint32_t asset_place_address(AssetId resource, uint16_t place);
+
+/* Where the original keeps a resource: what the game holds where it keeps a
+ * pointer to one (a table of strings it chose, a script it runs), and what a
+ * pointer the data holds is told apart by. */
+uint32_t asset_address(AssetId resource);
+
 /* A byte or a word where the data's own pointers lead, by the address: the
  * cartridge's, or the game's RAM where the pointer names it (wram.h,
  * wram_data_read8). */

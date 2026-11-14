@@ -54,17 +54,17 @@ enum { FIELD_LONG_ENTRY_BYTES = 3, FIELD_WORD_ENTRY_BYTES = 2 };
  * sprite record's palette times their 24 bytes), which load into a sprite
  * palette's colours 1-12. `colours` is where the palette starts in the bank;
  * a colour past its end wraps in the bank, as the original's block move does. */
-enum { FIELD_SPRITE_COLOURS = 12, FIELD_SPRITE_COLOURS_BANK = 0xE4 };
+enum { FIELD_SPRITE_COLOURS = 12 };
 
 /* The credits' letters, packed (the unpacker's stream) at $FD:0000: the font
  * the endings' credits are written in, which event $29 loads into BG3's
  * tiles. */
-enum { FIELD_CREDITS_LETTERS_PACKED = 0xFD0000 };
+static inline uint32_t field_credits_letters_packed(void) { return asset_address(ASSET_FIELD_CREDITS_LETTERS_PACKED); }
 
 /* The field's own messages, a chest's (what it gave, the gold, that it is
  * empty): a table of dialog strings at $DE:FF00, which the dialog window sets
  * in place of the script's table when the field opened it. */
-enum { FIELD_MESSAGES = 0xDEFF00 };
+static inline uint32_t field_messages(void) { return asset_address(ASSET_FIELD_MESSAGES); }
 
 /* The blank tile map entries a row of BG3's staging is cleared with before a
  * credits line: 32 bytes at $D2:0000, the start of the sprite graphics' first
@@ -74,7 +74,8 @@ enum { FIELD_BLANK_ENTRIES_BYTES = 32 };
 /* The ROM's banks of sprite graphics, which a graphics set's bank names: the
  * original copies from each of the four with a routine of its own, and a bank
  * past them (or before) from the last. */
-enum { FIELD_SPRITE_GRAPHICS_FIRST_BANK = 0xD2, FIELD_SPRITE_GRAPHICS_LAST_BANK = 0xD5 };
+static inline uint8_t field_sprite_graphics_first_bank(void) { return (uint8_t)(asset_address(ASSET_SPRITE_TILES_D2) >> 16); }
+static inline uint8_t field_sprite_graphics_last_bank(void) { return (uint8_t)(asset_address(ASSET_SPRITE_TILES_D5) >> 16); }
 
 /* An object's animations as the ROM keeps them: four frame numbers an
  * animation, ending in $FF, in the object's frame table for its facing, in
@@ -82,9 +83,10 @@ enum { FIELD_SPRITE_GRAPHICS_FIRST_BANK = 0xD2, FIELD_SPRITE_GRAPHICS_LAST_BANK 
  * ending in 0, in its table of times in bank $E4. A frame's place in either
  * is the table's offset plus animation * 4 plus the frame, summed in 16
  * bits as the original does. */
-enum { FIELD_FRAMES_A_ANIMATION = 4, FIELD_ANIMATION_TIMES_BANK = 0xE4 };
-/* The bank the frame builder names for the frame tables (field/frames.c). */
-enum { FIELD_FRAME_TABLES_BANK = 0xE4 };
+enum { FIELD_FRAMES_A_ANIMATION = 4 };
+/* The bank the frame builder names for the frame tables (field/frames.c):
+ * the frame lists'. */
+static inline uint8_t field_frame_tables_bank(void) { return (uint8_t)(asset_address(ASSET_SETUP_FRAME_LISTS) >> 16); }
 
 typedef struct {
     uint8_t bank;
@@ -138,9 +140,12 @@ typedef struct {
  * design apart, of which the window takes fifteen. */
 enum { WINDOW_DESIGNS = 8, WINDOW_DESIGN_COLOURS = 15 };
 
-/* The choice pointer's four tiles, and the field's two sprites of its own,
- * the tiles of each 16x16 sprite's top and bottom halves, in bank $FF. */
-enum { FIELD_CHOICE_POINTER_TILES = 0xFF9260, FIELD_OWN_SPRITES_TILES = 0xFF9CF0 };
+/* The choice pointer's four tiles, the small font's from its 64th, and the
+ * field's two sprites of its own, the tiles of each 16x16 sprite's top and
+ * bottom halves, the window layer's tiles. */
+enum { FIELD_CHOICE_POINTER_FROM = 0x400 };
+static inline uint32_t field_choice_pointer_tiles(void) { return asset_address(ASSET_SMALL_FONT) + FIELD_CHOICE_POINTER_FROM; }
+static inline uint32_t field_own_sprites_tiles(void) { return asset_address(ASSET_WINDOW_TILES); }
 
 /* ---- Locations ------------------------------------------------------------------------------- */
 
@@ -189,23 +194,28 @@ enum { TILE_SET_BLOCKS = 8, TILE_SET_BLOCKS_IN_VRAM = 6 };
  * as a long address: in bank $E4, at the word $E4:FFE0 keeps for it. */
 static inline uint32_t field_sprite_data_table(const GameState *g, FieldSpriteTable table)
 {
-    return 0xE40000u | asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 2u * table);
+    return asset_place_address(ASSET_SPRITE_RESOURCE_BASES, asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 2u * table));
 }
 
-static inline FieldSpriteRecord field_sprite_record_at(const GameState *g, uint32_t at)
+/* A record `id` of `bytes` in its table, counted in 16 bits in the bank as
+ * the original does. */
+static inline FieldSpriteRecord field_sprite_record_at(const GameState *g, AssetId records, uint16_t id, unsigned bytes)
 {
-    return (FieldSpriteRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
-                                rom_read8(g, at + 4) };
+    uint16_t at = (uint16_t)((uint16_t)asset_address(records) + (uint16_t)(id * bytes));
+    uint8_t b[5];
+    for (unsigned i = 0; i < 5; i++)
+        b[i] = asset_read8_at_place(g, records, (uint16_t)(at + i));
+    return (FieldSpriteRecord){ b[0], b[1], b[2], b[3], b[4] };
 }
 
 static inline FieldSpriteRecord field_sprite_record(const GameState *g, uint16_t id)
 {
-    return field_sprite_record_at(g, 0xE4F000u + (uint16_t)(id * FIELD_SPRITE_RECORD_BYTES));
+    return field_sprite_record_at(g, ASSET_FIELD_SPRITE_RECORDS, id, FIELD_SPRITE_RECORD_BYTES);
 }
 
 static inline FieldSpriteRecord battle_sprite_record(const GameState *g, uint8_t id)
 {
-    return field_sprite_record_at(g, 0xE4F600u + (uint16_t)(id * BATTLE_SPRITE_RECORD_BYTES));
+    return field_sprite_record_at(g, ASSET_BATTLE_SPRITE_RECORDS, id, BATTLE_SPRITE_RECORD_BYTES);
 }
 
 static inline uint32_t field_sprite_long_entry(const GameState *g, uint32_t table, uint8_t index)
@@ -226,9 +236,8 @@ static inline uint16_t field_sprite_palette_place(uint8_t palette)
 
 static inline uint16_t field_sprite_colour(const GameState *g, uint16_t colours, unsigned n)
 {
-    uint32_t bank = (uint32_t)FIELD_SPRITE_COLOURS_BANK << 16;
-    return (uint16_t)(rom_read8(g, bank | (uint16_t)(colours + 2 * n)) |
-                      rom_read8(g, bank | (uint16_t)(colours + 2 * n + 1)) << 8);
+    return (uint16_t)(asset_read8_at_place(g, ASSET_FIELD_SPRITE_PALETTES, (uint16_t)(colours + 2 * n)) |
+                      asset_read8_at_place(g, ASSET_FIELD_SPRITE_PALETTES, (uint16_t)(colours + 2 * n + 1)) << 8);
 }
 
 /* The wave a waving layer's scroll follows: signed 16-bit horizontal offsets,
@@ -277,9 +286,9 @@ static inline uint8_t field_frame_offset_byte(const GameState *g, uint32_t at) {
 
 static inline uint8_t field_sprite_graphics_rom_bank(uint8_t named)
 {
-    return named >= FIELD_SPRITE_GRAPHICS_FIRST_BANK && named < FIELD_SPRITE_GRAPHICS_LAST_BANK
+    return named >= field_sprite_graphics_first_bank() && named < field_sprite_graphics_last_bank()
                ? named
-               : (uint8_t)FIELD_SPRITE_GRAPHICS_LAST_BANK;
+               : field_sprite_graphics_last_bank();
 }
 
 static inline uint16_t field_sprite_graphics_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
@@ -296,7 +305,7 @@ static inline uint8_t field_animation_frame_number(const GameState *g, FieldFram
 
 static inline uint8_t field_animation_frame_time(const GameState *g, uint16_t place)
 {
-    return rom_read8(g, (uint32_t)FIELD_ANIMATION_TIMES_BANK << 16 | place);
+    return rom_read8_in_bank_of(g, ASSET_SETUP_DELAY_LISTS, place);
 }
 
 /* A direction's angle within its quadrant, at $C0:F300, looked up by the two
@@ -357,8 +366,8 @@ static inline uint16_t field_chest_place(uint16_t first, uint8_t index)
 
 static inline FieldChest field_chest_at(const GameState *g, uint16_t place)
 {
-    uint32_t at = 0xF50000u + place;
-    return (FieldChest){ rom_read16(g, at), rom_read16(g, at + 2) };
+    return (FieldChest){ asset_read16_at_place(g, ASSET_FIELD_LOCATION_CHESTS, place),
+                         asset_read16_at_place(g, ASSET_FIELD_LOCATION_CHESTS, (uint16_t)(place + 2)) };
 }
 
 static inline uint16_t field_games_chests_start(const GameState *g)
@@ -375,7 +384,8 @@ static inline FieldChestRun field_location_chest_run(const GameState *g, uint16_
 
 static inline uint32_t field_window_design_graphics(const GameState *g, uint8_t design)
 {
-    return 0xFF0000u | asset_read16(g, ASSET_FIELD_WINDOW_DESIGN_GRAPHICS, 2u * (design % WINDOW_DESIGNS));
+    return asset_place_address(ASSET_MENU_WINDOW_DESIGNS,
+                               asset_read16(g, ASSET_FIELD_WINDOW_DESIGN_GRAPHICS, 2u * (design % WINDOW_DESIGNS)));
 }
 
 static inline uint16_t field_window_design_colour(const GameState *g, uint8_t design, unsigned n)
@@ -415,9 +425,9 @@ static inline uint8_t location_palette(const GameState *g, uint16_t place)
 
 static inline uint16_t location_palette_colour(const GameState *g, uint8_t palette, unsigned row, unsigned colour)
 {
-    enum { PALETTES = 0x24C0, PALETTE_BYTES = 2 * LOCATION_PALETTE_ROWS * LOCATION_PALETTE_ROW_COLOURS };
-    uint16_t at = (uint16_t)(PALETTES + palette * PALETTE_BYTES + 2u * (row * LOCATION_PALETTE_ROW_COLOURS + colour));
-    return rom_read16(g, 0xF60000u + at);
+    enum { PALETTE_BYTES = 2 * LOCATION_PALETTE_ROWS * LOCATION_PALETTE_ROW_COLOURS };
+    return asset_read16(g, ASSET_LOCATION_PALETTES,
+                        (uint32_t)(palette * PALETTE_BYTES + 2u * (row * LOCATION_PALETTE_ROW_COLOURS + colour)));
 }
 
 /* A location's event script: its record's word at +8 names one, and a long
@@ -452,11 +462,9 @@ static inline FieldExitRun field_location_exit_run(const GameState *g, uint16_t 
                            asset_read16(g, ASSET_LOCATION_EXIT_LISTS, at + 2) };
 }
 
-static inline uint32_t tile_set_blocks_place(uint8_t set) { return 0xF61C00u + (uint16_t)(set * TILE_SET_BLOCKS); }
-
 static inline uint8_t tile_set_block(const GameState *g, uint8_t set, unsigned n)
 {
-    return rom_read8(g, tile_set_blocks_place(set) + n);
+    return asset_read8(g, ASSET_TILE_SET_BLOCKS, (uint32_t)(set * TILE_SET_BLOCKS) + n);
 }
 
 /* How a tile set's map tiles are made of its tiles, packed: a long pointer
