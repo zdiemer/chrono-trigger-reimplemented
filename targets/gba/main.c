@@ -80,6 +80,29 @@ static uint32_t end_state_crc(GameState *g)
     return ~crc;
 }
 
+/* A part's cycles a frame over the run: the mean, the 99th percentile and
+ * the heaviest, and each as GBA frames of 280,896 cycles. Sorts `cycles`. */
+enum { GBA_FRAME_CYCLES = 280896 };
+static void report_cycles(const char *part, uint32_t *cycles, uint32_t frames)
+{
+    uint64_t total = 0;
+    for (uint32_t i = 0; i < frames; i++)
+        total += cycles[i];
+    for (uint32_t gap = frames / 2; gap; gap /= 2)
+        for (uint32_t i = gap; i < frames; i++)
+            for (uint32_t j = i; j >= gap && cycles[j - gap] > cycles[j]; j -= gap) {
+                uint32_t t = cycles[j];
+                cycles[j] = cycles[j - gap];
+                cycles[j - gap] = t;
+            }
+    uint32_t mean = (uint32_t)(total / frames), p99 = cycles[(frames - 1) * 99 / 100], most = cycles[frames - 1];
+    fprintf(stderr, "ct_gba: %s cycles a frame: mean %lu (%lu.%02lu GBA frames), 99th percentile %lu (%lu.%02lu), "
+                    "heaviest %lu (%lu.%02lu)\n", part,
+            (unsigned long)mean, (unsigned long)(mean / GBA_FRAME_CYCLES), (unsigned long)(mean % GBA_FRAME_CYCLES * 100 / GBA_FRAME_CYCLES),
+            (unsigned long)p99, (unsigned long)(p99 / GBA_FRAME_CYCLES), (unsigned long)(p99 % GBA_FRAME_CYCLES * 100 / GBA_FRAME_CYCLES),
+            (unsigned long)most, (unsigned long)(most / GBA_FRAME_CYCLES), (unsigned long)(most % GBA_FRAME_CYCLES * 100 / GBA_FRAME_CYCLES));
+}
+
 int main(void)
 {
     debug_log_open();
@@ -119,19 +142,33 @@ int main(void)
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed, NULL }, 1);
     fprintf(stderr, "ct_gba: playing %u frame(s)\n", (unsigned)frames);
 
+    /* Each frame's cycles, the game's and the sound's, for the report. */
+    uint32_t *game_cycles = calloc(frames ? frames : 1, sizeof *game_cycles);
+    uint32_t *sound_cycles = calloc(frames ? frames : 1, sizeof *sound_cycles);
+    cycles_start();
     for (uint32_t frame = 0; frame < frames; frame++) {
         uint16_t buttons = frame < movie.length ? ct_movie_buttons(&movie, frame) : 0;
         uint16_t second = frame < movie.length ? ct_movie_buttons2(&movie, frame) : 0;
         in_host_set(&pf, 0, buttons);
         in_host_set(&pf, 1, second);
+        uint32_t began = cycles_now();
         tm_host_frame(&pf);
+        uint32_t game_done = cycles_now();
         sound_native_frame(sound);
         sound_native_discard_audio(sound);
+        if (game_cycles && sound_cycles) {
+            game_cycles[frame] = game_done - began;
+            sound_cycles[frame] = cycles_now() - game_done;
+        }
         if (frame % 600 == 599)
             fprintf(stderr, "ct_gba: frame %u\n", (unsigned)frame + 1);
     }
 
     fprintf(stderr, "ct_gba: %u frame(s); %u lag frame(s)\n", (unsigned)frames, (unsigned)tm_host_lag_frames(&pf));
+    if (game_cycles && sound_cycles && frames) {
+        report_cycles("game", game_cycles, frames);
+        report_cycles("sound", sound_cycles, frames);
+    }
     fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(g),
             (unsigned)ct_crc32(state_host_sram(g), STATE_HOST_SRAM_BYTES));
     fprintf(stderr, "ct_gba: arena %u bytes\n", (unsigned)arena_used());

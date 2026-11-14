@@ -26,6 +26,9 @@ start:
     mov     r0, #0x1F          @ system mode, interrupts off
     msr     cpsr_c, r0
     ldr     sp, =__stack_top
+    ldr     r0, =0x04000204    @ the cartridge's waits: 3 then 1, with the prefetch, as commercial games set them
+    ldr     r1, =0x4317
+    strh    r1, [r0]
 
     ldr     r0, =__iwram_load  @ the fast RAM's code and data
     ldr     r1, =__iwram_start

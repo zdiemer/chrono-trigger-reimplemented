@@ -85,6 +85,33 @@ int _write(int fd, const char *bytes, int count)
     return count;
 }
 
+/* ---- Cycles ---------------------------------------------------------------------------------- */
+
+#define TIMER2_COUNT (*(volatile uint16_t *)0x04000108)
+#define TIMER2_CONTROL (*(volatile uint16_t *)0x0400010A)
+#define TIMER3_COUNT (*(volatile uint16_t *)0x0400010C)
+#define TIMER3_CONTROL (*(volatile uint16_t *)0x0400010E)
+enum { TIMER_ON = 0x80, TIMER_CHAINED = 0x04 };
+
+void cycles_start(void)
+{
+    TIMER2_CONTROL = 0;
+    TIMER3_CONTROL = 0;
+    TIMER2_COUNT = 0;   /* the reload value, taken as the timer starts */
+    TIMER3_COUNT = 0;
+    TIMER3_CONTROL = TIMER_ON | TIMER_CHAINED;
+    TIMER2_CONTROL = TIMER_ON;
+}
+
+/* The high half again where the low one wrapped between the two reads. */
+uint32_t cycles_now(void)
+{
+    uint16_t high = TIMER3_COUNT, low = TIMER2_COUNT, again = TIMER3_COUNT;
+    if (again != high)
+        low = TIMER2_COUNT;
+    return (uint32_t)again << 16 | low;
+}
+
 /* ---- The rest of what the library asks for ------------------------------------------------- */
 
 void _exit(int status);
@@ -96,6 +123,9 @@ void _exit(int status)
         ;
 }
 
+/* No files: a movie's or a save's bytes come in the cartridge (pack.py). */
+int _open(const char *path, int flags, ...);
+int _open(const char *path, int flags, ...) { (void)path, (void)flags; errno = ENOENT; return -1; }
 int _close(int fd);
 int _close(int fd) { (void)fd; return -1; }
 int _fstat(int fd, struct stat *st);
