@@ -785,8 +785,9 @@ What it measures, and how:
   installed: the field, a battle, the menus, a scene, the time warp) starts the
   store's cache afresh, and the bytes of the catalogue's resources the stay
   reads are summed: the cartridge data a mode reads, in the catalogue's form.
-- **Per-frame work**: host nanoseconds a frame (the platform's monotonic
-  clock), split into the game's frame (its threads and handlers), the sound
+- **Per-frame work**: host nanoseconds a frame (the host's monotonic clock:
+  QueryPerformanceCounter on Windows, clock_gettime(CLOCK_MONOTONIC) elsewhere),
+  split into the game's frame (its threads and handlers), the sound
   player and the renderer; the 99th percentile and the heaviest frame per mode.
   The targets' figures are an estimate, and say so: host time times 12
   instructions a nanosecond (a desktop core near 4 GHz retiring about three a

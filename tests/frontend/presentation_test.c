@@ -83,7 +83,9 @@ int main(void)
     size_t len = present_settings_write(&s, text, sizeof text);
     CHECK(len > 0, "the settings' text");
     present_settings_read(&back, text, len);
-    CHECK(!memcmp(&s, &back, sizeof s), "the settings read back differ");
+    CHECK(s.scaling == back.scaling && s.filter == back.filter && s.fullscreen == back.fullscreen &&
+              s.fullscreen_mode == back.fullscreen_mode,
+          "the settings read back differ");   /* field by field: the padding between them is never written */
     const char *later = "# a later build\r\nscaling = INTEGER\r\nbrightness = 3\nfullscreen = maybe\n";
     present_settings_read(&back, later, strlen(later));
     CHECK(back.scaling == SCALING_INTEGER && back.fullscreen && back.filter == FILTER_SCANLINES,

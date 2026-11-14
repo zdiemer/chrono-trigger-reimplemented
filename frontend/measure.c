@@ -1,4 +1,5 @@
 /* ct_native --measure (frontend/measure.h). */
+#define _POSIX_C_SOURCE 199309L   /* clock_gettime, on hosts other than Windows */
 #include "measure.h"
 
 #include <inttypes.h>
