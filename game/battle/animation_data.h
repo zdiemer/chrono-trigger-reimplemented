@@ -214,7 +214,8 @@ static inline uint8_t battle_mirrored_byte(const GameState *g, uint8_t b)
 static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16_t table, uint16_t frame)
 {
     uint16_t at = (uint16_t)(table + frame * 2u);
-    return (BattlePaletteFrame){ rom_read8(g, 0xCD0000u + at), rom_read8(g, 0xCD0001u + at) };
+    return (BattlePaletteFrame){ asset_read8_at_place(g, ASSET_BATTLE_PALETTE_FRAMES, at),
+                                 asset_read8_at_place(g, ASSET_BATTLE_PALETTE_FRAMES, (uint16_t)(at + 1)) };
 }
 
 static inline uint16_t battle_palette_set_color(const GameState *g, bool seven, uint8_t set, unsigned color)
@@ -235,14 +236,15 @@ static inline uint16_t battle_flash_color(const GameState *g, uint8_t set, unsig
  * effect's offset), whose top bits mark where the animations divide. */
 static inline uint8_t battle_effect_record_marks(const GameState *g, uint16_t at)
 {
-    return rom_read8(g, 0xCE0000u + at);
+    return asset_read8_at_place(g, ASSET_BATTLE_EFFECT_FRAMES, at);
 }
 
 static inline BattleEffectFrame battle_effect_frame_record(const GameState *g, uint16_t at)
 {
-    uint32_t from = 0xCE0000u + at;
-    uint8_t time = rom_read8(g, from + 3);
-    return (BattleEffectFrame){ rom_read8(g, from), (int8_t)rom_read8(g, from + 1), (int8_t)rom_read8(g, from + 2),
+    uint8_t time = asset_read8_at_place(g, ASSET_BATTLE_EFFECT_FRAMES, (uint16_t)(at + 3));
+    return (BattleEffectFrame){ asset_read8_at_place(g, ASSET_BATTLE_EFFECT_FRAMES, at),
+                                (int8_t)asset_read8_at_place(g, ASSET_BATTLE_EFFECT_FRAMES, (uint16_t)(at + 1)),
+                                (int8_t)asset_read8_at_place(g, ASSET_BATTLE_EFFECT_FRAMES, (uint16_t)(at + 2)),
                                 (uint8_t)(time & 0x7F), (time & 0x80) != 0 };
 }
 
@@ -296,7 +298,7 @@ static inline uint16_t battle_palette_plane_mask(const GameState *g, uint8_t pal
  * by its pace ($CE:EFEA, a byte a pace, by the pace's low three bits). */
 static inline uint8_t battle_dissolve_stride(const GameState *g, uint8_t pace)
 {
-    return asset_read8(g, ASSET_BATTLE_DISSOLVE_FADE_KIND, 0xD9u + (pace & 7u));
+    return asset_read8(g, ASSET_BATTLE_DISSOLVE_STRIDE, pace & 7u);
 }
 
 static inline BattleTileRun battle_dissolve_run(const GameState *g, uint8_t layout, unsigned run)

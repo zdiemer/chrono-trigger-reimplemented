@@ -335,9 +335,9 @@ typedef struct {
 static void take_the_strip(GameState *g, MapBuilder *b, uint16_t strip, uint8_t rows)
 {
     uint16_t place = battlefield_strip_place(g, strip);
-    set_battle_map_strip_step(g, battlefield_strip_byte(g, BATTLEFIELD_STRIP_BANK | place));
+    set_battle_map_strip_step(g, battlefield_strip_byte(g, place));
     for (unsigned i = 0; i < CELLS_BYTES; i++)
-        set_battle_map_strip_cells(g, i, battlefield_strip_byte(g, BATTLEFIELD_STRIP_BANK + place + 1u + i));
+        set_battle_map_strip_cells(g, i, battlefield_strip_byte(g, (uint16_t)(place + 1u + i)));
     b->at = (uint16_t)(place + rows * 2u + 1u);
     b->cells_left = 1;
     b->cells_read = 0;
@@ -357,7 +357,7 @@ static bool next_place_has_a_tile(GameState *g, MapBuilder *b)
 /* The tile byte for the place, and the strip's bytes stepped on. */
 static uint8_t next_tile(GameState *g, MapBuilder *b)
 {
-    uint8_t tile = battlefield_strip_byte(g, BATTLEFIELD_STRIP_BANK | b->at);
+    uint8_t tile = battlefield_strip_byte(g, b->at);
     uint16_t step = battle_map_strip_step(g);
     if (!(step & STRIP_STEP_CYCLES)) {
         b->at = (uint16_t)(b->at + step);
@@ -395,7 +395,7 @@ static void leave_the_builder(GameState *g, const MapBuilder *b, uint16_t tile_s
 
     (void)rows;
     (void)tile_set;     screen_leave_word(g, LEFT_STRIP_AT, b->at);
-    screen_leave_cell(g, LEFT_STRIP_BANK, (uint8_t)(BATTLEFIELD_STRIP_BANK >> 16));
+    screen_leave_cell(g, LEFT_STRIP_BANK, battlefield_strips_bank());
     screen_leave_word(g, LEFT_BUFFER_AT, (uint16_t)(MAP_BUFFER + strips * STRIP_PLACES * 2));
     screen_leave_cell(g, LEFT_BUFFER_BANK, WORK_RAM_BANK);
     screen_leave_cell(g, LEFT_CELLS_LEFT, b->cells_left);

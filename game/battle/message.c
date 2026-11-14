@@ -70,10 +70,6 @@ void battle_clear_the_message_tiles(GameState *g)
 
 /* ---- Opening a message ------------------------------------------------------------------------- */
 
-/* The tables of strings the messages come from: the battle's own messages (an
- * escape, a member back on its feet, the windows that name a combatant), an
- * enemy's, and the descriptions of techs and items. */
-enum { BATTLE_MESSAGES = 0xCEEF11, ENEMY_MESSAGES = 0xCCCBC9, DESCRIPTIONS = 0xCC3A09 };
 /* A message set all at once is given this many letters. */
 enum { WHOLE_MESSAGE = 0x40 };
 /* While a message shows, the vblank handler sends its tiles in place of
@@ -178,7 +174,7 @@ static bool hold_the_message(GameState *g, Platform *pf, uint8_t message)
  * gives, and a pause after it closes. */
 static bool show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
 {
-    set_menu_text_strings(g, BATTLE_MESSAGES);
+    set_menu_text_strings(g, asset_address(ASSET_BATTLE_MESSAGES));
     uint8_t sound = battle_message_sound(g, message);
     if (sound != BATTLE_MESSAGE_SILENT)
         TIMED_AS(g, BATTLE_PLAY_A_SOUND_ENTRY, battle_play_a_sound(pf, sound, AU_CENTRE));
@@ -202,7 +198,7 @@ enum { ENEMY_MESSAGE_PAUSE = 8 };
 static bool show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 {
     set_battle_message_by_id(g, (uint8_t)(battle_message_by_id(g) + 1));
-    set_menu_text_strings(g, ENEMY_MESSAGES);
+    set_menu_text_strings(g, asset_address(ASSET_ENEMY_MESSAGES));
     uint8_t up = battle_message_shown(g);
     if (message == up)
         return true;
@@ -230,9 +226,9 @@ static bool message_already_asked(GameState *g, uint8_t message)
     return message == NO_MESSAGE;
 }
 
-static void type_out(GameState *g, uint32_t strings, uint8_t string)
+static void type_out(GameState *g, AssetId strings, uint8_t string)
 {
-    set_menu_text_strings(g, strings);
+    set_menu_text_strings(g, asset_address(strings));
     TIMED_AS(g, 0xCD025E, open_the_message(g, string));
     show_the_message(g, true);
     set_battle_message_drawing(g, 1);
@@ -249,7 +245,7 @@ static bool name_a_combatant(GameState *g, uint8_t combatant, uint8_t window)
         return false;
     if (message_already_asked(g, combatant))
         return false;
-    type_out(g, BATTLE_MESSAGES, window);
+    type_out(g, ASSET_BATTLE_MESSAGES, window);
     return true;
 }
 
@@ -260,7 +256,7 @@ static bool describe(GameState *g, uint8_t description)
 {
     if (enemy_message_up(g) || message_already_asked(g, description))
         return false;
-    type_out(g, DESCRIPTIONS, description);
+    type_out(g, ASSET_BATTLE_DESCRIPTIONS, description);
     return true;
 }
 
@@ -276,15 +272,15 @@ bool battle_message_typing_fits(const GameState *g) { return !battle_message_dra
  * ($CD:0027), each refused unless its string is one the menus' text code
  * can type into the message's tiles. False where the program went no
  * further. */
-static bool can_be_typed(const GameState *g, uint32_t strings, uint8_t string)
+static bool can_be_typed(const GameState *g, AssetId strings, uint8_t string)
 {
-    return menu_text_can_be_typed(g, strings, string, RAM_BATTLE_MESSAGE_TILES);
+    return menu_text_can_be_typed(g, asset_address(strings), string, RAM_BATTLE_MESSAGE_TILES);
 }
 
 bool battle_combatant_named(GameState *g, uint8_t combatant, bool with_hp)
 {
     uint32_t routine = with_hp ? 0xCD002D : 0xCD0030;
-    if (!can_be_typed(g, BATTLE_MESSAGES, NAME) || !can_be_typed(g, BATTLE_MESSAGES, NAME_WITH_HP))
+    if (!can_be_typed(g, ASSET_BATTLE_MESSAGES, NAME) || !can_be_typed(g, ASSET_BATTLE_MESSAGES, NAME_WITH_HP))
         return battle_contract_broken(g, routine, "a combatant's name the menus' text code doesn't type");
     TIMED_AS(g, routine, (void)name_a_combatant(g, combatant, with_hp ? NAME_WITH_HP : NAME));
     return true;
@@ -292,7 +288,7 @@ bool battle_combatant_named(GameState *g, uint8_t combatant, bool with_hp)
 
 bool battle_described(GameState *g, uint8_t description)
 {
-    if (!can_be_typed(g, DESCRIPTIONS, description))
+    if (!can_be_typed(g, ASSET_BATTLE_DESCRIPTIONS, description))
         return battle_contract_broken(g, 0xCD0027, "a description the menus' text code doesn't type");
     TIMED_AS(g, 0xCD0027, (void)describe(g, description));
     return true;
@@ -301,7 +297,7 @@ bool battle_described(GameState *g, uint8_t description)
 /* Refused unless the menus' text code types the string. */
 bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 {
-    if (!can_be_typed(g, ENEMY_MESSAGES, message))
+    if (!can_be_typed(g, ASSET_ENEMY_MESSAGES, message))
         return battle_contract_broken(g, 0xCD0033, "an enemy's message the menus' text code doesn't type");
     return show_an_enemy_message(g, pf, message);
 }
@@ -309,7 +305,7 @@ bool battle_show_an_enemy_message(GameState *g, Platform *pf, uint8_t message)
 /* Refused unless the menus' text code types the string. */
 bool battle_show_a_battle_message(GameState *g, Platform *pf, uint8_t message)
 {
-    if (!can_be_typed(g, BATTLE_MESSAGES, message))
+    if (!can_be_typed(g, ASSET_BATTLE_MESSAGES, message))
         return battle_contract_broken(g, 0xCD0021, "a battle message the menus' text code doesn't type");
     return show_a_battle_message(g, pf, message);
 }

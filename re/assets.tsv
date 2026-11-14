@@ -1176,15 +1176,45 @@ setup_member_color_set	bytes	CD:6CEC	CD:6D4B	raw	accessor setup_member_color_set
 battle_weapon_swing_sounds	bytes	CD:6D4C	CD:6DAB	raw	accessor battle_weapon_sound
 battle_weapon_hit_sounds	bytes	CD:6DAC	CD:6E0B	raw	accessor battle_weapon_sound
 battle_animations_cd	script	CD:6E0C	CD:EE22	script:battle-animation	read
-mixed_cdee23	mixed	CD:EE23	CD:FFFF	raw	read
+battle_palette_frames	bytes	CD:EE23	CD:F18A	raw	accessor battle_palette_frame
+mixed_cdf18b	mixed	CD:F18B	CD:F9C8	raw	read
+padding_cdf9c9	padding	CD:F9C9	CD:FFFF	raw	$FF to the end of the bank
 battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor battle_script_subroutine
 battle_color_cycle_color	words	CE:0100	CE:036B	palette:16	accessor battle_color_cycle_color
 padding_ce036c	padding	CE:036C	CE:037F	raw	read
 battle_animations_ce	script	CE:0380	CE:886F	script:battle-animation	read
-mixed_ce8870	mixed	CE:8870	CE:D427	raw	read
+battle_effect_frames	struct	CE:8870	CE:D167	struct:records:4	accessor battle_effect_frame_record
+mixed_ced168	mixed	CE:D168	CE:D427	raw	read
 battle_animation_subroutines	script	CE:D428	CE:DC19	script:battle-animation	read
 background_ripple_sway	bytes	CE:E08E	CE:E18D	raw	accessor background_ripple_sway
-battle_dissolve_fade_kind	bytes	CE:EF11	CE:F065	raw	accessor battle_dissolve_fade_kind
+battle_messages	ptr16	CE:EF11	CE:EF2C	raw	accessor battle_messages
+battle_messages.0	text	CE:EF2D	CE:EF43	text:dialog	battle_messages entry
+battle_messages.1	text	CE:EF44	CE:EF55	text:dialog	battle_messages entry
+battle_messages.2	text	CE:EF56	CE:EF5D	text:dialog	battle_messages entry
+battle_messages.3	text	CE:EF5E	CE:EF67	text:dialog	battle_messages entry
+battle_messages.4	text	CE:EF68	CE:EF73	text:dialog	battle_messages entry
+battle_messages.5	text	CE:EF74	CE:EF7D	text:dialog	battle_messages entry
+mixed_ceef11_ef7e	mixed	CE:EF7E	CE:EF7F	raw	read
+battle_messages.6	text	CE:EF80	CE:EF90	text:dialog	battle_messages entry
+mixed_ceef11_ef91	mixed	CE:EF91	CE:EF92	raw	read
+battle_messages.7	text	CE:EF93	CE:EFA6	text:dialog	battle_messages entry
+mixed_ceef11_efa7	mixed	CE:EFA7	CE:EFA8	raw	read
+battle_messages.8	text	CE:EFA9	CE:EFB0	text:dialog	battle_messages entry
+battle_messages.9	text	CE:EFB1	CE:EFBA	text:dialog	battle_messages entry
+battle_messages.10	text	CE:EFBB	CE:EFC2	text:dialog	battle_messages entry
+battle_messages.11	text	CE:EFC3	CE:EFC9	text:dialog	battle_messages entry
+battle_messages.12	text	CE:EFCA	CE:EFCC	text:dialog	battle_messages entry
+battle_messages.13	text	CE:EFCD	CE:EFE0	text:dialog	battle_messages entry
+battle_dissolve_fade_kind	bytes	CE:EFE1	CE:EFE1	raw	accessor battle_dissolve_fade_kind
+battle_dissolve_fade	bytes	CE:EFE2	CE:EFE9	raw	accessor battle_dissolve_fade
+battle_dissolve_stride	bytes	CE:EFEA	CE:EFF1	raw	accessor battle_dissolve_stride
+battlefield_tile_set_vram	words	CE:EFF2	CE:EFF9	raw	accessor battlefield_tile_set_vram
+battlefield_fade_kind	bytes	CE:EFFA	CE:EFFB	raw	accessor battlefield_fade_kind
+mixed_ceeffc	mixed	CE:EFFC	CE:EFFD	raw	read
+battlefield_fades	struct	CE:EFFE	CE:F02D	struct:records:8	accessor battlefield_fade
+mixed_cef02e	mixed	CE:F02E	CE:F03D	raw	read
+battlefield_palette_bit_mask	bytes	CE:F03E	CE:F045	raw	accessor battlefield_palette_bit_mask
+battlefield_column_place	bytes	CE:F046	CE:F065	raw	accessor battlefield_column_place
 palette_preset_fade	bytes	CE:F0E6	CE:F125	raw	accessor palette_preset_fade
 palette_preset_timing	bytes	CE:F126	CE:F145	raw	accessor palette_preset_timing
 palette_preset_step	bytes	CE:F146	CE:F155	raw	accessor palette_preset_step
@@ -1213,7 +1243,136 @@ effect_tilemap_graphics_address.5	lz	D0:F198	D0:F98E	lz:tilemap:32	effect_tilema
 battlefield_tiles_padding	padding	D0:F98F	D0:F9FF	raw	zero, read by no accessor
 battle_screen_colors	words	D0:FA00	D0:FD5F	palette:16	accessor effect_color
 battle_screen_colors_padding	padding	D0:FD60	D0:FFFF	raw	$FF to the end of the bank, read by no accessor
-battle_animation_tiles_place	mixed	D1:0000	D1:38EF	raw	accessor battle_animation_tiles_place
+battle_animation_tiles_place	ptr16	D1:0000	D1:00FF	raw	accessor battle_animation_tiles_place
+battle_animation_tiles_place.0	lz	D1:0100	D1:015A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.1	lz	D1:015B	D1:01B9	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.2	lz	D1:01BA	D1:0226	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.3	lz	D1:0227	D1:029A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.4	lz	D1:029B	D1:02E1	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.5	lz	D1:02E2	D1:031C	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.6	lz	D1:031D	D1:03C8	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.7	lz	D1:03C9	D1:043E	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.8	lz	D1:043F	D1:04AF	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.9	lz	D1:04B0	D1:04FB	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.10	lz	D1:04FC	D1:0553	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.11	lz	D1:0554	D1:058B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.12	lz	D1:058C	D1:0691	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.13	lz	D1:0692	D1:073A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.14	lz	D1:073B	D1:079E	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.15	lz	D1:079F	D1:0824	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.16	lz	D1:0825	D1:0892	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.17	lz	D1:0893	D1:091B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.18	lz	D1:091C	D1:095D	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.19	lz	D1:095E	D1:09C5	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.20	lz	D1:09C6	D1:0A48	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.21	lz	D1:0A49	D1:0AAF	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.22	lz	D1:0AB0	D1:0B28	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.23	lz	D1:0B29	D1:0BB4	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.24	lz	D1:0BB5	D1:0CEC	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.25	lz	D1:0CED	D1:0D79	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.26	lz	D1:0D7A	D1:0DB6	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.27	lz	D1:0DB7	D1:0E30	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.28	lz	D1:0E31	D1:0E91	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.29	lz	D1:0E92	D1:0F4B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.30	lz	D1:0F4C	D1:1037	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.31	lz	D1:1038	D1:10B3	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.32	lz	D1:10B4	D1:111A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.33	lz	D1:111B	D1:11BB	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.34	lz	D1:11BC	D1:126F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.35	lz	D1:1270	D1:1342	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.36	lz	D1:1343	D1:13AB	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.37	lz	D1:13AC	D1:1430	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.38	lz	D1:1431	D1:1487	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.39	lz	D1:1488	D1:1565	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.40	lz	D1:1566	D1:15C6	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.41	lz	D1:15C7	D1:1658	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.42	lz	D1:1659	D1:16BD	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.43	lz	D1:16BE	D1:1759	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.44	lz	D1:175A	D1:182B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.45	lz	D1:182C	D1:18D8	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.46	lz	D1:18D9	D1:19B7	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.47	lz	D1:19B8	D1:1A03	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.48	lz	D1:1A04	D1:1A34	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.49	lz	D1:1A35	D1:1A65	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.50	lz	D1:1A66	D1:1ADD	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.51	lz	D1:1ADE	D1:1B2C	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.52	lz	D1:1B2D	D1:1B45	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.53	lz	D1:1B46	D1:1B6B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.54	lz	D1:1B6C	D1:1C98	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.55	lz	D1:1C99	D1:1D0B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.56	lz	D1:1D0C	D1:1D24	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.57	lz	D1:1D25	D1:1D55	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.58	lz	D1:1D56	D1:1D9A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.59	lz	D1:1D9B	D1:1E1E	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.60	lz	D1:1E1F	D1:1ED5	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.61	lz	D1:1ED6	D1:1EEB	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.62	lz	D1:1EEC	D1:1F14	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.63	lz	D1:1F15	D1:1F2D	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.64	lz	D1:1F2E	D1:1F90	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.65	lz	D1:1F91	D1:1FFA	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.66	lz	D1:1FFB	D1:2163	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.67	lz	D1:2164	D1:21E7	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.68	lz	D1:21E8	D1:2225	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.69	lz	D1:2226	D1:2246	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.70	lz	D1:2247	D1:2334	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.71	lz	D1:2335	D1:238A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.72	lz	D1:238B	D1:23F8	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.73	lz	D1:23F9	D1:248E	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.74	lz	D1:248F	D1:252F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.75	lz	D1:2530	D1:255F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.76	lz	D1:2560	D1:2591	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.77	lz	D1:2592	D1:25C8	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.78	lz	D1:25C9	D1:263C	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.79	lz	D1:263D	D1:268D	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.80	lz	D1:268E	D1:26C3	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.81	lz	D1:26C4	D1:2745	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.82	lz	D1:2746	D1:27BD	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.83	lz	D1:27BE	D1:2817	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.84	lz	D1:2818	D1:2879	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.85	lz	D1:287A	D1:2947	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.86	lz	D1:2948	D1:29FD	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.87	lz	D1:29FE	D1:2AB4	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.88	lz	D1:2AB5	D1:2B5F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.89	lz	D1:2B60	D1:2B9F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.90	lz	D1:2BA0	D1:2BBE	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.91	lz	D1:2BBF	D1:2C0F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.92	lz	D1:2C10	D1:2C73	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.93	lz	D1:2C74	D1:2CD4	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.94	lz	D1:2CD5	D1:2D3A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.95	lz	D1:2D3B	D1:2DDB	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.96	lz	D1:2DDC	D1:2E2C	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.97	lz	D1:2E2D	D1:2E82	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.98	lz	D1:2E83	D1:2F3B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.99	lz	D1:2F3C	D1:2F5D	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.100	lz	D1:2F5E	D1:2F87	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.101	lz	D1:2F88	D1:3037	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.102	lz	D1:3038	D1:308F	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.103	lz	D1:3090	D1:30BB	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.104	lz	D1:30BC	D1:3101	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.105	lz	D1:3102	D1:3142	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.106	lz	D1:3143	D1:31AF	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.107	lz	D1:31B0	D1:3266	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.108	lz	D1:3267	D1:32DE	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.109	lz	D1:32DF	D1:3330	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.110	lz	D1:3331	D1:3388	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.111	lz	D1:3389	D1:33C1	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.112	lz	D1:33C2	D1:3449	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.113	lz	D1:344A	D1:3485	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.114	lz	D1:3486	D1:3568	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.115	lz	D1:3569	D1:35C1	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.116	lz	D1:35C2	D1:3601	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.117	lz	D1:3602	D1:36DC	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.118	lz	D1:36DD	D1:3705	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.119	lz	D1:3706	D1:3708	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.120	lz	D1:3709	D1:370B	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.121	lz	D1:370C	D1:370E	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.122	lz	D1:370F	D1:3711	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.123	lz	D1:3712	D1:3714	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.124	lz	D1:3715	D1:3717	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.125	lz	D1:3718	D1:371A	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.126	lz	D1:371B	D1:371D	lz	battle_animation_tiles_place entry
+battle_animation_tiles_place.127	lz	D1:371E	D1:3720	lz	battle_animation_tiles_place entry
+padding_d13721	padding	D1:3721	D1:38EF	raw	zero to the next table
 battle_cursor_colors	words	D1:38F0	D1:38FF	palette:4	accessor setup_cursor_color
 setup_four_plane_tiles	bytes	D1:3900	D1:40FF	raw	accessor setup_four_plane_tiles
 battle_sprite_color_sets	words	D1:4100	D1:43FF	palette:3	accessor battle_palette_set_color
@@ -1231,15 +1390,16 @@ battle_command_frame_tile	bytes	D1:59FC	D1:5A4F	raw	accessor battle_command_fram
 battle_tech_page_frames_tile	bytes	D1:5A50	D1:5BCF	raw	accessor battle_tech_page_frames_tile
 battle_item_page_frames_tile	bytes	D1:5BD0	D1:5D4F	raw	accessor battle_item_page_frames_tile
 setup_load_tilemap_start	bytes	D1:5D50	D1:5E0F	raw	accessor setup_load_tilemap_start
-battle_number_rise_tables	bytes	D1:5E10	D1:5F41	raw	accessor battle_number_rise_table
+battle_number_rise_tables	bytes	D1:5E10	D1:5E81	raw	accessor battle_number_rise_table
+battle_window_tile_blocks	gfx	D1:5E82	D1:5F41	raw	accessor battle_load_graphics
 battle_character_falling_frame	bytes	D1:5F42	D1:5FFF	raw	accessor battle_character_falling_frame
 battle_background_color_sets	words	D1:6000	D1:623F	palette:4	accessor background_set_color
 battlefield_look	bytes	D1:6240	D1:646B	raw	accessor battlefield_look
 screen_script_start	ptr16	D1:646C	D1:6593	raw	accessor screen_script_start
-battle_screen_scripts	mixed	D1:6594	D1:A232	raw	screen_script_start entry
-battlefield_layout	mixed	D1:A233	D1:A574	raw	accessor battlefield_layout
+battle_screen_scripts	script	D1:6594	D1:A232	raw	screen_script_start entry
+battlefield_layout	struct	D1:A233	D1:A574	struct:records:6	accessor battlefield_layout
 battlefield_strip_place	ptr16	D1:A575	D1:A82E	raw	accessor battlefield_strip_place
-battlefield_strips	mixed	D1:A82F	D1:E709	raw	battlefield_strip_place entry
+battlefield_strips	bytes	D1:A82F	D1:E709	raw	battlefield_strip_place entry
 gradient_set_color	words	D1:E9EF	D1:EA00	raw	accessor gradient_set_color
 gradient_row_turn	bytes	D1:EA21	D1:EA4A	raw	accessor gradient_row_turn
 shape_model_point	words	D1:EC5F	D1:ECF2	raw	accessor shape_model_point
@@ -7148,7 +7308,7 @@ battle_stat_block_places	words	FD:A80B	FD:A848	raw	accessor battle_stat_block_pl
 battle_member_record_places	words	FD:A849	FD:A89C	raw	accessor battle_member_record_place
 character_first_single_techs	bytes	FD:A89D	FD:A8A4	raw	accessor character_first_single_tech
 demo_member_action_byte	ptr16	FD:B957	FD:B95C	raw	accessor demo_member_action_byte
-demo_member_actions	mixed	FD:B95D	FD:B99B	raw	demo_member_action_byte entry
+demo_member_actions	bytes	FD:B95D	FD:B99B	raw	demo_member_action_byte entry
 demo_member	words	FD:B99C	FD:BA49	raw	accessor demo_member
 enemy_action_length	bytes	FD:BA4A	FD:BA60	raw	accessor enemy_action_length
 battle_random_number	bytes	FD:BA61	FD:BFFF	raw	accessor battle_random_number
@@ -7206,7 +7366,8 @@ attract_resource_ptrs.41	lz	FE:F217	FE:F272	lz:colors:16	attract_resource_ptrs e
 attract_resource_ptrs.42	lz	FE:F273	FE:F91D	lz:4bpp	attract_resource_ptrs entry
 attract_colors_fef91e	words	FE:F91E	FE:FE3D	palette:16	accessor scene_copy_resource_to
 attract_padding_fefe3e	padding	FE:FE3E	FE:FFFF	raw	zero to the end of the bank
-sound_song_byte	mixed	FF:0000	FF:205F	raw	accessor sound_song_byte
+menu_graphics	gfx	FF:0000	FF:1F7F	raw	accessor menu_upload_data
+menu_large_portrait_palettes	words	FF:1F80	FF:205F	raw	accessor menu_large_portrait_colour
 dialog_font	gfx	FF:2060	FF:445F	font:12x12	accessor menu_font_byte
 strings_ff4460	ptr16	FF:4460	FF:4501	raw	read
 strings_ff4460.0	text	FF:4502	FF:4517	text:dialog	strings_ff4460 entry
@@ -7600,9 +7761,14 @@ strings_ff8400.34	text	FF:8B2A	FF:8B58	text:dialog	strings_ff8400 entry
 strings_ff8400.35	text	FF:8B59	FF:8B85	text:dialog	strings_ff8400 entry
 strings_ff8400.36	text	FF:8B86	FF:8BB0	text:dialog	strings_ff8400 entry
 strings_ff8400.37	text	FF:8BB1	FF:8BE9	text:dialog	strings_ff8400 entry
-battle_message_layer_tiles	mixed	FF:8BEA	FF:8E5F	raw	accessor battle_message_layer_tiles
+mixed_ff8bea	mixed	FF:8BEA	FF:8C5F	raw	read
+battle_message_layer_tiles	gfx	FF:8C60	FF:8E5F	raw	accessor battle_load_graphics
 small_font	gfx	FF:8E60	FF:9C5F	font:8x8	accessor menu_screen_graphics_data
-mixed_ff9c60	mixed	FF:9C60	FF:B20F	raw	accessor battle_message_layer_tiles
+mixed_ff9c60	mixed	FF:9C60	FF:9C67	raw	read
+window_colours	words	FF:9C68	FF:9CEF	raw	accessor menu_rom_colour
+window_tiles	gfx	FF:9CF0	FF:9DEF	raw	accessor battle_load_graphics
+screen_colours	words	FF:9DF0	FF:9E0F	raw	accessor setup_fixed_color
+menu_screen_graphics	gfx	FF:9E10	FF:B20F	raw	accessor menu_screen_graphics_data
 window_design_colors	words	FF:B210	FF:B28F	palette:8	accessor menu_window_design_colour
 mixed_ffb290	mixed	FF:B290	FF:B30F	raw	read
 menu_item_kind_label	words	FF:B310	FF:BD5B	raw	accessor menu_item_kind_label

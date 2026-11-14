@@ -102,7 +102,7 @@ static void fill(const AssetEntry *e, unsigned i)
         CHECK(!"a made-up map fits every map's slot");
         return;
     }
-    static const size_t sizes[] = { 203, 64, 19, 8, 1 };
+    static const size_t sizes[] = { 203, 64, 19, 8, 1, 0 };  /* some streams are empty */
     for (size_t s = 0; s < sizeof sizes / sizeof *sizes; s++) {
         for (size_t k = 0; k < sizes[s]; k++)
             image[k] = (uint8_t)((k % 9) * 0x1D ^ i);

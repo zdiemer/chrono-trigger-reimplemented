@@ -613,12 +613,12 @@ enum { LEFT_SCRIPT = 0x53, LEFT_SCRIPT_BANK = 0x55 };
 static void start_battlefield_script(GameState *g, ScreenChannel channel, uint8_t script)
 {
     uint16_t start = screen_script_start(g, script);
-    set_battle_screen_channels_pace(g, channel, battle_screen_script_byte(g, SCREEN_SCRIPT_BANK | start) & SCRIPT_PACE);
-    set_battle_screen_channels_place(g, channel, SCREEN_SCRIPT_BANK | (uint16_t)(start + 1));
+    set_battle_screen_channels_pace(g, channel, battle_screen_script_byte(g, screen_script_address(start)) & SCRIPT_PACE);
+    set_battle_screen_channels_place(g, channel, screen_script_address((uint16_t)(start + 1)));
     set_battle_screen_channels_countdown(g, channel, 1);
     set_battle_screen_channels_running(g, channel, 1);
     screen_leave_word(g, LEFT_SCRIPT, start);
-    screen_leave_cell(g, LEFT_SCRIPT_BANK, (uint8_t)(SCREEN_SCRIPT_BANK >> 16));
+    screen_leave_cell(g, LEFT_SCRIPT_BANK, (uint8_t)(screen_script_address(start) >> 16));
 }
 
 // $CD:0D33

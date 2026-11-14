@@ -19,8 +19,12 @@
 #include "state.h"
 
 /* Where each of the screen scripts a battlefield runs starts, in their bank
- * ($D1:646C, a word a script). */
-enum { SCREEN_SCRIPT_BANK = 0xD10000 };
+ * ($D1:646C, a word a script); a channel running one keeps the script's
+ * address, the scripts' bank and the place. */
+static inline uint32_t screen_script_address(uint16_t start)
+{
+    return asset_place_address(ASSET_BATTLE_SCREEN_SCRIPTS, start);
+}
 
 /* ---- The HP gradient ---------------------------------------------------------------------- */
 
