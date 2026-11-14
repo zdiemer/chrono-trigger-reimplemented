@@ -330,7 +330,7 @@ static ObjectFrame next_frame(GameState *g, FieldObject obj)
     if (object_holds_frame(g, obj))
         return (ObjectFrame){ true, object_held_frame(g, obj) };
     ObjectFrame f;
-    TIMED_AS(g, 0xC0CB3A, f = object_take_next_frame(g, obj, FIELD_FRAME_TABLES_BANK));
+    TIMED_AS(g, 0xC0CB3A, f = object_take_next_frame(g, obj, field_frame_tables_bank()));
     return f;
 }
 

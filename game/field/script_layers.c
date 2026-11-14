@@ -159,7 +159,7 @@ enum { LETTERS_VRAM = 0x5000, LETTERS_BYTES = 0x400 };
  * tiles. */
 static void load_the_credits_letters(GameState *g, Platform *pf)
 {
-    set_decompress_source(g, FIELD_CREDITS_LETTERS_PACKED);
+    set_decompress_source(g, field_credits_letters_packed());
     set_decompress_dest(g, RAM_FIELD_BG3_TILES_UNPACKED);
     (void)unpack_stream(g);
     FieldTransfer letters = { LETTERS_VRAM, FIELD_TRANSFER_WORDS, RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };

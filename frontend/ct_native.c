@@ -103,7 +103,7 @@ static uint8_t *read_file(const char *path, long want, long *got)
     return bytes;
 }
 
-static uint8_t read_game(void *ctx, uint32_t addr) { return state_host_read8(ctx, addr); }
+static void read_game(void *ctx, uint32_t addr, uint8_t *out, uint32_t len) { state_host_read_span(ctx, addr, out, len); }
 
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
@@ -198,6 +198,16 @@ static void report_strays(const GameState *g)
     if (out->count)
         fprintf(stderr, "strays: %lu cartridge read(s) outside the catalogue of resources, the first at $%02X:%04X\n",
                 out->count, (unsigned)(out->first >> 16), (unsigned)(out->first & 0xFFFF));
+    const AssetFault *unread = asset_unread_reads();
+    if (unread->count) {
+        fprintf(stderr, "strays: %lu cartridge read(s) of resources the catalogue marks unread, the first at $%02X:%04X, in",
+                unread->count, (unsigned)(unread->first >> 16), (unsigned)(unread->first & 0xFFFF));
+        const AssetId *rows;
+        unsigned kept = asset_unread_rows(&rows);
+        for (unsigned i = 0; i < kept; i++)
+            fprintf(stderr, " %s", asset_catalogue[rows[i]].name);
+        fprintf(stderr, "\n");
+    }
 }
 
 /* The pack's bytes moved into the arena, where a snapshot's pointers into

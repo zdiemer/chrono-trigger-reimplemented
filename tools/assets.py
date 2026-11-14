@@ -85,11 +85,18 @@ def data_views():
         return [Row(v["name"], v["type"], parse(v["at"]), parse(v["end"]), "raw", v["purpose"])
                 for v in tomllib.load(f)["view"]]
 
+# The types of a region not yet typed: each such row's `found` says `unread`,
+# that no accessor names it and no movie's read lands in it; one that is read
+# is typed from its readers.
+UNTYPED = ("mixed", "untyped", "undetermined")
+
+
 def problems_of(rows: list[Row]) -> list[str]:
     """What makes a catalogue unusable: names twice, rows overlapping or out of
     order, a range in no bank, a type game/data/assets.h doesn't know, a
     palette that isn't whole colors, a font that isn't whole glyphs, tiles
-    that aren't whole tiles, a packed stream of a codec that isn't one."""
+    that aren't whole tiles, a packed stream of a codec that isn't one, a
+    region left untyped that something reads."""
     out, names = [], set()
     for i, r in enumerate(rows):
         if not re.fullmatch(r"[a-z][a-z0-9_.]*", r.name):
@@ -131,6 +138,8 @@ def problems_of(rows: list[Row]) -> list[str]:
                 or (r.codec.startswith("text:names:") and size % int(r.codec.split(":")[2]))):
             out.append(f"{r.name}: text is text, its codec text:dialog, text:dialog-dictionary or text:names:N, "
                        f"whole names of N glyphs")
+        if r.type in UNTYPED and not r.found.startswith("unread"):
+            out.append(f"{r.name}: a {r.type} row is read ({r.found}): type it from its readers, or found by `unread`")
         if i and rows[i - 1].end >= r.at:
             out.append(f"{r.name}: starts at {fmt(r.at)}, inside or before {rows[i - 1].name}")
     return out
@@ -192,6 +201,9 @@ def generate_names(rows: list[Row]) -> str:
            " * edit the catalogue and run tools/assets.py generate. */",
            "#ifndef CT_GAME_DATA_ASSET_NAMES_H", "#define CT_GAME_DATA_ASSET_NAMES_H", "", "enum {"]
     out += [f"    ASSET_{r.name.upper()} = {i}," for i, r in named_rows(rows)]
+    out += ["};", "", "/* The types of a region the catalogue leaves untyped, each such row unread",
+            " * (asset_unread_reads). */", "enum {"]
+    out += [f"    ASSET_TYPE_{t.upper()} = {TYPES.index(t)}," for t in UNTYPED]
     out += ["};", "", "#endif", ""]
     return "\n".join(out)
 

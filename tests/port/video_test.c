@@ -12,11 +12,11 @@ static int failures;
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "line %d: %s\n", __LINE__, #c); failures++; } } while (0)
 
 static unsigned fallback_reads;
-static uint8_t unexpected_read(void *ctx, uint32_t at)
+static void unexpected_read(void *ctx, uint32_t at, uint8_t *out, uint32_t len)
 {
     (void)ctx; (void)at;
-    fallback_reads++;
-    return 0xEE;
+    fallback_reads += len;
+    memset(out, 0xEE, len);
 }
 static const uint8_t *split_bytes(uint32_t at)
 {
@@ -67,10 +67,11 @@ static void view_sends(void)
     vid_host_stop(&pf);
 }
 
-static uint8_t effect_byte(void *ctx, uint32_t at)
+static void effect_bytes(void *ctx, uint32_t at, uint8_t *out, uint32_t len)
 {
     (void)ctx;
-    return at == 0 ? 255 : at <= 127 ? 15 : 0;
+    for (uint32_t i = 0; i < len; i++)
+        out[i] = at + i == 0 ? 255 : at + i <= 127 ? 15 : 0;
 }
 
 static void fill_half_from_cursor(void)
@@ -135,7 +136,7 @@ static const VidLineState *line_state(const VidFrame *f, unsigned line)
 static void raster_changes(void)
 {
     Platform pf = {0};
-    vid_host_start(&pf, effect_byte, NULL);
+    vid_host_start(&pf, effect_bytes, NULL);
     vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
     pf.timing.part = TM_HOST_IN_LINE;
     pf.timing.line = VID_HOST_LAST_LINE;

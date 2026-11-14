@@ -329,7 +329,8 @@ def holding_out(bot, state, rng, inventory):
 
 
 INNER_ARMS, INNER_BODY = (3, 6), 10     # the inner Lavos's arms (8000 and 12000 HP) and body (20000)
-BODY_LAST_BLOWS = 4000                  # the body's HP from which the party readies for the core first
+BODY_LAST_BLOWS = 9000                  # the body's HP from which the party readies for the core first:
+                                        # Luminaire takes some 4,000 from it a cast
 # The guards a member wears through a fight: the Barrier (0xCB) takes three
 # tenths off magic, the Shield (0xCC) and Lucca's Protect (her tech list's
 # entry 4) off blows; one member each. Their bits in the stat block's fourth

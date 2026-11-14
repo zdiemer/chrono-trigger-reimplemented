@@ -63,7 +63,9 @@ typedef struct {
 /* Read the resources from `source` from now on: the driver's to call, before
  * the game runs or between frames. NULL leaves the game with no source, so a
  * read of the cartridge has nothing to answer it. The source must outlive its
- * use. */
+ * use. The game asks the source for a resource once for each run of reads
+ * through it; calling this again (even with the same source) makes it ask
+ * afresh. */
 void assets_use(const AssetSource *source);
 
 
@@ -85,5 +87,14 @@ typedef struct {
 } AssetFault;
 const AssetFault *asset_outside_reads(void);
 void asset_note_outside(uint32_t at);
+
+/* Cartridge reads that land in a resource the catalogue leaves untyped, every
+ * one of which it marks unread (re/assets.tsv, tools/assets.py check): a read
+ * of one is a reader the catalogue doesn't know, which wants its row typed.
+ * ct_native prints a `strays:` line when there are any. */
+const AssetFault *asset_unread_reads(void);
+/* The first of those resources read, up to ASSET_UNREAD_KEPT of them. */
+enum { ASSET_UNREAD_KEPT = 8 };
+unsigned asset_unread_rows(const AssetId **rows);
 
 #endif

@@ -36,9 +36,6 @@ enum {
     RUN_SHORTEST = 3, RUN_SPREAD = 0x1F, MOVE_LEAST = 8, MOVE_SPREAD = 0x03,
 };
 
-/* The pointer the original keeps into the random bytes: their page and bank. */
-enum { RANDOM_BYTES_PAGE_AND_BANK = 0xC0FE };
-
 /* The first step: every line's edge closed at the side the curtain starts
  * from. Only the bank's low bit says which bank the edges are in here. */
 static void close_every_line(GameState *g, uint16_t edges, uint8_t bank, uint8_t fill)
@@ -128,7 +125,7 @@ void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt)
         return;
     }
 
-    SceneDraw d = scene_draw_random(g, pf, PF_AT(0xC3024A), scene_draw_from(RANDOM_BYTES_PAGE_AND_BANK & 0xFF, steps >= LAST_STEP,
+    SceneDraw d = scene_draw_random(g, pf, PF_AT(0xC3024A), scene_draw_from(scene_random_bytes_page(), steps >= LAST_STEP,
                                                                            TM_ENTROPY_BYTES),
                                     salt, TM_ENTROPY_BYTES);
     set_scene_curtain_table_bank_high(g, (uint8_t)d);

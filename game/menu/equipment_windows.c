@@ -127,7 +127,7 @@ static const uint8_t SLOT_RECORD_PLACES[SLOTS] = { WEAPON_AT, HELMET_AT, ARMOUR_
 static uint16_t draw_item_name(GameState *g, uint8_t item, uint16_t pen, uint8_t settings)
 {
     uint16_t after = pen;
-    after = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, settings);
+    after = menu_draw_string(g, menu_item_name_at(menu_item_name_places(g, item)), pen, settings);
     return after;
 }
 
@@ -176,7 +176,7 @@ void menu_equip_mark_slots(GameState *g) { menu_equip_mark_slots_at(g, MARKS_AT)
  * shown from line $40FF, the band table copied whole, the cursor on the
  * first slot and its label, the window's colours and layers queued. */
 enum { SLOTS_LIST = 0xBE6D, MEMBER_ROW_AT = MENU_FRONT_LAYER_AT, SLOTS_SHOWN = 0x40FF, WHOLE_TABLE_BYTES = 0x25 };
-enum { UPLOAD_CARD = 0xFBE3, UPLOAD_BG2 = 0xFBFF, UPLOAD_ROW_LINES = 0xFC45, SLOTS_LINE_EFFECTS = 0xC5 };
+enum { UPLOAD_CARD = ASSET_MENU_UPLOAD_FRONT_LAYER, UPLOAD_BG2 = ASSET_MENU_UPLOAD_BACK_LAYER, UPLOAD_ROW_LINES = ASSET_MENU_UPLOAD_ROW_LINES, SLOTS_LINE_EFFECTS = 0xC5 };
 
 static void hide_the_scroll_bar(GameState *g) { set_menu_scroll_bar_hidden(g, (uint8_t)(menu_scroll_bar_hidden(g) - 1)); }
 
@@ -207,7 +207,7 @@ void menu_equip_show_slots_of_member(GameState *g, Platform *pf)
  * (so the cursor's row reaches the window's top as it opens) and then move
  * up six lines a frame. The screen's other bands show the layer from a line
  * up. */
-enum { SLOTS_SLIDE_LIST = 0xBE26, SLIDE_TABLE_BYTES = 0x13, UPLOAD_BG1_SLID = 0xFBEA, UPLOAD_BG2_SLID = 0xFC06 };
+enum { SLOTS_SLIDE_LIST = 0xBE26, SLIDE_TABLE_BYTES = 0x13, UPLOAD_BG1_SLID = ASSET_MENU_UPLOAD_FRONT_LAYER_LOWER_HALF, UPLOAD_BG2_SLID = ASSET_MENU_UPLOAD_BACK_LAYER_SLID };
 enum { SLOTS_START = 0x606F, TOP_START = 0x90, MIDDLE_START = 0x30, BOTTOM_MOST = 0x90, SLIDE_STEP = 6 };
 enum { FRAMES_A_ROW = 8, LAST_ROW = MENU_MEMBER_ROWS, SLIDE_FRAMES = 0x18, ROWS_STEP = 6, SCREEN_LINES = 0xD0 };
 enum { SLIDING_LINE_EFFECTS = 0xE5 };
@@ -285,7 +285,7 @@ bool menu_equip_slide_slots_a_frame(GameState *g, MenuWindowSlide *w)
  * the cursor's row's wait is over. */
 enum { MEMBERS_LIST = 0xBE5B, LABEL_ROWS_AT = 0x3044, SECOND_LABEL_ROWS_AT = 0x3084, LABEL_ROW_BYTES = 0x16 };
 enum { ROW_TABLES_AT = 0x5D40, ROW_TABLES_BYTES = 0x80, MEMBERS_SHOWN = 0x60FF, ROW_LINES = 0x30 };
-enum { TOP_BACK = 0x30, MIDDLE_BACK = 0x90, BOTTOM_BACK = 0x10, UPLOAD_LIST_CARD = 0xFBE3 };
+enum { TOP_BACK = 0x30, MIDDLE_BACK = 0x90, BOTTOM_BACK = 0x10, UPLOAD_LIST_CARD = ASSET_MENU_UPLOAD_FRONT_LAYER };
 
 /* The band table at rest, from the ROM's. */
 static void put_bands_at_rest(GameState *g)
@@ -416,7 +416,7 @@ void menu_equip_draw_list_row(GameState *g, uint16_t at)
     set_menu_text_attribute(g, LIST_ROW_ATTRIBUTE);
     uint8_t item = menu_item_operand(g);
     if (item != 0)
-        (void)menu_draw_string(g, MENU_ITEM_TABLES_BANK | (uint16_t)(menu_item_name_places(g, item) + NAME_PAST_THE_ICON), at,
+        (void)menu_draw_string(g, menu_item_name_at((uint16_t)(menu_item_name_places(g, item) + NAME_PAST_THE_ICON)), at,
                                LIST_NAME_SETTINGS);
     else
         (void)menu_draw_blanks(g, at, LIST_NAME_SETTINGS);
@@ -446,7 +446,7 @@ void menu_equip_draw_list(GameState *g)
  * list's rows queued, the list at its first row, the slot's place in a
  * character's record, and its frame, eight rows shown from its first place,
  * the scroll bar's track divided among its places past them. */
-enum { LIST_TRACK = 0x1500, FIRST_LIST_PLACE = 4, UPLOAD_LIST_ROWS = 0xFC1B };
+enum { LIST_TRACK = 0x1500, FIRST_LIST_PLACE = 4, UPLOAD_LIST_ROWS = ASSET_MENU_UPLOAD_TEXT_LAYER };
 
 void menu_equip_lay_out_list(GameState *g)
 {

@@ -200,6 +200,12 @@ int main(void)
             CHECK(rom_read8(NULL, e->at - 0x800000u) == made_up(i, 0));
         if ((e->at & 0xFFFF) >= 0x8000 && e->length > 1)                 /* the upper half of $80-$BF */
             CHECK(rom_read16(NULL, e->at - 0x400000u) == (made_up(i, 0) | made_up(i, 1) << 8));
+        /* A run from the resource's start reads as rom_read8 does, inside it and past it. */
+        RomRun run = rom_run_from(e->at);
+        CHECK(run.length >= 1 && run.length <= e->length);
+        CHECK(rom_run_read8(NULL, &run, e->at) == rom_read8(NULL, e->at));
+        CHECK(rom_run_read8(NULL, &run, last) == rom_read8(NULL, last));
+        CHECK(rom_run_read8(NULL, &run, e->at + run.length) == rom_read8(NULL, e->at + run.length));
     }
     /* A named resource's reads find it by name: its first and last bytes, a
      * word, and past its end the bytes after it by address. */
@@ -250,6 +256,27 @@ int main(void)
     CHECK(asset_outside_reads()->count == outside + 1);
     (void)rom_data(gap, 1);
     CHECK(asset_outside_reads()->count == outside + 2);
+    /* A read of a resource the catalogue marks unread is counted, by address
+     * or by name; one of a typed resource isn't. */
+    unsigned long unread = asset_unread_reads()->count;
+    (void)rom_read8(NULL, asset_address(ASSET_MIXED_C0F170) + 1);
+    CHECK(asset_unread_reads()->count == unread + 1);
+    CHECK(asset_unread_reads()->first != 0);
+    (void)asset_read8(NULL, ASSET_MIXED_C0F170, 0);
+    CHECK(asset_unread_reads()->count == unread + 2);
+    (void)asset_read8(NULL, ASSET_RANDOM_BYTES, 0);
+    CHECK(asset_unread_reads()->count == unread + 2);
+    /* A run through it has nothing held, and each of its reads is counted too. */
+    RomRun unread_run = rom_run_from(asset_address(ASSET_MIXED_C0F170));
+    CHECK(unread_run.length == 0);
+    (void)rom_run_read8(NULL, &unread_run, asset_address(ASSET_MIXED_C0F170));
+    (void)rom_run_read8(NULL, &unread_run, asset_address(ASSET_MIXED_C0F170) + 1);
+    CHECK(asset_unread_reads()->count == unread + 4);
+    const AssetId *rows;
+    unsigned kept = asset_unread_rows(&rows), seen = 0;
+    for (unsigned i = 0; i < kept; i++)
+        seen += rows[i] == ASSET_MIXED_C0F170;
+    CHECK(seen == 1 || kept == ASSET_UNREAD_KEPT);
     assets_use(NULL);
 
     /* What a pack mustn't be. */

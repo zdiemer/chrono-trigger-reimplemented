@@ -221,7 +221,7 @@ void menu_describe_item(GameState *g, uint8_t item)
         return;
     set_menu_description_line(g, ITEM_LINE);
     set_menu_description_pace(g, A_GLYPH_A_FRAME);
-    menu_describe(g, item, MENU_ITEM_DESCRIPTIONS, ITEM_ROW_VRAM);
+    menu_describe(g, item, menu_item_description_strings(), ITEM_ROW_VRAM);
 }
 
 /* Another option: the row cleared and the option typed, then its value. The
@@ -232,7 +232,7 @@ void menu_describe_setting(GameState *g, uint8_t option, uint8_t value_text)
 {
     set_menu_text_layout(g, MENU_TEXT_FOUR_COLOUR);
     set_menu_text_tiles(g, (menu_text_tiles(g) & 0xFFFFu) | (uint32_t)TEXT_BANK << 16);
-    set_menu_text_strings(g, MENU_SETTINGS_DESCRIPTIONS);
+    set_menu_text_strings(g, menu_settings_description_strings());
     set_menu_description_pace(g, A_GLYPH_A_FRAME);
     set_menu_description_row_vram(g, SETTING_ROW_VRAM);
     if (option != menu_description_item(g)) {
