@@ -219,12 +219,13 @@ Giga Gaia), it showed where native battle time fell short:
   set objects up (×1.1-1.8). Left as they were: the song starts, the
   transfers the port charges outside the routines and the routines the port
   prices from their own work. The trial's load now lags as long as the
-  original's. Across the 84 movies, places on time go 606 to 609 and in
-  order 705 to 709 (the gate's 59: 408 to 411, 492 to 496); the End of
-  Time's gate (the original's 8-frame stall at 3121 in `$1D0`, ct_native's
-  1) and Fiona's forest (its Retinite fight, carried by its route) move
-  away, and Arris Dome's movie now meets a save point's prompt, each with its
-  evidence on its line.
+  original's. On top of the battle's rates (#419), across the 84 movies
+  places on time go from 598 to 596 and in order from 701 to 696 (the
+  gate's 59: 400 to 398, 487 to 483), most of it the unequipped armor's
+  recorded fights, which its route carries (10 to 7 on time); the End of
+  Time's gate (the original's 8-frame stall at 3121 in `$1D0`, ct_native's 1),
+  Bucket Lavos's and the Black Omen's Zeal fight's order move away too, and
+  the tech sweep's run now writes a save, each with its evidence on its line.
 - The checks outside the menus (issue #349). The field's, the events', the
   scenes', the world map's and the time gates' checks are looks too:
   measured again, the field's rates stay within 2% of the original's but
