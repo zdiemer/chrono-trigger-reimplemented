@@ -167,6 +167,25 @@ sound differs. Over the whole movie library at 1009,90 every frame matched.
 The `native-player` CI job builds Release artifacts for Linux GCC/Clang, macOS
 Clang and Windows MinGW GCC, without a ROM. `tools/package_native.py --build-dir
 build/main --output build/player-artifact` packages the executable, the player
-README and Windows host DLLs into an empty directory; Unix users install SDL2.
-CI smoke-tests the packaged `--help` and uploads it without publishing a release.
-No cartridge, asset pack, save or captured state enters the artifact.
+README and the host libraries into an empty directory: on Windows the DLLs
+it imports; on macOS the dylibs, Homebrew's SDL2 (sdl2-compat) and the SDL3
+it loads by name, each named relative to the executable and signed again ad hoc;
+Linux players install SDL2 themselves. `tools/dist.py` does the same into `dist/`. CI smoke-tests the
+packaged `--help`, then runs it where it was never built -- in a Debian 12
+container with only `libsdl2-2.0-0` installed, and on macOS with Homebrew's
+SDL uninstalled -- and uploads it without publishing a release. No cartridge,
+asset pack, save or captured state enters the artifact.
+
+What a clean machine needs, as the artifacts are built (docs/NATIVE-README.txt
+says it for players):
+
+- **Windows** (x86-64): nothing; the DLLs are in the directory.
+- **Linux** (x86-64): glibc 2.34 or later (Debian 12, Ubuntu 22.04, Fedora 35
+  and later) and the SDL2 runtime (`libsdl2-2.0-0`, `SDL2`, `sdl2`); the
+  executable links only it and libc.
+- **macOS** (Apple silicon): the version the runner built for and later
+  (`macos-latest`, macOS 26 now): ct_native and Homebrew's dylibs take their
+  lowest version from the machine that built them. Nothing to install. An
+  Intel Mac or an older macOS needs ct_native built there (`tools/dist.py`).
+- Everywhere, the artifact's zip drops the executable bit: `chmod +x
+  ct_native` after extracting on Linux and macOS.
