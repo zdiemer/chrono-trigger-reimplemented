@@ -51,6 +51,8 @@ platform services' backends. Nothing here is included from `game/`.
   - `system.c`, `debug_log.h`: the arena and the C library's heap over the end
     of work RAM, stdout and stderr to mGBA's debug log, a cycle count from two
     chained timers.
+  - `copies.s`: the C library's `memcpy` and `memset` in place of newlib's,
+    ARM in fast RAM, eight words to a load and a store.
   - `interrupts.c`, `interrupts.h`: the one interrupt vector, each source to
     its own handler (the picture's lines, the sound's timer).
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, eight

@@ -1279,7 +1279,10 @@ cycle where the cartridge's takes two to four; `toolchain/fast_code.ld` lists th
 functions with the most of the work a byte (`host/run.py --profile` over
 `new-game` and `gato-battle`): the time model's scopes, the state's reads
 and writes, the event interpreter's decoding, the cartridge's reads and the
-C library's copies, about 40% of the samples in 4.3 KiB. The event
+C library's copies, about 40% of the samples in 4.3 KiB. The copy and the
+fill are the target's own (`system/copies.s`): ARM moving eight words with
+one load-multiple and one store-multiple, in 256 bytes where newlib's Thumb
+pair took 320, a hundredth of a GBA frame off each part of the frame. The event
 interpreter's decoding (`decode`, `names_what_it_says`) was there too, but
 its callers stay in the cartridge and the calls' long-branch veneers took 3%
 of the work back. The rest of the profile
