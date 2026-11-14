@@ -6,14 +6,20 @@
  * store under it; and text that is wrong is refused at its line. Where the
  * ROM is staged (roms/ct-usa.sfc, from the source directory), every script
  * of the cartridge reads back as its bytes too, and with a path the text is
- * written there to look at. */
+ * written there to look at. A command that says a line shows it beside it.
+ * The language's table and the places' layout the
+ * text is written from hold what the text relies on. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "assets.h"
+#include "event/script.h"
 #include "lz.h"
+#include "overworld/places.h"
 #include "scripts.h"
+
+#undef CHECK   /* the event table's row macro; the test's own below */
 
 static int failures;
 
@@ -78,6 +84,10 @@ static const uint8_t SCRIPT[] = {
     0x09,                                                /* $25: take calls */
     0x00,                                                /* return */
 };
+
+/* A made-up script that speaks: no objects, a table of strings chosen
+ * (strings_f70000, use_text) and its first line said. */
+static const uint8_t SAYING[] = { 0, 0xB8, 0x00, 0x00, 0xF7, 0xBB, 0x00, 0x00 };
 
 /* Made-up places: two exits, an event, a halt, two scripts, and a byte after. */
 static const uint8_t PLACES[] = {
@@ -144,8 +154,36 @@ static void the_cartridge(const char *out)
     free(file);
 }
 
+/* Every jump's distance lies inside its command, at every length the command
+ * can take: a row that jumps has no measure, and its jump byte is one of its
+ * own. */
+static void jumps_lie_inside_their_commands(void)
+{
+    for (unsigned op = 0; op < 256; op++) {
+        const EventOpcode *e = event_opcode((uint8_t)op);
+        if (e && e->jump)
+            CHECK(e->measure == NULL && e->jump < e->length);
+    }
+}
+
+/* The places' records are fields of a byte or a word, in order, filling the
+ * record. */
+static void place_records_are_bytes_and_words(void)
+{
+    for (unsigned list = 0; list < PLACE_STREAMS; list++) {
+        const PlaceStream *l = &overworld_place_streams[list];
+        CHECK(l->fields >= 1 && l->fields <= MOST_PLACE_FIELDS && l->field_at[0] == 0);
+        for (unsigned f = 0; f < l->fields; f++) {
+            unsigned next = f + 1 < l->fields ? l->field_at[f + 1] : l->record_bytes;
+            CHECK(next > l->field_at[f] && next - l->field_at[f] <= 2);
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
+    jumps_lie_inside_their_commands();
+    place_records_are_bytes_and_words();
     size_t total = 0;
     for (uint16_t i = 0; i < asset_catalogue_count; i++) {
         made_up_at[i] = (uint32_t)total;
@@ -163,9 +201,22 @@ int main(int argc, char **argv)
         if (!strcmp(asset_codec_names[asset_catalogue[i].codec], "lz:place-lists"))
             CHECK(pack_into(&asset_catalogue[i], PLACES, sizeof PLACES) ||
                   pack_into(&asset_catalogue[i], FEW_PLACES, sizeof FEW_PLACES));
+        else if (!strcmp(asset_codec_names[asset_catalogue[i].codec], "script:event-commands"))
+            memcpy(made_up(&asset_catalogue[i]), SCRIPT + 33, asset_catalogue[i].length < sizeof SCRIPT - 33
+                                                                ? asset_catalogue[i].length : sizeof SCRIPT - 33);
         else
             CHECK(pack_into(&asset_catalogue[i], SCRIPT, sizeof SCRIPT));
     }
+    /* ... but one, which says the first line of a table: "Hi", a break, "b" */
+    const AssetEntry *saying = named("field_packed_script.2"), *strings = named("strings_f70000"),
+                     *first = named("strings_f70000.0");
+    CHECK(saying && strings && first);
+    if (!saying || !strings || !first)
+        return 1;
+    CHECK(pack_into(saying, SAYING, sizeof SAYING));
+    made_up(strings)[0] = (uint8_t)first->at, made_up(strings)[1] = (uint8_t)(first->at >> 8);
+    static const uint8_t HI[] = { 0xA7, 0xC2, 0x05, 0xBB, 0x00 };
+    memcpy(made_up(first), HI, sizeof HI);
     AssetStore made = { made_up_find, NULL };
     const AssetEntry *script = named("field_packed_script.0");
     CHECK(script != NULL);
@@ -182,6 +233,10 @@ int main(int argc, char **argv)
     CHECK(strstr(text, "functions 00 L0020 L0022 L0020") != NULL);
     CHECK(strstr(text, "L0022:\nif_answer answer=01 to=L0025\nL0025:\ntake_calls takes=01\n") != NULL);
     CHECK(strstr(text, "face object=self facing=") != NULL);
+    CHECK(strstr(text, "use_text text=F70000\nsay window=00 line=00   # \"Hi b\"\n") != NULL);
+    /* the commands the field keeps whole, as a script of no objects */
+    CHECK(strstr(text, "[built_in_command_byte]\n# commands, 55 bytes, which keep their length\nobjects 0\n"
+                       "face object=self facing=") != NULL);
     CHECK(strstr(text, "exit 85 10 01 0005 08 1E\nexit 86 11 02 01FF 00 00\nevent 90 20 00\nhalt 91 21 07\n"
                        "script 3000\nscript 3010\nrest AB\n") != NULL);
     free(text);
@@ -267,6 +322,7 @@ int main(int argc, char **argv)
     refused(&made, wrong, 6);
     snprintf(wrong, sizeof wrong, "[%s]\npacked short\nobjects 1\nfunctions 00 L0020\n", script->name);
     refused(&made, wrong, 4);                                            /* 15 functions short */
+    refused(&made, "[built_in_command_byte]\nobjects 0\nreturn_from_function\n", 1);   /* its length kept */
     snprintf(wrong, sizeof wrong, "[%s]\npacked short\n%sif_answer answer=01 to=L0200\n", script->name, table);
     {
         /* a place more than 255 bytes on */

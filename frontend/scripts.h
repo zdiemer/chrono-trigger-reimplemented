@@ -23,6 +23,8 @@
  * an operand byte that no parameter reads are kept as byteN=XX, the inline
  * data after a command's operands as data=XX.XX..., and a jump's place as
  * to=L.... (or to=+XX, its distance as it is, where it lands on no place).
+ * A command that says a line shows the line beside it as a comment, from the
+ * table of strings the script last chose: say line=13   # "LARA: Oh no…!"
  *
  * Read back, the places are worked out again, so commands may be added or
  * taken away: a jump must still reach its place (a byte's distance), and

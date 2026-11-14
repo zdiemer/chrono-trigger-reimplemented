@@ -31,6 +31,16 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
     return served ? *served : 0;
 }
 
+/* RAM a pointer in the data names: the game's, never the cartridge's. */
+enum { RAM_BYTE = 0x5A };
+static uint32_t ram_read_at;
+uint8_t wram_data_read8(const GameState *g, uint32_t at)
+{
+    (void)g;
+    ram_read_at = at;
+    return RAM_BYTE;
+}
+
 static unsigned memory_reads;
 static uint8_t marker;
 static uint8_t driver_status(void *ctx, uint8_t port)
@@ -198,7 +208,8 @@ int main(void)
     CHECK(gap < 0x1000000u);
     CHECK(rom_read8(NULL, gap) == 0);
     CHECK(asset_outside_reads()->count == outside + 1);
-    CHECK(rom_read8(NULL, 0x7E0000u) == 0);
+    CHECK(rom_read8(NULL, 0x7E2C35u) == RAM_BYTE && ram_read_at == 0x7E2C35u);   /* the game's work RAM */
+    CHECK(rom_read8(NULL, 0x001234u) == RAM_BYTE && ram_read_at == 0x001234u);   /* low RAM, as the bank $00 view has it */
     CHECK(asset_outside_reads()->count == outside + 1);
     (void)rom_data(gap, 1);
     CHECK(asset_outside_reads()->count == outside + 2);

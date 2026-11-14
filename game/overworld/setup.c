@@ -29,6 +29,7 @@
 #include "menu/sprites.h"
 #include "overworld/overworld.h"
 #include "overworld/main_loop.h"
+#include "overworld/places.h"
 #include "overworld/music.h"
 #include "overworld/overworld_data.h"
 #include "overworld/sign.h"
@@ -335,22 +336,10 @@ static void load_the_scene_graphics(GameState *g)
     load_named(g, RECORD_SCENE_COLOURS, OVERWORLD_PALETTES, SCENE_COLOURS);   // $C2:2930
 }
 
-/* The lists of places come unpacked one after another, each its count of
- * records and the records: the exits, the events and the halts, then the
- * events' scripts' places, two bytes each, whose count isn't kept. Every
- * map's lists have records (the original counts down after each, so a count
- * of 0 would be 65,536 of them; no map has one). */
-typedef struct {
-    uint32_t to;
-    uint8_t record_bytes;
-} PlaceListStream;
-static const PlaceListStream PLACE_LIST_STREAMS[] = {
-    { RAM_OVERWORLD_EXITS, 7 },
-    { RAM_OVERWORLD_EVENTS, 3 },
-    { RAM_OVERWORLD_HALTS, 3 },
-    { RAM_OVERWORLD_EVENT_SCRIPTS, 2 },
-};
-enum { KEPT_COUNTS = 3 };
+/* The lists of places come unpacked one after another
+ * (overworld_place_streams). Every map's lists have records (the original
+ * counts down after each, so a count of 0 would be 65,536 of them; no map has
+ * one). */
 
 // $C2:2A44
 /* The places, unpacked to the scene's stage and spread to their lists. */
@@ -358,13 +347,13 @@ static void load_the_places(GameState *g)
 {
     load_named(g, RECORD_PLACE_LISTS, OVERWORLD_PLACE_LISTS, SCENE_STAGE);
     uint32_t at = SCENE_STAGE;
-    for (unsigned list = 0; list < sizeof PLACE_LIST_STREAMS / sizeof PLACE_LIST_STREAMS[0]; list++) {
-        const PlaceListStream *l = &PLACE_LIST_STREAMS[list];
+    for (unsigned list = 0; list < PLACE_STREAMS; list++) {
+        const PlaceStream *l = &overworld_place_streams[list];
         uint8_t count = wram_read8(g, at);
-        if (list < KEPT_COUNTS)
+        if (list < PLACE_LISTS)
             set_overworld_list_lengths(g, list, count);
         uint16_t bytes = (uint16_t)(count * l->record_bytes);
-        wram_copy(g, at + 1, l->to, bytes);
+        wram_copy(g, at + 1, l->kept_at, bytes);
         at += 1u + bytes;
     }
 }

@@ -664,9 +664,17 @@ typedef struct {
     /* Its third operand names a side, a search past the searches. */
     bool names_side;
     uint32_t timed_as; /* the original's routine, whose time it is */
+#if CT_SCRIPT_TEXT
+    const char *name;  /* its test's, what the scripts' text calls it (script_text.h) */
+#endif
 } ConditionRow;
 
-#define ROW(layout_, field, f, reads, routine) { layout_, { .field = f }, reads, false, routine }
+#if CT_SCRIPT_TEXT
+#define TEXT_NAME(f) , #f
+#else
+#define TEXT_NAME(f)
+#endif
+#define ROW(layout_, field, f, reads, routine) { layout_, { .field = f }, reads, false, routine TEXT_NAME(f) }
 
 // $C1:B80D
 static const ConditionRow conditions[CONDITION_KINDS] = {
@@ -684,7 +692,7 @@ static const ConditionRow conditions[CONDITION_KINDS] = {
     ROW(PICKED_AND_TWO, picked_and_two, stat_at_most, 3, 0xC191F9),         /* $0B */
     ROW(PICKED_AND_SECOND, picked_and, within_reach, 1, 0xC1925D),          /* $0C */
     ROW(PICKED_AND_SECOND, picked_and, level_with, 1, 0xC192A3),            /* $0D */
-    { PICKED_AND_TWO, { .picked_and_two = stands_beside }, 1, true, 0xC19314 }, /* $0E */
+    { PICKED_AND_TWO, { .picked_and_two = stands_beside }, 1, true, 0xC19314 TEXT_NAME(stands_beside) }, /* $0E */
     ROW(PICKED_AND_TWO, picked_and_two, could_walk_to, 1, 0xC1938D),        /* $0F */
     ROW(LAST_TWO, two, stands_in, 0, 0xC193E6),                             /* $10 */
     ROW(FIRST_AND_LAST, two, acted_on_by, 0, 0xC1942A),                     /* $11 */
@@ -712,6 +720,10 @@ static const ConditionRow conditions[CONDITION_KINDS] = {
     ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $27 */
     ROW(VALUE_PICKED_OFFSET, value_picked, stat_is, 2, 0xC195FA),           /* $28 */
 };
+
+#if CT_SCRIPT_TEXT
+const char *enemy_condition_name(uint8_t kind) { return kind < CONDITION_KINDS ? conditions[kind].name : NULL; }
+#endif
 
 /* The operand that names the selector in a layout (0 for none). */
 static unsigned selector_operand(OperandLayout layout)
