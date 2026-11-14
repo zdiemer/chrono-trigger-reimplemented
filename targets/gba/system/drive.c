@@ -19,8 +19,9 @@ static void answer(GameState *g, void (*report)(void *), void *ctx)
 {
     switch (box.command) {
     case DRIVE_READ:
-        if (box.length <= DRIVE_BYTES)
-            state_host_read_span(g, box.address, (uint8_t *)box.bytes, box.length);
+        /* a byte at a time: the picture's span reads stay inlined into its own */
+        for (uint32_t i = 0; i < box.length && i < DRIVE_BYTES; i++)
+            box.bytes[i] = state_host_read8(g, box.address + i);
         break;
     case DRIVE_REPORT:
         report(ctx);

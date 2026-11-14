@@ -25,7 +25,8 @@ C. Observable divergence is accepted where the game stays structurally the same.
 
 The GBA port is the focus. Its bar is full speed on real hardware (a flash
 cart, an Analogue Pocket). ct_gba (targets/gba/; PLATFORM.md, "The GBA build,
-as built") plays movies in mGBA, headless, to the same end as ct_native, and
+as built") is one ROM played from the keypad with its save in SRAM; driven
+from outside in mGBA, headless, it plays movies to the same end as ct_native, and
 shows the field, the dialog and the battles as ct_native does, at 2-4 GBA
 frames of work a frame with no sound mixed. The order from there:
 

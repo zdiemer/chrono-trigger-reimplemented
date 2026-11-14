@@ -59,6 +59,8 @@ enum {
     STALL = 20000,            /* GBA frames with no answer before the run is given up */
     WORK_RAM = 0x7E0000, WORK_RAM_BYTES = 0x20000,
 };
+#define GBA_SRAM 0x0E000000u
+enum { GBA_SRAM_BYTES = 0x8000 };
 
 static struct mCore *core;
 static FILE *log_out;
@@ -400,10 +402,10 @@ static void drive(void)
             free(bytes);
             printf(ok ? "ok %u\n" : "err file\n", frames_played());
         } else if (!strcmp(cmd, "sav") && path && *path) {
-            void *bytes = NULL;
-            size_t size = core->savedataClone(core, &bytes);
-            printf(bytes && write_file(path, bytes, size) == 0 ? "ok\n" : "err file\n");
-            free(bytes);
+            static uint8_t sram[GBA_SRAM_BYTES];
+            for (uint32_t i = 0; i < GBA_SRAM_BYTES; i++)
+                sram[i] = (uint8_t)core->busRead8(core, GBA_SRAM + i);
+            printf(write_file(path, sram, sizeof sram) ? "err file\n" : "ok\n");
         } else if (!strcmp(cmd, "frame") && !a)
             printf("ok %u\n", frames_played());
         else if (!strcmp(cmd, "quit") && !a) {
