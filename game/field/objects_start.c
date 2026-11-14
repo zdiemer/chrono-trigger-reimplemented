@@ -194,7 +194,7 @@ bool field_objects_set_up(GameState *g, Platform *pf)
     TIMED_AS(g, OPENINGS, end = event_run_openings(g, pf, &object, &at));
     if (!ran_its_course(g, end, OPENINGS))
         return false;
-    if (!party_start_fits(g)) {
+    if (!PORT_CHECK(party_start_fits(g))) {
         program_breaks_a_contract(g, PARTY_STARTS, "the party's start where the port doesn't take it");
         return false;
     }

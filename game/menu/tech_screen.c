@@ -48,6 +48,7 @@
 #include "menu/tiles.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -1425,7 +1426,7 @@ enum { BLOCKS_A_FRAME = 2 };
 
 bool menu_point_at_member_to_restore(GameState *g, Platform *pf)
 {
-    if (!menu_restoring_can_point(g)) {
+    if (!PORT_CHECK(menu_restoring_can_point(g))) {
         program_breaks_a_contract(g, 0xC2B83E, "the members a healing is used on, which the port doesn't take");
         return false;
     }

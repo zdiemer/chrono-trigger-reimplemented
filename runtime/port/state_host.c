@@ -452,7 +452,7 @@ void charge_io_accesses(GameState *g, uint32_t accesses)
 
 void charge_rom_accesses(GameState *g, uint32_t accesses)
 {
-    state_host_game_access(g, accesses * 6u);
+    state_host_game_access(g, accesses * STATE_HOST_CARTRIDGE_CLOCKS);
 }
 
 void charge_accesses(GameState *g, uint32_t accesses)

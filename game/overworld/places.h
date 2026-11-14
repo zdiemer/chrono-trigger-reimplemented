@@ -16,6 +16,21 @@
 
 typedef enum { LIST_EXITS = 0, LIST_EVENTS = 1, LIST_HALTS = 2, PLACE_LISTS = 3 } PlaceList;
 
+/* The lists as a world map's data holds them, one after another (the map's
+ * load, game/overworld/setup.c): each its count of records and the records --
+ * the exits, the events and the halts, then where each event's script starts,
+ * whose count isn't kept. A record's fields start at `field_at`, the last
+ * running to the record's end. A script's text writes the lists from this
+ * (frontend/scripts.c). */
+enum { PLACE_STREAMS = 4, LIST_EVENT_SCRIPTS = PLACE_LISTS, MOST_PLACE_FIELDS = 6 };
+typedef struct {
+    uint32_t kept_at;       /* where the map keeps the list */
+    uint8_t record_bytes;
+    uint8_t fields;
+    uint8_t field_at[MOST_PLACE_FIELDS];
+} PlaceStream;
+extern const PlaceStream overworld_place_streams[PLACE_STREAMS];
+
 /* Whether the leader stands on an open exit, as the last look found. */
 bool overworld_on_an_exit(const GameState *g);
 

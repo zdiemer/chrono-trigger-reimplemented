@@ -300,9 +300,9 @@ static void main_task(GameState *g, Platform *pf)
 static void cursor_task(GameState *g, Platform *pf)
 {
     (void)pf;
-    while (menu_cursor_can_be_placed(g))
+    while (PORT_CHECK(menu_cursor_can_be_placed(g)))
         cursor_task_turn(g);
-    if (!menu_cursor_can_be_placed(g))
+    if (!PORT_CHECK(menu_cursor_can_be_placed(g)))
         program_breaks_a_contract(g, (uint32_t)MENUS_BANK << 16 | CURSOR_TASK_HEAD, "a cursor the port doesn't place");
 }
 

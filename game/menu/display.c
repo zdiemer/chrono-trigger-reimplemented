@@ -254,7 +254,7 @@ static void send_the_frame(GameState *g, Platform *pf);
  * port can send; the program goes no further otherwise. */
 static bool frame_sent(GameState *g, Platform *pf)
 {
-    if (!menu_block_move_is_a_buffer(g)) {
+    if (!PORT_CHECK(menu_block_move_is_a_buffer(g))) {
         program_breaks_a_contract(g, 0xC285D6, "a block move over the code the menus' vblank runs it through");
         return false;
     }
@@ -358,6 +358,7 @@ static void send_the_frame(GameState *g, Platform *pf)
     send_menu_screen_shadows(g, pf);
     menu_move_the_sprites_across(g);
     vid_send_oam(pf, PF_AT(0xC28607), PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
+    tm_charge_transfer(pf, PF_AT(0xC28607), SPRITE_TABLE_BYTES);   /* the transfer the processor waits out */
     if (menu_line_effects(g) & BLOCK_MOVE_ASKED) {
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         move_the_block(g);
@@ -410,7 +411,7 @@ void menu_send_upload_queue(GameState *g, Platform *pf)
 
 bool menu_upload_queue_sent(GameState *g, Platform *pf)
 {
-    if (!menu_upload_queue_is_whole(g)) {
+    if (!PORT_CHECK(menu_upload_queue_is_whole(g))) {
         program_breaks_a_contract(g, 0xC28663, "an upload queue the port doesn't send");
         return false;
     }
@@ -747,7 +748,7 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step)
     bool done = true;
     switch (step) {
     case SEND_THE_QUEUE:
-        if (!menu_object_queue_can_be_sent(g)) {
+        if (!PORT_CHECK(menu_object_queue_can_be_sent(g))) {
             program_breaks_a_contract(g, 0xC20405, "an upload queue the port doesn't send");
             return false;
         }
@@ -759,7 +760,7 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step)
             program_breaks_a_contract(g, 0xC28002, "the controller not read, or the reset buttons held");
         return done;
     case EMPTY_THE_SPRITE_LIST:
-        if (!menu_sprite_list_can_be_emptied(g)) {
+        if (!PORT_CHECK(menu_sprite_list_can_be_emptied(g))) {
             program_breaks_a_contract(g, 0xC20C4D, "a sprite list whose links the mode's start didn't lay out");
             return false;
         }
@@ -772,7 +773,7 @@ static bool object_frame_step(GameState *g, Platform *pf, ObjectFrameStep step)
         TIMED_AS(g, 0xC2051D, done = menu_objects_run(g, pf));
         return done;
     case DRAW_THE_SPRITE_LIST:
-        if (!menu_sprite_list_can_be_drawn(g)) {
+        if (!PORT_CHECK(menu_sprite_list_can_be_drawn(g))) {
             program_breaks_a_contract(g, 0xC20CEA, "a sprite list the port doesn't draw");
             return false;
         }

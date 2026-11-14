@@ -50,7 +50,7 @@ events-death-peak 4
 events-end-of-time-gate 5 # Native retired-work accounting restores the final reference visit within 30 frames.
 events-epoch-lavos 5
 events-fair-clone 6
-events-fair-rescue 7
+events-fair-rescue 6
 events-fair-shuffle 6
 events-fair-strength 5
 events-fionas-forest 11 # issue #321: a Gate trip no longer runs 30 frames late, and Fiona's forest keeps the reference's time after it

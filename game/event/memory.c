@@ -87,11 +87,13 @@ bool event_copy_data(GameState *g, Platform *pf, uint16_t at, EventStep *step)
     return true;
 }
 
+#if CT_SCRIPT_TEXT
 /* The command's length: its six bytes and the data after them. */
 static uint16_t measure_copy_data(const uint8_t *command, uint16_t available)
 {
     return available < COPY_DATA_LENGTH ? 0 : (uint16_t)(COPY_DATA_LENGTH + (uint16_t)(command[4] | command[5] << 8) - 2);
 }
+#endif
 
 /* What the port checks: the data lies in the script, and there is some (the
  * original's block move takes no length as the whole bank, and past the

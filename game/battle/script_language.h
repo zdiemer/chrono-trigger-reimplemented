@@ -28,6 +28,7 @@
 
 #include "battle/positions.h"
 #include "platform/platform.h"
+#include "script_text.h"
 #include "state.h"
 #include "vars.h"
 
@@ -206,7 +207,20 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
         (void)command;                                                                             \
         return op(g);                                                                              \
     }
+#if CT_SCRIPT_TEXT
+#define OPERATION(op) .run = op##_command, .name = #op
+#define NAMED(name_) .name = name_
+#define MEASURED(measure_) .measure = measure_
+#else
 #define OPERATION(op) .run = op##_command
+#define NAMED(name_) .run = NULL   /* the sound rows, which have no operation */
+#define MEASURED(measure_)
+#endif
+
+/* How many bytes a command whose length its operands decide takes (a screen
+ * effect's settings), from its bytes: `available` of them there to read, and
+ * 0 where that isn't enough to tell. The text's alone (script_text.h). */
+typedef uint16_t (*ScriptMeasure)(const uint8_t *command, uint16_t available);
 
 /* How a parameter comes from the command: fixed by its byte, or an operand
  * byte (1 is the byte after the command's). */
@@ -239,6 +253,9 @@ enum { SCRIPT_NOBODY = 0xFF };
 typedef struct {
     uint8_t command;
     ScriptOperation run; /* none for a sound command's row */
+#if CT_SCRIPT_TEXT
+    const char *name;    /* the operation's name (OPERATION, or NAMED for a sound's), what the text calls it */
+#endif
     struct {
 #define SCRIPT_PARAMETER_SPEC(type, name) ScriptArg name;
         SCRIPT_PARAMETERS(SCRIPT_PARAMETER_SPEC)
@@ -246,6 +263,9 @@ typedef struct {
     };
     uint8_t length; /* the command's bytes, its own included */
     ScriptNeeds needs;
+#if CT_SCRIPT_TEXT
+    ScriptMeasure measure; /* NULL where the command is always `length` bytes (MEASURED) */
+#endif
 } ScriptOpcode;
 
 typedef struct {

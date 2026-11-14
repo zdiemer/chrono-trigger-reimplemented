@@ -1182,7 +1182,7 @@ static bool not_taken(GameState *g, uint32_t routine)
 /* The member's card, where the state is one the drawing handles. */
 static bool draw_the_card(GameState *g, Platform *pf)
 {
-    if (!menu_member_card_can_be_drawn(g)) {
+    if (!PORT_CHECK(menu_member_card_can_be_drawn(g))) {
         program_breaks_a_contract(g, 0xC2A22F, "an equipment screen the port doesn't take");
         return false;
     }

@@ -189,6 +189,37 @@ Giga Gaia), it showed where native battle time fell short:
   stalls 8 frames at each redraw of the courtroom's layers, ct_native 1-3,
   with or without this change) and MotherBrain (its lag by thousands of
   frames through `$07E`).
+- The menus (issue #349). The menus' sprite objects took 2 to 9 times the
+  original's time in the vblank: the port's checks of what it handles (an
+  object's handler `takes`, a script routine's, the frame steps' and the
+  screens' guards) read the game's state as the game's own work, at the rate
+  of whatever routine ran them. They are now looks (`PORT_CHECK`,
+  port/vars_ram.h), as the event engine's already were, and the objects'
+  work comes to 0.4-1.0 of the original's. A script command's operands are
+  read in its own scope, as its handler reads them in the original. The
+  glyph line (`$C2:5E89`), the text's tile (`$C2:EF97`) and the sprite list's
+  insert (`$C2:0B53`) have their scopes back, and 39 menu rates take the
+  ratio of the original's clocks a call to native's (in
+  `tools/timing_ratios.txt`): a battle message's glyph now takes 26.4k clocks
+  against the original's 26.2k (22.0k before). The vblank uploads
+  (`$C2:85D6`, `$C2:86A9`) read 8-40 times under, as the port charges its
+  palette's transfer outside the routines; the sprite table's it didn't
+  charge at all, and now does, which brings the menus' vblank to 78.8k
+  clocks a frame against the original's 83.7k (menus-shop-inn, frames
+  3000-6000; 74.4k before). Across the 84 movies, places on time stay 599
+  and in order go 694 to 695 (the gate's 58: 395 to 395, 476 to 478); one
+  moves away, the Black Omen's Zeal fight, with its evidence on its line.
+- The checks outside the menus (issue #349). The field's, the events', the
+  scenes', the world map's and the time gates' checks are looks too:
+  measured again, the field's rates stay within 2% of the original's but
+  two. `$C0:A810` takes its steady ×0.85; `$C0:21E1`'s ×1.82 is measured,
+  not applied, as it runs 1.43-2.19 from movie to movie. Across the 84
+  movies places on time go 599 to 606 and in order 695 to 705 (the gate's
+  58: 395 to 394, 478 to 478); the rescue game at the fair moves away, its
+  lag on its line. The battle's checks still count: as looks they leave its
+  main thread's routines 1.2 to 30 times under the original's, steadily
+  across the three fights, and with those rates the Death Peak ascent's
+  recorded fight ends in a game over (issue #376).
 - A lag frame gets the main thread time its own handlers leave (issue #321),
   so a frame whose handlers made a load's sends no longer shortens every lag
   frame after it.

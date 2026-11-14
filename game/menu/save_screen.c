@@ -659,7 +659,7 @@ static bool slot_routine_takes(const GameState *g, Platform *pf, SlotRoutine rou
 
 static bool slot_routine(GameState *g, Platform *pf, SlotRoutine routine)
 {
-    if (!slot_routine_takes(g, pf, routine)) {
+    if (!PORT_CHECK(slot_routine_takes(g, pf, routine))) {
         program_breaks_a_contract(g, slot_routines[routine].routine, slot_routines[routine].what);
         return false;
     }
@@ -684,7 +684,7 @@ bool menu_slot_summary_read_back(GameState *g, Platform *pf)
 
 bool menu_save_slots_read(GameState *g, Platform *pf)
 {
-    if (!slots_readable(g)) {
+    if (!PORT_CHECK(slots_readable(g))) {
         program_breaks_a_contract(g, 0xC2D156, "save slots the port doesn't read");
         return false;
     }
@@ -696,7 +696,7 @@ bool menu_save_slots_read(GameState *g, Platform *pf)
  * the slot shown is none it handles, the program going no further there. */
 bool menu_draw_empty_label(GameState *g)
 {
-    if (!labels_drawable(g)) {
+    if (!PORT_CHECK(labels_drawable(g))) {
         program_breaks_a_contract(g, 0xC2D28D, "an empty slot's label the port doesn't draw");
         return false;
     }
