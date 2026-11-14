@@ -80,13 +80,6 @@ void state_host_game_access(const GameState *g, uint32_t clocks);
  * data holds takes too, into RAM as into the cartridge. */
 enum { STATE_HOST_CARTRIDGE_CLOCKS = 6 };
 
-/* Host audio replay preserves the accounting effects of resource reads as
- * well as the replies it returned. These counters are additive over a host
- * callback; no game storage or continuation is replaced. */
-typedef struct { uint32_t raw_bus, owed; uint64_t milli; } StateHostWork;
-StateHostWork state_host_work(const GameState *g);
-void state_host_add_work(GameState *g, StateHostWork work);
-
 /* Optional accounting for ct_native --timing-report. Access clocks (actual
  * and legacy replacements) and charge_as clocks are kept separately;
  * milli_clocks is their calibrated time before the frame scheduler rounds
