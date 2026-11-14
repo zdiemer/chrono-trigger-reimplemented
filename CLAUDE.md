@@ -46,6 +46,11 @@ native movies, recorded outcomes and routes. Strategy: docs/APPROACH.md.
   skill or a `source`/`meaning` string in re/ram.toml names a function, constant
   or file the code no longer has: rename or delete the mention in the branch that
   removes the name (deliberate mentions: `tools/doc_names_exceptions.txt`).
+- Lean build (what a small target needs, without the program's own
+  diagnostics): configure with `-DCT_LEAN=ON` into `build/lean`, then
+  `python3 tools/lean_check.py --ct-native build/main/ct_native --lean build/lean/ct_native`
+  plays the gate movies with both and fails where they end differently.
+  `tools/measure.py --ct-native build/lean/ct_native` measures it (docs/PLATFORM.md).
 - Source inventories: `python3 tools/machine_joints.py`,
   `python3 tools/state_inventory.py`, and `python3 tools/ram_map.py storage`.
   `ram_map.py accessors --check` checks generated state accessors;

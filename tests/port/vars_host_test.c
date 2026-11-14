@@ -75,19 +75,23 @@ static void address_view(void)
     CHECK(state_host_read8(g, 0x7E0100) == 0x34);
     CHECK(state_host_read8(g, 0x800101) == 0x12);
     CHECK(location_id(other) == 0x5555);
+#ifndef CT_LEAN
     CHECK(state_host_record_time(other));
+#endif
     set_location_id(other, 0x1234);
     CHECK(location_id(other) == 0x1234);
     vars_peek(true);
     CHECK(location_id(other) == 0x1234);
     vars_peek(false);
     CHECK(state_host_read8(other, 0x0100) == 0x34);
+#ifndef CT_LEAN   /* the lean build keeps no timing report */
     unsigned row_count;
     const StateHostTime *rows = state_host_time(other, &row_count);
     uint64_t clocks = 0;
     for (unsigned i = 0; i < row_count; i++)
         clocks += rows[i].bus_clocks;
     CHECK(clocks == 32); /* two word accesses; guard and address lookups are free */
+#endif
     state_host_write8(g, 0x000101, 0xAB);
     CHECK(location_id(g) == 0xAB34);
     /* Directly inspect/mutate the generated field: it is the sole storage. */
@@ -282,7 +286,11 @@ static void records_and_composed_views(void)
     vars_peek(false);
     CHECK(vars_host_crossings(h, NULL, NULL) == 0); /* a guard's look counts no crossing */
     CHECK(battle_product(g) == 0x33EF);
+#ifdef CT_LEAN
+    CHECK(vars_host_crossings(h, NULL, NULL) == 0); /* the lean build counts none */
+#else
     CHECK(vars_host_crossings(h, NULL, NULL) == 1);
+#endif
     vars_host_crossings_reset(h);
     CHECK(vars_host_crossings(h, NULL, NULL) == 0);
     CHECK(range_fault_count() == 0);

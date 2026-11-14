@@ -273,7 +273,8 @@ MID_TONIC_GAP = 300          # missing HP a Mid Tonic is enough for
 
 def keep_up(bot, state, inventory, well=0.6, badly=0.35):
     """The healing a long fight against an enemy that hits the whole party
-    hard puts first, or None: the fallen raised with Revives; two or more hurt
+    hard puts first, or None: the fallen raised (a member's Life where it
+    has one, else a Revive); two or more hurt
     (or one badly) healed, by Robo's Heal Beam or Marle's Cure 2 where they
     have the MP, else a Lapis for two or more, a Mid Tonic (some 200 HP) for
     one missing less than MID_TONIC_GAP, a Full Tonic for more; Robo short of
@@ -284,8 +285,11 @@ def keep_up(bot, state, inventory, well=0.6, badly=0.35):
     members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
     ids = party_ids(bot)
     alive = [slot for slot in members if state.hp(slot) > 0]
+    revive = CHARACTER_TECHS.get(ids[member], {}).get("revive")
     for slot in members:
         if state.hp(slot) == 0:
+            if revive and state.mp(member) >= revive[1] and tech_known(bot, member, revive[0]):
+                return ("tech", revive[0], slot)
             action = use(inventory, REVIVE, slot)
             if action:
                 return action
@@ -374,10 +378,37 @@ def refill(bot, state, inventory, low=20):
 
 # Against Lavos, each member's strongest single-target techs first, as
 # (tech list entry, MP): Crono's Confuse (four blows) and Spincut, Marle's
-# Ice 2, Lucca's Flare and Fire 2. Blows only, for the core's left bit,
-# which takes in magic (its elements' affinities absorb all four).
-LAVOS_SINGLES = {0: [(6, 12), (3, 4)], 1: [(5, 8)], 2: [(7, 20), (5, 8)]}
-LAVOS_BLOWS = {0: [(6, 12), (3, 4)]}
+# Ice 2, Lucca's Flare and Fire 2, Robo's Uzzi Punch and Rocket Punch, Frog's
+# Leap Slash and Slurp Cut. Blows only, for the core's left bit, which takes
+# in magic (its elements' affinities absorb all four).
+LAVOS_SINGLES = {0: [(6, 12), (3, 4)], 1: [(5, 8)], 2: [(7, 20), (5, 8)], 3: [(5, 12), (0, 1)], 4: [(4, 4), (1, 2)]}
+LAVOS_BLOWS = {0: [(6, 12), (3, 4)], 3: [(5, 12), (0, 1)], 4: [(4, 4), (1, 2)]}
+# Crono, Frog and Robo's Triple Raid (tech 109), three blows together: the
+# guides' answer to the core's left bit and to the right bit's open moments
+# (cavesofnarshe.com's walkthrough, chapter 35). Each member pays its part;
+# TRIPLE_RAID_MP is a margin above the dearest part.
+TRIPLE_RAID, TRIPLE_RAID_MP = 109, 12
+
+
+TECH_RECORDS, TECH_RECORD_BYTES, TECHS_LISTED, TECH_DIMMED = 0x7E1A80, 7, 20, 0x80
+TRIPLE_WAIT = 30                # frames a member's menu is held open for the others' turns
+
+
+def triple_raid(bot, state, rng, target):
+    """Triple Raid at `target` from the member's tech list while all three
+    stand with the MP, or None. It takes all three members' turns at once:
+    where the list showed it dimmed when it last opened (the others' turns
+    not yet come), the member waits with its menu open about half the time
+    rather than trying again at once."""
+    if any(state.hp(slot) == 0 or state.mp(slot) < TRIPLE_RAID_MP for slot in range(bot.party)):
+        return None
+    for entry, tech_id in tech_list_entries(bot, state.member):
+        if tech_id == TRIPLE_RAID:
+            record = TECH_RECORDS + (state.member * TECHS_LISTED + entry) * TECH_RECORD_BYTES
+            if bot.machine.b(record + 2) & TECH_DIMMED and rng.random() < 0.5:
+                return ("wait", TRIPLE_WAIT)
+            return ("tech", entry, target)
+    return None
 
 
 STAT_STATUS_1, STOPPED = 0x1E, 0x80               # the first status byte in the stat block, Stop's bit
@@ -424,14 +455,16 @@ def lavos_inner(bot, state, rng, inventory):
     once: 37 power on its level and magic (50 and 50, read from its stat
     block, $C1:E0F5), 2,960 before magic defence ($C1:E65F) and 0-16 of
     variance. Computed so, a member at full HP needs about 70 magic defence
-    (69 at 999 HP, 73 at 891) to live through it; Robo (67) does not (1,029
-    in ct_native), so the party is Crono, Marle and Lucca. Its body's defence turns
+    (69 at 999 HP, 73 at 891) to live through it; Robo at 67 does not (1,029
+    in ct_native), at 73 he does. Its body's defence turns
     weapons and the arms raise it again, so the arms go first and together,
     the one with more HP left taken down (cavesofnarshe.com's walkthrough
     chapter 35, and gamercorner.net's: Span Death revives the body while an
-    arm stands); then the body. Healing first, Marle's Haste, an Ether for
-    a member short of MP, then each member's strongest single hit
-    (LAVOS_SINGLES). The bag's Barriers and Shields are kept for the core."""
+    arm stands); then the body. Triple Raid where the party has it.
+    Healing first (the healers' techs before the bag), Marle's Haste where
+    she is in the party, an Ether for a member short of MP, then each member's
+    strongest single hit (LAVOS_SINGLES). The bag's Barriers and Shields are
+    kept for the core."""
     action = keep_up(bot, state, inventory) or hasten(bot, state) or refill(bot, state, inventory, low=8)
     if action:
         return action
@@ -444,8 +477,8 @@ def lavos_inner(bot, state, rng, inventory):
             bot, state, inventory, low=state.stats[state.member][3] * 4 // 5)
         if action:
             return action
-    return strongest_single(bot, state, max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY,
-                            LAVOS_SINGLES)
+    target = max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY
+    return triple_raid(bot, state, rng, target) or strongest_single(bot, state, target, LAVOS_SINGLES)
 
 
 # Lavos's core: its center (slot 3, 10000 HP), left bit (7, 2000) and right
@@ -483,11 +516,14 @@ def lavos_core(bot, state, rng, inventory):
     if action:
         return action
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
-        return strongest_single(bot, state, CORE_RIGHT, LAVOS_BLOWS)
+        return triple_raid(bot, state, rng, CORE_RIGHT) or strongest_single(bot, state, CORE_RIGHT, LAVOS_BLOWS)
     if state.hp(CORE_LEFT) > 0 and (state.hp(CORE_CENTER) == 0 or rng.random() < 0.7):
-        return strongest_single(bot, state, CORE_LEFT, LAVOS_BLOWS)
-    target = CORE_CENTER if state.hp(CORE_CENTER) > 0 else CORE_RIGHT
-    return strongest_single(bot, state, target, LAVOS_SINGLES)
+        return triple_raid(bot, state, rng, CORE_LEFT) or strongest_single(bot, state, CORE_LEFT, LAVOS_BLOWS)
+    if state.hp(CORE_CENTER) > 0:
+        # Plain blows on the center until the right bit opens (chapter 35):
+        # the members keep their MP for the moments that count.
+        return ("attack", CORE_CENTER)
+    return strongest_single(bot, state, CORE_RIGHT, LAVOS_SINGLES)
 
 
 LAVOS_SHELL, LAVOS_SHELL_HP = 3, 10000

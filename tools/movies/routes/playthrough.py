@@ -6,7 +6,8 @@ world map on, the route goes on with the pieces other routes play from
 cartridge saves (the Cathedral, the trial, ...), from the state this route
 reached instead of a save. Each phase ends at a checkpoint and the route goes
 on only past checkpoints that succeeded. From Ayla joining in 65,000,000
-B.C. (story $78) it plays leg B's own phases (route playthrough_leg-b).
+B.C. (story $78), where leg B's save stands, it plays leg B's own phases
+(route playthrough_leg-b) to Magus beaten.
 """
 import importlib
 import os

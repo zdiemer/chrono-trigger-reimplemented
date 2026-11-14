@@ -4,7 +4,13 @@
 
 #include "charge.h"
 #include "core/sound_commands.h"
+/* The voices' mixer: the native one, or a build's own with its interface
+ * (targets/gba/silent_mixer.h, which keeps the settings and plays nothing). */
+#ifdef SOUND_NATIVE_MIXER
+#include SOUND_NATIVE_MIXER
+#else
 #include "platform/native/mixer.h"
+#endif
 #include "platform/time_model.h"
 #include "port/arena.h"
 #include "sound/sound.h"
@@ -31,7 +37,12 @@ enum {
 
 typedef enum { WAITING, ECHO_DRAINING, ECHO_FILLING } Phase;
 
-enum { AUDIO_FRAMES = 8192 };
+/* The mixed sound kept for the driver to take: a build that plays none
+ * (targets/gba/) keeps a few frames of it. */
+#ifndef SOUND_NATIVE_AUDIO_FRAMES
+#define SOUND_NATIVE_AUDIO_FRAMES 8192
+#endif
+enum { AUDIO_FRAMES = SOUND_NATIVE_AUDIO_FRAMES };
 
 /* A command that came while the driver waited for its echo: the game's (as
  * the CPU half took it) or one written to the ports. */

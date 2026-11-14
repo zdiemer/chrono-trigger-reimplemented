@@ -759,7 +759,7 @@ class TestPageKinds(unittest.TestCase):
                      " { IN_RANGE(g, 2, \"scratch_byte\", \"instances\", page.index, math_page_count(page));"
                      " IN_RANGE(g, 2, \"scratch_byte\", \"bytes\", at, 16u);"
                      " return r8(g, math_page_base(page) + 0xF0u + at); }",
-                     "static unsigned math_page_count(MathPage page)\n{\n    switch (page.kind) {\n"
+                     "static inline unsigned math_page_count(MathPage page)\n{\n    switch (page.kind) {\n"
                      "    case MATH_OWN:\n        return 1u;\n    case MATH_CHANNEL:\n        return 2u;"):
             with self.subTest(line=line):
                 self.assertIn(line, c)
