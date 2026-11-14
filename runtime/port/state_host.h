@@ -32,6 +32,10 @@ GameState *state_host_create(const uint8_t *sram);
 /* The same, placed in the arena (port/arena.h) for a run that snapshots it:
  * at the same address in every run that makes the same allocations first. */
 GameState *state_host_create_lasting(const uint8_t *sram);
+/* The bytes of a GameState, and of the game's work RAM and save RAM in it
+ * (ct_native --measure). */
+size_t state_host_bytes(void);
+size_t state_host_vars_bytes(void);
 void state_host_destroy(GameState *g);
 
 /* The state as bytes for a snapshot, and put back from them: the game's

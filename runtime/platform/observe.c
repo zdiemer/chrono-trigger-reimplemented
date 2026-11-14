@@ -1105,3 +1105,14 @@ bool vid_frame_diff(const VidFrame *a, const VidFrame *b, VidDiff *out)
             DIFF("vram", "VRAM $%04X is $%02X, commands $%02X", i, a->vram[i], b->vram[i]);
     return false;
 }
+
+size_t vid_obs_bytes(const VidObserver *ob)
+{
+    if (!ob)
+        return 0;
+    size_t bytes = sizeof *ob;
+    for (unsigned i = 0; i < VID_MAX_SPANS; i++)
+        bytes += (ob->vram_snap[i] ? sizeof ob->vram : 0) + (ob->cgram_snap[i] ? sizeof ob->cgram : 0) +
+                 (ob->sprite_snap[i] ? sizeof(VidSpriteSet) : 0);
+    return bytes;
+}

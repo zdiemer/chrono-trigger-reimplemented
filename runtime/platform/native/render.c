@@ -1587,3 +1587,5 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         flags->time_over = r->time_over;
     }
 }
+
+size_t vid_render_bytes(void) { return sizeof(VidRenderer); }

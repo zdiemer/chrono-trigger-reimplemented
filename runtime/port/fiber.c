@@ -359,3 +359,17 @@ bool fiber_restore(const uint8_t *in, size_t len)
     }
     return true;
 }
+
+unsigned fiber_slots(void) { return FIBER_SLOTS; }
+size_t fiber_stack_size(void) { return FIBER_STACK_SIZE; }
+
+size_t fiber_stack_high_water(unsigned slot)
+{
+    if (!stacks || slot >= FIBER_SLOTS)
+        return 0;
+    const uint8_t *stack = stacks + (size_t)slot * FIBER_STACK_SIZE;
+    size_t low = 0;
+    while (low < FIBER_STACK_SIZE && stack[low] == 0)
+        low++;
+    return FIBER_STACK_SIZE - low;
+}

@@ -35,6 +35,8 @@ typedef struct {
 
 VidRenderer *vid_render_create(void);
 void vid_render_destroy(VidRenderer *r);
+/* The bytes a renderer holds, its caches included (ct_native --measure). */
+size_t vid_render_bytes(void);
 
 /* How many pixels across the frame is drawn: its view's width. */
 int vid_render_width(const VidFrame *f);

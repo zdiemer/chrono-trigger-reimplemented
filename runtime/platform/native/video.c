@@ -477,3 +477,5 @@ void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool prio
     (void)o;
     vid_obs_oam_address(ob(pf), word_addr, priority_rotation);
 }
+
+size_t vid_host_observer_bytes(const Platform *pf) { return vid_obs_bytes(pf->video.observer); }
