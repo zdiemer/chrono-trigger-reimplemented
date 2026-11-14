@@ -92,18 +92,40 @@ void state_host_destroy(GameState *g)
         free(g);
 }
 
-/* The whole record, but the diagnostic totals the run keeps for itself. */
-size_t state_host_snapshot_bytes(void) { return sizeof(GameState); }
+/* The whole record, but the diagnostic totals the run keeps for itself; and
+ * where the state is work RAM as the original lays it out (CT_FLAT_STATE),
+ * its two banks after the record, which keeps only where they are. */
+#ifdef CT_FLAT_STATE
+enum { FLAT_BANK_BYTES = 0x10000, FLAT_BANKS = 2 };
+#else
+enum { FLAT_BANK_BYTES = 0, FLAT_BANKS = 0 };
+#endif
+size_t state_host_snapshot_bytes(void) { return sizeof(GameState) + (size_t)FLAT_BANK_BYTES * FLAT_BANKS; }
 
-void state_host_snapshot(const GameState *g, uint8_t *out) { memcpy(out, g, sizeof *g); }
+void state_host_snapshot(const GameState *g, uint8_t *out)
+{
+    memcpy(out, g, sizeof *g);
+#ifdef CT_FLAT_STATE
+    for (unsigned b = 0; b < FLAT_BANKS; b++)
+        memcpy(out + sizeof *g + (size_t)b * FLAT_BANK_BYTES, g->vars.bank[b], FLAT_BANK_BYTES);
+#endif
+}
 
 void state_host_restore(GameState *g, const uint8_t *in)
 {
     StateHostTime *time = g->time;
     bool lasting = g->lasting;
+#ifdef CT_FLAT_STATE
+    VarsHost banks = g->vars;
+#endif
     memcpy(g, in, sizeof *g);
     g->time = time;
     g->lasting = lasting;
+#ifdef CT_FLAT_STATE
+    g->vars = banks;
+    for (unsigned b = 0; b < FLAT_BANKS; b++)
+        memcpy(g->vars.bank[b], in + sizeof *g + (size_t)b * FLAT_BANK_BYTES, FLAT_BANK_BYTES);
+#endif
 }
 
 ProgramHandlers *program_handlers(GameState *g) { return &g->handlers; }
@@ -117,8 +139,8 @@ FieldObjectsPast *field_objects_past(GameState *g) { return &g->field_objects_pa
 MenuSpritesPast *menu_sprites_past(GameState *g) { return &g->menu_sprites_past; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
-VarsHost *state_host_vars(GameState *g) { return &g->vars; }
-const VarsHost *state_host_vars_const(const GameState *g) { return &g->vars; }
+/* state_host_vars (state_host.h) reaches the storage as the state's first member. */
+_Static_assert(offsetof(GameState, vars) == 0, "the state's storage is its first member");
 
 StateHostWork state_host_work(const GameState *g)
 {
@@ -216,6 +238,18 @@ uint8_t state_host_read8(const GameState *g, uint32_t addr)
     }
     stray(g, addr & 0xFFFFFF);
     return 0;
+}
+
+void state_host_read_span(const GameState *g, uint32_t addr, uint8_t *out, uint32_t len)
+{
+    /* Work RAM's banks at their own addresses, in one read of the storage;
+     * anything else a byte at a time, as state_host_read8 has it. */
+    if (addr >= 0x7E0000u && addr < 0x800000u && len <= 0x800000u - addr) {
+        vars_host_read_span(&g->vars, addr, out, len);
+        return;
+    }
+    for (uint32_t i = 0; i < len; i++)
+        out[i] = state_host_read8(g, addr + i);
 }
 
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v)
@@ -386,8 +420,19 @@ static unsigned rate_index(uint32_t routine)
     return lo < time_rate_count && time_rates[lo].routine == routine ? lo : time_rate_count;
 }
 
+/* Whether the run keeps the totals; the lean build (CT_LEAN) keeps none. */
+#ifdef CT_LEAN
+#define REPORTING(g) ((void)(g), false)
+#else
+#define REPORTING(g) ((g)->time != NULL)
+#endif
+
 bool state_host_record_time(GameState *g)
 {
+#ifdef CT_LEAN
+    (void)g;
+    return false;
+#else
     if (g->time)
         return true;
     g->time = calloc(time_rate_count + 1u, sizeof *g->time);
@@ -396,6 +441,7 @@ bool state_host_record_time(GameState *g)
     for (unsigned i = 0; i < time_rate_count; i++)
         g->time[i].routine = time_rates[i].routine;
     return true;
+#endif
 }
 
 const StateHostTime *state_host_time(const GameState *g, unsigned *count)
@@ -406,7 +452,7 @@ const StateHostTime *state_host_time(const GameState *g, unsigned *count)
 
 static void record_work(GameState *g, unsigned index, uint32_t bus, uint32_t charged, uint64_t milli)
 {
-    if (g->time) {
+    if (REPORTING(g)) {
         StateHostTime *t = &g->time[index];
         t->bus_clocks += bus;
         t->charged_clocks += charged;
@@ -487,7 +533,7 @@ void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t 
     uint64_t milli = ((uint64_t)bus + charged) * rate;
     g->work_milli += milli;
     record_work(g, index < time_rate_count ? index : g->timed, bus, charged, milli);
-    if (g->time)
+    if (REPORTING(g))
         g->time[index < time_rate_count ? index : g->timed].tags++;
 }
 
@@ -514,7 +560,7 @@ int charge_time_as_begin(GameState *g, uint32_t routine)
         g->rate = rate;
         g->timed = index;
     }
-    if (g->time)
+    if (REPORTING(g))
         g->time[index].tags++;
     return was;
 }

@@ -179,7 +179,22 @@ then stands still); `heckran_prepare` and `heckran` then play the Medina gate,
 the cave, a Shelter at its save point and Heckran. Heckran's whirlpool,
 Leene Square's Gate (which shows Truce Canyon's pillar at the End of Time) and
 that pillar lead to 600 A.D.; Guardia's kitchen gives Zenan Bridge's jerky,
-and `zombor` plays the bridge. It ends with Zombor beaten (frame 698042). Lab 16's Shadows,
+and `zombor` plays the bridge. From there it goes south: Dorino's Tonics and
+Mid Tonics; up the Denadoro Mountains (the entrance's west way, then map by
+map, the climbs' ladders and falls by leg B's search) to the save point below
+the top, where the party trains on the monsters of the map before it, which
+come back each time it steps out and in, until all are at level 15 (31 fights),
+and rests with a Shelter; Masa and Mune, beaten in one try with Marle's Ice,
+Lucca's Fire and Crono's Slash against the merged form's Tornado energy (the
+rpgclassics.com and gamercorner.net boss guides; at levels 13-14 without the
+Slash the bot needed 44 tries). The blade's scene leaps the party down the
+mountainside on the world map. Tata gives the Hero Medal; Frog, shown it, steps
+from his basket, which holds the hilt; Truce Canyon's Gate, the End of Time's
+Medina pillar and Melchior, who wants a Dreamstone; the south-west pillar to
+65,000,000 B.C.; at Ioka's feast a fixed round of talk brings on Ayla's soup
+race, won by pressing A as fast as it counts; and in the morning, the Gate Key
+gone, Ayla joins (Crono 17, Ayla 18, Marle 16). It ends there, at story $78
+(frame 1067447), where leg B's save stands. Lab 16's Shadows,
 which no weapon hurts, are run from by their enemy number; any other fight
 with no enemy the bot can wear down fails the route.
 
@@ -225,10 +240,10 @@ Ethers; filling the bag with all four to 99 would cost about 390,000. It has to 
 then: above the slope
 the field's ledges drop one way, and only the summit's scene leaves it (the
 frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
-1). Crono joins in Robo's place at the End of Time, and the purse buys in
+1). Crono joins in Marle's place at the End of Time, and the purse buys in
 the 12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
 the party's techs, healed from the bag between them; the shell's own form
-with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
+with `holding_out`, which heals first), then `lavos_inner`. Before anyone
 acts, an arm casts a spell that hits each member once: 37 power on the arm's
 level 50 and magic 50 (read from its stat block in ct_native, $C1:E0F5),
 (50 x 12 + 50 x 12) x 37 / 15 = 2,960, of which a member keeps 256 less two
@@ -237,23 +252,40 @@ variance. Computed so, a member at full HP needs magic defence of about 70
 to live through it (69 at 999 HP, 73 at 891); ct_native showed the hits at
 105, 651 and 999 for Marle (99), Crono (80) and Robo (67, all his 999 HP:
 1,029 before the cap), and the ROM's constants at $C1:E203 and $C1:E65F are
-the port's. So Crono, Marle and Lucca (94) go in, with each member's
-strongest single techs on the arms together and then the body; Marle's
-Cure 2 heals before the tonics, and the party is healed and its MP topped up
-before the body's last 4,000 HP, since the core's fight follows with no field
-between. `lavos_core` heals first, frees a member the core's spell stops
-(the stat block's Stop bit) with a Heal, hastens, and guards everyone: the
+the port's. Crono (86), Lucca (99) and Robo (73, 999 HP) go in: Robo's Heal
+Beam heals before the bag (the guides want two of Marle, Frog and Robo
+healing), Lucca's Flare takes the arms, whose magic defence is 50 against a
+defence of 127, and the party's strongest single techs go on the arms
+together and then the body. Crono, Frog and Robo, for the Triple Raid the
+guides aim at the core, lost the inner form instead (arms at 11,654 of
+20,000 together after 1,009 retries): this save's Frog knows four techs, no
+Leap Slash or Cure 2: techs come from tech points, which only the members
+fighting earn (game/battle/rewards_techs.c), and this player's Frog has sat
+in reserve since. Crono comes back 48 points short of Luminaire, his spell on
+every enemy, and the route flies into the Black Omen from 1000 A.D. for its
+first fight, which pays them, and leaves; he casts it on the inner form,
+and on the core once its left bit, which takes in all four elements, is
+down. The party is healed and its MP topped up before the body's last 9,000
+HP (a Luminaire takes some 4,000), since the core's fight follows with no
+field between. `lavos_core` heals first, frees a member the core's spell stops
+(the stat block's Stop bit) with a Heal, hastens where Marle is in the
+party, and guards everyone: the
 center strikes all three at once with a blow of 240 power on its attack of
 100 (2,666 before defence, recorded in ct_native), which kills Lucca (155
 defence) unless Lucca's Protect or a Shield takes three tenths off. It reads
 the right bit's defence from its stat block (255 while the others stand,
 lower in the moment one falls, when it is hit), and leaves some choices to
-chance so the bot's retries can vary. Measured end, played on this branch:
-the inner form is beaten (the core's fight begins at frame 1,458,280, the
-party at 970, 884 and 979 HP), and in 1,381 retries of the core the deepest
-line reaches its 107th decision with the right bit at 19,622 of 30,000
-before the party falls, the bag by then down to its Revives and Heals
-(issue #340).
+chance so the bot's retries can vary. The core's stats in ct_native are the
+ROM's enemy records' ($CC:4700: the center's attack 100 and defence 127,
+the right bit's defence 255). Measured end, played on this branch: Crono,
+with Luminaire, Lucca and Robo beat the inner form in 12 seconds of the
+bot's search, and enter the core at about 60% of their HP; in 753 retries
+of the core the deepest line reaches its 31st decision, with the right bit
+at 26,237 of 30,000 at best. Without Luminaire this party reached its 55th
+decision and 23,236, and Crono, Marle and Lucca 19,622. The Black Omen's
+chests (bank $F5's lists: its locations $139-$145) hold six Megalixirs, the
+Haste Helm and four Speed Tabs past the Mega Mutant, whose fight a probe
+reached and the route does not yet take (issue #340).
 The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;
 `black_omen_entry` flies it into the Black Omen from ctsave14.
@@ -283,7 +315,11 @@ become fixes; the batch never blocks a commit, merge or push. Its stage logs,
 route logs and `findings.json` live under `build/suite-long`. At most two native
 processes run at once; individual routes retain their six-hour timeout.
 A route must report its reached outcome and exit successfully. Timeouts stop
-only that route's process tree. `--protocol-log` records requests and replies.
+only that route's process tree. A route that makes no progress (a checkpoint,
+a fight won, or a fight's retry) for 15 minutes ends itself with a `STALL`
+line naming where it last moved on (`tools/movies/campaign.py`,
+`CT_ROUTE_STALL` to change it), so a walk that goes back and forth for ever
+fails rather than holding the batch until its timeout. `--protocol-log` records requests and replies.
 
 ## Native program checkpoints
 

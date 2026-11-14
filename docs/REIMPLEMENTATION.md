@@ -209,6 +209,21 @@ Giga Gaia), it showed where native battle time fell short:
   3000-6000; 74.4k before). Across the 84 movies, places on time stay 599
   and in order go 694 to 695 (the gate's 58: 395 to 395, 476 to 478); one
   moves away, the Black Omen's Zeal fight, with its evidence on its line.
+- The location's load (issues #349, #376). The routines a location's load
+  and its scripts' setup run once or a few times were left out of the
+  field's calibration, which took routines of 1000 calls and more. 76 of
+  them were measured against the original's clocks over the 25 movies
+  (`tools/timing_ratios.txt`); 71 take the ratio, among them the load
+  (`$C0:00F4` ×4.1) and the event commands that set objects up (×1.1-1.8),
+  and no place moves across the 84 movies (598 on time, 701 in order). Five
+  are measured, not applied: the screen's setup (`$C0:286C` ×2.3), the
+  objects' start (`$C0:5709` ×1.8), the map's unpacking (`$C0:A33B` ×1.5)
+  and the casting of an NPC or an enemy (`$C0:4590`, `$C0:46DF`) each move
+  recorded fights (the unequipped armor's, Bucket Lavos's, the Zeal fight's,
+  Crono's trial) away from the reference on top of the battle's rates; they
+  wait for those fights to be played by state (issue #376). Left as they
+  were: the song starts, the transfers the port charges outside the routines
+  and the routines the port prices from their own work.
 - The checks outside the menus (issue #349). The field's, the events', the
   scenes', the world map's and the time gates' checks are looks too:
   measured again, the field's rates stay within 2% of the original's but

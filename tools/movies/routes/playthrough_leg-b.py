@@ -32,7 +32,6 @@ from . import magic_cave
 from . import menu_sweep as menus
 from . import nizbel
 from . import nizbel_ii
-from . import playthrough as main_leg
 
 SAVE = "saves/fantasyanime/ctsave05-prehistoric.srm"
 SLOT = 0
@@ -909,9 +908,9 @@ STEPS = {
 STEPS.update({name: inner_room(name) for name in INNER_WAY})
 
 
-def main():
-    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
-    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
+def play(run, start=2, seed=1):
+    """The leg from the Forest Maze on (PHASES' index `start`, from 2): the save's or the
+    main playthrough's party on the 65,000,000 B.C. world map at story $78."""
 
     def own(run, start, offset, phases):
         """This route's own `phases`, PHASES' indices `offset` on, from `start`."""
@@ -921,6 +920,53 @@ def main():
                 run.say(name, run.map_id(), run.me(), "world", run.world_pos(), "story", hex(story(run)))
                 run.checkpoint(name)
 
+    own(run, start, 2, START[2:])
+    at = len(START)
+    if start < at + len(NIZBEL):
+        nizbel.play(run, max(2, start - at + 2), seed)
+    at += len(NIZBEL)
+    own(run, start, at, HOME)
+    at += len(HOME)
+    if start < at + len(FLASHBACK):
+        magic_cave.play(run, max(2, start - at + 2))
+    at += len(FLASHBACK)
+    own(run, start, at, CAVE)
+    at += len(CAVE)
+    castle_run = castle.CastleRun.adopt(run)
+    if start < at + len(CASTLE):
+        castle.approach(castle_run, max(1, start - at + 1), seed)
+    at += len(CASTLE)
+    own(castle_run, start, at, ["tended_for_slash"])
+    at += 1
+    if start < at + len(SLASH):
+        castle_slash.play(castle_run, start - at + len(castle.APPROACH), seed, castle_fights)
+    at += len(SLASH)
+    own(castle_run, start, at, SLASH_BACK)
+    at += len(SLASH_BACK)
+    if start < at + len(FLEA):
+        castle_flea.play(castle_run, start - at + len(castle.APPROACH), seed, castle_fights)
+    at += len(FLEA)
+    own(castle_run, start, at, INNER)
+    at += len(INNER)
+    own(run, start, at, PREHISTORY)
+    at += len(PREHISTORY)
+    if start < at + len(NIZBEL_II):
+        nizbel_ii.play(run, max(1, start - at + 1), seed, last=LAIR_DOOR_OPENED, settle=lair_settle,
+                       fights=lair_fights)
+    at += len(NIZBEL_II)
+    if start < at + len(NIZBEL_II_ROOM):
+        nizbel_ii.play(run, max(LAIR_DOOR_OPENED + 1, start - at + LAIR_DOOR_OPENED + 1), seed, settle=lair_settle,
+                       fights=lair_fights, boss=nizbel_ii_fight, boss_tries=NIZBEL_II_TRIES)
+    at += len(NIZBEL_II_ROOM)
+    own(run, start, at, TO_AZALA)
+    at += len(TO_AZALA)
+    if start < at + len(TYRANO):
+        black_tyrano.play(run, max(1, start - at + 1), seed)
+
+
+def main():
+    args = route_arguments(__doc__.splitlines()[0], save=SAVE)
+    run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, until=args.until)
     try:
         start = run.start_at(PHASES)
         if start <= 0:
@@ -929,54 +975,18 @@ def main():
         if start <= 1:
             early.fast_settings(run)
             run.checkpoint("settings")
-        own(run, start, 2, START[2:])
-        at = len(START)
-        if start < at + len(NIZBEL):
-            nizbel.play(run, max(2, start - at + 2), args.seed)
-        at += len(NIZBEL)
-        own(run, start, at, HOME)
-        at += len(HOME)
-        if start < at + len(FLASHBACK):
-            magic_cave.play(run, max(2, start - at + 2))
-        at += len(FLASHBACK)
-        own(run, start, at, CAVE)
-        at += len(CAVE)
-        castle_run = castle.CastleRun.adopt(run)
-        if start < at + len(CASTLE):
-            castle.approach(castle_run, max(1, start - at + 1), args.seed)
-        at += len(CASTLE)
-        own(castle_run, start, at, ["tended_for_slash"])
-        at += 1
-        if start < at + len(SLASH):
-            castle_slash.play(castle_run, start - at + len(castle.APPROACH), args.seed, castle_fights)
-        at += len(SLASH)
-        own(castle_run, start, at, SLASH_BACK)
-        at += len(SLASH_BACK)
-        if start < at + len(FLEA):
-            castle_flea.play(castle_run, start - at + len(castle.APPROACH), args.seed, castle_fights)
-        at += len(FLEA)
-        own(castle_run, start, at, INNER)
-        at += len(INNER)
-        own(run, start, at, PREHISTORY)
-        at += len(PREHISTORY)
-        if start < at + len(NIZBEL_II):
-            nizbel_ii.play(run, max(1, start - at + 1), args.seed, last=LAIR_DOOR_OPENED, settle=lair_settle,
-                           fights=lair_fights)
-        at += len(NIZBEL_II)
-        if start < at + len(NIZBEL_II_ROOM):
-            nizbel_ii.play(run, max(LAIR_DOOR_OPENED + 1, start - at + LAIR_DOOR_OPENED + 1), args.seed, settle=lair_settle,
-                           fights=lair_fights, boss=nizbel_ii_fight, boss_tries=NIZBEL_II_TRIES)
-        at += len(NIZBEL_II_ROOM)
-        own(run, start, at, TO_AZALA)
-        at += len(TO_AZALA)
-        if start < at + len(TYRANO):
-            black_tyrano.play(run, max(1, start - at + 1), args.seed)
+        play(run, max(2, start), args.seed)
         run.finish("the leg's last checkpoint")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
     finally:
         if not run.logfile.closed:
             run.close()
+
+
+# Imported last: the main playthrough plays this leg's PHASES and play(), and
+# this leg its walks and fights at call time, so either can be imported first.
+from . import playthrough as main_leg  # noqa: E402
 
 
 if __name__ == "__main__":

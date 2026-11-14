@@ -21,7 +21,7 @@ have:
     file in the tree that it ends.
 
 A name exists if it is an identifier of the code in game/, runtime/,
-frontend/, tools/, tests/, re/ or CMakeLists.txt, or the name of a file
+frontend/, targets/, tools/, tests/, re/ or CMakeLists.txt, or the name of a file
 there. Comments, docstrings, strings (but a string that is one identifier, an
 environment variable's name), the ledgers in tools/ and the RAM map's prose
 mention names without defining them, so they don't keep a name alive. A mention of a name that is gone on purpose (a bad
@@ -39,7 +39,7 @@ import tokenize
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXCEPTIONS = 'tools/doc_names_exceptions.txt'
-CODE_DIRS = ('game', 'runtime', 'frontend', 'tools', 'tests', 're')
+CODE_DIRS = ('game', 'runtime', 'frontend', 'targets', 'tools', 'tests', 're')
 CODE_FILES = ('CMakeLists.txt',)
 # Ledgers (tools/*.txt, *.tsv) only mention names, so they don't define one;
 # the RAM map's tables in re/ are where the accessors' names come from.

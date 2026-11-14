@@ -46,11 +46,16 @@ size_t state_host_snapshot_bytes(void);
 void state_host_snapshot(const GameState *g, uint8_t *out);
 void state_host_restore(GameState *g, const uint8_t *in);
 
-/* Generated accessors only: module storage, never exposed to game logic. */
-VarsHost *state_host_vars(GameState *g);
-const VarsHost *state_host_vars_const(const GameState *g);
+/* Generated accessors only: module storage, never exposed to game logic.
+ * The storage is the first thing a state holds (state_host.c checks it), so
+ * the accessors reach it with no call. */
+static inline VarsHost *state_host_vars(GameState *g) { return (VarsHost *)(void *)g; }
+static inline const VarsHost *state_host_vars_const(const GameState *g) { return (const VarsHost *)(const void *)g; }
 
 uint8_t state_host_read8(const GameState *g, uint32_t addr);
+/* `len` bytes from `addr` on, each as state_host_read8 reads it: the sources
+ * the video service's sends name by address, read in one call. */
+void state_host_read_span(const GameState *g, uint32_t addr, uint8_t *out, uint32_t len);
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v);
 /* Whether an address is the cartridge's, whose bytes the asset store serves
  * (rom_host.c) rather than the host's memory. */

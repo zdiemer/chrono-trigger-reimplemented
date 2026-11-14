@@ -101,6 +101,9 @@ typedef struct {
     uint8_t line_effects_below;
     uint32_t screens_applied;
     VidView view;                /* vid_host_set_view's; zero: the original's screen */
+    /* What a wider view shows past the original's screen, 38 KiB, which a
+     * build that never draws wider (targets/gba/) leaves out. */
+#ifndef VID_HOST_NO_WIDER_VIEW
     int16_t layer_left[4], layer_right[4];   /* vid_show_a_layer_across's this frame */
     int16_t back_left, back_right;           /* ... and the backdrop's */
     uint8_t layout_count;                    /* vid_lay_out_a_map_across's this frame */
@@ -110,6 +113,7 @@ typedef struct {
     VidWindowParting parting;
     uint16_t margin_count;                   /* vid_show_a_sprite_in_the_margins's this frame */
     VidMarginEntry margin[VID_MARGIN_SPRITES];
+#endif
 } VidHost;
 
 /* The sound: the C sound driver (game/sound/) played in the SPC700's place,
@@ -151,7 +155,7 @@ struct Platform {
 
 /* The picture's state from the game's memory, read through the driver's
  * callback; and the frame it makes, its line effects run down the picture. */
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
+void vid_host_start(Platform *pf, PfReadGame *read, void *ctx);
 void vid_host_stop(Platform *pf);
 /* How much of the picture the game shows (vid_view): the driver's to choose,
  * the original's screen until it does. A snapshot leaves it as it is. */

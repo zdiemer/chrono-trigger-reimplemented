@@ -46,13 +46,16 @@ static bool animates(const GameState *g, MenuObject walker, PartyPlace place, bo
 
 /* The leader moves the map with it: four scrolls a frame at most, a strip of
  * the map each across and two each down; and it turns with whole-pixel paces
- * it sets, its velocity with no fraction (the game sets none). */
-static bool the_map_can_follow(const GameState *g, MenuObject leader)
+ * it sets, its velocity with no fraction (the game sets none). A leader
+ * setting off is halted before it moves, so whatever velocity its object
+ * held before isn't read: a scene that leaves Denadoro's cave for the world
+ * map hands it one with fractions. */
+static bool the_map_can_follow(const GameState *g, MenuObject leader, bool sets_off)
 {
     unsigned records = 2 * menu_map_scroll_records(MENU_ACROSS, 1) + 2 * menu_map_scroll_records(MENU_DOWN, 1);
     MenuPlace v = menu_object_velocity(g, leader);
-    return menu_map_can_scroll(g, 1, records) && menu_map_can_scroll(g, 2, records) && (uint16_t)v.x == 0
-           && (uint16_t)v.y == 0;
+    return menu_map_can_scroll(g, 1, records) && menu_map_can_scroll(g, 2, records)
+           && (sets_off || ((uint16_t)v.x == 0 && (uint16_t)v.y == 0));
 }
 
 /* A walker of the party that is there walks by the original's tables: a
@@ -97,7 +100,7 @@ static bool walker_runs(const GameState *g, MenuObject walker, PartyPlace place,
     bool lays_the_trail = sets_off && place == PARTY_LEADER;
     bool walks = !(menu_object_slots_facing(g, walker) & NOT_FACING_BITS)
                  && (lays_the_trail || overworld_trail_is_kept(g)) && animates(g, walker, place, sets_off)
-                 && (!tables.moves_the_map || the_map_can_follow(g, walker));
+                 && (!tables.moves_the_map || the_map_can_follow(g, walker, sets_off));
     switch (travel) {
     case TRAVEL_ON_FOOT:
         if (!overworld_on_the_map(g))

@@ -3871,6 +3871,18 @@ typedef struct {
     } warp_plane_scrolls_values[2];
 } VarsHostWarp;
 
+#ifdef CT_FLAT_STATE
+/* Work RAM as the original lays it out (runtime/port/vars_flat.c): its two
+ * 64 KiB banks, a byte for each address, where the backing keeps them
+ * (runtime/port/vars_flat_host.c, or a target's). The typed records above
+ * are left unused. */
+typedef struct {
+    uint8_t *bank[2];
+} VarsHost;
+/* Whether the map gives the address an owner: bytes no owner keeps read 0
+ * and drop writes, as the typed state's address view does. */
+bool vars_flat_owned(uint32_t addr);
+#else
 typedef struct {
     VarsHostBattle battle;
     VarsHostCartridge cartridge;
@@ -3892,9 +3904,12 @@ typedef struct {
     uint8_t overlay_writer[119296];
     /* The reads that found another owner's bytes, by reader: how often, and
      * the owner that wrote them the first time (vars_host_crossings). A
-     * diagnostic tally, kept with the state it describes. */
+     * diagnostic tally, kept with the state it describes; the lean build
+     * (CT_LEAN) keeps none. */
+#ifndef CT_LEAN
     uint32_t crossed[3361];
     uint16_t crossed_writer[3361];
+#endif
 } VarsHost;
 
 /* Byte views of battle_acting_for_itself's storage; no independent alias fields. */
@@ -4398,11 +4413,17 @@ void vars_host_warp_plane_matrix_second_row_values_write8(VarsHost *h, uint32_t 
 /* Byte views of warp_plane_scrolls_values's storage; no independent alias fields. */
 uint8_t vars_host_warp_plane_scrolls_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_warp_plane_scrolls_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
+#endif
 
 /* An owner beside others (re/ram.toml's `overlays`) wrote these bytes. */
 void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
-/* An owner beside others reads these bytes: count any another owner wrote last. */
+/* An owner beside others reads these bytes: count any another owner wrote last.
+ * The lean build counts nothing, and reports no crossings. */
+#ifdef CT_LEAN
+#define vars_host_check(h, addr, bytes, place) ((void)(h))
+#else
 void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
+#endif
 /* The reads that found another owner's bytes: each reader, the owner that
  * wrote them and how often, through `each`; returns how many readers. */
 unsigned vars_host_crossings(const VarsHost *h,
@@ -4413,5 +4434,8 @@ void vars_host_crossings_reset(VarsHost *h);
 void vars_host_init(VarsHost *h);
 bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);
 bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);
+/* `len` bytes of work RAM from `addr`, as vars_host_read8 reads each (0 where
+ * no owner keeps one), in one call: what a send names by address. */
+void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_t len);
 
 #endif

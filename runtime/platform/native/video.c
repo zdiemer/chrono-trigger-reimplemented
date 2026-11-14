@@ -21,7 +21,7 @@
 #include "platform/time_model.h"
 #include "platform/timing.h"
 
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
+void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
     VidHost *v = &pf->video;
     vid_obs_destroy(v->observer);
