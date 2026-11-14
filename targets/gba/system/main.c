@@ -1,13 +1,16 @@
 /* ct_gba: the game on the GBA with its picture and no sound heard
  * (docs/PLATFORM.md, "The GBA build, as built").
  *
- * The driver plays the movie the packing step put in the cartridge
- * (targets/gba/host/pack.py), one frame of the game per call of its loop as
- * ct_native does, then reports the end over mGBA's debug log: the frames and
- * lag frames run, a CRC-32 of work RAM and save RAM at the end (as
- * ct_native --end-state writes them) and of save RAM alone, and the memory
- * it used. A frame of the game takes as long as its work, which is what the
- * run measures, and its picture is made in the next vertical blank. */
+ * The driver runs one frame of the game per turn of its loop, as ct_native
+ * does, with the pads from the keypad (system/keypad.h) or, where a runner
+ * drives it from outside (system/drive_box.h), from the runner. The save
+ * starts from the cartridge's SRAM and goes back to it on a frame the game
+ * wrote it (services/cartridge_save.h). Asked by a runner, it reports over
+ * mGBA's debug log: the frames and lag frames run, a CRC-32 of work RAM and
+ * save RAM (as ct_native --end-state writes them) and of save RAM alone, each
+ * part's work a frame, and the memory it used. A frame of the game takes as
+ * long as its work, which is what the run measures, and its picture is made
+ * in the next vertical blank. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,17 +24,18 @@
 #include "port/state_host.h"
 #include "sound_native.h"
 
+#include "services/cartridge_save.h"
 #include "services/video.h"
 #include "system/debug_log.h"
+#include "system/drive.h"
 #include "system/fiber.h"
+#include "system/keypad.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
- * order, the movie's pads and the save RAM it starts from. */
+ * order. */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
-    uint32_t frames, pads_at;      /* the movie: its frames, and a pad word each (pack.py) */
-    uint32_t sram_at;              /* 0: none, save RAM erased */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
 
@@ -133,9 +137,36 @@ static void report_cycles(const Cycles *c, uint32_t frames)
             mean, p99, most);
 }
 
-/* The game's frame the driver is in, for a runner that takes pictures at
- * chosen frames (targets/gba/host/mgba_run.c). */
-volatile uint32_t ct_gba_frame;
+/* What the report covers: the frames run and each part's cycles in them. */
+typedef struct {
+    GameState *g;
+    Platform *pf;
+    uint32_t frames;
+    Cycles game, sounds, picture;
+} Run;
+
+static void report(void *ctx)
+{
+    const Run *run = ctx;
+    fprintf(stderr, "ct_gba: %u frame(s); %u lag frame(s)\n", (unsigned)run->frames,
+            (unsigned)tm_host_lag_frames(run->pf));
+    if (run->frames) {
+        report_cycles(&run->game, run->frames);
+        report_cycles(&run->sounds, run->frames);
+        report_cycles(&run->picture, run->frames);
+    }
+    fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(run->g),
+            (unsigned)ct_crc32(state_host_sram(run->g), STATE_HOST_SRAM_BYTES));
+    fprintf(stderr, "ct_gba: arena %u bytes, the SNES's video memory %u\n", (unsigned)arena_used(),
+            (unsigned)gba_video_bytes());
+    for (unsigned s = 0; s < fiber_slots(); s++)
+        if (fiber_stack_high_water(s))
+            fprintf(stderr, "ct_gba: stack %u %u of %u bytes\n", s, (unsigned)fiber_stack_high_water(s),
+                    (unsigned)gba_fiber_slot_size(s));
+    fprintf(stderr, "ct_gba: the driver's stack %u of %u bytes\n", (unsigned)driver_stack_used(),
+            (unsigned)(__stack_top - __iwram_bss_end));
+    fprintf(stderr, "ct_gba: reported\n");
+}
 
 int main(void)
 {
@@ -150,15 +181,13 @@ int main(void)
     source = (AssetSource){ pack_resource, (void *)head };
     assets_use(&source);
 
-    uint32_t frames = head->frames;
-    const uint32_t *pads = (const uint32_t *)((const uint8_t *)head + head->pads_at);
-
-    GameState *g = state_host_create_lasting(head->sram_at ? (const uint8_t *)head + head->sram_at : NULL);
+    GameState *g = state_host_create_lasting(NULL);
     static Platform pf;
     if (!g) {
         fprintf(stderr, "ct_gba: no memory for the game's state\n");
         abort();
     }
+    cartridge_save_load(state_host_sram(g));   /* or none, erased */
     pf.save.bytes = state_host_sram(g);
     vid_host_start(&pf, read_game, g);
     SoundNative *sound = sound_native_create(g, &pf);
@@ -167,15 +196,18 @@ int main(void)
         abort();
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed, NULL }, 1);
-    fprintf(stderr, "ct_gba: playing %u frame(s)\n", (unsigned)frames);
+    bool driven = drive_open();
+    fprintf(stderr, "ct_gba: playing, the pads from %s\n", driven ? "the runner" : "the keypad");
 
     /* Each frame's cycles, the game's, the sound's and the picture's. */
-    static Cycles game = { .name = "game" }, sounds = { .name = "sound" }, picture = { .name = "picture" };
+    static Run run = { .game = { .name = "game" }, .sounds = { .name = "sound" }, .picture = { .name = "picture" } };
+    run.g = g, run.pf = &pf;
+    static Keypad keypad;
     cycles_start();
-    for (uint32_t frame = 0; frame < frames; frame++) {
-        ct_gba_frame = frame;
-        in_host_set(&pf, 0, (uint16_t)pads[frame]);
-        in_host_set(&pf, 1, (uint16_t)(pads[frame] >> 16));
+    for (;;) {
+        uint32_t pads = driven ? drive_next_pads(g, report, &run) : keypad_buttons(&keypad, keypad_held());
+        in_host_set(&pf, 0, (uint16_t)pads);
+        in_host_set(&pf, 1, (uint16_t)(pads >> 16));
         uint32_t began = cycles_now();
         tm_host_frame(&pf);
         uint32_t game_done = cycles_now();
@@ -185,31 +217,13 @@ int main(void)
         gba_video_await_blank();
         uint32_t blank = cycles_now();
         gba_video_present(&pf);
-        count_cycles(&game, game_done - began);
-        count_cycles(&sounds, sound_done - game_done);
-        count_cycles(&picture, cycles_now() - blank);
-        if (frame % 600 == 599)
-            fprintf(stderr, "ct_gba: frame %u\n", (unsigned)frame + 1);
+        count_cycles(&run.game, game_done - began);
+        count_cycles(&run.sounds, sound_done - game_done);
+        count_cycles(&run.picture, cycles_now() - blank);
+        run.frames++;
+        bool wrote;
+        const uint8_t *save = sv_host_bytes(&pf, &wrote);
+        if (wrote)
+            cartridge_save_store(save);
     }
-    ct_gba_frame = frames;
-
-    fprintf(stderr, "ct_gba: %u frame(s); %u lag frame(s)\n", (unsigned)frames, (unsigned)tm_host_lag_frames(&pf));
-    if (frames) {
-        report_cycles(&game, frames);
-        report_cycles(&sounds, frames);
-        report_cycles(&picture, frames);
-    }
-    fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(g),
-            (unsigned)ct_crc32(state_host_sram(g), STATE_HOST_SRAM_BYTES));
-    fprintf(stderr, "ct_gba: arena %u bytes, the SNES's video memory %u\n", (unsigned)arena_used(),
-            (unsigned)gba_video_bytes());
-    for (unsigned s = 0; s < fiber_slots(); s++)
-        if (fiber_stack_high_water(s))
-            fprintf(stderr, "ct_gba: stack %u %u of %u bytes\n", s, (unsigned)fiber_stack_high_water(s),
-                    (unsigned)gba_fiber_slot_size(s));
-    fprintf(stderr, "ct_gba: the driver's stack %u of %u bytes\n", (unsigned)driver_stack_used(),
-            (unsigned)(__stack_top - __iwram_bss_end));
-    fprintf(stderr, "ct_gba: done\n");
-    for (;;)
-        ;
 }
