@@ -289,7 +289,7 @@ enum { VIEW = 0xC0A88D };
 
 bool object_view_updated(GameState *g, FieldObject obj)
 {
-    if (field_view_changes(g, obj) && !field_view_change_in_the_tables(g, obj)) {
+    if (field_view_changes(g, obj) && !PORT_CHECK(field_view_change_in_the_tables(g, obj))) {
         program_breaks_a_contract(g, VIEW, "an object coming into view or leaving it with tables the port doesn't read");
         return false;
     }

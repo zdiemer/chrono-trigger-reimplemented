@@ -321,7 +321,7 @@ static bool battle_return_fits(const GameState *g)
  * where it doesn't fit) and the map's own script run to its first return. */
 static bool put_the_fight_back(GameState *g)
 {
-    if (!battle_return_fits(g)) {
+    if (!PORT_CHECK(battle_return_fits(g))) {
         program_breaks_a_contract(g, RETURN_FROM_BATTLE, "a party or enemies the port doesn't put back");
         return false;
     }
@@ -382,7 +382,7 @@ static bool go_on_on_the_field(GameState *g, Platform *pf)
         return false;
     TIMED_AS(g, FIELD_BUILD_TEXT_AREA_ENTRY, field_build_the_text_area(g));
     field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_SECOND);
-    if (!party_can_come_back_together(g)) {
+    if (!PORT_CHECK(party_can_come_back_together(g))) {
         program_breaks_a_contract(g, PARTY_BACK_TOGETHER, "a party the port doesn't bring back together");
         return false;
     }

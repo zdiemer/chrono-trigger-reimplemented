@@ -66,9 +66,10 @@ typedef struct {
  * the previous setting's last). */
 enum { SPEEDS_A_SETTING = 16 };
 
-static inline uint32_t rom_read24(const GameState *g, uint32_t at)
+/* A long pointer, `at` bytes into a named table of them. */
+static inline uint32_t setup_long_pointer(const GameState *g, AssetId table, uint32_t at)
 {
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    return asset_read16(g, table, at) | (uint32_t)asset_read8(g, table, at + 2) << 16;
 }
 
 /* ---- The window and the screen ----------------------------------------------------------- */
@@ -166,7 +167,8 @@ static inline uint16_t setup_member_color(const GameState *g, uint16_t at)
  * and the number sprites' colors ($D1:4D80). */
 static inline uint16_t setup_cursor_color(const GameState *g, unsigned palette, unsigned color)
 {
-    return rom_read16(g, (palette ? 0xD138FAu : 0xD138F2u) + 2 * color);
+    enum { FIRST_CURSOR_COLORS = 2, SECOND_CURSOR_COLORS = 0x0A };   /* in battle_cursor_colors */
+    return asset_read16(g, ASSET_BATTLE_CURSOR_COLORS, (palette ? SECOND_CURSOR_COLORS : FIRST_CURSOR_COLORS) + 2u * color);
 }
 
 static inline uint16_t setup_number_color(const GameState *g, unsigned color)
@@ -188,9 +190,9 @@ static inline uint8_t setup_member_tech_list_start(const GameState *g, uint8_t m
     return asset_read8(g, ASSET_SETUP_MEMBER_TECH_LIST_START, member);
 }
 
-static inline uint32_t setup_character_graphics(const GameState *g, uint8_t at) { return rom_read24(g, 0xE42000u + at); }
+static inline uint32_t setup_character_graphics(const GameState *g, uint8_t at) { return setup_long_pointer(g, ASSET_SETUP_CHARACTER_GRAPHICS, at); }
 
-static inline uint32_t setup_tile_lists(const GameState *g, uint16_t at) { return rom_read24(g, 0xE42300u + at); }
+static inline uint32_t setup_tile_lists(const GameState *g, uint16_t at) { return setup_long_pointer(g, ASSET_SETUP_TILE_LISTS, at); }
 
 static inline uint16_t setup_frame_lists(const GameState *g, uint16_t at)
 {
@@ -230,19 +232,23 @@ static inline uint8_t setup_four_plane_tiles(const GameState *g, uint16_t at)
 /* Each object's two graphics uploads: their sizes by graphics kind ($CC:F9DF,
  * $CC:F9E9) and their VRAM addresses and sources by battle slot ($CC:F9B3,
  * $CC:F9C9; $CC:F987, $CC:F99D), a word each. */
+/* Where the second set's words start in each table: its sources and places
+ * eleven words on, its sizes five. */
+enum { SECOND_UPLOADS_SLOTS = 0x16, SECOND_UPLOADS_SIZES = 0x0A };
+
 static inline uint16_t setup_upload_size(const GameState *g, unsigned upload, uint8_t kind)
 {
-    return rom_read16(g, (upload ? 0xCCF9E9u : 0xCCF9DFu) + (uint8_t)(kind << 1));
+    return asset_read16(g, ASSET_SETUP_UPLOAD_SIZES, (upload ? SECOND_UPLOADS_SIZES : 0) + (uint8_t)(kind << 1));
 }
 
 static inline uint16_t setup_upload_vram(const GameState *g, unsigned upload, uint8_t slot)
 {
-    return rom_read16(g, (upload ? 0xCCF9C9u : 0xCCF9B3u) + 2u * slot);
+    return asset_read16(g, ASSET_SETUP_UPLOAD_VRAM, (upload ? SECOND_UPLOADS_SLOTS : 0) + 2u * slot);
 }
 
 static inline uint16_t setup_upload_source(const GameState *g, unsigned upload, uint8_t slot)
 {
-    return rom_read16(g, (upload ? 0xCCF99Du : 0xCCF987u) + 2u * slot);
+    return asset_read16(g, ASSET_SETUP_UPLOAD_SOURCES, (upload ? SECOND_UPLOADS_SLOTS : 0) + 2u * slot);
 }
 
 /* ---- Enemies -------------------------------------------------------------------------------- */

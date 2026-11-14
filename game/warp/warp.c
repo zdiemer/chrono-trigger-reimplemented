@@ -34,6 +34,7 @@
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "ram.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The kinds of warp --------------------------------------------------------------------------- */
@@ -333,7 +334,7 @@ bool warp_runs(GameState *g, Platform *pf, uint8_t scene)
     bool goes_on = true;
     while (goes_on) {
         wait_for_the_frame_taken(g, pf);
-        if (!keeps_its_zero(g)) {
+        if (!PORT_CHECK(keeps_its_zero(g))) {
             program_fail(g, k->frame_rate, "a warp whose zero has moved");
             return false;
         }

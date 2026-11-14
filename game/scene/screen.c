@@ -393,7 +393,7 @@ void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resour
 {
     (void)page;
     charge_accesses(g, 2);
-    scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
+    scene_copy_resource_bytes(g, scene_unpacked_bank(g), resource, to, bytes);
     charge_block_move(g, bytes);
 }
 

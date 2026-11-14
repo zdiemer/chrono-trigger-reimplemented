@@ -595,7 +595,7 @@ void scene_boot_line(GameState *g, Platform *pf);
 void scene_unpacks(GameState *g, uint16_t resource);
 /* `count` bytes of bank $FE from `from` into `bank` at `to`, as those two
  * copy them. */
-void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count);
+void scene_copy_resource_bytes(GameState *g, uint8_t bank, unsigned resource, uint16_t to, uint32_t count);
 
 /* scene/frame.c */
 /* The frame's work, and the NMI handlers -- the frame's (the work, then the

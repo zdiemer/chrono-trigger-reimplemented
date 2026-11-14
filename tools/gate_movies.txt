@@ -88,3 +88,4 @@ battle-r-series  # battle action selection and strict saved-game end
 battle-rust-tyrano  # battle picture fingerprints after field retirement
 battle-unequipped-armor  # strict checkpoint pictures late in the fight
 battle-zombor  # strict saved-game end and battle pictures after rate calibration
+events-death-peak-ascent  # the first two Lavos Spawn, fought by recorded presses whose outcome a frame of the battle's time decides; its route (death_peak) carries them
