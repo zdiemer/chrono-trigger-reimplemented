@@ -66,8 +66,11 @@ static void update_title(SDL_Window *window, const WindowClient *client, bool pa
     SDL_SetWindowTitle(window, title);
 }
 
-static int display_rows(const Display *d) { return VID_RENDER_HEIGHT - d->crop_top - d->crop_bottom; }
 static int display_width(const Display *d) { return d->width ? d->width : VID_RENDER_WIDTH; }
+
+/* The rows the pixel shape shows, from `look.crop` down, and their pixels' shape. */
+static PixelLook display_look(const PresentSettings *p) { return present_pixel_look(p->pixels, VID_RENDER_HEIGHT); }
+static int display_rows(PixelLook look) { return VID_RENDER_HEIGHT - 2 * look.crop; }
 
 /* ---- presentation ---------------------------------------------------------------- */
 
@@ -127,9 +130,10 @@ enum { SCANLINE_DARKNESS = 96, MOST_SCANLINES = VID_RENDER_HEIGHT };
  * where the presentation lays it out, scaled as it says, the filter over it. */
 static void screen_draw(Screen *s, const Display *d, const PresentSettings *p, int out_w, int out_h)
 {
-    int width = display_width(d), rows = display_rows(d);
-    const SDL_Rect src = { 0, d->crop_top, width, rows };
-    PresentLayout l = present_layout(p->scaling, width, rows, d->pixel_aspect, out_w, out_h);
+    PixelLook look = display_look(p);
+    int width = display_width(d), rows = display_rows(look);
+    const SDL_Rect src = { 0, look.crop, width, rows };
+    PresentLayout l = present_layout(p->scaling, width, rows, look.aspect, out_w, out_h);
     SDL_Rect place = sdl_rect(l.place);
     SDL_SetRenderDrawColor(s->renderer, 0, 0, 0, 255);
     SDL_RenderClear(s->renderer);
@@ -297,8 +301,8 @@ int window_run(const WindowClient *client, WindowOptions *o)
         return 1;
     }
     int window_w, window_h;
-    present_window_size(o->scale, display_width(display), display_rows(display), display->pixel_aspect, &window_w,
-                        &window_h);
+    PixelLook look = display_look(present);
+    present_window_size(o->scale, display_width(display), display_rows(look), look.aspect, &window_w, &window_h);
     SDL_Window *window = SDL_CreateWindow(client->name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_w,
                                           window_h, SDL_WINDOW_RESIZABLE);
     SDL_Renderer *sdl_renderer = window ? SDL_CreateRenderer(window, -1, 0) : NULL;
@@ -312,7 +316,7 @@ int window_run(const WindowClient *client, WindowOptions *o)
         SDL_Quit();
         return 1;
     }
-    SDL_SetWindowMinimumSize(window, (int)(display_width(display) * display->pixel_aspect + 0.5), display_rows(display));
+    SDL_SetWindowMinimumSize(window, (int)(display_width(display) * look.aspect + 0.5), display_rows(look));
     if (present->fullscreen)
         apply_fullscreen(window, present);
     static Audio audio;   /* large; keep it off the stack */
@@ -384,6 +388,10 @@ int window_run(const WindowClient *client, WindowOptions *o)
             case ACT_FILTER:
                 present->filter = (Filter)((present->filter + 1) % FILTERS);
                 fprintf(stderr, "filter: %s\n", present_filter_name(present->filter));
+                break;
+            case ACT_PIXELS:
+                present->pixels = (PixelShape)((present->pixels + 1) % PIXEL_SHAPES);
+                fprintf(stderr, "pixels: %s\n", present_pixel_shape_name(present->pixels));
                 break;
             case ACT_PAUSE:
                 paused = !paused;

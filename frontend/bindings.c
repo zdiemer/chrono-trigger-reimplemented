@@ -39,7 +39,7 @@ static const struct {
 static const char *const action_names[ACT_COUNT] = {
     [ACT_NONE] = "None", [ACT_PAUSE] = "Pause", [ACT_FAST_FORWARD] = "FastForward",
     [ACT_QUICK_SAVE] = "QuickSave", [ACT_QUICK_LOAD] = "QuickLoad", [ACT_FULLSCREEN] = "Fullscreen",
-    [ACT_SCALING] = "Scaling", [ACT_FILTER] = "Filter", [ACT_QUIT] = "Quit",
+    [ACT_SCALING] = "Scaling", [ACT_FILTER] = "Filter", [ACT_PIXELS] = "Pixels", [ACT_QUIT] = "Quit",
 };
 
 static const char *const defaults[] = {
@@ -47,7 +47,7 @@ static const char *const defaults[] = {
     "Up = Up", "Down = Down", "Left = Left", "Right = Right",
     "X = A", "Z = B", "S = X", "A = Y", "Q = L", "W = R", "Return = Start", "Right Shift = Select",
     "P = Pause", "Pause = Pause", "Tab = FastForward", "F5 = QuickSave", "F7 = QuickLoad", "F11 = Fullscreen",
-    "F9 = Scaling", "F10 = Filter", "Escape = Quit",
+    "F9 = Scaling", "F10 = Filter", "F8 = Pixels", "Escape = Quit",
     /* Pads by position, as on a SNES pad: SDL names the bottom face button a
      * (a SNES's B), the right one b (A), the left one x (Y), the top one y (X). */
     "Pad dpup = Up", "Pad dpdown = Down", "Pad dpleft = Left", "Pad dpright = Right",
@@ -271,6 +271,7 @@ void bindings_print(FILE *out)
     print_row(out, "fullscreen", ACT_FULLSCREEN, 0, "Alt+Return");
     print_row(out, "scaling", ACT_SCALING, 0, NULL);
     print_row(out, "filter", ACT_FILTER, 0, NULL);
+    print_row(out, "pixels", ACT_PIXELS, 0, NULL);
     print_row(out, "quit", ACT_QUIT, 0, NULL);
 }
 

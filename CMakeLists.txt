@@ -358,7 +358,7 @@ add_library(ct_languages_without_text OBJECT ${CT_GAME_SOURCES})
 target_compile_definitions(ct_languages_without_text PRIVATE CT_SCRIPT_TEXT=0)
 target_link_libraries(ct_languages_without_text PRIVATE ct_state_host)
 add_executable(ct_native frontend/ct_native.c frontend/route_driver.c frontend/snapshot.c
-  frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
+  frontend/presentation.c frontend/storage.c frontend/asset_files.c frontend/track.c frontend/sram_find.c
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
   frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/scripts.c frontend/text.c
   frontend/commands.c frontend/battle_language.c frontend/menu_language.c frontend/enemy_scripts.c
@@ -380,7 +380,7 @@ else()
   endif()
 endif()
 if(CT_SDL2)
-  target_sources(ct_native PRIVATE frontend/window.c frontend/presentation.c frontend/audio_fill.c frontend/bindings.c frontend/bindings_config.c)
+  target_sources(ct_native PRIVATE frontend/window.c frontend/audio_fill.c frontend/bindings.c frontend/bindings_config.c)
   target_compile_definitions(ct_native PRIVATE CT_HAVE_SDL)
   target_link_libraries(ct_native PRIVATE ${CT_SDL2})
 else()

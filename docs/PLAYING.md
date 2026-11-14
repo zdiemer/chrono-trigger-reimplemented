@@ -83,8 +83,8 @@ save by the CRC32 header if `--sram` is omitted.
 
 Arrows move; X/Z/S/A press SNES A/B/X/Y, Q/W press L/R, Return presses Start,
 and Right Shift presses Select. P pauses, Tab fast-forwards, F11 or Alt+Return
-toggles fullscreen, F9 changes the scaling and F10 the filter (below). Escape
-asks before it quits: a small prompt stops the game, where a second Escape
+toggles fullscreen, F9 changes the scaling, F10 the filter and F8 the pixels'
+shape (below). Escape asks before it quits: a small prompt stops the game, where a second Escape
 quits and Return plays on; the window's close button quits at once. SDL
 gamepads use positional face buttons, D-pad/left stick, shoulders, Start/Back
 and right trigger for fast-forward. `ct_native.keys` beside the executable
@@ -115,16 +115,27 @@ at a time; the gate runs it. Outputs stay under the ignored
 
 The renderer's frame goes to the GPU as a texture and is scaled there
 (`frontend/presentation.h`, drawn by `frontend/window.c`); the picture the game
-draws is the same under every choice. The window shows 208 of the 224 rows,
-eight cropped top and bottom, with pixels 8:7 wide as a 4:3 television showed
-them.
+draws is the same under every choice.
 
+- `--pixels tv` (the default) shows the pixels as a television did: 208 of
+  the 224 rows, eight hidden top and bottom in its overscan, and each pixel
+  7:6 wide, the 256 across filling a 4:3 screen's width. `--pixels square`
+  shows all 224 rows with square pixels. F8 switches.
+- `--view 16:9` (or `16:10`, `21:9`, `4:3`) works the view's width out from
+  the pixel shape and the rows shown, so the picture shown has that shape:
+  398 across for square pixels at 16:9, 317 for tv pixels; held within 256
+  to 480 (21:9 square is 480, a little narrower than 21:9; 4:3 tv is the
+  original's 256). `--view WIDTHx224` gives the width itself. The width is
+  worked out at launch, since the game draws the view it started with: F8
+  during play changes the pixels' shape at once and the view's width at the
+  next launch.
 - `--scaling integer` (the default) gives every picture pixel the same whole
   number of output pixels: down, the most rows that fit; across, the whole
-  number nearest that times 8:7. The picture is pixel-exact and letterboxed:
-  5x6 at 1080p (1536x1040), 6x7 at 1440p (1792x1248), 10x12 at 4K
-  (3072x2080), its aspect within 3% of 8:7.
-- `--scaling fit` fills the output's height (or width) at 8:7, drawn
+  number nearest that times the pixel's width. The picture is pixel-exact and
+  letterboxed: with tv pixels 5x6 at 1080p (1536x1040), 6x7 at 1440p
+  (1792x1248), 10x12 at 4K (3072x2080), its aspect within 3% of 7:6; with
+  square pixels and a 16:9 view, 4x4 at 1080p (1592x896).
+- `--scaling fit` fills the output's height (or width) at the picture's shape, drawn
   sharp-bilinear: scaled up by whole numbers to the size at or above the
   output's, then smoothly down to it, so an edge blurs over at most one
   output pixel.
@@ -135,14 +146,14 @@ them.
   display set to the desktop's mode for the window alone. F11 toggles the
   chosen mode.
 
-The window remembers the last scaling, filter, fullscreen and fullscreen mode
-in window.txt in the preferences directory, as `name = value` lines; the
+The window remembers the last scaling, filter, fullscreen, fullscreen mode,
+pixel shape and view in window.txt in the preferences directory, as `name = value` lines; the
 command line's choices replace them and are remembered in turn. Headless runs
 never read it. `--present WxH` with `--screenshot` writes the frame
-as the window would show it on a display that size, with `--scaling` and
-`--filter`, through SDL's software renderer: the way to look at a
+as the window would show it on a display that size, with `--scaling`,
+`--filter`, `--pixels` and `--view`, through SDL's software renderer: the way to look at a
 presentation without a window. `presentation_test` checks the layouts at
-1080p, 1440p and 4K.
+1080p, 1440p and 4K, and the views' widths for each shape.
 
 ## Snapshots
 

@@ -30,10 +30,12 @@ Return is Start; Right Shift is Select. Gamepads use face buttons by position,
 D-pad/left stick, shoulders, Start/Back. P pauses, Tab/right trigger fast
 forwards, F11 or Alt+Return toggles fullscreen, F9 changes the scaling
 (pixel-exact integer, or fit to the screen sharp-bilinear) and F10 the filter
-(scanlines). Escape asks before quitting: press it again to quit, or Return
-to play on; the window's close button quits at once. --scaling, --filter,
---fullscreen and --fullscreen-mode borderless|exclusive choose them at
-launch, and the player remembers the last choices.
+(scanlines), and F8 the pixels' shape (as a television showed them, or
+square). Escape asks before quitting: press it again to quit, or Return to
+play on; the window's close button quits at once. --scaling, --filter,
+--pixels tv|square, --fullscreen and --fullscreen-mode borderless|exclusive
+choose them at launch, and --view 16:9 (or 16:10, 21:9, 4:3) widens the
+picture to that screen shape; the player remembers the last choices.
 ct_native.keys beside the executable supplies custom bindings. --keys FILE and
 repeatable --bind "INPUT=ACTION" override them; for example --bind "Space=A".
 
