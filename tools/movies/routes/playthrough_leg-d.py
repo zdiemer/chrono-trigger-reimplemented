@@ -66,7 +66,7 @@ WIND = death_peak_wind.PHASES[1:]
 # its ledges drop one way (the original's own code stops at them too, played
 # with the frozen emulator-oracle oracle from ctsave12 slot 1).
 GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 52
+GRIND_LEVEL = 60
 # Then Marle wears the Wallet, which pays each fight's experience as gold,
 # until the purse holds PURSE: the shop's armour and helms, and its tonics and
 # Ethers to the bag's limit, for the long run of fights inside Lavos.
@@ -660,6 +660,7 @@ def main():
             fight_through(run, lambda m, px, py: m.peek(A.MAP_ID, 2).hex() == lower, "the lower field", args.seed)
             run.checkpoint("lower_field")
         if later <= 2:
+            equip(run, MARLE, ACCESSORY, MAGIC_SCARF)      # resumed with the Wallet on, it would earn no levels
             while min(levels(machine)) < GRIND_LEVEL:
                 grind_a_round(run, args.seed)
                 run.say("levels", levels(machine), "experience", experience(machine))

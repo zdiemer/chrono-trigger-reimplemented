@@ -325,6 +325,7 @@ def holding_out(bot, state, rng, inventory):
 
 
 INNER_ARMS, INNER_BODY = (3, 6), 10     # the inner Lavos's arms (8000 and 12000 HP) and body (20000)
+BODY_LAST_BLOWS = 4000                  # the body's HP from which the party readies for the core first
 # The guards a member wears through a fight, from the bag: the Barrier
 # (0xCB) takes three tenths off magic, the Shield (0xCC) off blows; one member
 # each. Their bits in the stat block's fourth status byte.
@@ -366,6 +367,32 @@ LAVOS_SINGLES = {0: [(6, 12), (3, 4)], 1: [(5, 8)], 2: [(7, 20), (5, 8)]}
 LAVOS_BLOWS = {0: [(6, 12), (3, 4)]}
 
 
+STAT_STATUS_1, STOPPED = 0x1E, 0x80               # the first status byte in the stat block, Stop's bit
+
+
+def unstop(bot, state, inventory):
+    """A Heal for a member the core's spell has stopped, or None: a stopped
+    member's turn never comes, and the others' alone cannot hold the party up."""
+    for slot in range(bot.party):
+        if state.hp(slot) > 0 and slot != state.member and stat(bot, slot, STAT_STATUS_1) & STOPPED:
+            action = use(inventory, HEAL, slot)
+            if action:
+                return action
+    return None
+
+
+def haste_fuel(bot, state, inventory):
+    """An Ether for Marle while she lacks the MP for Haste and someone is not
+    yet hasted, or None."""
+    member = state.member
+    if party_ids(bot)[member] != MARLE or state.mp(member) >= HASTE_MP or not tech_known(bot, member, HASTE):
+        return None
+    if all(bot.machine.b(A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE + STATUS_3) & HASTED
+           for slot in range(bot.party) if state.hp(slot) > 0):
+        return None
+    return refill(bot, state, inventory, low=HASTE_MP)
+
+
 def strongest_single(bot, state, target, table=None):
     """The member's strongest single-target tech it has the MP for, at
     `target` (from `table` where given, else CHARACTER_TECHS' singles), or an
@@ -396,6 +423,14 @@ def lavos_inner(bot, state, rng, inventory):
     if action:
         return action
     arms = [slot for slot in INNER_ARMS if state.hp(slot) > 0]
+    if not arms and state.hp(INNER_BODY) <= BODY_LAST_BLOWS:
+        # The core's fight follows at once, with no field between: its
+        # opening rounds (spells on everyone, Stop and Confusion) take some
+        # 2,000 HP from the party before it acts, so it goes in whole.
+        action = keep_up(bot, state, inventory, well=0.95, badly=0.9) or refill(
+            bot, state, inventory, low=state.stats[state.member][3] * 4 // 5)
+        if action:
+            return action
     return strongest_single(bot, state, max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY,
                             LAVOS_SINGLES)
 
@@ -419,11 +454,13 @@ def lavos_core(bot, state, rng, inventory):
     one falls the right bit lowers its guard to bring it back: the defence
     read from its stat block below the most is the window to hit it with
     everything. The center's Evil Star halves everyone and Grand Stone and
-    Crying Heavens hit all, so healing comes first, and Marle's Haste.
+    Crying Heavens hit all, so healing comes first, then a Heal for a member
+    its spell has stopped (the stat block's Stop bit), and Marle's Haste.
     (Gamercorner.net's and Neoseeker's core guides; the defence read is the
     port's own record.)"""
-    action = (keep_up(bot, state, inventory, well=0.8, badly=0.7) or guard_up(bot, state, inventory)
-              or hasten(bot, state) or refill(bot, state, inventory))
+    action = (keep_up(bot, state, inventory, well=0.4, badly=0.3) or unstop(bot, state, inventory) or hasten(bot, state)
+              or haste_fuel(bot, state, inventory) or guard_up(bot, state, inventory)
+              or keep_up(bot, state, inventory, well=0.7, badly=0.55) or refill(bot, state, inventory))
     if action:
         return action
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
