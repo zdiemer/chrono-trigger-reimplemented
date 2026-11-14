@@ -33,6 +33,12 @@ jobs:
             os: ubuntu-latest
             cc: clang
             shell: bash
+          # Without SDL2 ct_native is headless: this keeps that build and its tests compiling.
+          - name: linux-gcc-headless
+            os: ubuntu-latest
+            cc: gcc
+            shell: bash
+            no_sdl: true
           - name: macos-clang
             os: macos-latest
             cc: clang
@@ -54,7 +60,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q ninja-build libsdl2-dev
+          sudo apt-get install -y -q ninja-build ${{ !matrix.no_sdl && 'libsdl2-dev' || '' }}
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: brew install ninja sdl2
@@ -76,7 +82,9 @@ jobs:
             mingw-w64-x86_64-SDL2
 
       - name: Configure
-        run: cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON
+        run: >-
+          cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCT_WERROR=ON
+          ${{ matrix.no_sdl && '-DCMAKE_DISABLE_FIND_PACKAGE_SDL2=ON -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON' || '' }}
       - name: Build native game and tests
         run: cmake --build build/ci -j 2
       - name: Native tests

@@ -370,6 +370,7 @@ int window_run(const WindowClient *client, WindowOptions *o)
             case ACT_QUIT:
                 audio_frame(&audio, client, true);
                 running = !confirm_quit(window, client->name);
+                bindings_swallow_held_keys();   /* the Return that played on isn't Start */
                 deadline = SDL_GetPerformanceCounter() + period;   /* the prompt's wait isn't owed */
                 break;
             case ACT_FULLSCREEN:

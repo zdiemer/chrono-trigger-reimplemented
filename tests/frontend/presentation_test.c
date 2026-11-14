@@ -66,6 +66,8 @@ int main(void)
     int w, h;
     present_window_size(3, WIDTH, ROWS, ASPECT, &w, &h);
     CHECK(w == WIDTH * 4 && h == ROWS * 3, "the window's size isn't integer scaling's");
+    present_window_size(2, WIDTH, ROWS, ASPECT, &w, &h);
+    CHECK(w == 597 && h == ROWS * 2, "a window narrower than the picture's shape");
 
     PresentRect place = { 10, 20, WIDTH * 6, ROWS * 5 }, lines[ROWS];
     int n = present_scanlines(place, ROWS, lines, ROWS);

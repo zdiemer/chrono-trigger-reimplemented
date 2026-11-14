@@ -286,16 +286,45 @@ static bool pad_held(Input in, SDL_GameController *const *pads, int npads)
     return false;
 }
 
+/* Keys a prompt answered, pressing nothing: each for at least SWALLOW_FRAMES
+ * reads of the buttons, and then until it is let go. */
+enum { SWALLOW_FRAMES = 15 };
+static uint8_t swallowed[SDL_NUM_SCANCODES];
+
+void bindings_swallow_held_keys(void)
+{
+    const Uint8 *keys = SDL_GetKeyboardState(NULL);
+    for (int code = 0; code < SDL_NUM_SCANCODES; code++)
+        if (keys[code])
+            swallowed[code] = SWALLOW_FRAMES;
+    swallowed[SDL_SCANCODE_RETURN] = swallowed[SDL_SCANCODE_KP_ENTER] = swallowed[SDL_SCANCODE_ESCAPE] = SWALLOW_FRAMES;
+}
+
+/* A frame's read of the buttons: a swallowed key let go after its frames
+ * presses again. */
+static void let_go_of_swallowed(const Uint8 *keys)
+{
+    for (int code = 0; code < SDL_NUM_SCANCODES; code++) {
+        if (!swallowed[code])
+            continue;
+        if (swallowed[code] > 1)
+            swallowed[code]--;
+        else if (!keys[code])
+            swallowed[code] = 0;
+    }
+}
+
 static bool held(const Binding *b, const Uint8 *keys, SDL_GameController *const *pads, int npads)
 {
     if (b->in.kind == IN_KEY)
-        return keys && keys[b->in.code];
+        return keys && keys[b->in.code] && !swallowed[b->in.code];
     return pad_held(b->in, pads, npads);
 }
 
 uint16_t bindings_buttons(SDL_GameController *const *pads, int npads)
 {
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
+    let_go_of_swallowed(keys);
     /* Alt+Return toggles fullscreen; don't also press what Return is bound to. */
     bool alt = (SDL_GetModState() & KMOD_ALT) != 0;
     uint16_t pad = 0;

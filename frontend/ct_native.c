@@ -759,6 +759,7 @@ static bool view_from(const char *text, VidView *out)
     return true;
 }
 
+#ifdef CT_HAVE_SDL
 /* --present WIDTHxHEIGHT: an output for the window's presentation, from a
  * pixel square up to an 8K display. */
 static bool size_from(const char *text, int *w, int *h)
@@ -778,6 +779,7 @@ static bool size_from(const char *text, int *w, int *h)
     *h = (int)height;
     return true;
 }
+#endif
 
 /* --check-snapshots EVERY[,SPAN]: both whole numbers above 0. */
 static bool checks_from(const char *text, unsigned long *every, unsigned long *span)
@@ -1091,16 +1093,17 @@ int main(int argc, char **argv)
         }
         if (wav_path && ct_wav_close(&wav)) driver.result = 2;
     }
-    if (screenshot && present_w) {
 #ifdef CT_HAVE_SDL
+    if (screenshot && present_w) {
         PresentSettings present = asked;
         uint32_t *shown = malloc((size_t)present_w * (size_t)present_h * sizeof *shown);
         if (!shown || window_present_picture(picture.pixels, &display, &present, present_w, present_h, shown) ||
             ct_png_write(screenshot, shown, (unsigned)present_w, (unsigned)present_h))
             driver.result = 2;
         free(shown);
+    } else
 #endif
-    } else if (screenshot && ct_png_write(screenshot, picture.pixels, picture.width, VID_RENDER_HEIGHT)) driver.result = 2;
+    if (screenshot && ct_png_write(screenshot, picture.pixels, picture.width, VID_RENDER_HEIGHT)) driver.result = 2;
     if (save_state && !driver.result && !native_save_state(&driver, save_state)) driver.result = 2;
     native_flush(&driver);
     free(driver.track.pads);

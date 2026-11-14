@@ -55,8 +55,10 @@ typedef struct {
 
 PresentLayout present_layout(Scaling scaling, int width, int rows, double aspect, int out_w, int out_h);
 
-/* The window's size at `scale` times the picture's rows, as integer scaling
- * lays the picture out there. */
+/* The window's size at `scale` times the picture's rows: as wide as integer
+ * scaling lays the picture out there, or as the picture at its true aspect
+ * where that is wider (where the whole multiple across rounds down), so the
+ * window is never narrower than the picture's shape. */
 void present_window_size(int scale, int width, int rows, double aspect, int *w, int *h);
 
 /* The rows a scanline filter darkens over `place` for a picture `rows` tall:

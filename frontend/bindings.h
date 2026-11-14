@@ -56,6 +56,12 @@ const char *bindings_name(Action action, char *out, size_t n, const char *fallba
 /* The SNES buttons held on the keyboard and the open pads. */
 uint16_t bindings_buttons(SDL_GameController *const *pads, int npads);
 
+/* A prompt closed: the keys held now, and Return and Escape that answer it,
+ * press nothing until they are let go -- where a host only learns the key
+ * that closed the prompt is held once the window has its focus back (X11),
+ * a while after. */
+void bindings_swallow_held_keys(void);
+
 /* The action of a key pressed (ACT_NONE if unbound). */
 Action bindings_key_action(SDL_Scancode key);
 

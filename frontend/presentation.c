@@ -51,7 +51,8 @@ PresentLayout present_layout(Scaling scaling, int width, int rows, double aspect
 
 void present_window_size(int scale, int width, int rows, double aspect, int *w, int *h)
 {
-    *w = width * across_for(scale, aspect);
+    int exact = width * across_for(scale, aspect), shaped = nearest(width * aspect * scale);
+    *w = exact > shaped ? exact : shaped;
     *h = rows * scale;
 }
 
