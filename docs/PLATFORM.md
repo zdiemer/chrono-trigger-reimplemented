@@ -909,7 +909,7 @@ mode, with gprof's call counts for who calls what:
 | The typed accessors' own calls (inlined into the game once optimized across files) | 23% | 16% | 25% | 17% | |
 | The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access | 10% | 8% | 10% | 7% | #426 |
 | The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
-| The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address | 2% | 3% | 6% | 4% | #425 |
+| The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address, since read a span at a time (below) | 2% | 3% | 6% | 4% | |
 | Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
 | The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it | 20% | 16% | 10% | 11% | #429 |
 
@@ -925,6 +925,21 @@ game: an address decode for every byte an alias view or a transfer touches,
 the time model's pricing of every access, and a mixer built to be exact. The
 game's own logic is a fifth of its frame or less, about 1-3 GBA frames' work
 by these estimates. Run `tools/measure.py` against a lean build to remeasure.
+
+**Sends read their sources a span at a time** (issue #425). A send names
+the game's bytes by address (`PF_GAME`). The video service's host reads
+them through the driver's `PfReadGame`, which hands over `len` bytes at once
+(`state_host_read_span`, then `vars_host_read_span`); before, it was a byte
+a call. The flat state copies them straight out of its banks. Its unowned
+bytes hold 0 from the start and are never written, so a copy reads what the
+address view reads. The typed state reads each byte through its address
+view, one call for the span. The observer takes the sprite table in one read,
+and the palettes and VRAM sends 256 bytes at a time. On the GBA, a word send
+through a plain port (no remapping, a word's step after the high byte) goes
+straight into the kept VRAM. Sampled again, the address view is 30% of the
+field's game frame, 41-48% of the menus', 26% of the battle's and 38-40% of
+a scene's (from 35-48%). On the typed state, the span's bytes still pass
+through the address view one by one (issue #424).
 
 ### The GBA build, as built
 
@@ -1055,11 +1070,12 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | Work RAM (EWRAM, 256 KiB) | 246.6 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.4 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.6 KiB and tile caches 6 KiB, the C library's heap; 9.5 KiB free |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,212 bytes, the main thread; five slots used), the line interrupt 168 bytes, the driver's stack the 7.6 KiB above them |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 6.7 and 10.5, sound 0.4 and 0.5, picture 1.6 and 4.0, in all 8.9; `new-game`: game 9.5 and 26, picture 2.9 and 6.0, in all 12.9; `gato-battle`: game 13.4 and 32, picture 4.7 and 20, in all 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 5.3 and 7.3, sound 0.4 and 0.5, picture 1.6 and 4.0, in all 7.5; `new-game`: game 8.0 and 24, picture 2.8 and 6.0, in all 11.3; `gato-battle`: game 11.2 and 29, picture 4.4 and 20, in all 16.2 (before the sends read a span at a time, issue #425: game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5) |
 
-The picture adds about 4 GBA frames of work a frame to `title-start`: 2.4 in
-the game's frame, where each send reads its bytes from the flat state one
-at a time (issues #425, #424), and 1.6 making the GBA's picture. Without
+The picture adds about 2.6 GBA frames of work a frame to `title-start`.
+About 1 of it falls in the game's frame, where the sends now copy their
+spans out of the flat state (from 2.4 when each byte was looked up); the
+other 1.6 makes the GBA's picture. Without
 the native mixer the game's own frame is the whole cost, 7-13 GBA frames:
 the flat state's address decode for every byte and the time model (#424,
 #426), with all of the code running from the cartridge's 16-bit bus.
