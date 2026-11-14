@@ -654,7 +654,8 @@ from `vid_view_left` (negative) to short of `vid_view_right`.
   ground's layers (BG1 and BG2) stop, BG3 stops too and the view is black:
   BG3's edge is often one entry all the way down, a fill the map never meant
   to be seen (Denadoro's grey-blue, which its battles moved into the view),
-  and so is the backdrop's colour there. Each frame
+  and so is the backdrop's colour there -- unless BG3 is a veil, which goes
+  on across the view with the backdrop under it (Death Peak's fog). Each frame
   `field_show_the_layers_across` says how far each layer holds the map: a
   streamed layer those columns, a layer drawn whole its one copy of the map
   within the room -- unless it is a veil, a layer drawn whole that the
