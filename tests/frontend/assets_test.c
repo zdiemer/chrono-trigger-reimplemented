@@ -250,6 +250,21 @@ int main(void)
     CHECK(asset_outside_reads()->count == outside + 1);
     (void)rom_data(gap, 1);
     CHECK(asset_outside_reads()->count == outside + 2);
+    /* A read of a resource the catalogue marks unread is counted, by address
+     * or by name; one of a typed resource isn't. */
+    unsigned long unread = asset_unread_reads()->count;
+    (void)rom_read8(NULL, asset_address(ASSET_MIXED_C0F170) + 1);
+    CHECK(asset_unread_reads()->count == unread + 1);
+    CHECK(asset_unread_reads()->first != 0);
+    (void)asset_read8(NULL, ASSET_MIXED_C0F170, 0);
+    CHECK(asset_unread_reads()->count == unread + 2);
+    (void)asset_read8(NULL, ASSET_RANDOM_BYTES, 0);
+    CHECK(asset_unread_reads()->count == unread + 2);
+    const AssetId *rows;
+    unsigned kept = asset_unread_rows(&rows), seen = 0;
+    for (unsigned i = 0; i < kept; i++)
+        seen += rows[i] == ASSET_MIXED_C0F170;
+    CHECK(seen == 1 || kept == ASSET_UNREAD_KEPT);
     assets_use(NULL);
 
     /* What a pack mustn't be. */

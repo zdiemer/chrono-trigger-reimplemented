@@ -315,7 +315,7 @@ enum { TEXT_LAYER = 2, TEXT_LAYER_AT_REST = 0x01F0 };
 
 /* The portrait at the name's left, in its own palette row; the Epoch's
  * needs tiles of its own sent first. */
-enum { PORTRAIT_AT = 0x2E96, PORTRAIT_ATTRIBUTE = 0x16, UPLOAD_EPOCH_PICTURE_TILES = 0xFC68 };
+enum { PORTRAIT_AT = 0x2E96, PORTRAIT_ATTRIBUTE = 0x16, UPLOAD_EPOCH_PICTURE_TILES = ASSET_MENU_UPLOAD_EPOCH_PICTURE_TILES };
 
 /* The name's cursor's two arrows, the lower flipped. */
 enum { NAME_CURSOR_ABOVE_Y = 0x16, NAME_CURSOR_BELOW_Y = 0x2E, NAME_CURSOR_TILE = 0x22 };
@@ -340,7 +340,7 @@ enum { CURSOR_TILE = 0x20 };
 
 /* The screen's uploads: the layers whole, the window line tables, the text
  * layer, and the label's tiles. */
-enum { UPLOAD_LABEL_TILES = 0xE53E };
+enum { UPLOAD_LABEL_TILES = ASSET_MENU_UPLOAD_LABEL_TILES };
 
 /* Its per-line effects: the naming's; or, for the game's first, one more,
  * the scroll bar's place hidden a frame less. */
@@ -449,7 +449,7 @@ enum {
     MODE_COLOURS_AT = 4 * 16,
     MODE_COLOURS = 16,
     MODE_LINE_EFFECTS = 0x05,
-    UPLOAD_MODE_SCREEN = 0xFC61,
+    UPLOAD_MODE_SCREEN = ASSET_MENU_UPLOAD_MODE_SCREEN,
 };
 
 // $C2:E576

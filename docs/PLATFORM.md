@@ -133,10 +133,21 @@ techs, the enemies' attacks and their effects and animations), the battle's
 messages and fades, the menus' colours, tiles and window designs, the sound's
 songs' settings, boot blocks and sets of effects, the scripts the map view,
 the time dial and the Epoch run. Left `mixed`, `untyped` or `undetermined`:
-48 rows, 16,393 bytes, every one `unread` in its row's `found` (no accessor
-names it and no read of the 87 movies, traced, lands in it; mixed was 36
+41 rows, 12,657 bytes, every one `unread` in its row's `found`: no accessor
+names it, and no read of the movies or the routes lands in it (mixed was 36
 rows, 117,842 bytes). `tools/assets.py check` fails a row of those types
-that doesn't say it is `unread`, so a read found later types its row.
+that doesn't say it is `unread`. A read that lands in one at run time is
+counted the way a read outside the catalogue is (`asset_unread_reads`, the
+first resources it read kept by name), and `ct_native` prints a `strays:`
+line for it, which fails the run in the gate and is a finding in
+`suite.py --long`. The first long batch found eight such readers, now
+typed: the accessories' data records the menus copy (`accessory_data_records`,
+$CC:0A1C), an enemy's message before its table's first entry
+(`enemy_messages_cd91`), a string past the table at $F6:B230
+(`strings_f6c7e5`), a palette the menus copy in a playthrough leg
+(`menu_colors_ce50`), tiles the gate screen sends after its swirl's stream
+(`menu_gate_screen_tiles`), and three tables the routes read further than the movies had
+(`battle_palette_frames`, `battle_effect_frames`, `combination_tech_asks`).
 
 ### Palettes, the first decoded resource
 
@@ -534,8 +545,11 @@ and refuses wrong text at its line (a command or action that isn't one, a
 value too long, an opcode not the command's, a condition short of its
 bytes, a script a byte longer, a byte shorter); with the ROM staged every
 script of the cartridge reads back as its bytes. The upload records the
-menus queue (`script_c2bece` and nine more) were typed `script` and are
-records, `struct:records:7`.
+menus queue are rows of their own, `struct:records:7` (a run of them the
+queue's eight bytes apart, `struct:records:8`), each named for what it
+sends (`menu_upload_front_layer`, `menu_uploads_window_sets`): the code
+names a record by its row (`MENU_UPLOAD_FRONT_LAYER`) and
+`menu_upload_record` reads it by name, no place in bank `$C2`.
 
 ### Text
 
@@ -928,7 +942,7 @@ mode, with gprof's call counts for who calls what:
 |---|---|---|---|---|---|
 | The state's address view: `vars_host_read8`/`write8` and a 3,360-case switch on the owner field, for alias accessors and reads by address; since resolved once and the sends read a span at a time (below) | 35%, now 15% | 48%, now 22% | 33%, now 10% | 48%, now 20% | #424 |
 | The typed accessors' own calls (inlined into the game once optimized across files) | 23% | 16% | 25% | 17% | |
-| The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access | 10% | 8% | 10% | 7% | #426 |
+| The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access; since charged inline in 32 bits (below), 2-4% in its own functions, the rest inside the accessors | 10% | 8% | 10% | 7% | #426 |
 | The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
 | The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address, since read a span at a time (below) | 2% | 3% | 6% | 4% | |
 | Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
@@ -946,6 +960,27 @@ game: an address decode for every byte an alias view or a transfer touches,
 the time model's pricing of every access, and a mixer built to be exact. The
 game's own logic is a fifth of its frame or less, about 1-3 GBA frames' work
 by these estimates. Run `tools/measure.py` against a lean build to remeasure.
+
+**The time model in 32-bit sums** (issue #426). The account an access is
+charged to (`StateHostAccount`) follows the storage at the front of the
+state, so `state_host_game_access` is inline in every accessor. It holds the
+work as whole master clocks plus thousandths of one, and the current rate
+split the same way. An access adds its clocks times each part, which is
+exactly the sum the 64-bit product in thousandths gave, without the
+C library's 64-bit multiply. The thousandths are made whole as they pass 2^30, and once more
+when the timing backend takes the work. Anything the inline path can't
+bound goes through the out-of-line path, which saturates where the old
+64-bit sum clamped: an uncounted stretch, the per-routine report, an
+access over 65,535 clocks, or an account near full. A scope finds its row
+in a 128-entry table of the rows named lately (`row_of`), with the rate
+already split, instead of a binary search of all 2,318 rows. Every movie
+plays to the same lag frames and end states (the gate). In mGBA the game's
+frame falls from 2.6, 3.8 and 5.5 GBA frames to 2.3, 3.2 and 4.6
+(`title-start`, `new-game`, `gato-battle`; in all from 4.7, 7.2 and 10.5 to
+4.4, 6.6 and 9.6). The
+time model's own functions fall from 13% of the `new-game` run to about 7%.
+Only the timing report's totals (`StateHostTime`, outside the lean build)
+are still 64-bit.
 
 **The address view, resolved once** (issue #424). The typed state's address
 view no longer decodes an address at each access. When the first state is
@@ -1121,11 +1156,12 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the C library's heap; 8.5 KiB free |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,212 bytes, the main thread; five slots used), the line interrupts 656 bytes, the tiles' conversion table 1 KiB, the driver's stack the 6.1 KiB above them |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.6 and 3.5, sound 0.4 and 0.5, picture 0.2 and 1.0, in all 3.2; `new-game`: game 3.5 and 10, picture 0.5 and 1.3, in all 4.4; `gato-battle`: game 4.9 and 13, picture 0.9 and 5.0, in all 6.1; `events-jetbike-race`: game 5.3 and 15, picture 1.2 and 3.3, in all 6.9. Before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8, in all 4.7, 7.2, 10.5 and 11.5; before the flat accessors read in place (issue #424) and the sends read a span at a time (#425), game 6.7, 9.5 and 13.4 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.3 and 2.8, sound 0.4 and 0.5, picture 0.2 and 1.0, in all 2.9; `new-game`: game 3.0 and 8.8, picture 0.5 and 1.3, in all 3.8; `gato-battle`: game 4.1 and 12, picture 0.9 and 5.0, in all 5.4; `events-jetbike-race`: game 4.5 and 13, picture 1.2 and 3.3, in all 6.0. Before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425) and the time model charged in 32 bits (#426): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-Without the native mixer the game's own frame is most of the cost: 2.6-5.3
-GBA frames, from 7-13 before the flat accessors read in place and the sends
-read spans; the picture is 0.2-1.4 more. All of the code runs from the
+Without the native mixer the game's own frame is most of the cost: 2.3-4.5
+GBA frames, from 7-13 before the flat accessors read in place, the sends
+read spans and the time model charged in 32 bits; the picture is 0.2-1.2
+more. All of the code runs from the
 cartridge's 16-bit bus.
 
 #### Where the GBA's frame goes
@@ -1135,7 +1171,7 @@ cartridge's 16-bit bus.
 of each place from the program's symbols. Over the `field`, `menu`,
 `gato-battle` and `attract-demo` (the opening's scenes) movies, the shares
 of all the GBA's work, before the picture was made where it changes and
-after:
+after (both before the time model charged in 32 bits, #426):
 
 | Share of the GBA's work | Field | Menus | Battle | Scenes | Issue |
 |---|---|---|---|---|---|

@@ -307,7 +307,7 @@ enum { PANEL_FRAMES = 3 };
  * top half and its bottom. */
 enum {
     MAIN_MENU_PANEL_WINDOWS = 0xBF48, GATE_PANEL_WINDOWS = 0xBF05, SCREEN_WINDOWS = 0xBF7B,
-    GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = 0xCAD9,
+    GATE_LABEL = 4, GATE_LABEL_WITH_A_RULE = 5, GATE_LABEL_AT = 0x5E00, UPLOAD_GATE_LABEL = ASSET_MENU_UPLOAD_GATE_LABEL,
     GATE_RECORD = MENU_EXCHANGE_GATE_RECORD, GATE_SPRITE = 0x48, GATE_SPRITE_SET = 1, GATE_SPRITE_Y = 0xCA, GATE_SPRITE_X = 0x20, GATE_SPRITE_COLOURS = 0x20,
 };
 static const struct {
@@ -492,7 +492,7 @@ void menu_exchange_show_the_screen(GameState *g)
 
 /* The gate's swirl, its graphics unpacked (menu/gate_screen.h): the
  * graphics and its tilemap sent. */
-enum { UPLOAD_SWIRL_GRAPHICS = 0xCE96 };
+enum { UPLOAD_SWIRL_GRAPHICS = ASSET_MENU_UPLOAD_SWIRL_GRAPHICS };
 
 void menu_exchange_show_the_swirl(GameState *g)
 {

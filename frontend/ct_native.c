@@ -198,6 +198,16 @@ static void report_strays(const GameState *g)
     if (out->count)
         fprintf(stderr, "strays: %lu cartridge read(s) outside the catalogue of resources, the first at $%02X:%04X\n",
                 out->count, (unsigned)(out->first >> 16), (unsigned)(out->first & 0xFFFF));
+    const AssetFault *unread = asset_unread_reads();
+    if (unread->count) {
+        fprintf(stderr, "strays: %lu cartridge read(s) of resources the catalogue marks unread, the first at $%02X:%04X, in",
+                unread->count, (unsigned)(unread->first >> 16), (unsigned)(unread->first & 0xFFFF));
+        const AssetId *rows;
+        unsigned kept = asset_unread_rows(&rows);
+        for (unsigned i = 0; i < kept; i++)
+            fprintf(stderr, " %s", asset_catalogue[rows[i]].name);
+        fprintf(stderr, "\n");
+    }
 }
 
 /* The pack's bytes moved into the arena, where a snapshot's pointers into

@@ -90,37 +90,65 @@ menu_base_figure_offset	bytes	C2:B315	C2:B31B	raw	accessor menu_base_figure_offs
 menu_tech_casting_frame	bytes	C2:B519	C2:B51F	raw	accessor menu_tech_casting_frame
 menu_tech_row_sprite_y	bytes	C2:BB1A	C2:BB1E	raw	accessor menu_tech_row_sprite_y
 menu_tech_group_first	bytes	C2:BD40	C2:BD6A	raw	accessor menu_tech_group_first
-script_c2bece	struct	C2:BECE	C2:BEDB	struct:records:7	read
+menu_upload_tech_target_rows	struct	C2:BECE	C2:BED4	struct:records:7	accessor menu_upload_record
+menu_upload_tech_target_window	struct	C2:BED5	C2:BEDB	struct:records:7	accessor menu_upload_record
 menu_tech_target_sprite_place	bytes	C2:BF2F	C2:BF34	raw	accessor menu_tech_target_sprite_place
 menu_settings_button_choice	bytes	C2:C207	C2:C20E	raw	accessor menu_settings_button_choice
 menu_settings_row_assignment	words	C2:C2BD	C2:C2FE	raw	accessor menu_settings_row_assignment
 menu_settings_box_place	bytes	C2:C41B	C2:C439	raw	accessor menu_settings_box_place
 menu_settings_option_cell	bytes	C2:C4F9	C2:C510	raw	accessor menu_settings_option_cell
-script_c2c548	struct	C2:C548	C2:C54E	struct:records:7	read
+menu_upload_window_design	struct	C2:C548	C2:C54E	struct:records:7	accessor menu_upload_record
 menu_settings_button_row_place	words	C2:C5A7	C2:C5B2	raw	accessor menu_settings_button_row_place
-script_c2cad9	struct	C2:CAD9	C2:CADF	struct:records:7	read
+menu_upload_gate_label	struct	C2:CAD9	C2:CADF	struct:records:7	accessor menu_upload_record
 menu_exchange_row_at	words	C2:CDCB	C2:CDE2	raw	accessor menu_exchange_row_at
 menu_exchange_sprite_place	words	C2:CE6E	C2:CE85	raw	accessor menu_exchange_sprite_place
-script_c2ce96	struct	C2:CE96	C2:CE9C	struct:records:7	read
-script_c2cf30	struct	C2:CF30	C2:CF36	struct:records:7	read
+menu_upload_swirl_graphics	struct	C2:CE96	C2:CE9C	struct:records:7	accessor menu_upload_record
+menu_upload_chapter_labels	struct	C2:CF30	C2:CF36	struct:records:7	accessor menu_upload_record
 menu_slot_row_value	bytes	C2:D044	C2:D064	raw	accessor menu_slot_row_value
-script_c2d198	struct	C2:D198	C2:D19E	struct:records:7	read
+menu_upload_slot_names	struct	C2:D198	C2:D19E	struct:records:7	accessor menu_upload_record
 menu_slot_name_shift	bytes	C2:D329	C2:D32B	raw	accessor menu_slot_name_shift
-script_c2d45f	struct	C2:D45F	C2:D465	struct:records:7	read
+menu_upload_era_label	struct	C2:D45F	C2:D465	struct:records:7	accessor menu_upload_record
 menu_portrait_first_tile	bytes	C2:D4B4	C2:D4BA	raw	accessor menu_portrait_first_tile
-script_c2db98	struct	C2:DB98	C2:DB9E	struct:records:7	read
+menu_upload_shop_sprites	struct	C2:DB98	C2:DB9E	struct:records:7	accessor menu_upload_record
 menu_shop_member_x	bytes	C2:DC74	C2:DC7A	raw	accessor menu_shop_member_x
 menu_category_slot_place	bytes	C2:DE1D	C2:DE21	raw	accessor menu_category_slot_place
 menu_shop_quantity_windows	words	C2:DFC5	C2:DFCE	raw	accessor menu_shop_quantity_windows
 menu_shop_figure_shown	bytes	C2:E1DC	C2:E1E2	raw	accessor menu_shop_figure_shown
-script_c2e53e	struct	C2:E53E	C2:E544	struct:records:7	read
-script_c2e88a	struct	C2:E88A	C2:E890	struct:records:7	read
+menu_upload_label_tiles	struct	C2:E53E	C2:E544	struct:records:7	accessor menu_upload_record
+menu_upload_carry_on_label	struct	C2:E88A	C2:E890	struct:records:7	accessor menu_upload_record
 menu_window_inside_tile	bytes	C2:EEF5	C2:EF04	raw	accessor menu_window_inside_tile
 menu_text_code_handler	words	C2:EFD4	C2:EFF3	raw	accessor menu_text_code_handler
 menu_hex_digit_tile	bytes	C2:F27D	C2:F28C	raw	accessor menu_hex_digit_tile
 menu_opening_record_tile	words	C2:F548	C2:F565	raw	accessor menu_opening_record_tile
 menu_sprite_frame_bytes	bytes	C2:F755	C2:F75B	raw	accessor menu_sprite_frame_bytes
-menu_new_game_setting	bytes	C2:FBCE	C2:FCB1	raw	accessor menu_new_game_setting
+menu_upload_front_layer_whole	struct	C2:FBCE	C2:FBD4	struct:records:7	accessor menu_upload_record
+menu_upload_record_c2fbd5	struct	C2:FBD5	C2:FBDB	struct:records:7	a record no routine queues
+menu_upload_slot_tilemap	struct	C2:FBDC	C2:FBE2	struct:records:7	accessor menu_upload_record
+menu_upload_front_layer	struct	C2:FBE3	C2:FBE9	struct:records:7	accessor menu_upload_record
+menu_upload_front_layer_lower_half	struct	C2:FBEA	C2:FBF0	struct:records:7	accessor menu_upload_record
+menu_upload_front_layer_strips	struct	C2:FBF1	C2:FBF7	struct:records:7	accessor menu_upload_record
+menu_upload_back_layer_whole	struct	C2:FBF8	C2:FBFE	struct:records:7	accessor menu_upload_record
+menu_upload_back_layer	struct	C2:FBFF	C2:FC05	struct:records:7	accessor menu_upload_record
+menu_upload_back_layer_slid	struct	C2:FC06	C2:FC0C	struct:records:7	accessor menu_upload_record
+menu_upload_slot_tilemap_2	struct	C2:FC0D	C2:FC13	struct:records:7	accessor menu_upload_record
+menu_upload_text_layer_whole	struct	C2:FC14	C2:FC1A	struct:records:7	accessor menu_upload_record
+menu_upload_text_layer	struct	C2:FC1B	C2:FC21	struct:records:7	accessor menu_upload_record
+menu_upload_record_c2fc22	struct	C2:FC22	C2:FC28	struct:records:7	a record no routine queues
+menu_upload_slot_tilemap_3	struct	C2:FC29	C2:FC2F	struct:records:7	accessor menu_upload_record
+menu_upload_record_c2fc30	struct	C2:FC30	C2:FC36	struct:records:7	a record no routine queues
+menu_upload_window_lines	struct	C2:FC37	C2:FC3D	struct:records:7	accessor menu_upload_record
+menu_upload_line_tables	struct	C2:FC3E	C2:FC44	struct:records:7	accessor menu_upload_record
+menu_upload_row_lines	struct	C2:FC45	C2:FC4B	struct:records:7	accessor menu_upload_record
+menu_upload_caption	struct	C2:FC4C	C2:FC52	struct:records:7	accessor menu_upload_record
+menu_upload_slot_labels	struct	C2:FC53	C2:FC59	struct:records:7	accessor menu_upload_record
+menu_upload_amount_digits	struct	C2:FC5A	C2:FC60	struct:records:7	accessor menu_upload_record
+menu_upload_mode_screen	struct	C2:FC61	C2:FC67	struct:records:7	accessor menu_upload_record
+menu_upload_epoch_picture_tiles	struct	C2:FC68	C2:FC6E	struct:records:7	accessor menu_upload_record
+menu_uploads_first_sets	struct	C2:FC6F	C2:FC7E	struct:records:8	accessor menu_upload_record
+menu_upload_second_set	struct	C2:FC7F	C2:FC86	struct:records:8	accessor menu_upload_record
+menu_upload_last_set	struct	C2:FC87	C2:FC8E	struct:records:8	accessor menu_upload_record
+menu_uploads_window_sets	struct	C2:FC8F	C2:FCA5	raw	accessor menu_upload_record (three records eight bytes apart, the last one seven)
+menu_new_game_setting	bytes	C2:FCA6	C2:FCB1	raw	accessor menu_new_game_setting, menu_default_button_assignment
 scene_matrix_table	words	C3:09D9	C3:09E8	raw	accessor scene_matrix_table
 attract_resource_ptrs.0	lz	C3:1200	C3:1312	lz	attract_resource_ptrs entry
 attract_resource_ptrs.1	lz	C3:1313	C3:7A2B	lz	attract_resource_ptrs entry
@@ -557,7 +585,7 @@ other_item_records	struct	CC:05CC	CC:06A3	struct:records:4	accessor item_use
 weapon_boost_records	struct	CC:06A4	CC:08BF	struct:records:6	accessor boost_record_byte
 armor_boost_records	struct	CC:08C0	CC:0985	struct:records:6	accessor boost_record_byte
 helmet_boost_records	struct	CC:0986	CC:0A1B	struct:records:6	accessor boost_record_byte
-mixed_cc0a1c	mixed	CC:0A1C	CC:0ABB	raw	unread
+accessory_data_records	struct	CC:0A1C	CC:0ABB	struct:records:4	accessor menu_item_table_byte (the accessories' kind, users and price, menu/items.c)
 item_record_flags	bytes	CC:0ABC	CC:0B5D	raw	accessor item_record_flags
 battle_item_name_char	text	CC:0B5E	CC:15C3	text:names:11	accessor battle_item_name_char
 battle_tech_name_char	text	CC:15C4	CC:1ACA	text:names:11	accessor battle_tech_name_char
@@ -576,8 +604,7 @@ experience_for_next_level	words	CC:2632	CC:26F9	raw	accessor experience_for_next
 tech_points_for_next	words	CC:26FA	CC:2769	raw	accessor tech_points_for_next
 character_techs	bytes	CC:276A	CC:2777	raw	accessor character_techs
 combination_records	struct	CC:2778	CC:27F9	struct:records:5	accessor combination_record
-combination_tech_asks	bytes	CC:27FA	CC:288D	raw	accessor combination_tech_asks
-mixed_cc288e	mixed	CC:288E	CC:28DA	raw	unread
+combination_tech_asks	bytes	CC:27FA	CC:28DA	raw	accessor combination_tech_asks
 menu_double_tech_part	bytes	CC:28DB	CC:2934	raw	accessor menu_double_tech_part
 menu_triple_tech_part	bytes	CC:2935	CC:2952	raw	accessor menu_triple_tech_part
 menu_rock_tech_needs	bytes	CC:2953	CC:2962	raw	accessor menu_rock_tech_needs
@@ -858,7 +885,7 @@ enemy_attack_records	struct	CC:88CA	CC:89C5	raw	accessor action_record
 enemy_attack_effects	struct	CC:89C6	CC:8B07	raw	accessor effect_record_byte
 enemy_scripts	script	CC:8B08	CC:CBC8	script:enemy-ai	accessor enemy_script_start
 enemy_messages	ptr16	CC:CBC9	CC:CD90	raw	accessor enemy_messages
-mixed_cccbc9_cd91	mixed	CC:CD91	CC:CDA2	raw	unread
+enemy_messages_cd91	text	CC:CD91	CC:CDA2	text:dialog	read: an enemy message the table has no entry before
 enemy_messages.2	text	CC:CDA3	CC:CDB6	text:dialog	enemy_messages entry
 enemy_messages.3	text	CC:CDB7	CC:CDCE	text:dialog	enemy_messages entry
 enemy_messages.4	text	CC:CDCF	CC:CDE4	text:dialog	enemy_messages entry
@@ -1186,15 +1213,14 @@ setup_member_color_set	bytes	CD:6CEC	CD:6D4B	raw	accessor setup_member_color_set
 battle_weapon_swing_sounds	bytes	CD:6D4C	CD:6DAB	raw	accessor battle_weapon_sound
 battle_weapon_hit_sounds	bytes	CD:6DAC	CD:6E0B	raw	accessor battle_weapon_sound
 battle_animations_cd	script	CD:6E0C	CD:EE22	script:battle-animation	read
-battle_palette_frames	bytes	CD:EE23	CD:F18A	raw	accessor battle_palette_frame
-mixed_cdf18b	mixed	CD:F18B	CD:F9C8	raw	unread
+battle_palette_frames	bytes	CD:EE23	CD:F194	raw	accessor battle_palette_frame
+mixed_cdf195	mixed	CD:F195	CD:F9C8	raw	unread
 padding_cdf9c9	padding	CD:F9C9	CD:FFFF	raw	$FF to the end of the bank
 battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor battle_script_subroutine
 battle_color_cycle_color	words	CE:0100	CE:036B	palette:16	accessor battle_color_cycle_color
 padding_ce036c	padding	CE:036C	CE:037F	raw	read
 battle_animations_ce	script	CE:0380	CE:886F	script:battle-animation	read
-battle_effect_frames	struct	CE:8870	CE:D167	struct:records:4	accessor battle_effect_frame_record
-mixed_ced168	mixed	CE:D168	CE:D427	raw	unread
+battle_effect_frames	struct	CE:8870	CE:D427	struct:records:4	accessor battle_effect_frame_record
 battle_animation_subroutines	script	CE:D428	CE:DC19	script:battle-animation	read
 background_ripple_sway	bytes	CE:E08E	CE:E18D	raw	accessor background_ripple_sway
 battle_messages	ptr16	CE:EF11	CE:EF2C	raw	accessor battle_messages
@@ -2641,7 +2667,7 @@ setup_character_graphics	ptr24	E4:2000	E4:22E7	raw	accessor setup_character_grap
 setup_tile_lists	ptr24	E4:2300	E4:25B4	raw	accessor setup_tile_lists
 setup_frame_lists	ptr16	E4:2600	E4:27FF	raw	accessor setup_frame_lists
 setup_delay_lists	ptr16	E4:2800	E4:29FF	raw	accessor setup_delay_lists
-untyped_e42a00	untyped	E4:2A00	E4:2FFF	raw	unread
+sprite_colour_places	words	E4:2A00	E4:2FFF	raw	accessor menu_sprite_table_word, field_sprite_word_entry
 setup_frame_lists.0	bytes	E4:3000	E4:349F	raw	read
 setup_frame_lists.1	bytes	E4:34A0	E4:387F	raw	read
 setup_frame_lists.2	bytes	E4:3880	E4:3CEF	raw	read
@@ -3768,7 +3794,8 @@ strings_f6b230.139	text	F6:C6F8	F6:C758	text:dialog	read
 strings_f6b230.140	text	F6:C759	F6:C78C	text:dialog	read
 strings_f6b230.141	text	F6:C78D	F6:C7BB	text:dialog	read
 strings_f6b230.142	text	F6:C7BC	F6:C7E4	text:dialog	read
-untyped_f6c7e5	untyped	F6:C7E5	F6:C82F	raw	unread
+strings_f6c7e5	text	F6:C7E5	F6:C813	text:dialog	read: a string past the table at $F6:B230
+untyped_f6c814	untyped	F6:C814	F6:C82F	raw	unread
 field_packed_script.75	lz	F6:C830	F6:CA54	lz:event	field_packed_script entry
 field_packed_script.76	lz	F6:CA55	F6:CE5F	lz:event	field_packed_script entry
 field_packed_script.77	lz	F6:CE60	F6:D48E	lz:event	field_packed_script entry
@@ -7787,7 +7814,7 @@ menu_name_grid_letter	bytes	FF:C9AC	FF:C9FB	raw	accessor menu_name_grid_letter
 small_font_replacements	gfx	FF:C9FC	FF:CAFB	font:8x8	accessor menu_screen_graphics_data
 menu_small_digit_byte	bytes	FF:CAFC	FF:CB9B	raw	accessor menu_small_digit_byte
 menu_colors	words	FF:CB9C	FF:CE4F	palette:16	accessor menu_rom_colour, menu_portrait_colour
-mixed_ffce50	mixed	FF:CE50	FF:CE6F	raw	unread
+menu_colors_ce50	words	FF:CE50	FF:CE6F	palette:16	read: a palette the menus copy whole (a playthrough leg)
 menu_large_portrait_first_tile	bytes	FF:CE70	FF:CE77	raw	accessor menu_large_portrait_first_tile
 menu_large_portrait_colours	words	FF:CE78	FF:CE87	raw	accessor menu_large_portrait_colours
 menu_element_label_tile	words	FF:CE88	FF:CE91	raw	accessor menu_element_label_tile
@@ -7887,7 +7914,7 @@ menu_more_four_colour_tiles	gfx	FF:D5E4	FF:DBE3	tiles:2bpp	accessor menu graphic
 menu_three_plane_tiles	gfx	FF:DBE4	FF:E55B	raw	accessor menu graphics
 menu_gate_tiles	gfx	FF:E55C	FF:E8DB	raw	accessor menu_upload_data
 menu_gate_swirl_graphics	lz	FF:E8DC	FF:EB87	lz	accessor menu_draw_gate_screen
-mixed_ffeb88	mixed	FF:EB88	FF:F007	raw	unread
+menu_gate_screen_tiles	gfx	FF:EB88	FF:F007	raw	read: $480 bytes of tiles an upload of the gate screen sends (a playthrough leg)
 menu_battle_mode_screen_tile	words	FF:F008	FF:F547	raw	accessor menu_battle_mode_screen_tile
 menu_gate_row_first_tile	words	FF:F6F2	FF:F715	raw	accessor menu_gate_row_first_tile
 menu_gate_wave	words	FF:F759	FF:F7D8	raw	accessor menu_gate_wave
