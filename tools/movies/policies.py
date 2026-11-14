@@ -390,13 +390,23 @@ LAVOS_BLOWS = {0: [(6, 12), (3, 4)], 3: [(5, 12), (0, 1)], 4: [(4, 4), (1, 2)]}
 TRIPLE_RAID, TRIPLE_RAID_MP = 109, 12
 
 
-def triple_raid(bot, state, target):
+TECH_RECORDS, TECH_RECORD_BYTES, TECHS_LISTED, TECH_DIMMED = 0x7E1A80, 7, 20, 0x80
+TRIPLE_WAIT = 30                # frames a member's menu is held open for the others' turns
+
+
+def triple_raid(bot, state, rng, target):
     """Triple Raid at `target` from the member's tech list while all three
-    stand with the MP, or None."""
+    stand with the MP, or None. It takes all three members' turns at once:
+    where the list showed it dimmed when it last opened (the others' turns
+    not yet come), the member waits with its menu open about half the time
+    rather than trying again at once."""
     if any(state.hp(slot) == 0 or state.mp(slot) < TRIPLE_RAID_MP for slot in range(bot.party)):
         return None
     for entry, tech_id in tech_list_entries(bot, state.member):
         if tech_id == TRIPLE_RAID:
+            record = TECH_RECORDS + (state.member * TECHS_LISTED + entry) * TECH_RECORD_BYTES
+            if bot.machine.b(record + 2) & TECH_DIMMED and rng.random() < 0.5:
+                return ("wait", TRIPLE_WAIT)
             return ("tech", entry, target)
     return None
 
@@ -450,7 +460,7 @@ def lavos_inner(bot, state, rng, inventory):
     weapons and the arms raise it again, so the arms go first and together,
     the one with more HP left taken down (cavesofnarshe.com's walkthrough
     chapter 35, and gamercorner.net's: Span Death revives the body while an
-    arm stands); then the body, with Triple Raid where the party has it.
+    arm stands); then the body. Triple Raid where the party has it.
     Healing first (the healers' techs before the bag), Marle's Haste where
     she is in the party, an Ether for a member short of MP, then each member's
     strongest single hit (LAVOS_SINGLES). The bag's Barriers and Shields are
@@ -467,9 +477,8 @@ def lavos_inner(bot, state, rng, inventory):
             bot, state, inventory, low=state.stats[state.member][3] * 4 // 5)
         if action:
             return action
-    if not arms:
-        return triple_raid(bot, state, INNER_BODY) or strongest_single(bot, state, INNER_BODY, LAVOS_SINGLES)
-    return strongest_single(bot, state, max(arms, key=lambda slot: state.hp(slot)), LAVOS_SINGLES)
+    target = max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY
+    return triple_raid(bot, state, rng, target) or strongest_single(bot, state, target, LAVOS_SINGLES)
 
 
 # Lavos's core: its center (slot 3, 10000 HP), left bit (7, 2000) and right
@@ -507,9 +516,9 @@ def lavos_core(bot, state, rng, inventory):
     if action:
         return action
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
-        return triple_raid(bot, state, CORE_RIGHT) or strongest_single(bot, state, CORE_RIGHT, LAVOS_BLOWS)
+        return triple_raid(bot, state, rng, CORE_RIGHT) or strongest_single(bot, state, CORE_RIGHT, LAVOS_BLOWS)
     if state.hp(CORE_LEFT) > 0 and (state.hp(CORE_CENTER) == 0 or rng.random() < 0.7):
-        return triple_raid(bot, state, CORE_LEFT) or strongest_single(bot, state, CORE_LEFT, LAVOS_BLOWS)
+        return triple_raid(bot, state, rng, CORE_LEFT) or strongest_single(bot, state, CORE_LEFT, LAVOS_BLOWS)
     if state.hp(CORE_CENTER) > 0:
         # Plain blows on the center until the right bit opens (chapter 35):
         # the members keep their MP for the moments that count.

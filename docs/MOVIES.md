@@ -225,7 +225,7 @@ Ethers; filling the bag with all four to 99 would cost about 390,000. It has to 
 then: above the slope
 the field's ledges drop one way, and only the summit's scene leaves it (the
 frozen `emulator-oracle` oracle stops at the same ledge from ctsave12 slot
-1). Crono joins in Robo's place at the End of Time, and the purse buys in
+1). Crono joins in Marle's place at the End of Time, and the purse buys in
 the 12000 B.C. village's shop. The fights take the `lavos_shell` policy (the imitations with
 the party's techs, healed from the bag between them; the shell's own form
 with Marle's Haste and `holding_out`), then `lavos_inner`. Before anyone
@@ -237,22 +237,33 @@ variance. Computed so, a member at full HP needs magic defence of about 70
 to live through it (69 at 999 HP, 73 at 891); ct_native showed the hits at
 105, 651 and 999 for Marle (99), Crono (80) and Robo (67, all his 999 HP:
 1,029 before the cap), and the ROM's constants at $C1:E203 and $C1:E65F are
-the port's. So Crono, Marle and Lucca (94) go in, with each member's
-strongest single techs on the arms together and then the body; Marle's
-Cure 2 heals before the tonics, and the party is healed and its MP topped up
+the port's. Crono (86), Lucca (99) and Robo (73, 999 HP) go in: Robo's Heal
+Beam heals before the bag (the guides want two of Marle, Frog and Robo
+healing), Lucca's Flare takes the arms, whose magic defence is 50 against a
+defence of 127, and the party's strongest single techs go on the arms
+together and then the body. Crono, Frog and Robo, for the Triple Raid the
+guides aim at the core, lost the inner form instead (arms at 11,654 of
+20,000 together after 1,009 retries): this save's Frog knows four techs, no
+Leap Slash or Cure 2. The party is healed and its MP topped up
 before the body's last 4,000 HP, since the core's fight follows with no field
 between. `lavos_core` heals first, frees a member the core's spell stops
-(the stat block's Stop bit) with a Heal, hastens, and guards everyone: the
+(the stat block's Stop bit) with a Heal, hastens where Marle is in the
+party, and guards everyone: the
 center strikes all three at once with a blow of 240 power on its attack of
 100 (2,666 before defence, recorded in ct_native), which kills Lucca (155
 defence) unless Lucca's Protect or a Shield takes three tenths off. It reads
 the right bit's defence from its stat block (255 while the others stand,
 lower in the moment one falls, when it is hit), and leaves some choices to
-chance so the bot's retries can vary. Measured end, played on this branch:
-the inner form is beaten (the core's fight begins at frame 1,458,280, the
-party at 970, 884 and 979 HP), and in 1,381 retries of the core the deepest
-line reaches its 107th decision with the right bit at 19,622 of 30,000
-before the party falls, the bag by then down to its Revives and Heals
+chance so the bot's retries can vary. The core's stats in ct_native are the
+ROM's enemy records' ($CC:4700: the center's attack 100 and defence 127,
+the right bit's defence 255). Measured end, played on this branch: Crono,
+Lucca and Robo beat the inner form (the core's fight begins at frame
+1,294,691, the party at 929, 981 and 999 HP), and in 1,320 retries of the
+core the deepest line reaches its 55th decision, with the right bit at
+23,236 of 30,000 at best (Crono, Marle and Lucca reached 19,622). This
+party has neither Crono's Luminaire nor a healer's party-wide cure beyond
+Robo's Heal Beam, and the bag has 2 Elixirs and no Megalixirs; the Black
+Omen's chests hold six Megalixirs, the Haste Helm and four Speed Tabs
 (issue #340).
 The
 winged Epoch's boarding, dial, flight and landing are `routes/_epoch.py`;

@@ -73,26 +73,30 @@ GRIND_LEVEL = 58
 GRIND_RESERVE = 8
 # Then Marle wears the Wallet, which pays each fight's experience as gold,
 # until the purse holds PURSE. At stock_up's prices, in its order, 200,000
-# buys two Aeon Suits and three Aeon Helms (41,400), Full Tonics to 99 (at
-# most 69,300) and Mid Ethers with what is left (some 44 from an empty bag,
-# 88,000); the Mid Tonics and Ethers after them take only the change. Filling
+# buys two Aeon Suits and two Aeon Helms (33,600), Full Tonics to 99 (at most
+# 69,300) and Mid Ethers with what is left (some 48 from an empty bag,
+# 96,000); the Mid Tonics and Ethers after them take only the change. Filling
 # the bag with all four to 99 from empty would cost about 390,000.
 PURSE = 200000
 CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
-# Crono back, the party for Lavos is Crono, Frog and Robo, grown with the
-# others (the experience the party wins is shared with those in reserve):
-# their Triple Raid is the blow the guides aim at the core's bits, and Frog's
-# Heal and Robo's Heal Beam keep everyone up without the bag
+# Crono back, he joins in Marle's place: the party for Lavos is Crono, Lucca
+# and Robo, grown with the others (the experience the party wins is shared
+# with those in reserve). Robo's Heal Beam keeps everyone up without the bag
 # (cavesofnarshe.com's walkthrough, chapter 35: "healing with two of Marle,
-# Frog, and Robo is an absolute must"). Lavos's inner form opens with a spell
-# a member at full HP lives through with about 70 magic defence (computed,
-# policies.lavos_inner): Crono and Frog have 86, Robo 73 at 999 HP. The purse
-# the growing filled buys the 12000 B.C. village's best armour and helms and
-# its Full and Mid Tonics and Ethers,
-# before the End of Time's light and its bucket into Lavos's shell
+# Frog, and Robo is an absolute must"), Lucca's Flare takes the inner form's
+# arms (their defence of 127 halves blows; their magic defence is 50) and her
+# Protect guards against the core's blows, and Crono's Confuse and Robo's
+# Uzzi Punch are the blows the core's left and right bits want. Crono, Frog
+# and Robo, whose Triple Raid the guides aim at the core, lost the inner form
+# instead: this Frog knows four techs (no Leap Slash or Cure 2). Lavos's inner
+# form opens with a spell a member at full HP lives through with about 70
+# magic defence (computed, policies.lavos_inner): Crono has 86, Lucca 99, Robo
+# 73 at 999 HP. The purse the growing filled buys the 12000 B.C. village's
+# best armour and helms and its Full and Mid Tonics and Ethers, before the
+# End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
 # form to Haste and healing first.
@@ -135,8 +139,8 @@ FIRST_LIST_ROW = 4                                           # its cursor on the
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
-BEST_GEAR = [(FROG, ARMOUR, AEON_SUIT), (FROG, HELM, AEON_HELM), (ROBO, ARMOUR, AEON_SUIT),
-             (ROBO, HELM, AEON_HELM), (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
+BEST_GEAR = [(LUCCA, ARMOUR, AEON_SUIT), (ROBO, ARMOUR, AEON_SUIT), (ROBO, HELM, AEON_HELM),
+             (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
 HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
 GOLD, MENU_SCREEN = 0x7E2C53, 0x7E0067
@@ -718,7 +722,7 @@ def main():
             machine.run(30)
             machine.run(3, "A")                     # Yes
             machine.run(120)
-            exchange(run, (CRONO, MARLE), (FROG, LUCCA))
+            exchange(run, (CRONO, MARLE))
             run.checkpoint("crono_joins")
         later -= len(REUNITED)
         if later <= 0:
@@ -726,7 +730,7 @@ def main():
             leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
             land_by(run, COMMONS_SHOP)
             assert run.wait_control(), "the shop in hand"
-            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 3, 7800),
+            stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 2, 7800),
                                              (FULL_TONICS, FULL_TONIC, 99, 700), (MID_ETHERS, MID_ETHER, 99, 2000),
                                              (MID_TONICS, MID_TONIC, 99, 100), (ETHERS, ETHER, 99, 800)])
             run.checkpoint("stocked")
