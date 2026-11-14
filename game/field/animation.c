@@ -488,7 +488,7 @@ void object_animation_tick(GameState *g, FieldObject obj)
 /* ---- The frame it shows ------------------------------------------------------------------ */
 
 /* The object's frame table for its facing, in the bank of frame tables the
- * frame builder names (FIELD_FRAME_TABLES_BANK): a table a facing, in the
+ * frame builder names (field_frame_tables_bank()): a table a facing, in the
  * facings' order. */
 static uint16_t facing_table_offset(const GameState *g, FieldObject obj)
 {
@@ -559,11 +559,11 @@ ObjectFrame object_frame_shown(const GameState *g, FieldObject obj)
 {
     if (object_holds_frame(g, obj))
         return (ObjectFrame){ true, object_held_frame(g, obj) };
-    NextFrame next = find_next_frame(g, obj, FIELD_FRAME_TABLES_BANK);
+    NextFrame next = find_next_frame(g, obj, field_frame_tables_bank());
     switch (next.found) {
     case A_FRAME: return (ObjectFrame){ true, next.frame };
     case STARTING_OVER:
-        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj, FIELD_FRAME_TABLES_BANK),
+        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj, field_frame_tables_bank()),
                                                                  next.place) };
     default: return (ObjectFrame){ object_has_a_frame_drawn(g, obj), object_frame_drawn(g, obj) };
     }
