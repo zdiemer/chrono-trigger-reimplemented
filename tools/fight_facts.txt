@@ -50,6 +50,12 @@ dragon_tank gold 7770  # battle-dragon-tank
 dragon_tank items 02:1,03:1,1F:1,3B:1,5C:2,95:1,98:1,AD:1,D6:1,D7:1  # battle-dragon-tank
 dragon_tank events 7ecdab600431eaa2  # battle-dragon-tank
 
+death_peak levels 42,44,42,40,39,40,41  # events-death-peak-ascent
+death_peak experience 147779,164083,150710,137623,129260,134361,141385  # events-death-peak-ascent
+death_peak gold 62930  # events-death-peak-ascent
+death_peak items 05:1,06:1,0F:1,10:1,14:1,15:1,23:1,24:1,2F:1,31:1,32:1,3C:1,5D:1,60:3,61:3,62:2,63:1,64:2,65:1,68:1,69:1,79:1,7D:1,7E:3,7F:2,80:2,81:2,82:1,84:1,96:1,97:1,98:2,99:2,9F:1,A4:1,A5:1,A6:1,A9:1,AB:2,AD:2,B3:1,CB:4,CC:2,D0:19,D1:42,D2:31,D3:39,D5:1,D6:1,D7:1,D9:1,DD:1,E2:1  # events-death-peak-ascent
+death_peak events a4f2a3f154a99314  # events-death-peak-ascent
+
 fionas_forest levels 44,46,44,42,41,42,43  # events-fionas-forest
 fionas_forest experience 168380,186447,172118,157112,146030,151131,158155  # events-fionas-forest
 fionas_forest gold 81030  # events-fionas-forest

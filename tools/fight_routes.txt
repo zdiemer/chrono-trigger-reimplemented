@@ -28,5 +28,6 @@ battle-unequipped-armor unequipped_armor  # the canyon's fights and Spekkio's, w
 late-omen-terramutant terramutant  # the TerraMutant fought to where the movie ends, both parts hurt and up; the movie is a hand recording, so the route names it
 battle-zombor zombor  # Zombor, won; Zenan Bridge in hand
 events-cyrus cyrus  # the fights on the way to Cyrus's grave, won; Masamune restored
+events-death-peak-ascent death_peak  # the first two Lavos Spawn, won; the middle cave opened, the ridge crossed and the summit's save point saved
 events-death-peak death_peak_return  # the summit's last Lavos Spawn, won; Crono brought back
 events-fionas-forest fionas_forest  # Retinite and the desert's fights, won; the forest restored
