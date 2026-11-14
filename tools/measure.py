@@ -91,11 +91,21 @@ def merge(total, report, movie):
             have[key] = max(have.get(key, 0), values[key])
 
 
+def optimized_across_files(native):
+    """Whether the build optimized across files, whose library holds the
+    compiler's own form rather than code `size` can count."""
+    cache = os.path.join(os.path.dirname(native), "CMakeCache.txt")
+    if not os.path.exists(cache):
+        return False
+    with open(cache, encoding="utf-8", errors="replace") as f:
+        return any(re.match(r"CMAKE_INTERPROCEDURAL_OPTIMIZATION:\w+=(ON|TRUE|1)$", line.strip()) for line in f)
+
+
 def static_data(native):
     """The game library's code and static data, as `size` counts them."""
     library = os.path.join(os.path.dirname(native), "libct_game.a")
     size = shutil.which("size")
-    if not size or not os.path.exists(library):
+    if not size or not os.path.exists(library) or optimized_across_files(native):
         return None
     result = subprocess.run([size, "-t", library], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     for line in result.stdout.splitlines():
@@ -168,7 +178,12 @@ def main():
         whole = all(key in total["size"] for key in ("game_state", "renderer", "sound_player", "arena_used")) \
             and total["stack"] and total["part"]
         print("measure: report %s" % ("whole" if whole else "missing figures"))
-        return 0 if whole else 1
+        # The fibers' stacks are sized from their deepest use with a margin
+        # (runtime/port/fiber.c): a run that takes half of one has eaten it.
+        deepest, room = max(total["stack"].values(), default=0), total["size"].get("fiber_stack", 0)
+        roomy = deepest <= room // 2
+        print("measure: the deepest fiber stack %d bytes of %d%s" % (deepest, room, "" if roomy else ": over half"))
+        return 0 if whole and roomy else 1
     print(report(total, static_data(os.path.abspath(args.ct_native)), args.host_ipc_ghz))
     return 0
 

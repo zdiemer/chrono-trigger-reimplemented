@@ -3892,9 +3892,12 @@ typedef struct {
     uint8_t overlay_writer[119296];
     /* The reads that found another owner's bytes, by reader: how often, and
      * the owner that wrote them the first time (vars_host_crossings). A
-     * diagnostic tally, kept with the state it describes. */
+     * diagnostic tally, kept with the state it describes; the lean build
+     * (CT_LEAN) keeps none. */
+#ifndef CT_LEAN
     uint32_t crossed[3361];
     uint16_t crossed_writer[3361];
+#endif
 } VarsHost;
 
 /* Byte views of battle_acting_for_itself's storage; no independent alias fields. */
@@ -4401,8 +4404,13 @@ void vars_host_warp_plane_scrolls_values_write8(VarsHost *h, uint32_t offset, ui
 
 /* An owner beside others (re/ram.toml's `overlays`) wrote these bytes. */
 void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
-/* An owner beside others reads these bytes: count any another owner wrote last. */
+/* An owner beside others reads these bytes: count any another owner wrote last.
+ * The lean build counts nothing, and reports no crossings. */
+#ifdef CT_LEAN
+#define vars_host_check(h, addr, bytes, place) ((void)(h))
+#else
 void vars_host_check(const VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);
+#endif
 /* The reads that found another owner's bytes: each reader, the owner that
  * wrote them and how often, through `each`; returns how many readers. */
 unsigned vars_host_crossings(const VarsHost *h,

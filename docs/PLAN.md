@@ -23,23 +23,51 @@ C. Observable divergence is accepted where the game stays structurally the same.
 
 ## Phase 4b: platform milestones
 
-Decode assets one resource at a time into named, editable data. Finish the
-wider view (PLATFORM.md, "The wider view, as built", says what shows at its
-edges) and add GPU/controller backends. Keep the portability subset for
-smaller targets; measure stacks and memory before the GBA experiment.
+The GBA port is the focus. Its bar is full speed on real hardware (a flash
+cart, an Analogue Pocket), with mGBA the first milestone. The order:
 
-A relocatable asset layout and a SNES target follow from the C logic, with
-symbolic references and target glue. The remaining work is in the "Phase 4b:
-platform milestones" and "SNES ROM and small targets" milestones.
+1. **mGBA headless (issue #365).** ct_native built for the GBA with the lean
+   configuration (`-DCT_LEAN=ON`, which leaves out the program's own
+   diagnostics and plays every gate movie as the normal build does), playing
+   a movie in mGBA with no picture or sound.
+2. **The hot spots the lean build's profile found** (PLATFORM.md, "Memory,
+   stacks and per-frame work against small targets"): the state's address
+   view (issue #424), the video uploads' byte reads (#425), the time model's
+   per-access charges (#426), the overlays' last writer (#427), the sound
+   mixer (#428) and the interpreters' byte-at-a-time reads (#429). The lean
+   build's game and sound are 11-25 times a GBA frame's work before them,
+   the game's own logic a fifth of that.
+3. **Video (issue #367),** then **the 240x160 view (issue #366):** decided,
+   a camera crops the original's picture and the windows are laid out again
+   for the smaller screen; nothing is scaled.
+4. **Audio, input and saves (issue #368).**
+
+What a player gets is a standalone builder (issue #421), released on GitHub
+as ct_native is: it takes the player's SNES cartridge, verifies it, converts
+its assets to the GBA's formats (the packer, issue #369) and writes a `.gba`.
+It embeds the compiled GBA program, which is code only, so no cartridge data
+is ever distributed.
+
+Decoding assets into named, editable data, the wider view (PLATFORM.md, "The
+wider view, as built", says what shows at its edges) and GPU/controller
+backends continue beside it. A relocatable asset layout and a SNES target
+follow from the C logic, with symbolic references and target glue. The
+remaining work is in the "Phase 4b: platform milestones" and "SNES ROM and
+small targets" milestones.
 
 ### Layering
 
 `game/` stays the reimplementation alone; ports and enhancements live beside it.
 
 - **Backends and targets** (a GPU renderer, controllers, GBA, Wii/GameCube)
-  implement the services in `runtime/platform/`, one directory per backend
-  beside `runtime/platform/native/`, with a driver in `frontend/` or its own
-  frontend. They never change `game/`.
+  implement the services in `runtime/platform/` and never change `game/`.
+  The desktop's backends stay in `runtime/platform/native/` and its driver in
+  `frontend/`. A target lives whole under `targets/<name>/`: for the GBA,
+  `targets/gba/` holds the platform services' backends, the driver and its
+  frame loop, the ARM fiber switch, the linker script, the CMake toolchain
+  file, the ROM packing tool and the builder (issue #421), leaving room for
+  `targets/snes/`. The lean build is a configuration, not a target's code, and
+  stays in the normal tree.
 - **Asset decoders** serve the named resource accessors through the assets
   provider. A decoded or edited resource reaches the ports unchanged.
 - **Enhancements that change what is shown** (widescreen first) parameterize
