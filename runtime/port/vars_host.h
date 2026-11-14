@@ -3871,6 +3871,18 @@ typedef struct {
     } warp_plane_scrolls_values[2];
 } VarsHostWarp;
 
+#ifdef CT_FLAT_STATE
+/* Work RAM as the original lays it out (runtime/port/vars_flat.c): its two
+ * 64 KiB banks, a byte for each address, where the backing keeps them
+ * (runtime/port/vars_flat_host.c, or a target's). The typed records above
+ * are left unused. */
+typedef struct {
+    uint8_t *bank[2];
+} VarsHost;
+/* Whether the map gives the address an owner: bytes no owner keeps read 0
+ * and drop writes, as the typed state's address view does. */
+bool vars_flat_owned(uint32_t addr);
+#else
 typedef struct {
     VarsHostBattle battle;
     VarsHostCartridge cartridge;
@@ -4401,6 +4413,7 @@ void vars_host_warp_plane_matrix_second_row_values_write8(VarsHost *h, uint32_t 
 /* Byte views of warp_plane_scrolls_values's storage; no independent alias fields. */
 uint8_t vars_host_warp_plane_scrolls_values_read8(const VarsHost *h, uint32_t offset);
 void vars_host_warp_plane_scrolls_values_write8(VarsHost *h, uint32_t offset, uint8_t value);
+#endif
 
 /* An owner beside others (re/ram.toml's `overlays`) wrote these bytes. */
 void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place);

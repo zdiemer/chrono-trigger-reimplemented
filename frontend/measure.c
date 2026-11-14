@@ -183,11 +183,15 @@ void measure_report(const Measure *m, FILE *out, const Platform *pf)
     fprintf(out, "measure: size game_state %zu\n", state_host_bytes());
     fprintf(out, "measure: size game_state_ram %zu\n", state_host_vars_bytes());
 #define PART(name) fprintf(out, "measure: part %s %zu\n", #name, sizeof(((const VarsHost *)0)->name))
+#ifdef CT_FLAT_STATE
+    fprintf(out, "measure: part work_ram %u\n", 0x20000u);   /* the original's, a byte an address */
+#else
     PART(battle); PART(cartridge); PART(core); PART(data); PART(event); PART(field); PART(locations);
     PART(menu); PART(menu_object); PART(overworld); PART(palettes); PART(scene); PART(sound); PART(warp);
     PART(overlay_writer);
 #ifndef CT_LEAN
     PART(crossed); PART(crossed_writer);   /* the crossings' tally, which the lean build keeps none of */
+#endif
 #endif
 #undef PART
     fprintf(out, "measure: size arena_used %zu\n", arena_used());
