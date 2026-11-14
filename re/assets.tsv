@@ -154,7 +154,8 @@ overworld_palettes.16	lz	C3:DD85	C3:DEB1	lz:colors:16	overworld_palettes entry
 overworld_palettes.17	lz	C3:DEB2	C3:DF3D	lz:colors:16	overworld_palettes entry
 overworld_palettes.18	lz	C3:DF3E	C3:DFE0	lz:colors:16	overworld_palettes entry
 padding_c3dfe1	padding	C3:DFE1	C3:DFFF	raw	zero to the end of the bank
-menu_sprite_script_start	words	C3:E000	C3:FFFF	raw	accessor menu_sprite_script_start
+menu_sprite_script_start	ptr16	C3:E000	C3:E14B	raw	accessor menu_sprite_script_start
+menu_sprite_scripts	script	C3:E14C	C3:FFFF	raw	accessor menu_sprite_script_byte, menu_sprite_group_byte
 overworld_map_graphics.0	lz	C4:0000	C4:0EB7	lz:4bpp	overworld_map_graphics entry
 overworld_map_graphics.1	lz	C4:0EB8	C4:1D39	lz:4bpp	overworld_map_graphics entry
 overworld_map_graphics.2	lz	C4:1D3A	C4:2C31	lz:4bpp	overworld_map_graphics entry

@@ -205,7 +205,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xC3DEB2u, 140u, "overworld_palettes.17", 7, 13 },
     { 0xC3DF3Eu, 163u, "overworld_palettes.18", 7, 13 },
     { 0xC3DFE1u, 31u, "padding_c3dfe1", 12, 29 },
-    { 0xC3E000u, 8192u, "menu_sprite_script_start", 1, 29 },
+    { 0xC3E000u, 332u, "menu_sprite_script_start", 2, 29 },
+    { 0xC3E14Cu, 7860u, "menu_sprite_scripts", 9, 29 },
     { 0xC40000u, 3768u, "overworld_map_graphics.0", 7, 5 },
     { 0xC40EB8u, 3714u, "overworld_map_graphics.1", 7, 5 },
     { 0xC41D3Au, 3832u, "overworld_map_graphics.2", 7, 5 },
@@ -7953,8 +7954,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-AssetServed asset_served[7885];
+AssetServed asset_served[7886];
 
-const uint16_t asset_catalogue_count = 7885;
+const uint16_t asset_catalogue_count = 7886;
 
-const uint32_t asset_catalogue_version = 0x7F7C0906u;
+const uint32_t asset_catalogue_version = 0x6E072DC5u;

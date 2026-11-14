@@ -12,9 +12,9 @@
 
 /* The scene programs' resource table at $FE:0000 (MD2: 73 24-bit stream
  * pointers). Entry 1 is the program itself, whose stream the boot decompresses
- * from bank $C3 by the entry's low word. */
+ * from the program's own bank, $C3 (where its matrix table is too), by the
+ * entry's low word. */
 enum { SCENE_RESOURCE_SIZE = 3, SCENE_RESOURCE_PROGRAM = 1, SCENE_RESOURCE_COUNT = 73 };
-enum { SCENE_PROGRAM_STREAM_BANK = 0xC3 };
 
 /* The resources the program copies as they are (the scenes' colours, the
  * planet's order of tiles), by their number in the table: the catalogue's
@@ -54,13 +54,13 @@ static inline uint16_t scene_resource_offset(const GameState *g, unsigned resour
 /* A byte of a resource the program copies as it is, by its number in the
  * table, `at` bytes in, `from` being where the table says it lies. A
  * resource no scene copies (a stream, or a number past the table) is read
- * there, wrapping in bank $FE as the original's copy does. */
+ * there, in the table's bank, wrapping in it as the original's copy does. */
 static inline uint8_t scene_resource_byte(const GameState *g, unsigned resource, uint16_t from, uint16_t at)
 {
     const SceneResource *r = resource < SCENE_RESOURCE_COUNT ? &SCENE_RESOURCE_ROWS[resource] : NULL;
     if (r && r->copied)
         return asset_read8(g, r->asset, (uint32_t)r->offset + at);
-    return rom_read8(g, 0xFE0000u | (uint16_t)(from + at));
+    return rom_read8_in_bank_of(g, ASSET_ATTRACT_RESOURCE_PTRS, (uint16_t)(from + at));
 }
 
 /* The game's sine table, as the scene program reads it: 1024 steps a turn,
@@ -96,16 +96,27 @@ static inline uint16_t scene_figure_delays(const GameState *g, unsigned characte
     return asset_read16(g, ASSET_SETUP_DELAY_LISTS, character * 2u);
 }
 
-/* A byte of a figure's animations, in bank $E4 where its tables put them. */
+/* A byte of a figure's animations, in the bank of the frame lists, where its
+ * tables put them. */
 static inline uint8_t scene_figure_animation_byte(const GameState *g, uint16_t at)
 {
-    return rom_read8(g, 0xE40000 | at);
+    return rom_read8_in_bank_of(g, ASSET_SETUP_FRAME_LISTS, at);
 }
 
-static inline uint16_t scene_program_stream_offset(const GameState *g)
+/* Where the program's stream is: the table's word for it, in the program's
+ * bank. */
+static inline uint32_t scene_program_stream(const GameState *g)
 {
-    return asset_read16(g, ASSET_ATTRACT_RESOURCE_PTRS, SCENE_RESOURCE_PROGRAM * SCENE_RESOURCE_SIZE);
+    return asset_place_address(ASSET_SCENE_MATRIX_TABLE,
+                               asset_read16(g, ASSET_ATTRACT_RESOURCE_PTRS, SCENE_RESOURCE_PROGRAM * SCENE_RESOURCE_SIZE));
 }
+
+/* The plane's name table in the cartridge, whose first column the race sends
+ * before it has one of its own: the start of the sprite graphics' first bank. */
+static inline uint32_t scene_race_plane_map(void) { return asset_address(ASSET_SPRITE_TILES_D2); }
+
+/* The page of the random bytes, which the curtain's pointer into them keeps. */
+static inline uint8_t scene_random_bytes_page(void) { return (uint8_t)(asset_address(ASSET_RANDOM_BYTES) >> 8); }
 
 /* A resource's stream, by its place in the table as the program indexes it (a
  * byte offset, three bytes an entry): its long pointer. */

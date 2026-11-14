@@ -34,7 +34,6 @@ enum { BATTLE_STATUS_POSE_BYTES = 4, BATTLE_STATUS_POSES_END = 0x80 };
 /* The subroutines a script calls by number ($CE:0000, a word each, in bank
  * CE); the original doubles the number in a byte, so one of 128 or more names
  * the one 128 below it. */
-enum { SCRIPT_SUBROUTINE_BANK = 0xCE };
 
 /* How a frame's tiles are laid out in the object's tile buffer ($CC:F3B6, 14
  * bytes a layout): up to six rows, each at an offset from the buffer's start,
@@ -136,8 +135,8 @@ static inline uint8_t battle_facing_of_direction(const GameState *g, uint16_t di
 
 static inline uint32_t battle_script_subroutine(const GameState *g, uint8_t number)
 {
-    return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 |
-           asset_read16(g, ASSET_BATTLE_ANIMATION_CALLS, (uint8_t)(number * 2));
+    return asset_place_address(ASSET_BATTLE_ANIMATION_CALLS,
+                               asset_read16(g, ASSET_BATTLE_ANIMATION_CALLS, (uint8_t)(number * 2)));
 }
 
 /* The eight speeds the scripts set a mover to by number: its period
@@ -265,12 +264,13 @@ static inline uint8_t battle_bitmap_cell_position(const GameState *g, uint16_t c
 /* The battlefield's tile descriptors ($CF:A000, 32 a row set; `at` is the
  * byte offset from the table's start, the sum wrapping in 16 bits as the
  * original's pointer does) and a row set's palette word ($CF:E000). */
+static inline uint16_t battle_tile_descriptors_place(void) { return (uint16_t)asset_address(ASSET_BATTLE_TILE_DESCRIPTORS); }
+static inline uint8_t battle_tile_descriptors_bank(void) { return (uint8_t)(asset_address(ASSET_BATTLE_TILE_DESCRIPTORS) >> 16); }
+
 static inline uint16_t battle_tile_descriptor(const GameState *g, uint16_t at)
 {
     /* the table's place in its bank wraps round the bank, as the original's word does */
-    enum { DESCRIPTORS_IN_THEIR_BANK = 0xA000 };
-    return asset_read16(g, ASSET_BATTLE_TILE_DESCRIPTORS,
-                        (uint32_t)(uint16_t)(DESCRIPTORS_IN_THEIR_BANK + at) - DESCRIPTORS_IN_THEIR_BANK);
+    return asset_read16_at_place(g, ASSET_BATTLE_TILE_DESCRIPTORS, (uint16_t)(battle_tile_descriptors_place() + at));
 }
 
 static inline uint16_t battle_tile_row_palette_word(const GameState *g, uint16_t at)

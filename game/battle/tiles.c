@@ -129,19 +129,18 @@ static void mirror_tile(GameState *g, uint16_t at)
  * the ones a screen effect's settings are read from where the script command
  * doesn't set them (battle/screen_motion.c), so they are kept plainly. */
 enum { LEFT_DESCRIPTORS = 0x0E, LEFT_TILES_DONE = 0x16, LEFT_TILES_LEFT = 0x22 };
-enum { DESCRIPTOR_BANK = 0xCF, DESCRIPTOR_TABLE = 0xA000 };
 enum { LEFT_DESCRIPTOR_BANK = 0x10, LEFT_SECOND_BANK = 0x14 };
 static void leave_row(GameState *g, uint16_t row_set, uint16_t palettes)
 {
-    set_battle_scratch(g, LEFT_DESCRIPTOR_BANK, DESCRIPTOR_BANK);
-    set_battle_scratch(g, LEFT_SECOND_BANK, DESCRIPTOR_BANK);
+    set_battle_scratch(g, LEFT_DESCRIPTOR_BANK, battle_tile_descriptors_bank());
+    set_battle_scratch(g, LEFT_SECOND_BANK, battle_tile_descriptors_bank());
     leave_word(g, LEFT_ROW_SET, (uint16_t)(row_set * 2));
     set_battle_tile_row_palettes(g, 0, palettes);
     set_battle_tile_row_palettes(g, 1, palettes);
 }
 static void leave_row_end(GameState *g, uint16_t descriptors, uint16_t tiles)
 {
-    leave_word(g, LEFT_DESCRIPTORS, (uint16_t)(DESCRIPTOR_TABLE + descriptors));
+    leave_word(g, LEFT_DESCRIPTORS, (uint16_t)(battle_tile_descriptors_place() + descriptors));
     leave_word(g, LEFT_TILES_DONE, tiles);
     leave_word(g, LEFT_TILES_LEFT, 0);
 }

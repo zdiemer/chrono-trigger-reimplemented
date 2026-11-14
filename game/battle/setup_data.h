@@ -21,7 +21,8 @@
  * character ($E4:2000, $E4:2300; the tile lists are also an enemy's, by its
  * graphics set); and an animation set's frame lists and frame delay lists,
  * in bank $E4, a word a set ($E4:2600, $E4:2800). */
-enum { SETUP_ANIMATION_BANK = 0xE4 };
+static inline uint32_t setup_frame_lists_at(uint16_t place) { return asset_place_address(ASSET_SETUP_FRAME_LISTS, place); }
+static inline uint32_t setup_delay_lists_at(uint16_t place) { return asset_place_address(ASSET_SETUP_DELAY_LISTS, place); }
 
 /* An enemy's header, ten bytes an enemy number ($E4:F600): its graphics set
  * and animation set, its flags, where its cursor points and how big it is,

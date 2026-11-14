@@ -101,12 +101,13 @@ static unsigned find_due_animation(GameState *g)
     return BATTLE_COMBATANTS;
 }
 
-/* An object's frames are in bank $E4: its animation's list of frame times
- * and its list of frames, each facing's part of the frame list a stride after
- * the last. A time of 0 ends the animation. */
-enum { OBJECT_LISTS_BANK = 0xE4 };
-
-static uint8_t list_byte(const GameState *g, uint16_t at) { return battle_frame_list_byte(g, battle_at(OBJECT_LISTS_BANK, at)); }
+/* An object's frames are in the frame lists' bank ($E4): its animation's
+ * list of frame times and its list of frames, each facing's part of the frame
+ * list a stride after the last. A time of 0 ends the animation. */
+static uint8_t list_byte(const GameState *g, uint16_t at)
+{
+    return battle_frame_list_byte(g, asset_place_address(ASSET_SETUP_FRAME_LISTS, at));
+}
 
 static uint16_t facing_stride(const GameState *g, unsigned slot)
 {

@@ -124,7 +124,7 @@ static void set_part_offset(GameState *g, unsigned object, unsigned i, int8_t of
  * object twice over, the tile list and graphics pointers, the part offsets'
  * count and first place, and its pointer to the layout's rows in the ROM's
  * bank $CC. */
-enum { LEFT_OBJECT = 0x08, LAYOUT_BANK = 0xCC };
+enum { LEFT_OBJECT = 0x08 };
 
 // $C1:1C55
 /* The original counts its rows and tiles in the battle's work cells as it

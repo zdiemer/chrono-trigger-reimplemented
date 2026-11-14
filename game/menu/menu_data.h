@@ -204,8 +204,7 @@ enum {
 enum { MENU_UPLOAD_SLOT_LABELS = 0xFC53, MENU_UPLOAD_CHAPTER_LABELS = 0xCF30, MENU_UPLOAD_SLOT_NAMES = 0xD198 };
 
 /* The sprite scripts an object script gives its object, by number: where each
- * starts in bank C3 ($C3:E000, a word each). */
-enum { MENU_SPRITE_SCRIPT_BANK = 0xC3 };
+ * starts in their bank ($C3:E000, a word each). */
 
 /* The scenes' resources the object scripts load (MD2 resources in bank C6,
  * 24-bit pointers to streams in bank C3): graphics, decompressed to the Mode 7
@@ -858,6 +857,11 @@ static inline uint16_t menu_script_handler(const GameState *g, uint8_t opcode)
 static inline uint16_t menu_sprite_script_start(const GameState *g, uint8_t script)
 {
     return asset_read16(g, ASSET_MENU_SPRITE_SCRIPT_START, 2u * script);
+}
+
+static inline uint32_t menu_sprite_script_at(const GameState *g, uint8_t script)
+{
+    return asset_place_address(ASSET_MENU_SPRITE_SCRIPTS, menu_sprite_script_start(g, script));
 }
 
 /* For each plane of the map ($C2:0556, $C2:055C, $C2:0562, a word a plane):

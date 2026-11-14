@@ -199,7 +199,6 @@ enum {
     LEFT_DESCRIPTOR_BANK = 0x55,
     LEFT_TILES_LEFT = 0x67,
     LEFT_MIRROR_ROWS = 0x61,
-    DESCRIPTOR_BANK = 0xCF,
 };
 
 static uint16_t tile_row(const GameState *g, uint16_t at)
@@ -254,7 +253,7 @@ static void decode_tile_set(GameState *g, uint16_t set)
         }
     }
     screen_leave_word(g, LEFT_DESCRIPTORS, (uint16_t)(descriptors + SET_TILES * DESCRIPTOR_BYTES));
-    screen_leave_cell(g, LEFT_DESCRIPTOR_BANK, DESCRIPTOR_BANK);
+    screen_leave_cell(g, LEFT_DESCRIPTOR_BANK, (uint8_t)(asset_address(ASSET_BATTLEFIELD_TILE_SET_DESCRIPTORS) >> 16));
     if (mirrored_any)
         screen_leave_cell(g, LEFT_MIRROR_ROWS, 0);
 }

@@ -716,7 +716,7 @@ bool menu_sprite_script_is_well_formed(const GameState *g, MenuObject o)
 
 bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script)
 {
-    return reads_as_the_language(g, (uint32_t)MENU_SPRITE_SCRIPT_BANK << 16 | menu_sprite_script_start(g, script));
+    return reads_as_the_language(g, menu_sprite_script_at(g, script));
 }
 
 // $C2:1CDA
@@ -724,7 +724,7 @@ bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script)
  * command's frames not yet begun. */
 void menu_give_sprite_script(GameState *g, MenuObject o, uint8_t script)
 {
-    set_menu_object_slots_sprite_script(g, o, (uint32_t)MENU_SPRITE_SCRIPT_BANK << 16 | menu_sprite_script_start(g, script));
+    set_menu_object_slots_sprite_script(g, o, menu_sprite_script_at(g, script));
     set_menu_object_slots_sprite_frames(g, o, 0);
 }
 
