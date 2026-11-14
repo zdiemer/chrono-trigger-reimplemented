@@ -201,6 +201,9 @@ def generate_names(rows: list[Row]) -> str:
            " * edit the catalogue and run tools/assets.py generate. */",
            "#ifndef CT_GAME_DATA_ASSET_NAMES_H", "#define CT_GAME_DATA_ASSET_NAMES_H", "", "enum {"]
     out += [f"    ASSET_{r.name.upper()} = {i}," for i, r in named_rows(rows)]
+    out += ["};", "", "/* The types of a region the catalogue leaves untyped, each such row unread",
+            " * (asset_unread_reads). */", "enum {"]
+    out += [f"    ASSET_TYPE_{t.upper()} = {TYPES.index(t)}," for t in UNTYPED]
     out += ["};", "", "#endif", ""]
     return "\n".join(out)
 

@@ -635,7 +635,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xCC06A4u, 540u, "weapon_boost_records", 4, 44 },
     { 0xCC08C0u, 198u, "armor_boost_records", 4, 44 },
     { 0xCC0986u, 150u, "helmet_boost_records", 4, 44 },
-    { 0xCC0A1Cu, 160u, "mixed_cc0a1c", 5, 29 },
+    { 0xCC0A1Cu, 160u, "accessory_data_records", 4, 42 },
     { 0xCC0ABCu, 162u, "item_record_flags", 0, 29 },
     { 0xCC0B5Eu, 2662u, "battle_item_name_char", 8, 52 },
     { 0xCC15C4u, 1287u, "battle_tech_name_char", 8, 52 },
@@ -936,7 +936,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xCC89C6u, 322u, "enemy_attack_effects", 4, 29 },
     { 0xCC8B08u, 16577u, "enemy_scripts", 9, 31 },
     { 0xCCCBC9u, 456u, "enemy_messages", 2, 29 },
-    { 0xCCCD91u, 18u, "mixed_cccbc9_cd91", 5, 29 },
+    { 0xCCCD91u, 18u, "enemy_messages_cd91", 8, 49 },
     { 0xCCCDA3u, 20u, "enemy_messages.2", 8, 49 },
     { 0xCCCDB7u, 24u, "enemy_messages.3", 8, 49 },
     { 0xCCCDCFu, 22u, "enemy_messages.4", 8, 49 },
@@ -1264,8 +1264,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xCD6D4Cu, 96u, "battle_weapon_swing_sounds", 0, 29 },
     { 0xCD6DACu, 96u, "battle_weapon_hit_sounds", 0, 29 },
     { 0xCD6E0Cu, 32791u, "battle_animations_cd", 9, 30 },
-    { 0xCDEE23u, 872u, "battle_palette_frames", 0, 29 },
-    { 0xCDF18Bu, 2110u, "mixed_cdf18b", 5, 29 },
+    { 0xCDEE23u, 882u, "battle_palette_frames", 0, 29 },
+    { 0xCDF195u, 2100u, "mixed_cdf195", 5, 29 },
     { 0xCDF9C9u, 1591u, "padding_cdf9c9", 12, 29 },
     { 0xCE0000u, 156u, "battle_animation_calls", 9, 30 },
     { 0xCE0100u, 620u, "battle_color_cycle_color", 1, 24 },
@@ -2719,7 +2719,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xE42300u, 693u, "setup_tile_lists", 3, 29 },
     { 0xE42600u, 512u, "setup_frame_lists", 2, 29 },
     { 0xE42800u, 512u, "setup_delay_lists", 2, 29 },
-    { 0xE42A00u, 1536u, "untyped_e42a00", 15, 29 },
+    { 0xE42A00u, 1536u, "sprite_colour_places", 1, 29 },
     { 0xE43000u, 1184u, "setup_frame_lists.0", 0, 29 },
     { 0xE434A0u, 992u, "setup_frame_lists.1", 0, 29 },
     { 0xE43880u, 1136u, "setup_frame_lists.2", 0, 29 },
@@ -7981,6 +7981,6 @@ const AssetEntry asset_catalogue[] = {
 
 const uint16_t asset_catalogue_count = 7911;
 
-const uint32_t asset_catalogue_version = 0x4741B67Eu;
+const uint32_t asset_catalogue_version = 0xCFD8BBB5u;
 
 const uint32_t asset_catalogue_bytes_crc32 = 0x315F7395u;

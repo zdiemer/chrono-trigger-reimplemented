@@ -133,10 +133,17 @@ techs, the enemies' attacks and their effects and animations), the battle's
 messages and fades, the menus' colours, tiles and window designs, the sound's
 songs' settings, boot blocks and sets of effects, the scripts the map view,
 the time dial and the Epoch run. Left `mixed`, `untyped` or `undetermined`:
-48 rows, 16,393 bytes, every one `unread` in its row's `found` (no accessor
-names it and no read of the 87 movies, traced, lands in it; mixed was 36
+45 rows, 14,669 bytes, every one `unread` in its row's `found`: no accessor
+names it, and no read of the movies or the routes lands in it (mixed was 36
 rows, 117,842 bytes). `tools/assets.py check` fails a row of those types
-that doesn't say it is `unread`, so a read found later types its row.
+that doesn't say it is `unread`. A read that lands in one at run time is
+counted the way a read outside the catalogue is (`asset_unread_reads`, the
+first resources it read kept by name), and `ct_native` prints a `strays:`
+line for it, which fails the run in the gate and is a finding in
+`suite.py --long`. The first sweep found three such readers, now typed: the
+accessories' data records the menus copy (`accessory_data_records`, $CC:0A1C),
+an enemy's message before its table's first entry (`enemy_messages_cd91`), and
+palette frames past the run the movies had shown (`battle_palette_frames`).
 
 ### Palettes, the first decoded resource
 

@@ -585,7 +585,7 @@ other_item_records	struct	CC:05CC	CC:06A3	struct:records:4	accessor item_use
 weapon_boost_records	struct	CC:06A4	CC:08BF	struct:records:6	accessor boost_record_byte
 armor_boost_records	struct	CC:08C0	CC:0985	struct:records:6	accessor boost_record_byte
 helmet_boost_records	struct	CC:0986	CC:0A1B	struct:records:6	accessor boost_record_byte
-mixed_cc0a1c	mixed	CC:0A1C	CC:0ABB	raw	unread
+accessory_data_records	struct	CC:0A1C	CC:0ABB	struct:records:4	accessor menu_item_table_byte (the accessories' kind, users and price, menu/items.c)
 item_record_flags	bytes	CC:0ABC	CC:0B5D	raw	accessor item_record_flags
 battle_item_name_char	text	CC:0B5E	CC:15C3	text:names:11	accessor battle_item_name_char
 battle_tech_name_char	text	CC:15C4	CC:1ACA	text:names:11	accessor battle_tech_name_char
@@ -886,7 +886,7 @@ enemy_attack_records	struct	CC:88CA	CC:89C5	raw	accessor action_record
 enemy_attack_effects	struct	CC:89C6	CC:8B07	raw	accessor effect_record_byte
 enemy_scripts	script	CC:8B08	CC:CBC8	script:enemy-ai	accessor enemy_script_start
 enemy_messages	ptr16	CC:CBC9	CC:CD90	raw	accessor enemy_messages
-mixed_cccbc9_cd91	mixed	CC:CD91	CC:CDA2	raw	unread
+enemy_messages_cd91	text	CC:CD91	CC:CDA2	text:dialog	read: an enemy message the table has no entry before
 enemy_messages.2	text	CC:CDA3	CC:CDB6	text:dialog	enemy_messages entry
 enemy_messages.3	text	CC:CDB7	CC:CDCE	text:dialog	enemy_messages entry
 enemy_messages.4	text	CC:CDCF	CC:CDE4	text:dialog	enemy_messages entry
@@ -1214,8 +1214,8 @@ setup_member_color_set	bytes	CD:6CEC	CD:6D4B	raw	accessor setup_member_color_set
 battle_weapon_swing_sounds	bytes	CD:6D4C	CD:6DAB	raw	accessor battle_weapon_sound
 battle_weapon_hit_sounds	bytes	CD:6DAC	CD:6E0B	raw	accessor battle_weapon_sound
 battle_animations_cd	script	CD:6E0C	CD:EE22	script:battle-animation	read
-battle_palette_frames	bytes	CD:EE23	CD:F18A	raw	accessor battle_palette_frame
-mixed_cdf18b	mixed	CD:F18B	CD:F9C8	raw	unread
+battle_palette_frames	bytes	CD:EE23	CD:F194	raw	accessor battle_palette_frame
+mixed_cdf195	mixed	CD:F195	CD:F9C8	raw	unread
 padding_cdf9c9	padding	CD:F9C9	CD:FFFF	raw	$FF to the end of the bank
 battle_animation_calls	script	CE:0000	CE:009B	script:battle-animation	accessor battle_script_subroutine
 battle_color_cycle_color	words	CE:0100	CE:036B	palette:16	accessor battle_color_cycle_color
@@ -2669,7 +2669,7 @@ setup_character_graphics	ptr24	E4:2000	E4:22E7	raw	accessor setup_character_grap
 setup_tile_lists	ptr24	E4:2300	E4:25B4	raw	accessor setup_tile_lists
 setup_frame_lists	ptr16	E4:2600	E4:27FF	raw	accessor setup_frame_lists
 setup_delay_lists	ptr16	E4:2800	E4:29FF	raw	accessor setup_delay_lists
-untyped_e42a00	untyped	E4:2A00	E4:2FFF	raw	unread
+sprite_colour_places	words	E4:2A00	E4:2FFF	raw	accessor menu_sprite_table_word, field_sprite_word_entry
 setup_frame_lists.0	bytes	E4:3000	E4:349F	raw	read
 setup_frame_lists.1	bytes	E4:34A0	E4:387F	raw	read
 setup_frame_lists.2	bytes	E4:3880	E4:3CEF	raw	read
