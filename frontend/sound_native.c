@@ -4,8 +4,10 @@
 
 #include "charge.h"
 #include "core/sound_commands.h"
-/* The voices' mixer: the native one, or a build's own with its interface
- * (targets/gba/silent_mixer.h, which keeps the settings and plays nothing). */
+/* The voices' mixer: the native one, or a build's own with its interface,
+ * named by SOUND_NATIVE_MIXER. With SOUND_NATIVE_MIXER_PLAYS, the build's
+ * mixer plays what it mixes itself and is handed the driver's time as it
+ * passes (mixer_pass), and none of the sound is kept here. */
 #ifdef SOUND_NATIVE_MIXER
 #include SOUND_NATIVE_MIXER
 #else
@@ -37,8 +39,8 @@ enum {
 
 typedef enum { WAITING, ECHO_DRAINING, ECHO_FILLING } Phase;
 
-/* The mixed sound kept for the driver to take: a build that plays none
- * (targets/gba/) keeps a few frames of it. */
+/* The mixed sound kept for the driver to take (a build whose mixer plays
+ * itself keeps none). */
 #ifndef SOUND_NATIVE_AUDIO_FRAMES
 #define SOUND_NATIVE_AUDIO_FRAMES 8192
 #endif
@@ -193,6 +195,14 @@ static void echo_wait(SoundNative *n, uint32_t cycles)
     run_held(n);
 }
 
+#ifdef SOUND_NATIVE_MIXER_PLAYS
+static void mix(SoundNative *n, uint32_t cycles)
+{
+    n->mix_clock += cycles;
+    mixer_pass(&n->mixer, n->mix_clock / MIX_CYCLES);
+    n->mix_clock %= MIX_CYCLES;
+}
+#else
 static void mix(SoundNative *n, uint32_t cycles)
 {
     int16_t frame[2];
@@ -205,6 +215,7 @@ static void mix(SoundNative *n, uint32_t cycles)
             n->sample_count++;
     }
 }
+#endif
 
 /* The driver's time in steps of at most a timer step: a tick where one is
  * due, a command from the ports between them, the echo's wait counting down. */

@@ -68,14 +68,11 @@ static inline uint16_t experience_for_next_level(const GameState *g, uint8_t lev
     return asset_read16(g, ASSET_EXPERIENCE_FOR_NEXT_LEVEL, (uint8_t)(level * 2));
 }
 
-static inline uint16_t stat_growth_rates_place(uint8_t character)
-{
-    return (uint16_t)(0x25FAu + (uint8_t)(character * STAT_GROWTH_RATES));
-}
-
+/* $CC:25FA: how each stat grows, seven a character, the character's place
+ * taken in a byte. */
 static inline uint8_t stat_growth_rate(const GameState *g, uint8_t character, unsigned stat)
 {
-    return rom_read8(g, 0xCC0000u + stat_growth_rates_place(character) + stat);
+    return asset_read8(g, ASSET_STAT_GROWTH_RATES, (uint32_t)(uint8_t)(character * STAT_GROWTH_RATES) + stat);
 }
 
 static inline uint8_t growth_step_place(uint8_t character, uint8_t step)
@@ -97,12 +94,11 @@ static inline GrowthStep mp_growth_step(const GameState *g, uint8_t character, u
                          asset_read8(g, ASSET_MP_GROWTH_STEP, 0x1u + place) };
 }
 
-static inline uint16_t character_techs_place(uint8_t character) { return (uint16_t)(0x276Au + (uint8_t)(character * 2)); }
-
+/* $CC:276A: each character's techs, two bytes a character. */
 static inline CharacterTechs character_techs(const GameState *g, uint8_t character)
 {
-    uint16_t place = character_techs_place(character);
-    return (CharacterTechs){ rom_read8(g, 0xCC0000u + place), rom_read8(g, 0xCC0001u + place) };
+    uint32_t at = (uint8_t)(character * 2);
+    return (CharacterTechs){ asset_read8(g, ASSET_CHARACTER_TECHS, at), asset_read8(g, ASSET_CHARACTER_TECHS, at + 1) };
 }
 
 static inline uint16_t tech_points_for_next(const GameState *g, uint8_t character, uint8_t known)
@@ -110,21 +106,18 @@ static inline uint16_t tech_points_for_next(const GameState *g, uint8_t characte
     return asset_read16(g, ASSET_TECH_POINTS_FOR_NEXT, (uint16_t)(character * TECH_COSTS_BYTES + (uint8_t)(known * 2)));
 }
 
-static inline uint16_t combination_record_place(uint8_t record)
-{
-    return (uint16_t)(0x2778u + record * COMBINATION_RECORD_BYTES);
-}
-
+/* $CC:2778: the combinations' records, five bytes each. */
 static inline uint8_t combination_record_characters(const GameState *g, uint8_t record)
 {
-    return rom_read8(g, 0xCC0000u + combination_record_place(record));
+    return asset_read8(g, ASSET_COMBINATION_RECORDS, (uint32_t)(record * COMBINATION_RECORD_BYTES));
 }
 
 static inline CombinationRecord combination_record(const GameState *g, uint8_t record)
 {
-    uint16_t place = combination_record_place(record);
-    return (CombinationRecord){ rom_read8(g, 0xCC0000u + place), rom_read8(g, 0xCC0001u + place),
-                                rom_read8(g, 0xCC0002u + place), rom_read16(g, 0xCC0003u + place) };
+    uint32_t at = (uint32_t)(record * COMBINATION_RECORD_BYTES);
+    return (CombinationRecord){ asset_read8(g, ASSET_COMBINATION_RECORDS, at), asset_read8(g, ASSET_COMBINATION_RECORDS, at + 1),
+                                asset_read8(g, ASSET_COMBINATION_RECORDS, at + 2),
+                                asset_read16(g, ASSET_COMBINATION_RECORDS, at + 3) };
 }
 
 /* Where the asks of a combination's tech are, from where its record says
@@ -138,7 +131,7 @@ static inline uint16_t combination_tech_asks_place(uint16_t asks, uint8_t tech)
  * list. */
 static inline uint8_t combination_tech_asks(const GameState *g, uint16_t asks, uint8_t tech, uint8_t position)
 {
-    return rom_read8(g, 0xCC0000u + (uint16_t)(combination_tech_asks_place(asks, tech) + position));
+    return asset_read8_at_place(g, ASSET_COMBINATION_TECH_ASKS, (uint16_t)(combination_tech_asks_place(asks, tech) + position));
 }
 
 #endif

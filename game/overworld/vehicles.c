@@ -402,7 +402,7 @@ static void board_when_asked(GameState *g)
                                   REACH_OF_THE_EPOCH)) {
         if (menu_story_progress(g) == STORY_SHOWS_A_SCENE_AT_THE_EPOCH) {
             overworld_set_mode(g, OVERWORLD_BACK_ON_THE_MAP);
-            TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, EPOCH_BOARDED_IN_A_SCENE, MENU_ORDINARY_SLOT));
+            TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, epoch_boarded_in_a_scene(), MENU_ORDINARY_SLOT));
             return;
         }
         board(g, VEHICLE_EPOCH);

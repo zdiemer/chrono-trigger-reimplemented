@@ -133,7 +133,7 @@ enum { SWIRL_GRAPHICS_UNPACKED_TO = 0x7EB000 };
 /* The swirl's graphics unpacked, then the swirl drawn. */
 void menu_draw_gate_screen(GameState *g)
 {
-    overworld_unpack(g, MENU_GATE_PACKED_GRAPHICS, SWIRL_GRAPHICS_UNPACKED_TO);
+    overworld_unpack(g, asset_address(ASSET_MENU_GATE_SWIRL_GRAPHICS), SWIRL_GRAPHICS_UNPACKED_TO);
     menu_draw_gate_swirl(g);
 }
 

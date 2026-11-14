@@ -23,7 +23,6 @@ SAVE = "saves/fantasyanime/ctsave14-side_quests3.srm"
 SLOT = 0
 PHASES = ["loaded", "boarded", "over_the_omen", "inside"]
 WORLD_1000 = "f001"
-BLACK_OMEN = 0x7E02A2           # where the Omen stands on the map: x, then y (overworld_black_omen)
 
 
 def main():
@@ -49,7 +48,7 @@ def main():
             board(run)
             run.checkpoint("boarded")
         if start <= 2:
-            fly_to(run, machine.w(BLACK_OMEN), machine.w(BLACK_OMEN + 2))
+            fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN), machine.w(A.OVERWORLD_BLACK_OMEN + 2))
             machine.run(20)
             run.checkpoint("over_the_omen")
         if start <= 3:

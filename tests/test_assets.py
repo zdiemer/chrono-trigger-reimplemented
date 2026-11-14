@@ -21,6 +21,9 @@ class Catalogue(unittest.TestCase):
         self.assertTrue(assets.problems_of([row("a", 0x7E0000, 0x7E0001)]))       # not the cartridge
         self.assertTrue(assets.problems_of([row("A", 0xC00000, 0xC00001)]))
         self.assertTrue(assets.problems_of([row("a", 0xC00000, 0xC00001, "blob")]))
+        for kind in assets.UNTYPED:               # left untyped only while nothing reads it
+            self.assertTrue(assets.problems_of([row("m", 0xC00000, 0xC00001, kind)]))
+            self.assertEqual(assets.problems_of([assets.Row("m", kind, 0xC00000, 0xC00001, "raw", "unread")]), [])
         palette = assets.Row("p", "words", 0xC00000, 0xC0001D, "palette:15x7", "read")
         self.assertEqual(assets.problems_of([palette]), [])
         for bad in (("words", 0xC0001C, "palette:15"), ("bytes", 0xC0001D, "palette:15"),

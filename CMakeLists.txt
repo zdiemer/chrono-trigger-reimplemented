@@ -49,7 +49,7 @@ endif()
 
 # The state as the original lays out its work RAM, a byte for each address
 # (runtime/port/vars_flat.c), in place of the typed records: what a target
-# whose memory is the original's size keeps (the GBA's, targets/gba/), built
+# whose memory is the original's size keeps, built
 # natively to check that it plays the same (tools/lean_check.py).
 option(CT_FLAT_STATE "Keep the game's state as the original's work RAM" OFF)
 if(CT_FLAT_STATE)

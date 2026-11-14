@@ -32,9 +32,9 @@ void menu_queue_upload(GameState *g, MenuUpload u)
     set_menu_vram_queue_bytes(g, (uint8_t)(menu_vram_queue_bytes(g) + RECORD_BYTES));
 }
 
-void menu_queue_fixed_upload(GameState *g, uint16_t record)
+void menu_queue_fixed_upload(GameState *g, AssetId record)
 {
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
+    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record, 0)));
 }
 
 /* ---- Room in the queue -------------------------------------------------------------------- */

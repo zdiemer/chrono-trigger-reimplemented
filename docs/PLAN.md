@@ -25,22 +25,24 @@ C. Observable divergence is accepted where the game stays structurally the same.
 
 The GBA port is the focus. Its bar is full speed on real hardware (a flash
 cart, an Analogue Pocket). ct_gba (targets/gba/; PLATFORM.md, "The GBA build,
-as built") plays movies in mGBA, headless, to the same end as ct_native, and
-shows the field, the dialog and the battles as ct_native does, at 9-19 GBA
-frames of work a frame with no sound mixed. The order from there:
+as built") is one ROM played from the keypad with its save in SRAM; driven
+from outside in mGBA, headless, it plays movies to the same end as ct_native, and
+shows the field, the dialog and the battles as ct_native does, at 2-4 GBA
+frames of work a frame, and plays the sound on its own mixer (the mixing
+0.15 of it). The order from there:
 
 1. **The hot spots** (PLATFORM.md, "Memory, stacks and per-frame work
-   against small targets", and "The GBA build, as built"): the state's
-   address view (issue #424), which the flat state's every access goes
-   through, the time model's per-access charges (#426), the interpreters'
-   byte-at-a-time reads (#429) and the video uploads' (#425); and a sound
-   mixer the GBA can afford (#428), the native one being 26 GBA frames a
-   frame. Hot code goes into fast RAM where it pays.
+   against small targets", and "The GBA build, as built"): the time
+   model's per-access charges (#426), the cartridge reads' per-byte call
+   and charge (#429), the typed state's alias views and reads by address
+   (#424), its sends' span reads going a byte at a time through the address
+   view (#425, the host's only). Hot code goes into fast RAM where it
+   pays.
 2. **The rest of the video (issue #367),** the effects "The GBA build, as
    built" lists as approximated, then **the 240x160 view (issue #366):**
    decided, a camera crops the original's picture and the windows are laid
    out again for the smaller screen; nothing is scaled.
-3. **Audio, input and saves (issue #368).**
+3. **Input and saves (issue #368).**
 
 What a player gets is a standalone builder (issue #421), released on GitHub
 as ct_native is: it takes the player's SNES cartridge, verifies it, converts

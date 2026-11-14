@@ -22,6 +22,7 @@ from .. import policies
 from ..policies import ETHER, FULL_ETHER, FULL_TONIC, MID_ETHER, MID_TONIC
 from .. import other_endings
 from ..campaign import Run, route_arguments, run_route
+from . import _black_omen as black_omen
 from . import blackbird_save
 from . import dalton
 from . import death_peak
@@ -30,8 +31,9 @@ from . import death_peak_wind
 from . import _fair as fair
 from . import fair_clone
 from . import north_cape
-from ._epoch import (CHOICE_ACTIVE, CHOICE_READY, CHOICE_ROW, DISEMBARK, END_OF_TIME_DOCK, PERIOD_1000, PERIOD_2300,
-                     PERIOD_END_OF_TIME, board, dial, dial_from_the_dock, go_through_time, land_by, wait_until)
+from ._epoch import (TRAVEL_IN_THE_EPOCH, CHOICE_ACTIVE, CHOICE_READY, CHOICE_ROW, DISEMBARK, END_OF_TIME_DOCK, PERIOD_1000, PERIOD_2300,
+                     PERIOD_END_OF_TIME, board, dial, dial_from_the_dock, fly_to, go_through_time, land_by,
+                     wait_until)
 from ._trial_walk import world_enter
 from .menu_sweep import EQUIPMENT, ITEMS, LAPIS, SHELTER, TECHS, back_to_main_menu, count_of, open_menu, open_option, use_item
 from .save_point import press
@@ -54,7 +56,9 @@ KEEPER = ["clone", "keepers_dome", "belthasar"]
 # Death Peak: the wind slope (death_peak_wind), the caves past two Lavos
 # Spawn to the last save point (death_peak), the last Spawn and the summit,
 # where the Chrono Trigger brings Crono back (death_peak_return).
-TO_THE_PEAK = ["peak"]
+# On the way, the 12000 B.C. village's shop: Ethers for Robo's Heal Beam and
+# tonics, what the purse holds (4,000 here), for the long growing ahead.
+TO_THE_PEAK = ["supplied", "peak"]
 WIND = death_peak_wind.PHASES[1:]
 # The party that comes this far (levels 34-38) is no match for Lavos: its
 # shell takes some 400 HP from each member a blow, and its inner form wipes a
@@ -66,7 +70,7 @@ WIND = death_peak_wind.PHASES[1:]
 # its ledges drop one way (the original's own code stops at them too, played
 # with the frozen emulator-oracle oracle from ctsave12 slot 1).
 GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 58
+GRIND_LEVEL = 70                # aimed at; the bag's healing gives out first, near 59
 # The growing heals from the bag (Lapis, tonics, Ethers for Robo's Heal
 # Beam), and the field above the slope has no shop: it stops with enough left
 # to reach the mountain's save point, where a Shelter restores everyone.
@@ -99,12 +103,16 @@ SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
 # lightning for Nizbel), healed from the bag between them; the shell's own
-# form to Haste and healing first.
-REUNITED = ["restored", "crono_joins"]
-GROWN = ["stocked", "equipped"]
+# form to healing first (holding_out). Crono comes back 48 tech points short
+# of Luminaire, his spell on every enemy (his record's points left for his
+# next tech, read at the crono_joins checkpoint), and the Black Omen's first
+# fight pays them: the party flies in from 1000 A.D. and wins it. It goes on
+# through the Omen for its treasure (_black_omen: the Haste Helm, the Nova
+# Armor, the Vigil Hat, the Magic Seal, three MegaElixirs) and back out.
+REUNITED = ["restored", "crono_joins", "stocked", "omen_treasure", "luminaire", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
 PHASES = (BLACKBIRD + DALTON + NORTH_CAPE + TIME + CLONE + CLONE_BACK + KEEPER + TO_THE_PEAK + WIND + GRIND + CAVES
-          + SUMMIT + REUNITED + GROWN + LAVOS)
+          + SUMMIT + REUNITED + LAVOS)
 assert len(set(PHASES)) == len(PHASES), "a checkpoint name each phase"
 HEADER = """\
 # Leg D of the playthrough, from the Blackbird to an ending (route playthrough_leg-d).
@@ -135,12 +143,15 @@ BELOW_CRONO = (472, 400)        # Crono at the End of Time once he is back, spok
 EQUIPMENT_LIST = 0x7E0F00       # the equipment screen's list of what the slot can take
 WEAPON, HELM, ARMOUR, ACCESSORY = 0, 1, 2, 3                 # its slots' rows
 SLOT_RECORD = {HELM: 0x27, ARMOUR: 0x28, WEAPON: 0x29, ACCESSORY: 0x2A}   # character_records' gear
-FIRST_LIST_ROW = 4                                           # its cursor on the list's first row
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 WALLET, MAGIC_SCARF = 0xA9, 0x99      # the accessory that turns a fight's experience into gold; Marle's own
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
-BEST_GEAR = [(LUCCA, ARMOUR, AEON_SUIT), (ROBO, ARMOUR, AEON_SUIT), (ROBO, HELM, AEON_HELM),
-             (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
+# The best of the shop and the Black Omen's chests: the Haste Helm (its
+# wearer's turns twice as fast) for Crono, the Nova Armor for Robo, the Vigil
+# Hat and the Magic Seal (magic and magic defence) for Lucca.
+BEST_GEAR = [(LUCCA, ARMOUR, AEON_SUIT), (ROBO, ARMOUR, black_omen.NOVA_ARMOR), (ROBO, HELM, AEON_HELM),
+             (CRONO, HELM, black_omen.HASTE_HELM), (CRONO, ACCESSORY, RAGE_BAND),
+             (LUCCA, HELM, black_omen.VIGIL_HAT), (LUCCA, ACCESSORY, black_omen.MAGIC_SEAL)]
 HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
 GOLD, MENU_SCREEN = 0x7E2C53, 0x7E0067
@@ -155,6 +166,11 @@ CRONOS_HOUSE, CRONOS_HOUSE_DOWNSTAIRS, CRONOS_ROOM = 0x001, "0100", "0200"
 DELIVERED_CLONE = 19            # Crono's room's object 19, the clone, once Bekkler has made it
 KEEPERS_DOME, KEEPERS_HANGAR = 0x0F1, "f200"
 WORLD_1000, WORLD_2300 = "f001", "f201"
+OMEN_DOCK = "c101"              # the Omen's first room, where the Epoch docks
+OMEN_DOOR = (120, 322)          # where the party stands in it as it comes in
+CLEAR_OF_THE_OMEN = 96          # world map pixels east of the Omen, where the Epoch's confirm travels
+OMEN_FIRST_FIGHT_Y = 170        # past the monsters at the dock's head
+ALL_SINGLE_TECHS = 8
 BEFORE_THE_SEALED_DOOR = 330    # the dome's hall, below the door the pendant opens
 DEATH_PEAK = 0x0F4             # its wind slope, entered from the 2300 A.D. map
 DEATH_PEAK_SAVE_POINT = (856, 448)   # on the mountain's lower field ($0F6), where death_peak starts
@@ -508,7 +524,8 @@ def equip(run, member, slot, item):
     row = list(machine.peek(EQUIPMENT_LIST, 32)).index(item)
     for _ in range(row):
         press(machine, "DOWN", 30)
-    assert machine.b(MENU_CURSOR) == FIRST_LIST_ROW + row, ("the list's row", row)
+    # A long list scrolls, so the cursor alone does not name the row: the
+    # record checked below does.
     press(machine, "A", 60)
     back_to_main_menu(machine)
     press(machine, "B", 120)
@@ -525,6 +542,23 @@ def leave_the_end_of_time(run, period, world):
     assert run.dialogs_until(lambda: run.map_id() == END_OF_TIME_DOCK, 3000), "aboard at the dock"
     dial_from_the_dock(run, period)
     go_through_time(run, world)
+
+
+def leave_the_omen(run, door):
+    """From the Black Omen's dock, where the party came in at `door`: down to
+    the Epoch, and Yes to leaving; the Epoch is in hand over 1000 A.D."""
+    machine = run.machine
+    assert run.walk(lambda m, px, py: abs(px - door[0]) < 6 and py >= door[1] - 4) is not None, "the Omen's door"
+    for _ in range(30):
+        machine.run(4, "DOWN")
+        if run.dialog():
+            break
+    machine.run(3, "A")
+    assert wait_until(machine, lambda: machine.b(CHOICE_ACTIVE) == CHOICE_READY, 300), "Leave the Omen?"
+    machine.run(3, "A")                     # Yes
+    assert run.dialogs_until(lambda: run.map_id() == WORLD_1000
+                             and machine.b(A.OVERWORLD_TRAVEL) == TRAVEL_IN_THE_EPOCH, 3000), "the Epoch over 1000 A.D."
+    assert run.wait_world_control(), "the Epoch in hand"
 
 
 def beat_gato(run, seed=1):
@@ -669,6 +703,19 @@ def main():
             for want in ("f100", WORLD_2300):
                 assert run.exit_to(want), want
             board(run)
+            dial(run, PERIOD_12000)
+            go_through_time(run, WORLD_12000)
+            land_by(run, COMMONS_SHOP)
+            assert run.wait_control(), "the shop in hand"
+            run.say("gold", gold(machine))
+            stock_up(run, COMMONS_MERCHANT, [(ETHERS, ETHER, 99, 800), (MID_TONICS, MID_TONIC, 99, 100),
+                                             (FULL_TONICS, FULL_TONIC, 99, 700)])
+            assert run.exit_to(WORLD_12000), "out of the shop"
+            run.checkpoint("supplied")
+        if later <= 1:
+            board(run)
+            dial(run, PERIOD_2300)
+            go_through_time(run, WORLD_2300)
             land_by(run, DEATH_PEAK, enter=False)
             run.checkpoint("peak")
         later -= len(TO_THE_PEAK)
@@ -724,8 +771,9 @@ def main():
             machine.run(120)
             exchange(run, (CRONO, MARLE))
             run.checkpoint("crono_joins")
-        later -= len(REUNITED)
-        if later <= 0:
+        if later <= 2:
+            # The purse first: the Omen's monsters are many and the bag is
+            # all the healing the growing left.
             assert run.wait_control(), "the End of Time in hand"
             leave_the_end_of_time(run, PERIOD_12000, WORLD_12000)
             land_by(run, COMMONS_SHOP)
@@ -733,21 +781,41 @@ def main():
             stock_up(run, COMMONS_MERCHANT, [(AEON_SUITS, AEON_SUIT, 2, 9000), (AEON_HELMS, AEON_HELM, 2, 7800),
                                              (FULL_TONICS, FULL_TONIC, 99, 700), (MID_ETHERS, MID_ETHER, 99, 2000),
                                              (MID_TONICS, MID_TONIC, 99, 100), (ETHERS, ETHER, 99, 800)])
-            run.checkpoint("stocked")
-        if later <= 1:
-            # The party's armour and helms, the best the shops have by now
-            # (Aeon Suit and Aeon Helm), and Crono's Rage Band from the bag.
-            for member, slot, item in BEST_GEAR:
-                equip(run, member, slot, item)
-            run.say("gear", [gear(machine, member) for member in machine.peek(A.PARTY_MEMBERS, 3)])
             assert run.exit_to(WORLD_12000), "out of the shop"
+            run.checkpoint("stocked")
+        if later <= 3:
             board(run)
+            dial(run, PERIOD_1000)
+            go_through_time(run, WORLD_1000)
+            fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN), machine.w(A.OVERWORLD_BLACK_OMEN + 2))
+            machine.run(20)
+            machine.run(3, "A")
+            assert run.dialogs_until(lambda: run.map_id() == OMEN_DOCK and machine.b(A.FIELD_PLAYER_CONTROL),
+                                     8000), "into the Black Omen"
+            assert run.wait_control() and run.find_player() is not None, "the Omen's field in hand"
+            fight_through(run, lambda m, px, py: py <= OMEN_FIRST_FIGHT_Y, "the Omen's first fight", args.seed)
+            assert machine.b(A.PARTY_SINGLE_TECHS_KNOWN + CRONO) == ALL_SINGLE_TECHS, "Crono's Luminaire"
+            black_omen.to_the_treasure(run, args.seed, rest=lambda r: patch_up(r, 0.6, mp_well=0.3))
+            run.checkpoint("omen_treasure")
+        if later <= 4:
+            black_omen.back_to_the_dock(run, args.seed, rest=lambda r: patch_up(r, 0.6, mp_well=0.3))
+            leave_the_omen(run, OMEN_DOOR)
+            # Away from the Omen: a confirm over it would go back in.
+            fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN) + CLEAR_OF_THE_OMEN,
+                   machine.w(A.OVERWORLD_BLACK_OMEN + 2))
             dial(run, PERIOD_END_OF_TIME)
             machine.run(4, "A")
             disembark_at_the_end_of_time(run)
+            run.checkpoint("luminaire")
+        if later <= 5:
+            # The best of the shop and of the Omen's chests on, then the light.
+            assert run.wait_control(), "the End of Time in hand"
+            for member, slot, item in BEST_GEAR:
+                equip(run, member, slot, item)
+            run.say("gear", [gear(machine, member) for member in machine.peek(A.PARTY_MEMBERS, 3)])
             restore_at_the_light(run)
             run.checkpoint("equipped")
-        later -= len(GROWN)
+        later -= len(REUNITED)
         if later < 2:
             other_endings.bucket_to_shell(run, max(1, later + 1))
         # The bag is the middle game's (Lapis, Mid Tonics, Ethers); the party
@@ -769,7 +837,6 @@ def main():
             other_endings.lavos(run, max(4, later + 1), party=3, seed=args.seed, policy="lavos_inner",
                                 core_policy="lavos_core")
         later -= len(LAVOS)
-        # Not reached yet: the core's fight wipes the party (docs/MOVIES.md).
         run.finish("Lavos beaten")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())

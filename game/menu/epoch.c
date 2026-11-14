@@ -265,7 +265,7 @@ enum { STORY_OF_THE_LATER_SET = 0x36, EPOCH_WINGS_FLAG = 0x01 };
  * of the table at $C6:F400, set by the typesetter (typeset.c), its twelve
  * glyphs in one call, in sixteen-colour tiles laid out a tile further left,
  * into its buffer at $7E:8621. */
-enum { MAP_VIEW_SETS = 0xC6F400, MAP_VIEW_GLYPHS = 0x0C };
+enum { MAP_VIEW_GLYPHS = 0x0C };
 
 static void request_map_view_graphics(GameState *g)
 {
@@ -274,7 +274,7 @@ static void request_map_view_graphics(GameState *g)
         || (set == SET_OF_THE_EPOCH_WINGS && !(menu_story_flags_epoch(g) & EPOCH_WINGS_FLAG)))
         set = EARLY_SET;
     set_menu_text_string(g, set);
-    set_menu_text_strings(g, MAP_VIEW_SETS);
+    set_menu_text_strings(g, asset_address(ASSET_OVERWORLD_PLACE_NAMES));
     set_menu_text_layout(g, MENU_TEXT_A_TILE_FURTHER_LEFT);
     set_menu_text_tiles(g, RAM_MENU_MAP_GRAPHICS);
 }
@@ -296,7 +296,8 @@ typedef enum { CURSOR_WALKED, CURSOR_WAITED, CURSOR_DONE } CursorOutcome;
 
 /* The scripts the cursor starts as it reaches its path's end and as the
  * player leaves (bank C2). */
-enum { CURSOR_ARRIVED_SCRIPT = 0xC26A0A, CURSOR_LEAVING_SCRIPT = 0xC269FF };
+/* Where in the map view's scripts the cursor's are. */
+enum { MAP_VIEW_SCRIPT = 0x00, CURSOR_LEAVING_SCRIPT = 0x07, CURSOR_ARRIVED_SCRIPT = 0x12 };
 
 /* The menus' mode the view hands back to as it ends. */
 enum { MENU_MODE_BACK_TO_THE_MAP = 0x07 };
@@ -367,7 +368,7 @@ static CursorOutcome map_view_cursor(GameState *g, MenuObject cursor)
         if (at >= PATH_BYTES) {
             set_menu_object_slots_path_step(g, cursor, PATH_END);
             set_menu_object_slots_step(g, cursor, CURSOR_WAITS);
-            TIMED_AS(g, 0xC204D9, angled = menu_start_script(g, CURSOR_ARRIVED_SCRIPT, MENU_ORDINARY_SLOT));
+            TIMED_AS(g, 0xC204D9, angled = menu_start_script(g, menu_map_view_script(CURSOR_ARRIVED_SCRIPT), MENU_ORDINARY_SLOT));
         }
         TIMED_AS(g, 0xC26736, turn_map_view(g, cursor, angled));
         return CURSOR_WALKED;
@@ -375,7 +376,7 @@ static CursorOutcome map_view_cursor(GameState *g, MenuObject cursor)
     case CURSOR_WAITS:
         if (input_mapped(g, 0) & CLOSE_BUTTON) {
             set_menu_object_slots_step(g, cursor, CURSOR_WALKS_BACK);
-            TIMED_AS(g, 0xC204D9, menu_start_script(g, CURSOR_LEAVING_SCRIPT, MENU_ORDINARY_SLOT));
+            TIMED_AS(g, 0xC204D9, menu_start_script(g, menu_map_view_script(CURSOR_LEAVING_SCRIPT), MENU_ORDINARY_SLOT));
         }
         return CURSOR_WAITED;
     default: {
@@ -396,7 +397,7 @@ static CursorOutcome map_view_cursor(GameState *g, MenuObject cursor)
  * of bank C2's, drawn in front at priority 3. A world position (a pixel of
  * the world map) is on the picture an eighth of it across and down, rounded,
  * from where the picture stands on the plane. */
-enum { MARKER_LOOK = 0x30, MARKER_SCRIPT_BANK = 0xC2, PARTY_MARKER = 0x6A18, EPOCH_MARKER = 0x6A20 };
+enum { MARKER_LOOK = 0x30, PARTY_MARKER = 0x00, EPOCH_MARKER = 0x08 };
 enum { LANDING_MARKER_SCRIPT = 0x47, LANDING_MARKER_Y = 0x00C0, PICTURE_ORIGIN_X = 0x20, PICTURE_ORIGIN_Y = 0x30 };
 
 static uint16_t on_the_picture(uint16_t world, uint16_t origin) { return (uint16_t)((((uint32_t)world + 4) >> 3) + origin); }
@@ -413,7 +414,7 @@ static void place_marker(GameState *g, MenuObject marker, uint16_t world_x, uint
     start_marker(g, marker);
     set_menu_object_slots_x_pixel(g, marker, on_the_picture(world_x, PICTURE_ORIGIN_X));
     set_menu_object_slots_y_pixel(g, marker, on_the_picture(world_y, PICTURE_ORIGIN_Y));
-    set_menu_object_slots_sprite_script(g, marker, (uint32_t)MARKER_SCRIPT_BANK << 16 | script);
+    set_menu_object_slots_sprite_script(g, marker, menu_map_view_marker(script));
     set_menu_object_slots_sprite_frames(g, marker, 0);
 }
 
@@ -987,12 +988,12 @@ enum { TILEMAP_ROW_BYTES = 0x20, TILEMAP_ROW_WORDS = 0x10 };
 
 /* Rows of the gate's tilemap: each picks a row of the source by its number
  * in a table, and goes to the next row of VRAM. A count of 0 is 65536. */
-static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t picks, uint32_t source, uint16_t vram)
+static void upload_gate_rows(GameState *g, Platform *pf, uint16_t rows, uint32_t source, uint16_t vram)
 {
     uint16_t left = rows;
+    uint16_t row = 0;
     do {
-        uint8_t pick = menu_gate_row_pick(g, picks);
-        picks = (picks & 0xFF0000u) | (uint16_t)(picks + 1);
+        uint8_t pick = menu_gate_row_pick(g, row++);
         uint32_t from = (source & 0xFF0000u) | (uint16_t)(pick * TILEMAP_ROW_BYTES + source);
         vid_send_vram(pf, PF_AT(0xC272EE), vram, PF_GAME(from), TILEMAP_ROW_BYTES, &after_high);
         vram = (uint16_t)(vram + TILEMAP_ROW_WORDS);
@@ -1036,18 +1037,18 @@ static void keep_dial_palette(GameState *g)
  * starts it, which counts them). */
 enum { DIAL_HANDLER = 0x6AC8, SPIN_HANDLER = 0x6F85, DIGIT_HANDLER = 0x7143 };
 enum {
-    DIAL_SCRIPT = 0xC274B8,
-    DIAL_SECOND_SCRIPT = 0xC27504,
-    DIAL_LAST_SCRIPT = 0xC274AE,
-    DIAL_ENDING_SCRIPT = 0xC274B3,
+    DIAL_LAST_SCRIPT = 0x00,
+    DIAL_ENDING_SCRIPT = 0x05,
+    DIAL_SCRIPT = 0x0A,
+    DIAL_SECOND_SCRIPT = 0x56,
 };
 
 static void start_dial_objects(GameState *g)
 {
     MenuObject started;
     TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, DIAL_HANDLER, MENU_ORDINARY_SLOT, &started));
-    TIMED_AS(g, 0xC204D9, menu_start_script(g, DIAL_SCRIPT, MENU_ORDINARY_SLOT));
-    TIMED_AS(g, 0xC204D9, menu_start_script(g, DIAL_SECOND_SCRIPT, MENU_ORDINARY_SLOT));
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, menu_time_dial_script(DIAL_SCRIPT), MENU_ORDINARY_SLOT));
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, menu_time_dial_script(DIAL_SECOND_SCRIPT), MENU_ORDINARY_SLOT));
     TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, SPIN_HANDLER, MENU_ORDINARY_SLOT, &started));
     MenuObject self = menu_object_running(g);
     uint8_t kept = menu_object_slots_period(g, self);
@@ -1057,7 +1058,7 @@ static void start_dial_objects(GameState *g)
         set_menu_object_slots_period(g, self, (uint8_t)(period + 1));
     }
     set_menu_object_slots_period(g, self, kept);
-    TIMED_AS(g, 0xC204D9, menu_start_script(g, DIAL_LAST_SCRIPT, MENU_ORDINARY_SLOT));
+    TIMED_AS(g, 0xC204D9, menu_start_script(g, menu_time_dial_script(DIAL_LAST_SCRIPT), MENU_ORDINARY_SLOT));
 }
 
 /* ---- Where the Epoch may fly ------------------------------------------------------------------ */
@@ -1229,7 +1230,7 @@ static void build_map_view_from_the_tiles(GameState *g, Platform *pf)
 /* The map view: Mode 7 behind sprites at $6000, the colour math adding the
  * fixed colour to the backdrop, its graphics and plane built, the cursor and
  * its script started, and the screen run until the menus' mode leaves it. */
-enum { MAP_VIEW_MODE = 0x06, BACKDROP = 0x20, MAP_VIEW_CURSOR = 0x666C, MAP_VIEW_SCRIPT = 0xC269F8 };
+enum { MAP_VIEW_MODE = 0x06, BACKDROP = 0x20, MAP_VIEW_CURSOR = 0x666C };
 
 static bool show_the_map_view(GameState *g, Platform *pf)
 {
@@ -1258,7 +1259,7 @@ static bool show_the_map_view(GameState *g, Platform *pf)
 
     MenuObject cursor;
     TIMED_AS(g, 0xC2048A, (void)menu_start_object(g, MAP_VIEW_CURSOR, MENU_ORDINARY_SLOT, &cursor));
-    start_a_script(g, MAP_VIEW_SCRIPT);
+    start_a_script(g, menu_map_view_script(MAP_VIEW_SCRIPT));
     show_from_the_next_frame(g, pf, 0xC263B7);
     run_until_the_mode_changes(g, pf, MAP_VIEW_MODE);
     wait_frames(g, pf, MAP_VIEW_CLOSING);
@@ -1282,7 +1283,7 @@ static void build_the_dial(GameState *g, Platform *pf)
 {
     load_a_stream(g, GATE_TILES_STREAM);
     vid_send_vram(pf, PF_AT(0xC27393), GATE_TILE_VRAM, PF_GAME(RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
-    TIMED_AS(g, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, MENU_GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
+    TIMED_AS(g, 0xC272D8, upload_gate_rows(g, pf, GATE_TILEMAP_ROWS, RAM_MENU_MODE7_PLANE,
                                            GATE_TILEMAP_VRAM));
     load_a_stream(g, GATE_PALETTE_STREAM);
     keep_dial_palette(g);
@@ -1337,7 +1338,7 @@ static bool show_the_time_dial(GameState *g, Platform *pf)
     show_from_the_next_frame(g, pf, 0xC26A93);
     wait_frames(g, pf, DIAL_OPENING);
     run_until_the_mode_changes(g, pf, DIAL_MODE);
-    start_a_script(g, DIAL_ENDING_SCRIPT);
+    start_a_script(g, menu_time_dial_script(DIAL_ENDING_SCRIPT));
     wait_frames(g, pf, DIAL_CLOSING);
     finish_the_time_dial(g, pf);
     return true;

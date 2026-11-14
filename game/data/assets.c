@@ -25,14 +25,20 @@ static uint32_t cartridge_address(uint32_t at)
 
 bool asset_is_cartridge(uint32_t at) { return cartridge_address(at) != NOT_ROM; }
 
+/* The resource found last in each 4 KiB of the cartridge: reads come in
+ * runs through a few resources at once, and a run finds its resource with one
+ * comparison rather than a search of the catalogue. */
+enum { NEAR_SHIFT = 12, NEARBY = 32 };
+
 AssetId asset_containing(uint32_t at)
 {
-    static AssetId last = ASSET_NONE;   /* reads come in runs through one resource */
+    static uint16_t nearby[NEARBY];   /* the resource, plus 1; 0 for none yet */
     uint32_t a = cartridge_address(at);
     if (a == NOT_ROM)
         return ASSET_NONE;
-    if (last != ASSET_NONE && a - asset_catalogue[last].at < asset_catalogue[last].length)
-        return last;
+    uint16_t *near = &nearby[(a >> NEAR_SHIFT) & (NEARBY - 1)];
+    if (*near && a - asset_catalogue[*near - 1u].at < asset_catalogue[*near - 1u].length)
+        return (AssetId)(*near - 1u);
     /* The rows are in address order and don't overlap: the last one starting
      * at or before `a`, if `a` is inside it. */
     uint16_t lo = 0, hi = asset_catalogue_count;
@@ -45,13 +51,42 @@ AssetId asset_containing(uint32_t at)
     }
     if (lo == 0 || a - asset_catalogue[lo - 1].at >= asset_catalogue[lo - 1].length)
         return ASSET_NONE;
-    last = (AssetId)(lo - 1);
-    return last;
+    *near = lo;
+    return (AssetId)(lo - 1);
 }
 
-static AssetFault outside;
+static AssetFault outside, unread;
 
 const AssetFault *asset_outside_reads(void) { return &outside; }
+const AssetFault *asset_unread_reads(void) { return &unread; }
+
+static bool left_untyped(AssetId id)
+{
+    uint8_t type = asset_catalogue[id].type;
+    return type == ASSET_TYPE_MIXED || type == ASSET_TYPE_UNTYPED || type == ASSET_TYPE_UNDETERMINED;
+}
+
+static AssetId unread_rows[ASSET_UNREAD_KEPT];
+static unsigned unread_rows_kept;
+
+unsigned asset_unread_rows(const AssetId **rows)
+{
+    *rows = unread_rows;
+    return unread_rows_kept;
+}
+
+static void note_if_unread(AssetId id, uint32_t at)
+{
+    if (!left_untyped(id))
+        return;
+    if (unread.count++ == 0)
+        unread.first = cartridge_address(at);
+    for (unsigned i = 0; i < unread_rows_kept; i++)
+        if (unread_rows[i] == id)
+            return;
+    if (unread_rows_kept < ASSET_UNREAD_KEPT)
+        unread_rows[unread_rows_kept++] = id;
+}
 
 void asset_note_outside(uint32_t at)
 {
@@ -65,17 +100,39 @@ void asset_note_outside(uint32_t at)
 
 static const AssetSource *source;
 
-void assets_use(const AssetSource *s) { source = s; }
+/* The resources read lately, and their bytes: the reads come in runs through
+ * a few resources at once, and a run asks the source once. A new source asks
+ * again. */
+enum { HELD = 16 };
+static struct {
+    AssetId id;
+    const uint8_t *bytes;
+} held[HELD];
+static bool holding;
+
+void assets_use(const AssetSource *s)
+{
+    source = s;
+    for (unsigned i = 0; i < HELD; i++)
+        held[i].id = ASSET_NONE;
+    holding = true;
+}
 
 /* A resource's bytes from the source, or NULL where there is no source or it
  * hasn't the resource as the catalogue has it. */
 static const uint8_t *resource_bytes(AssetId id)
 {
+    if (!holding)
+        assets_use(source);
+    if (held[id % HELD].id == id)
+        return held[id % HELD].bytes;
     if (!source)
         return NULL;
     uint32_t length = 0;
     const uint8_t *bytes = source->resource(source->ctx, id, &length);
-    return bytes && length == asset_catalogue[id].length ? bytes : NULL;
+    held[id % HELD].id = id;
+    held[id % HELD].bytes = bytes && length == asset_catalogue[id].length ? bytes : NULL;
+    return held[id % HELD].bytes;
 }
 
 /* The store's copy of the cartridge byte at `at`, or NULL: the address is in
@@ -87,6 +144,7 @@ static const uint8_t *served(uint32_t at)
         asset_note_outside(at);
         return NULL;
     }
+    note_if_unread(id, at);
     const uint8_t *bytes = resource_bytes(id);
     return bytes ? bytes + (cartridge_address(at) - asset_catalogue[id].at) : NULL;
 }
@@ -107,6 +165,7 @@ uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
     const AssetEntry *e = &asset_catalogue[resource];
     if (offset >= e->length)
         return rom_read8(g, e->at + offset);
+    note_if_unread(resource, e->at + offset);
     const uint8_t *bytes = resource_bytes(resource);
     return rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
 }
@@ -115,6 +174,62 @@ uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset)
 {
     uint8_t low = asset_read8(g, resource, offset);
     return (uint16_t)(low | asset_read8(g, resource, offset + 1) << 8);
+}
+
+uint8_t asset_read8_at_place(const GameState *g, AssetId resource, uint16_t place)
+{
+    const AssetEntry *e = &asset_catalogue[resource];
+    uint16_t offset = (uint16_t)(place - (uint16_t)e->at);
+    if (offset >= e->length)
+        return rom_read8(g, (e->at & 0xFF0000u) | place);
+    return asset_read8(g, resource, offset);
+}
+
+uint16_t asset_read16_at_place(const GameState *g, AssetId resource, uint16_t place)
+{
+    const AssetEntry *e = &asset_catalogue[resource];
+    uint16_t offset = (uint16_t)(place - (uint16_t)e->at);
+    if (offset >= e->length)
+        return rom_read16(g, (e->at & 0xFF0000u) | place);
+    return asset_read16(g, resource, offset);
+}
+
+uint32_t asset_address(AssetId resource) { return asset_catalogue[resource].at; }
+
+uint32_t asset_place_address(AssetId resource, uint16_t place) { return (asset_catalogue[resource].at & 0xFF0000u) | place; }
+
+uint8_t rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+{
+    return rom_read8(g, asset_place_address(resource, place));
+}
+
+uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+{
+    return rom_read16(g, asset_place_address(resource, place));
+}
+
+RomRun rom_run_from(uint32_t at)
+{
+    RomRun run = { at, 0, NULL };
+    uint32_t a = cartridge_address(at);
+    AssetId id = asset_containing(at);
+    /* A row marked unread has no run: each of its reads goes by rom_read8, which notes it. */
+    const uint8_t *bytes = id == ASSET_NONE || left_untyped(id) ? NULL : resource_bytes(id);
+    if (!bytes)
+        return run;
+    const AssetEntry *e = &asset_catalogue[id];
+    uint32_t in_resource = e->length - (a - e->at), in_bank = 0x10000u - (uint16_t)at;
+    run.bytes = bytes + (a - e->at);
+    run.length = in_resource < in_bank ? in_resource : in_bank;
+    return run;
+}
+
+uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at)
+{
+    uint32_t i = at - run->at;
+    if (i < run->length)
+        return rom_cartridge_read(g, at, run->bytes + i);
+    return rom_read8(g, at);
 }
 
 uint16_t rom_read16(const GameState *g, uint32_t at)
