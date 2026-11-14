@@ -1000,11 +1000,11 @@ through the data from one address finds its run of the store's bytes once
 (`rom_run_from`, `rom_run_read8`), and each byte inside it is a load and the
 read's time. The unpacker's streams and the menus' commands read this way. The
 cartridge reads fall from 4-7% of the game frame to 3-6%; what is left is each
-read's own call and time charge. In mGBA the game's frame falls from 2.6, 3.8
-and 5.5 GBA frames to 2.6, 3.3 and 4.7 (`title-start`, `new-game`,
-`gato-battle`). The heaviest frames are the ones that unpack a location, and
-they fall from 457 to 360 GBA frames (`new-game`) and from 758 to 622
-(`gato-battle`).
+read's own call and time charge. In mGBA the game's frame falls from 2.3, 3.2
+and 4.6 GBA frames to 2.2, 2.7 and 3.8 (`title-start`, `new-game`,
+`gato-battle`; in all from 4.4, 6.6 and 9.6 to 4.3, 6.0 and 8.8). The
+heaviest frames are the ones that unpack a location, and they fall from 475
+to 356 GBA frames (`new-game`) and from 785 to 641 (`gato-battle`).
 
 **The address view, resolved once** (issue #424). The typed state's address
 view no longer decodes an address at each access. When the first state is
@@ -1172,13 +1172,13 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | Work RAM (EWRAM, 256 KiB) | 246.6 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.4 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.6 KiB and tile caches 6 KiB, the C library's heap; 9.5 KiB free |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,212 bytes, the main thread; five slots used), the line interrupt 168 bytes, the driver's stack the 7.6 KiB above them |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.3 and 2.8, sound 0.4 and 0.5, picture 1.6 and 4.0, in all 4.4; `new-game`: game 3.2 and 9.8, picture 2.9 and 6.0, in all 6.6; `gato-battle`: game 4.6 and 12, picture 4.5 and 20, in all 9.6. Before the flat accessors read in place (issue #424), the sends read a span at a time (#425) and the time model charged in 32 bits (#426): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.2 and 2.8, sound 0.4 and 0.5, picture 1.6 and 4.0, in all 4.3; `new-game`: game 2.7 and 7.3, picture 2.9 and 6.0, in all 6.0; `gato-battle`: game 3.8 and 9.0, picture 4.5 and 20, in all 8.8. Before the flat accessors read in place (issue #424), the sends read a span at a time (#425) the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
 The picture adds about 2.6 GBA frames of work a frame to `title-start`.
 About 1 of it falls in the game's frame, where the sends copy their spans
 out of the flat state (2.4 when each byte was looked up); the other 1.6
 makes the GBA's picture. Without the native mixer the game's own frame is the
-whole cost: 2.3-4.6 GBA frames, from 7-13 before the flat accessors read in
+whole cost: 2.2-3.8 GBA frames, from 7-13 before the flat accessors read in
 place, the sends read spans and the time model charged in 32 bits. The
 picture's own conversion and line interrupt are most of the rest. All of the
 code runs from the cartridge's 16-bit bus.
