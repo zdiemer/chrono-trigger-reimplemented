@@ -140,8 +140,9 @@ bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 {
     if (!object_current_is_one(g) || at > EVENT_SCRIPT_BYTES - bytes_read(row))
         return false;
-#define CHECK_PARAMETER(type, name)                   \
-    if (!names_what_it_says(g, row, &row->name, at)) \
+    /* A row names a handful of the language's parameters; the rest read nothing. */
+#define CHECK_PARAMETER(type, name)                                                  \
+    if (row->name.kind != ARG_NONE && !names_what_it_says(g, row, &row->name, at)) \
         return false;
     EVENT_PARAMETERS(CHECK_PARAMETER)
     EVENT_RECORD_PARAMETERS(CHECK_PARAMETER)
@@ -326,7 +327,9 @@ static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg,
 EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c = { .self = object_current(g), .at = at, .platform = pf };
-#define DECODE_PARAMETER(type, name) c.name = (type)decode(g, &row->name, at);
+#define DECODE_PARAMETER(type, name) \
+    if (row->name.kind != ARG_NONE)  \
+        c.name = (type)decode(g, &row->name, at);
     EVENT_PARAMETERS(DECODE_PARAMETER)
 #undef DECODE_PARAMETER
 #define DECODE_RECORD(type, name) c.name = decode_##type(g, &row->name, at);

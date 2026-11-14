@@ -57,6 +57,18 @@ uint32_t asset_address(AssetId resource);
 uint8_t rom_read8(const GameState *g, uint32_t at);
 uint16_t rom_read16(const GameState *g, uint32_t at);
 
+/* Where a reader goes on through the data from an address (an unpacker's
+ * stream, a script's commands): the run of the store's bytes from `at` that
+ * one resource holds, in the same bank, found once. A read in it is
+ * rom_read8's, the same byte and the same time, with nothing to look up; a
+ * read outside it is rom_read8. */
+typedef struct {
+    uint32_t at, length;
+    const uint8_t *bytes;
+} RomRun;
+RomRun rom_run_from(uint32_t at);
+uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at);
+
 /* A named graphics accessor's transfer, with no game-time charge. Validates
  * every cartridge byte, including a transfer that wraps inside its bank.
  * RAM sources retain their backend address. */

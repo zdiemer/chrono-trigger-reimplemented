@@ -31,8 +31,10 @@ frames of work a frame with no sound mixed. The order from there:
 
 1. **The hot spots** (PLATFORM.md, "Memory, stacks and per-frame work
    against small targets", and "The GBA build, as built"): the time
-   model's per-access charges (#426), the interpreters'
-   byte-at-a-time reads (#429); and a sound
+   model's per-access charges (#426), the cartridge reads' per-byte call
+   and charge (#429), the typed state's alias views and reads by address
+   (#424), its sends' span reads going a byte at a time through the address
+   view (#425, the host's only); and a sound
    mixer the GBA can afford (#428), the native one being 26 GBA frames a
    frame. Hot code goes into fast RAM where it pays.
 2. **The rest of the video (issue #367),** the effects "The GBA build, as

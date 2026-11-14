@@ -166,6 +166,7 @@ void measure_frame(Measure *m, GameState *g, uint64_t game_ns, uint64_t sound_ns
         end_stay(m);
         m->mode = now;
         memset(m->seen, 0, asset_catalogue_count);   /* the next stay's reads, each seen again */
+        assets_use(&m->source);   /* and asked for again, the one the game holds too */
     }
 }
 

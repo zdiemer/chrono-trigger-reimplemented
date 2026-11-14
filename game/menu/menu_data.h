@@ -837,6 +837,14 @@ static inline uint8_t menu_slot_past_items(const GameState *g, uint8_t slot)
 }
 
 static inline uint8_t menu_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+/* The script's bytes from `at` on that the store holds in one piece, and a
+ * byte read through them: the same byte and time as menu_script_byte. */
+typedef RomRun MenuScriptRun;
+static inline MenuScriptRun menu_script_run(uint32_t at) { return rom_run_from(at & 0xFFFFFFu); }
+static inline uint8_t menu_script_byte_in(const GameState *g, const MenuScriptRun *run, uint32_t at)
+{
+    return rom_run_read8(g, run, at & 0xFFFFFFu);
+}
 
 /* A colour of the palettes the scripts load rows from, a word (its second
  * byte the next address's, across a bank's end too). */

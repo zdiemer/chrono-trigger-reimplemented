@@ -63,7 +63,9 @@ typedef struct {
 /* Read the resources from `source` from now on: the driver's to call, before
  * the game runs or between frames. NULL leaves the game with no source, so a
  * read of the cartridge has nothing to answer it. The source must outlive its
- * use. */
+ * use. The game asks the source for a resource once for each run of reads
+ * through it; calling this again (even with the same source) makes it ask
+ * afresh. */
 void assets_use(const AssetSource *source);
 
 

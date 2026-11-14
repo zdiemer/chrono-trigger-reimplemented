@@ -946,8 +946,8 @@ mode, with gprof's call counts for who calls what:
 | The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access; since charged inline in 32 bits (below), 2-4% in its own functions, the rest inside the accessors | 10% | 8% | 10% | 7% | #426 |
 | The overlays' last writer (`vars_host_claim`); since written out as stores (below), 0-1%, battle 6%, scene 6-7% | 3% | 3% | 10% | 5% | |
 | The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address, since read a span at a time (below) | 2% | 3% | 6% | 4% | |
-| Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
-| The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it | 20% | 16% | 10% | 11% | #429 |
+| Cartridge reads, each byte looked up in the store; since found among the resources read lately, and read on through a run (below) | 4%, now 3-4% | 4%, now 4-6% | 4%, now 5% | 4%, now 3-4% | #429 |
+| The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it; the interpreters since decode only what a row names (below) | 20% | 16% | 10% | 11% | |
 
 The heaviest frames share the same parts, with more of the address view's
 writes (a resource unpacked into work RAM, `wram_fill8`). Optimized across
@@ -994,6 +994,30 @@ frame falls from 2.6, 3.8 and 5.5 GBA frames to 2.3, 3.2 and 4.6
 time model's own functions fall from 13% of the `new-game` run to about 7%.
 Only the timing report's totals (`StateHostTime`, outside the lean build)
 are still 64-bit.
+
+**The interpreters decode what a row names, and reads go on through a run**
+(issue #429). The field's event engine and the menus' scripts decode a
+command by its row in the opcode table, and the language has 110 and 55
+parameters. A row names a handful of them; the others are `ARG_NONE`, which
+read nothing and decode to 0. The decoders and the event engine's own check
+(`event_runs_here`) now pass those over instead of running each through its
+switch. Sampled, the interpreters' functions fall from 11-12% of the field's
+game frame to 4-5%, and from 14-15% of the menus' to 5-6%.
+
+The cartridge's reads find their resource among those read lately: the last
+resource found in each 4 KiB of the cartridge (`asset_containing`), and the
+store's bytes for the last 16 resources asked for (`resource_bytes`). A new
+source (`assets_use`, which `ct_native --measure` also calls at each stay, so
+it counts each stay's resources afresh) asks again. A reader that goes on
+through the data from one address finds its run of the store's bytes once
+(`rom_run_from`, `rom_run_read8`), and each byte inside it is a load and the
+read's time. The unpacker's streams and the menus' commands read this way. The
+cartridge reads fall from 4-7% of the game frame to 3-6%; what is left is each
+read's own call and time charge. In mGBA the game's frame falls from 2.3, 3.0
+and 4.1 GBA frames to 2.2, 2.5 and 3.4 (`title-start`, `new-game`,
+`gato-battle`). The heaviest frames are the ones that unpack a location, and
+they fall from 475 to 332 GBA frames (`new-game`) and from 785 to 598
+(`gato-battle`).
 
 **The address view, resolved once** (issue #424). The typed state's address
 view no longer decodes an address at each access. When the first state is
@@ -1170,9 +1194,9 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the C library's heap; 8.5 KiB free |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,212 bytes, the main thread; five slots used), the line interrupts 656 bytes, the tiles' conversion table 1 KiB, the driver's stack the 6.1 KiB above them |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.3 and 2.8, sound 0.4 and 0.5, picture 0.2 and 1.0, in all 2.9; `new-game`: game 3.0 and 8.8, picture 0.5 and 1.3, in all 3.8; `gato-battle`: game 4.1 and 12, picture 0.9 and 5.0, in all 5.4; `events-jetbike-race`: game 4.5 and 13, picture 1.2 and 3.3, in all 6.0. Before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425) and the time model charged in 32 bits (#426): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.2 and 2.8, sound 0.4 and 0.5, picture 0.2 and 1.0, in all 3.0; `new-game`: game 2.5 and 6.8, picture 0.5 and 1.3, in all 3.4; `gato-battle`: game 3.4 and 8.3, picture 0.9 and 5.0, in all 4.7; `events-jetbike-race` (measured before #429): game 4.5 and 13, picture 1.2 and 3.3, in all 6.0. Before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425) the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-Without the native mixer the game's own frame is most of the cost: 2.3-4.5
+Without the native mixer the game's own frame is most of the cost: 2.2-3.4
 GBA frames, from 7-13 before the flat accessors read in place, the sends
 read spans and the time model charged in 32 bits; the picture is 0.2-1.2
 more. All of the code runs from the

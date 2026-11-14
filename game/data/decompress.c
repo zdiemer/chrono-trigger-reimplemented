@@ -36,11 +36,12 @@ typedef struct {
     const GameState *g;
     uint8_t bank;
     uint16_t at;
+    RomRun run;   /* the store's bytes the stream reads on through */
 } Stream;
 
 static uint8_t stream_byte(const Stream *in, uint16_t ahead)
 {
-    return rom_read8(in->g, ((uint32_t)in->bank << 16) + in->at + ahead);
+    return rom_run_read8(in->g, &in->run, ((uint32_t)in->bank << 16) + in->at + ahead);
 }
 
 static uint16_t stream_word(const Stream *in, uint16_t ahead)
@@ -131,7 +132,7 @@ enum { FIRST_LENGTH_BYTES = 2, HEADER_BYTES = 3, BITS_IN_A_CONTROL = 8, HEADER_B
  * stream whose headers cycle cannot make the check run forever. */
 static bool stream_fits(const GameState *g, uint32_t from, uint16_t capacity)
 {
-    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES) };
+    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES), rom_run_from(from) };
     uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
     uint16_t segment_end = (uint16_t)(in.at + first_length);
     bool long_runs = rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
@@ -193,7 +194,7 @@ bool unpack_stream_fits(GameState *g, uint32_t from, uint16_t capacity)
 static uint16_t unpack(GameState *g, Counts *n)
 {
     uint32_t from = decompress_source(g), to = decompress_dest(g);
-    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES) };
+    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES), rom_run_from(from) };
     uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
     uint16_t segment_end = (uint16_t)(in.at + first_length);
     uint8_t bits_left = BITS_IN_A_CONTROL;
