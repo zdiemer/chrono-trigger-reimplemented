@@ -188,7 +188,7 @@ void menu_draw_member_rows(GameState *g, Platform *pf)
  * the dimmed palette row 4. */
 enum { FIRST_ROW_TILES = 0x2E84, BACK_LAYER = 0x1000, ROW_TILE_ROWS = 6, ROW_TILES = 12 };
 enum { CHOSEN_COLOUR = 0x00, DIMMED_COLOUR = 0x10 };
-enum { UPLOAD_BG2_ROWS = 0xFBFF };
+enum { UPLOAD_BG2_ROWS = ASSET_MENU_UPLOAD_BACK_LAYER };
 
 static uint8_t colour_of(bool dimmed) { return dimmed ? DIMMED_COLOUR : CHOSEN_COLOUR; }
 
@@ -228,7 +228,7 @@ static void show_element(GameState *g)
  * clock's at $7E:0402), the member's figures and stats, the large portrait in
  * palette row 3 and the element's label. */
 enum { PORTRAIT_AT = 0x2EDE, PORTRAIT_ATTRIBUTE = 0x0E };
-enum { UPLOAD_BG1_CARD = 0xFBE3 };
+enum { UPLOAD_BG1_CARD = ASSET_MENU_UPLOAD_FRONT_LAYER };
 
 // $C2:A22F
 void menu_start_member_card(GameState *g)

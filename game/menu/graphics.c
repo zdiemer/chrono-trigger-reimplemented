@@ -121,20 +121,20 @@ static void ink_the_third_plane(GameState *g, uint16_t tile)
 
 /* A set's upload records (bank C2, menu/menu_data.h) queued, and the queue
  * sent at once. */
-static void queue_records(GameState *g, uint16_t first, unsigned count)
+static void queue_records(GameState *g, AssetId records, unsigned count)
 {
     for (unsigned i = 0; i < count; i++)
-        menu_queue_upload(g, menu_upload_record(g, (uint16_t)(first + i * MENU_UPLOAD_BYTES)));
+        menu_queue_upload(g, menu_upload_record(g, records, i));
 }
 
 static void send_now(GameState *g, Platform *pf) { TIMED_AS(g, 0xC28663, menu_send_upload_queue(g, pf)); }
 
 /* A queue written whole over the queue's start, as the original's block move
  * of the records does; the first also writes its count a word wide. */
-static void queue_in_place_of(GameState *g, uint16_t first, unsigned count)
+static void queue_in_place_of(GameState *g, AssetId records, unsigned count)
 {
     set_menu_vram_queue_bytes(g, 0);
-    queue_records(g, first, count);
+    queue_records(g, records, count);
     charge_block_move(g, count * MENU_UPLOAD_BYTES);
 }
 

@@ -497,7 +497,7 @@ void menu_shop_open_members(GameState *g)
     set_menu_item_operand(g, 0);
 }
 
-enum { UPLOAD_LINE_TABLES = 0xFC3E, UPLOAD_FRONT_LAYER_WHOLE = 0xFBCE, UPLOAD_BACK_LAYER_WHOLE = 0xFBF8 };
+enum { UPLOAD_LINE_TABLES = ASSET_MENU_UPLOAD_LINE_TABLES, UPLOAD_FRONT_LAYER_WHOLE = ASSET_MENU_UPLOAD_FRONT_LAYER_WHOLE, UPLOAD_BACK_LAYER_WHOLE = ASSET_MENU_UPLOAD_BACK_LAYER_WHOLE };
 enum { SHOP_LINE_EFFECTS = 0x2F };
 
 /* The colour math, the goods' prices, and the shop's layers queued. */
@@ -936,7 +936,7 @@ bool menu_shop_room_for_the_gold(GameState *g) { return sellable(g); }
 /* The quantity window opens on one: the list's cursor put aside, the item's
  * name, its windows (its attack or defence where it has one), the step. The
  * limit counted past the last the party can take, the bar hidden. */
-enum { QUANTITY_WINDOWS = 0xC2DE, UPLOAD_QUANTITY = 0xFBEA, QUANTITY_NAME_AT = 0x3BDE };
+enum { QUANTITY_WINDOWS = 0xC2DE, UPLOAD_QUANTITY = ASSET_MENU_UPLOAD_FRONT_LAYER_LOWER_HALF, QUANTITY_NAME_AT = 0x3BDE };
 /* The bands past the member rows show the layer 145 lines up (its vertical
  * scroll); the original's word also carries a bit above the scroll's ten,
  * which the scroll ignores and the table keeps. */

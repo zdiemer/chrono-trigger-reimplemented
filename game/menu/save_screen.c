@@ -625,7 +625,7 @@ static bool read_save_slots(GameState *g, Platform *pf)
             return false;
     }
     set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);   /* past the last, as the count leaves it */
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_SLOT_NAMES)));
+    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_SLOT_NAMES, 0)));
     return true;
 }
 

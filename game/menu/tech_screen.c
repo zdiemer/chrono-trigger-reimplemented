@@ -940,8 +940,8 @@ static void draw_targets(GameState *g, Platform *pf)
 enum {
     TARGET_LINES = OFFSETS_THE_FRONT_LAYER | 0x0C7,
     TARGET_BLOCKS = 3,
-    UPLOAD_TARGET_ROWS = 0xBECE,
-    UPLOAD_TARGET_WINDOW = 0xBED5,
+    UPLOAD_TARGET_ROWS = ASSET_MENU_UPLOAD_TECH_TARGET_ROWS,
+    UPLOAD_TARGET_WINDOW = ASSET_MENU_UPLOAD_TECH_TARGET_WINDOW,
 };
 
 void menu_techs_show_targets(GameState *g, Platform *pf)

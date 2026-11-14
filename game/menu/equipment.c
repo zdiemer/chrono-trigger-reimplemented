@@ -149,7 +149,7 @@ void menu_equip_queue_list_rows(GameState *g) { menu_queue_fixed_upload(g, MENU_
  * layer's buffer below the view, where a slide copies rows to) cleared; its
  * four colours twice over into palette row 7. */
 enum { SCREEN_WINDOWS = 0xBDCD, HIDDEN_ROWS_AT = 0x3600, HIDDEN_ROWS_BYTES = 0x800 };
-enum { SCREEN_COLOURS = 4, FIRST_SCREEN_COLOUR = 0x70, SCREEN_LINE_EFFECTS = 0x65, UPLOAD_BG2_ROWS = 0xFBFF };
+enum { SCREEN_COLOURS = 4, FIRST_SCREEN_COLOUR = 0x70, SCREEN_LINE_EFFECTS = 0x65, UPLOAD_BG2_ROWS = ASSET_MENU_UPLOAD_BACK_LAYER };
 
 // $C2:9C31
 /* The screen's first step leads on to choosing a member, once it is set up. */
@@ -264,7 +264,7 @@ static void copy_rows_on(GameState *g, uint16_t layer, MenuTilePlace from, MenuT
     menu_copy_tile_area(g, from, to, ROWS_SIZE);
 }
 
-enum { UPLOAD_BG1_SLID = 0xFBEA, UPLOAD_BG2_SLID = 0xFC06, UPLOAD_ROW_LINES = 0xFC45 };
+enum { UPLOAD_BG1_SLID = ASSET_MENU_UPLOAD_FRONT_LAYER_LOWER_HALF, UPLOAD_BG2_SLID = ASSET_MENU_UPLOAD_BACK_LAYER_SLID, UPLOAD_ROW_LINES = ASSET_MENU_UPLOAD_ROW_LINES };
 
 /* Where a slide's member coming in is drawn (above the rows for a slide up,
  * below them for one down), where the rows are copied to beside it, and the
@@ -427,7 +427,7 @@ bool menu_equip_keep_slot(GameState *g)
 
 /* The slots' line effects, and the card's layer (the slots' marks are on it)
  * queued. */
-enum { SLOTS_LINE_EFFECTS = 0x4D, UPLOAD_BG1_CARD = 0xFBE3 };
+enum { SLOTS_LINE_EFFECTS = 0x4D, UPLOAD_BG1_CARD = ASSET_MENU_UPLOAD_FRONT_LAYER };
 
 void menu_equip_show_slots(GameState *g)
 {
@@ -654,7 +654,7 @@ void menu_equip_move_list_rows(GameState *g) { menu_move_list_rows(g, LIST_ROWS_
  * members, and the cursor onto an active member; the menus' fourth task is
  * held a frame longer as the panel starts. */
 enum { PANEL_WINDOW = 0xBD74, ROWS_SHOWN = MENU_MEMBER_ROWS, OTHER_LINES_AT_REST = 0xFFFF };
-enum { UPLOAD_PANEL_LINES = 0xFC3E };
+enum { UPLOAD_PANEL_LINES = ASSET_MENU_UPLOAD_LINE_TABLES };
 
 /* The furthest the list scrolls: the members past the three it shows. */
 static uint8_t scroll_most(uint8_t reachable) { return reachable > ROWS_SHOWN ? (uint8_t)(reachable - ROWS_SHOWN) : 0; }

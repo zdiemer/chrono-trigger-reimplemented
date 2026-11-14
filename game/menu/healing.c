@@ -163,7 +163,7 @@ static uint16_t to_digits(GameState *g, uint16_t amount, MenuAmountKind kind)
 void menu_ready_the_amounts(GameState *g)
 {
     TIMED_AS(g, 0xFFF7D9, menu_build_amount_digits(g));
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_AMOUNT_DIGITS)));
+    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, MENU_UPLOAD_AMOUNT_DIGITS, 0)));
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     unsigned listed = 0, numbers = 0;
     uint8_t kinds_shown = 0;

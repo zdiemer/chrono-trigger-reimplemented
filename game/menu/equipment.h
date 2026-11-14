@@ -9,6 +9,7 @@
 
 #include "menu/members.h"
 #include "platform/video.h"
+#include "data/asset_names.h"
 #include "state.h"
 
 /* ---- Opening it, and the main menu's panel ---------------------------------------------------- */
@@ -138,7 +139,7 @@ void menu_equip_move_list_rows(GameState *g);
 void menu_equip_panel_put_away(GameState *g);
 
 /* The list's rows' upload, queued as the list is drawn. */
-enum { MENU_EQUIP_LIST_ROWS_UPLOAD = 0xFC1B };
+enum { MENU_EQUIP_LIST_ROWS_UPLOAD = ASSET_MENU_UPLOAD_TEXT_LAYER };
 
 /* What the steps can run on: the screen's set-up, the
  * member list's slide as its start (menu_equip_slide_members) left it, the

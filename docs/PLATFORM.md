@@ -534,8 +534,11 @@ and refuses wrong text at its line (a command or action that isn't one, a
 value too long, an opcode not the command's, a condition short of its
 bytes, a script a byte longer, a byte shorter); with the ROM staged every
 script of the cartridge reads back as its bytes. The upload records the
-menus queue (`script_c2bece` and nine more) were typed `script` and are
-records, `struct:records:7`.
+menus queue are rows of their own, `struct:records:7` (a run of them the
+queue's eight bytes apart, `struct:records:8`), each named for what it
+sends (`menu_upload_front_layer`, `menu_uploads_window_sets`): the code
+names a record by its row (`MENU_UPLOAD_FRONT_LAYER`) and
+`menu_upload_record` reads it by name, no place in bank `$C2`.
 
 ### Text
 
