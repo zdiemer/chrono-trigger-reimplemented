@@ -92,6 +92,8 @@ typedef struct {
     VidObjConfig obj;
     uint8_t main_layers;
     VidWindows windows;
+    VidColorMath math;
+    uint16_t fixed_color;          /* BGR555 */
     VidLineEffect slot[8];         /* the line effects' slots as the game programmed them */
     /* the maps the line effects show part of the way down, beside the layers' own */
     LineMap line_maps[6];
@@ -391,12 +393,38 @@ void vid_set_windows(Platform *pf, PfOrigin o, const VidWindows *w, uint32_t fie
 }
 void vid_set_color_math(Platform *pf, PfOrigin o, const VidColorMath *m, uint32_t fields)
 {
-    (void)pf, (void)o, (void)m, (void)fields;
+    (void)pf, (void)o;
+    if (fields & VID_MATH_CONTROL) {
+        snes.math.clip_black = m->clip_black;
+        snes.math.prevent_math = m->prevent_math;
+        snes.math.sub_screen = m->sub_screen;
+        snes.math.direct = m->direct;
+    }
+    if (fields & VID_MATH_LAYERS) {
+        snes.math.subtract = m->subtract;
+        snes.math.half = m->half;
+        snes.math.layers = m->layers;
+    }
 }
+
+static uint16_t fixed_channels(uint16_t color, uint8_t channels, uint8_t intensity)
+{
+    uint16_t c = intensity & 31;
+    if (channels & VID_RED)
+        color = (uint16_t)((color & ~0x001F) | c);
+    if (channels & VID_GREEN)
+        color = (uint16_t)((color & ~0x03E0) | c << 5);
+    if (channels & VID_BLUE)
+        color = (uint16_t)((color & ~0x7C00) | c << 10);
+    return color;
+}
+
 void vid_set_fixed_color(Platform *pf, PfOrigin o, uint8_t channels, uint8_t intensity)
 {
-    (void)pf, (void)o, (void)channels, (void)intensity;
+    (void)pf, (void)o;
+    snes.fixed_color = fixed_channels(snes.fixed_color, channels, intensity);
 }
+
 void vid_set_line_slot(Platform *pf, PfOrigin o, uint8_t slot, const VidLineEffect *e)
 {
     (void)pf, (void)o;
@@ -953,6 +981,7 @@ enum {
 /* A line's registers on the GBA. */
 typedef struct {
     uint16_t dispcnt, bgcnt[3], hofs[3], vofs[3], win0h, win1h, winin, winout, bldcnt, bldy;
+    uint16_t backdrop;
 } LineRegisters;
 
 static LineRegisters lines[GBA_LINES];
@@ -964,6 +993,8 @@ typedef struct {
     uint8_t main_layers;
     uint16_t hofs[3], vofs[3];
     uint8_t map[3];       /* each layer's map, as the SNES's register byte (vid_bg_map_decode) */
+    VidColorMath math;
+    uint16_t fixed_color;
     uint8_t brightness;
     bool blank;
 } LineState;
@@ -1046,6 +1077,20 @@ static void line_apply(LineState *st, VidLineTarget target, unsigned k, uint8_t 
         break;
     case VID_LINE_MAIN_SCREEN: st->main_layers = v; break;
     case VID_LINE_BG_MAPS: if (k < 3) st->map[k] = v; break;
+    case VID_LINE_FIXED_COLOR: st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31)); break;
+    case VID_LINE_COLOR_MATH:
+        if (k == 0) vid_color_math_decode(&st->math, VID_MATH_CONTROL, v);
+        else if (k == 1) vid_color_math_decode(&st->math, VID_MATH_LAYERS, v);
+        else if (k == 2) st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31));
+        break;
+    case VID_LINE_MATH_LAYERS:
+        if (k == 0) vid_color_math_decode(&st->math, VID_MATH_LAYERS, v);
+        else st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31));
+        break;
+    case VID_LINE_MATH_LAYERS_ONLY: vid_color_math_decode(&st->math, VID_MATH_LAYERS, v); break;
+    case VID_LINE_MATH_CONTROL_AND_LAYERS:
+        vid_color_math_decode(&st->math, k == 0 ? VID_MATH_CONTROL : VID_MATH_LAYERS, v);
+        break;
     case VID_LINE_BG2_MAP: st->map[1] = v; break;
     default: break;
     }
@@ -1139,6 +1184,27 @@ static void note_line_map(unsigned n, uint8_t map)
     snes.settings_changed = true;
 }
 
+/* The backdrop with the fixed colour's math on it, where the math takes the
+ * backdrop in: the one part of the SNES's colour math the GBA is given (its
+ * blending can't add a colour), which the field's dialog's gradient is. */
+static uint16_t backdrop(const LineState *st)
+{
+    uint16_t base = snes.cgram[0];
+    const VidColorMath *m = &st->math;
+    if (!(m->layers & VID_BACK_BIT) || m->sub_screen || m->prevent_math == VID_REGION_ALWAYS)
+        return base;
+    uint16_t out = 0;
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        int a = base >> shift & 31, b = st->fixed_color >> shift & 31;
+        int c = m->subtract ? a - b : a + b;
+        if (m->half)
+            c >>= 1;
+        c = c < 0 ? 0 : c > 31 ? 31 : c;
+        out |= (uint16_t)(c << shift);
+    }
+    return out;
+}
+
 static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled)
 {
     LineRegisters r = { 0 };
@@ -1167,6 +1233,7 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     }
     r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
     r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
+    r.backdrop = backdrop(st);
     return r;
 }
 
@@ -1184,6 +1251,7 @@ static void set_line(const LineRegisters *r)
     WINOUT = r->winout;
     BLDCNT = r->bldcnt;
     BLDY = r->bldy;
+    BG_PALETTE[0] = r->backdrop;
 }
 
 /* At each line's horizontal blank, the next line's registers; in the
@@ -1204,7 +1272,8 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_hblan
 static void present_lines(Platform *pf, uint16_t layers_enabled)
 {
     const VidHost *v = &pf->video;
-    LineState st = { .windows = snes.windows, .main_layers = snes.main_layers,
+    LineState st = { .windows = snes.windows, .main_layers = snes.main_layers, .math = snes.math,
+                     .fixed_color = snes.fixed_color,
                      .brightness = (uint8_t)(v->display.brightness & 15), .blank = v->display.blank };
     for (unsigned n = 0; n < 3; n++)
         st.hofs[n] = snes.bg[n].hofs, st.vofs[n] = snes.bg[n].vofs, st.map[n] = map_byte_of(&snes.bg[n]);
@@ -1255,6 +1324,8 @@ static void present_lines(Platform *pf, uint16_t layers_enabled)
     }
     /* What the effects leave stands, as the SNES's registers do. */
     snes.windows = st.windows;
+    snes.math = st.math;
+    snes.fixed_color = st.fixed_color;
     snes.main_layers = st.main_layers;
     for (unsigned n = 0; n < 3; n++)
         snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
