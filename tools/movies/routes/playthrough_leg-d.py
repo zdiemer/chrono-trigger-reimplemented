@@ -71,12 +71,16 @@ CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 # The caves' two Spawn leave the party all but beaten, and the third, met
 # so, wipes it before anyone acts: a Shelter at the last save point first.
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
-# Crono back, he joins in Lucca's place at the End of Time, at the level he
-# died at. The purse the growing filled buys the 12000 B.C. village's best
-# armour and helms and its Full and Mid Tonics and Ethers, before the End of
-# Time's light and its bucket into Lavos's shell (other_endings). The shell's
-# imitations fall to the party's techs (Crono's lightning for Nizbel), healed
-# from the bag between them; the shell's own form to Haste and healing first.
+# Crono back, he joins in Robo's place at the End of Time, grown with the
+# others (the experience the party wins is shared with those in reserve).
+# Lavos's inner form opens with a spell no member with less than 85 magic
+# defence survives (policies.lavos_inner), and Crono, Marle and Lucca have
+# it where Robo does not. The purse the growing filled buys the 12000 B.C.
+# village's best armour and helms and its Full and Mid Tonics and Ethers,
+# before the End of Time's light and its bucket into Lavos's shell
+# (other_endings). The shell's imitations fall to the party's techs (Crono's
+# lightning for Nizbel), healed from the bag between them; the shell's own
+# form to Haste and healing first.
 REUNITED = ["restored", "crono_joins"]
 GROWN = ["stocked", "equipped"]
 LAVOS = other_endings.BUCKET_PHASES[1:3] + ["imitations"] + other_endings.BUCKET_PHASES[3:]
@@ -115,7 +119,7 @@ SLOT_RECORD = {HELM: 0x27, ARMOUR: 0x28, WEAPON: 0x29, ACCESSORY: 0x2A}   # char
 FIRST_LIST_ROW = 4                                           # its cursor on the list's first row
 AEON_SUIT, AEON_HELM, RAGE_BAND = 0x69, 0x85, 0xA6
 AEON_SUITS, AEON_HELMS = 6, 7   # their places in the 12000 B.C. village shop's list
-BEST_GEAR = [(MARLE, ARMOUR, AEON_SUIT), (MARLE, HELM, AEON_HELM), (ROBO, ARMOUR, AEON_SUIT),
+BEST_GEAR = [(MARLE, ARMOUR, AEON_SUIT), (MARLE, HELM, AEON_HELM), (LUCCA, ARMOUR, AEON_SUIT),
              (CRONO, HELM, AEON_HELM), (CRONO, ACCESSORY, RAGE_BAND)]
 HEAL_BEAM, HEAL_BEAM_MP = 4, 3         # Robo's tech list's Heal Beam and its cost
 FIRST_MEMBER_ROW = 11                          # the techs screen's cursor on the first member
@@ -674,6 +678,7 @@ def main():
             restore_at_the_light(run)
             run.checkpoint("restored")
         if later <= 1:
+            assert run.wait_control() and run.find_player() is not None, "the End of Time in hand"
             assert run.go(*BELOW_CRONO, tolerance=3), "below Crono"
             machine.run(2, "UP")
             machine.run(8)
@@ -681,7 +686,7 @@ def main():
             machine.run(30)
             machine.run(3, "A")                     # Yes
             machine.run(120)
-            exchange(run, CRONO, LUCCA)
+            exchange(run, CRONO, ROBO)
             run.checkpoint("crono_joins")
         later -= len(REUNITED)
         if later <= 0:

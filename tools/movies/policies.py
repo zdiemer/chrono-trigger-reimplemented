@@ -315,26 +315,51 @@ def holding_out(bot, state, rng, inventory):
 
 
 INNER_ARMS, INNER_BODY = (3, 6), 10     # the inner Lavos's arms (8000 and 12000 HP) and body (20000)
+# The guards a member wears through a fight, from the bag: the Barrier
+# (0xCB) takes three tenths off magic, the Shield (0xCC) off blows; one member
+# each. Their bits in the stat block's fourth status byte.
+BARRIER, SHIELD = 0xCB, 0xCC
+STATUS_4, BARRIERED, SHIELDED = 0x21 - 0x03, 0x40, 0x04
+
+
+def guard_up(bot, state, inventory):
+    """A Barrier, then a Shield, on the first member standing without one, or
+    None: Lavos's spells and blows land three tenths lighter after."""
+    members = [slot for slot in range(bot.party) if state.hp(slot) > 0]
+    for item, bit in ((BARRIER, BARRIERED), (SHIELD, SHIELDED)):
+        for slot in members:
+            if not bot.machine.b(A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE + STATUS_4) & bit:
+                action = use(inventory, item, slot)
+                if action:
+                    return action
+    return None
+
+
+def strongest_single(bot, state, target):
+    """The member's strongest single-target tech it has the MP for, at
+    `target`, or an attack."""
+    member = state.member
+    for index, cost in CHARACTER_TECHS.get(party_ids(bot)[member], {}).get("one", []):
+        if state.mp(member) >= cost and single_tech_known(bot, member, index):
+            return ("tech", index, target)
+    return ("attack", target)
 
 
 def lavos_inner(bot, state, rng, inventory):
-    """Lavos's inner form. Its body's defence turns weapons and the arms raise
-    it again, so the arms go first and together, the one with more HP left
-    taken down (a fan guide, cavesofnarshe.com's walkthrough chapter 35, and
-    gamercorner.net's: Span Death revives the body while an arm stands, and
-    the arms' Protective Seal takes the party's defence status away); then the
-    body. Healing first, Marle's Haste, and the strongest single hits: Robo's
-    Uzzi Punch, Crono's attack."""
-    action = keep_up(bot, state, inventory) or hasten(bot, state)
+    """Lavos's inner form. Its arms open with a spell (37 power on its level
+    and magic, $C1:E0F5) that takes 2,960 before magic defence: a member
+    with less than 85 dies before anyone acts, so the party is the one whose
+    magic defence holds (Crono, Marle and Lucca). Its body's defence turns
+    weapons and the arms raise it again, so the arms go first and together,
+    the one with more HP left taken down (cavesofnarshe.com's walkthrough
+    chapter 35, and gamercorner.net's: Span Death revives the body while an
+    arm stands); then the body. Healing first, Marle's Haste, a Barrier and a
+    Shield on everyone, then each member's strongest single hit."""
+    action = keep_up(bot, state, inventory) or hasten(bot, state) or guard_up(bot, state, inventory)
     if action:
         return action
     arms = [slot for slot in INNER_ARMS if state.hp(slot) > 0]
-    target = max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY
-    member = state.member
-    for index, cost in CHARACTER_TECHS.get(party_ids(bot)[member], {}).get("one", []):
-        if party_ids(bot)[member] == ROBO and state.mp(member) >= cost and tech_known(bot, member, index):
-            return ("tech", index, target)
-    return ("attack", target)
+    return strongest_single(bot, state, max(arms, key=lambda slot: state.hp(slot)) if arms else INNER_BODY)
 
 
 # Lavos's core: its center (slot 3, 10000 HP), left bit (7, 2000) and right
@@ -359,10 +384,9 @@ def lavos_core(bot, state, rng, inventory):
     Crying Heavens hit all, so healing comes first, and Marle's Haste.
     (Gamercorner.net's and Neoseeker's core guides; the defence read is the
     port's own record.)"""
-    action = keep_up(bot, state, inventory) or hasten(bot, state)
+    action = keep_up(bot, state, inventory) or hasten(bot, state) or guard_up(bot, state, inventory)
     if action:
         return action
-    member = state.member
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
         target = CORE_RIGHT
     elif state.hp(CORE_LEFT) > 0:
@@ -371,10 +395,7 @@ def lavos_core(bot, state, rng, inventory):
         target = CORE_CENTER
     else:
         target = CORE_RIGHT
-    for index, cost in CHARACTER_TECHS.get(party_ids(bot)[member], {}).get("one", []):
-        if party_ids(bot)[member] == ROBO and state.mp(member) >= cost and tech_known(bot, member, index):
-            return ("tech", index, target)
-    return ("attack", target)
+    return strongest_single(bot, state, target)
 
 
 LAVOS_SHELL, LAVOS_SHELL_HP = 3, 10000
