@@ -985,13 +985,20 @@ work, at the rate the accesses were made at. The work is whole master
 clocks plus thousandths of one, and the rate is split the same way, so a
 stretch's clocks times each part is exactly the sum each access's 64-bit
 product in thousandths gave, in 32-bit sums; the thousandths are made whole
-as they pass 2^30, and once more when the backend takes the work. A scope
-finds its row in a 128-entry table of the rows named lately (`row_of`),
-with the rate already split, instead of a binary search of all 2,318 rows.
+as they pass 2^30, and once more when the backend takes the work; the
+clocks go in runs of at most 65,535, whose products with a rate's whole
+clocks (16 bits) can't pass 2^32, so a pricing needs no division (the
+ARM7TDMI's Thumb has none, and the C library's took 2.5% of the battle's
+samples). A scope, and a charge at a routine's rate (`charge_as`), finds
+its row in a 128-entry table of the rows named lately (`row_of`), with the
+rate already split, instead of a binary search of all 2,318 rows.
 Every movie plays to the same lag frames and end states (the gate,
 `tools/lean_check.py`). Priced at every access, the time model was 15-20%
 of the GBA's samples, its pricing out of line at the accessors' 6,400 call
-sites; counted inline, the program grows by 210 KiB. Only the timing
+sites; counted inline, the program grows by 210 KiB. Reads of work RAM by
+address go straight to its banks: the flat state's bytes no owner keeps
+hold 0 and are never written, so a read needs no look at the owners
+(`vars_flat_host.c`). Only the timing
 report's totals (`StateHostTime`, outside the lean build) are still 64-bit.
 
 **The interpreters decode what a row names, and reads go on through a run**

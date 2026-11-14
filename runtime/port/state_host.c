@@ -202,7 +202,13 @@ static void stray(const GameState *g, uint32_t addr)
 
 uint8_t state_host_read8(const GameState *g, uint32_t addr)
 {
-    uint32_t offset;
+    uint32_t offset = (addr & 0xFFFFFF) - 0x7E0000u;
+    if (offset < 0x20000u) {
+        /* work RAM's own banks, where most reads by address are */
+        uint8_t value = 0;
+        vars_host_read8(&g->head.vars, 0x7E0000u + offset, &value);
+        return value;
+    }
     switch (place_of(addr & 0xFFFFFF, &offset)) {
     case IN_WRAM: {
         uint8_t value = 0;
@@ -448,16 +454,17 @@ static void whole_clocks(GameState *g)
 /* `clocks` of the machine's bus at a rate of `whole` clocks and `milli`
  * thousandths each, added to the work exactly as their product in
  * thousandths would be, in 32-bit sums: a run of them at a time small enough
- * that the thousandths stay under 2^32. */
-enum { MILLI_LIMIT = 0x40000000, CLOCKS_AT_ONCE = MILLI_LIMIT / 1000 };
+ * that neither product can pass 2^32 (a rate's whole clocks fit 16 bits,
+ * tests/test_time_rates.py) and the thousandths stay under it. */
+enum { MILLI_LIMIT = 0x40000000, CLOCKS_AT_ONCE = 0xFFFF };
 
 static void add_work(GameState *g, uint32_t clocks, uint32_t whole, uint32_t milli)
 {
     while (clocks) {
         uint32_t n = clocks < CLOCKS_AT_ONCE ? clocks : CLOCKS_AT_ONCE;
         uint32_t add = n * whole;
-        g->head.account.work_clocks = add > UINT32_MAX - g->head.account.work_clocks || (whole && add / whole != n) ? UINT32_MAX
-                                                                                          : g->head.account.work_clocks + add;
+        g->head.account.work_clocks = add > UINT32_MAX - g->head.account.work_clocks ? UINT32_MAX
+                                                                                     : g->head.account.work_clocks + add;
         g->head.account.work_milli += n * milli;
         if (g->head.account.work_milli >= MILLI_LIMIT)
             whole_clocks(g);
@@ -468,6 +475,11 @@ static void add_work(GameState *g, uint32_t clocks, uint32_t whole, uint32_t mil
 static void add_work_at(GameState *g, uint32_t clocks, uint32_t rate)
 {
     add_work(g, clocks, rate / 1000u, rate % 1000u);
+}
+
+static void add_work_as(GameState *g, uint32_t clocks, const RecentRow *row)
+{
+    add_work(g, clocks, row->rate_clocks, row->rate_milli);
 }
 
 /* Whether the run keeps the totals; the lean build (CT_LEAN) keeps none. */
@@ -545,10 +557,15 @@ enum { BLOCK_MOVE = 0x7E9690, ACCESS_CLOCKS = 8, ACCESSES_PER_BYTE_MOVED = 2 };
 
 void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 {
-    unsigned index = rate_index(routine);
-    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
-    add_work_at(g, accesses * ACCESS_CLOCKS, rate ? rate : g->head.account.rate);
-    record_work(g, rate ? index : g->timed, 0, accesses * ACCESS_CLOCKS, rate ? rate : g->head.account.rate);
+    const RecentRow *row = row_of(routine);
+    uint32_t clocks = accesses * ACCESS_CLOCKS;
+    if (row->rate) {
+        add_work_as(g, clocks, row);
+        record_work(g, row->index, 0, clocks, row->rate);
+    } else {
+        add_work(g, clocks, g->head.account.rate_clocks, g->head.account.rate_milli);
+        record_work(g, g->timed, 0, clocks, g->head.account.rate);
+    }
 }
 
 void charge_block_move(GameState *g, uint32_t bytes) { charge_as(g, BLOCK_MOVE, bytes * ACCESSES_PER_BYTE_MOVED); }
