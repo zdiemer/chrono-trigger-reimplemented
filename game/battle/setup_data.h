@@ -21,7 +21,8 @@
  * character ($E4:2000, $E4:2300; the tile lists are also an enemy's, by its
  * graphics set); and an animation set's frame lists and frame delay lists,
  * in bank $E4, a word a set ($E4:2600, $E4:2800). */
-enum { SETUP_ANIMATION_BANK = 0xE4 };
+static inline uint32_t setup_frame_lists_at(uint16_t place) { return asset_place_address(ASSET_SETUP_FRAME_LISTS, place); }
+static inline uint32_t setup_delay_lists_at(uint16_t place) { return asset_place_address(ASSET_SETUP_DELAY_LISTS, place); }
 
 /* An enemy's header, ten bytes an enemy number ($E4:F600): its graphics set
  * and animation set, its flags, where its cursor points and how big it is,
@@ -147,8 +148,11 @@ static inline uint8_t setup_enemy_name_char(const GameState *g, uint16_t at)
  * $FF:9C70, $FF:9E0A), by run and color. */
 static inline uint16_t setup_fixed_color(const GameState *g, unsigned run, unsigned color)
 {
-    static const uint32_t runs[3] = { 0xFF9C68u, 0xFF9C70u, 0xFF9E0Au };
-    return rom_read16(g, runs[run] + 2 * color);
+    static const struct {
+        AssetId colors;
+        uint8_t from;
+    } runs[3] = { { ASSET_WINDOW_COLOURS, 0 }, { ASSET_WINDOW_COLOURS, 0x08 }, { ASSET_SCREEN_COLOURS, 0x1A } };
+    return asset_read16(g, runs[run].colors, runs[run].from + 2u * color);
 }
 
 /* A party member's color set, by the byte the battle carries for it
@@ -305,13 +309,18 @@ static inline EnemyStatsRecord enemy_stats_record(const GameState *g, uint8_t en
 
 /* The characters' records as a new game starts them ($CC:0000, laid out as
  * character_records), which a demo battle's party starts from. */
-static inline uint8_t character_start_record_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xCC0000u + at); }
+static inline uint8_t character_start_record_byte(const GameState *g, uint16_t at)
+{
+    return asset_read8(g, ASSET_CHARACTER_START_RECORDS, at);
+}
 
 static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned character)
 {
     uint16_t at = (uint16_t)(asset_read16(g, ASSET_DEMO_MEMBER, (uint8_t)(demo << 1)) + character * 8);
-    return (DemoMember){ rom_read16(g, 0xFD0000u | at), rom_read16(g, 0xFD0000u | (uint16_t)(at + 2)),
-                         rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
+    return (DemoMember){ asset_read16_at_place(g, ASSET_DEMO_MEMBER, at),
+                         asset_read16_at_place(g, ASSET_DEMO_MEMBER, (uint16_t)(at + 2)),
+                         asset_read16_at_place(g, ASSET_DEMO_MEMBER, (uint16_t)(at + 4)),
+                         asset_read16_at_place(g, ASSET_DEMO_MEMBER, (uint16_t)(at + 6)) };
 }
 
 /* A demo battle's party's chosen actions, every turn: a member's action
@@ -321,7 +330,7 @@ static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned 
 static inline uint8_t demo_member_action_byte(const GameState *g, uint8_t demo, unsigned member, unsigned at)
 {
     uint16_t from = asset_read16(g, ASSET_DEMO_MEMBER_ACTION_BYTE, (uint8_t)(demo << 1));
-    return rom_read8(g, 0xFD0000u | (uint16_t)(from + member * MEMBER_ACTION_RECORD_BYTES + at));
+    return asset_read8_at_place(g, ASSET_DEMO_MEMBER_ACTIONS, (uint16_t)(from + member * MEMBER_ACTION_RECORD_BYTES + at));
 }
 
 static inline uint8_t first_turn_wait(const GameState *g, uint8_t setting, uint8_t speed)

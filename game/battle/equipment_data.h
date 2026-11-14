@@ -18,8 +18,6 @@
 #include "rom.h"
 #include "state.h"
 
-enum { EQUIPMENT_BANK = 0xCC0000u };
-
 /* The item ranges, each from its first. */
 enum {
     FIRST_ARMOR = 0x5A,
@@ -53,11 +51,13 @@ typedef struct {
     uint8_t stats, amount;
 } StatBoost;
 
-enum { STAT_BOOSTS = 0x29D7, NO_BOOST = 0 };
+enum { NO_BOOST = 0 };
 
-/* A table of the ROM's the stat setup names beside the boosts, which nothing
- * the setup does reads ($CC:2A03). */
-enum { STAT_SETUP_SPARE_TABLE = 0x2A03 };
+/* Where the boosts are in their bank, which the setup leaves in a cell; and
+ * a table of the ROM's the stat setup names beside them, which nothing the
+ * setup does reads ($CC:2A03). */
+static inline uint16_t stat_boosts_place(void) { return (uint16_t)asset_address(ASSET_STAT_BOOSTS); }
+static inline uint16_t stat_setup_spare_table_place(void) { return (uint16_t)asset_address(ASSET_STAT_SETUP_SPARE_TABLE); }
 
 /* The other items' battle records ($CC:0ABC, three bytes an item from $BC):
  * the first byte's top bit says the battle uses the item, and the rest go in
@@ -70,43 +70,47 @@ typedef struct {
     uint8_t flags, menu_detail;
 } ItemInBattle;
 
-static inline uint8_t equipment_bank_byte(const GameState *g, uint16_t place) { return rom_read8(g, EQUIPMENT_BANK | place); }
+/* A byte of bank CC where a place the records or the setup's cells give
+ * leads: the equipment's records link to one another, and to the boosts, by
+ * place in their bank. */
+static inline uint8_t equipment_bank_byte(const GameState *g, uint16_t place)
+{
+    return rom_read8_in_bank_of(g, ASSET_WEAPON_RECORDS, place);
+}
 
 static inline ItemRecords item_records_of(uint8_t item)
 {
     if (item < FIRST_ARMOR)
-        return (ItemRecords){ 0, 5, 0x0262 };
+        return (ItemRecords){ 0, 5, (uint16_t)asset_address(ASSET_WEAPON_RECORDS) };
     if (item < FIRST_HELMET)
-        return (ItemRecords){ FIRST_ARMOR, 3, 0x047E };
+        return (ItemRecords){ FIRST_ARMOR, 3, (uint16_t)asset_address(ASSET_ARMOR_RECORDS) };
     if (item < FIRST_ACCESSORY)
-        return (ItemRecords){ FIRST_HELMET, 3, 0x04E1 };
+        return (ItemRecords){ FIRST_HELMET, 3, (uint16_t)asset_address(ASSET_HELMET_RECORDS) };
     if (item < FIRST_OTHER_ITEM)
-        return (ItemRecords){ FIRST_ACCESSORY, 4, 0x052C };
+        return (ItemRecords){ FIRST_ACCESSORY, 4, (uint16_t)asset_address(ASSET_ACCESSORY_RECORDS) };
     if (item < ITEMS_RECORDED)
-        return (ItemRecords){ FIRST_OTHER_ITEM, 4, 0x05CC };
+        return (ItemRecords){ FIRST_OTHER_ITEM, 4, (uint16_t)asset_address(ASSET_OTHER_ITEM_RECORDS) };
     return (ItemRecords){ 0, 0, 0 };
 }
 
 static inline uint16_t boost_records_place(EquipmentKind kind)
 {
-    static const uint16_t first[] = { 0x06A4, 0x08C0, 0x0986 };
-    return first[kind];
+    static const AssetId boosts[] = { ASSET_WEAPON_BOOST_RECORDS, ASSET_ARMOR_BOOST_RECORDS, ASSET_HELMET_BOOST_RECORDS };
+    return (uint16_t)asset_address(boosts[kind]);
 }
-
-static inline uint16_t stat_boost_place(uint8_t boost) { return (uint16_t)(boost * 2 + STAT_BOOSTS); }
 
 static inline StatBoost stat_boost(const GameState *g, uint8_t boost)
 {
-    uint16_t at = stat_boost_place(boost);
-    return (StatBoost){ equipment_bank_byte(g, at), equipment_bank_byte(g, (uint16_t)(at + 1)) };
+    uint32_t at = (uint32_t)(boost * 2);
+    return (StatBoost){ asset_read8(g, ASSET_STAT_BOOSTS, at), asset_read8(g, ASSET_STAT_BOOSTS, at + 1) };
 }
 
 static inline ItemInBattle item_in_battle(const GameState *g, uint8_t item)
 {
     uint8_t number = (uint8_t)(item - FIRST_OTHER_ITEM);
-    uint8_t first = equipment_bank_byte(g, (uint16_t)(0x0ABC + (uint8_t)(number * 3)));
+    uint8_t first = asset_read8(g, ASSET_ITEM_RECORD_FLAGS, (uint8_t)(number * 3));
     return (ItemInBattle){ (first & USED_IN_BATTLE) != 0, (uint8_t)(first & ~USED_IN_BATTLE),
-                           equipment_bank_byte(g, (uint16_t)(0x1BB5 + number)) };
+                           asset_read8(g, ASSET_ITEM_AIM_MODE, number) };
 }
 
 #endif

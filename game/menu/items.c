@@ -240,7 +240,7 @@ static void copy_items_data(GameState *g)
 static void note_name_places(GameState *g)
 {
     for (unsigned item = 0; item < MENU_ITEMS; item++)
-        set_menu_item_name_places(g, item, (uint16_t)(MENU_ITEM_NAMES + item * MENU_NAME_TABLE_BYTES));
+        set_menu_item_name_places(g, item, menu_item_names_place((uint8_t)item));
 }
 
 /* No one uses the rest's items as the lists count users, and nothing past

@@ -127,7 +127,7 @@ enum { MENU_TEXT_START = 0xC257DF, MENU_TEXT_GO_ON = 0xC25823 };
  * field opened it, otherwise the table the script named. */
 static uint32_t dialog_strings(const GameState *g)
 {
-    return dialog_opened_by_the_field(g) ? FIELD_MESSAGES : dialog_string_table(g);
+    return dialog_opened_by_the_field(g) ? field_messages() : dialog_string_table(g);
 }
 
 // $C0:20F2
@@ -676,7 +676,7 @@ void field_send_the_fields_own_sprites(GameState *g, Platform *pf)
 {
     for (unsigned k = 0; k < OWN_SPRITE_ROWS; k++) {
         FieldTransfer t = { own_sprite_rows[k].vram, FIELD_TRANSFER_WORDS,
-                            (uint32_t)FIELD_OWN_SPRITES_TILES + own_sprite_rows[k].from, OWN_SPRITE_ROW_BYTES };
+                            field_own_sprites_tiles() + own_sprite_rows[k].from, OWN_SPRITE_ROW_BYTES };
         TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, t));
     }
 }
@@ -687,6 +687,6 @@ enum { POINTER_TILES_VRAM = 0x57E0, POINTER_TILES_BYTES = 0x40 };
 
 void field_send_the_choice_pointer(GameState *g, Platform *pf)
 {
-    FieldTransfer t = { POINTER_TILES_VRAM, FIELD_TRANSFER_WORDS, FIELD_CHOICE_POINTER_TILES, POINTER_TILES_BYTES };
+    FieldTransfer t = { POINTER_TILES_VRAM, FIELD_TRANSFER_WORDS, field_choice_pointer_tiles(), POINTER_TILES_BYTES };
     TIMED_AS(g, FIELD_VRAM_TRANSFER_ENTRY, field_send_transfer(g, pf, t));
 }

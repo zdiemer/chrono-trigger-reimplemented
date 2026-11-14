@@ -142,9 +142,9 @@ static void set_up_member_stats(GameState *g, uint8_t member)
          * table's in cells, and names another table before the affinities,
          * which don't read it: kept, as later work reads the cells */
         battle_keep_word(g, RECORD_AT, record);
-        battle_keep_word(g, TABLE_AT, STAT_BOOSTS);
+        battle_keep_word(g, TABLE_AT, stat_boosts_place());
         apply_boost(g, member, record);
-        battle_keep_word(g, TABLE_AT, STAT_SETUP_SPARE_TABLE);
+        battle_keep_word(g, TABLE_AT, stat_setup_spare_table_place());
         add_affinities(g, member, record);
     }
 }

@@ -35,14 +35,13 @@
 /* The four tables a record's fields pick from (field_data.h), where
  * field_sprite_data_tables points them. The game points them all into bank
  * $E4; the port refuses any other place. */
-enum { SPRITE_TABLES_BANK = 0xE4 };
 
 static uint32_t sprite_table(const GameState *g, FieldSpriteTable table) { return field_sprite_data_tables(g, table); }
 
 bool cast_tables_in_the_rom(const GameState *g)
 {
     for (FieldSpriteTable t = FIELD_SPRITE_GRAPHICS_SETS; t < FIELD_SPRITE_TABLES; t++)
-        if (sprite_table(g, t) >> 16 != SPRITE_TABLES_BANK)
+        if (sprite_table(g, t) >> 16 != asset_address(ASSET_SPRITE_RESOURCE_BASES) >> 16)
             return false;
     return true;
 }

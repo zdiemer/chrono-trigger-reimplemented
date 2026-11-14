@@ -70,8 +70,8 @@ static uint16_t next_animation_at(uint8_t set) { return (uint16_t)((set + 1) << 
 static void animate_as(GameState *g, unsigned slot, uint8_t set)
 {
     uint16_t frames = setup_frame_lists(g, animation_at(set)), delays = setup_delay_lists(g, animation_at(set));
-    set_battle_object_frame_lists(g, slot, (uint32_t)SETUP_ANIMATION_BANK << 16 | frames);
-    set_battle_object_delay_lists(g, slot, (uint32_t)SETUP_ANIMATION_BANK << 16 | delays);
+    set_battle_object_frame_lists(g, slot, setup_frame_lists_at(frames));
+    set_battle_object_delay_lists(g, slot, setup_delay_lists_at(delays));
     uint16_t stride = (uint16_t)(setup_frame_lists(g, next_animation_at(set)) - frames) / FACINGS;
     set_battle_facing_stride_low(g, slot, (uint8_t)stride);
     set_battle_facing_stride_high(g, slot, (uint8_t)(stride >> 8));

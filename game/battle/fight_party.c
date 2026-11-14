@@ -343,7 +343,7 @@ void fight_add_up_member_stats(GameState *g, uint8_t member)
     set_combatant_stat_byte(g, member, STAT_DEFENCE, defence < MOST_DEFENCE ? (uint8_t)defence : MOST_DEFENCE);
     uint8_t boost = combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST);
     if ((combatant_stat_byte(g, member, STAT_ACCESSORY_FLAGS) & GIVES_BOOST) && boost) {
-        battle_keep_word(g, BOOST_TABLE_AT, STAT_BOOSTS);
+        battle_keep_word(g, BOOST_TABLE_AT, stat_boosts_place());
         battle_apply_boost(g, member, boost);
     }
     /* the original finds the weapon's record by a multiply, then reads the

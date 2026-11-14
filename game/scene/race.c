@@ -61,10 +61,6 @@ enum {
     RACERS_MAP_BYTES = 0x1000,
 };
 
-/* The plane's name table in the cartridge, whose first column the race sends
- * before it has one of its own. */
-enum { PLANE_MAP_IN_ROM = 0xD20000 };
-
 /* ---- The setup's pieces ------------------------------------------------------------------------ */
 
 // $7E:3C09
@@ -578,7 +574,7 @@ TaskEnd scene_race_upload_column_rom(GameState *g, Platform *pf, unsigned slot)
 {
     (void)g;
     (void)slot;
-    return send_column_once(pf, PLANE_MAP_IN_ROM);
+    return send_column_once(pf, scene_race_plane_map());
 }
 
 // $7E:464D

@@ -328,7 +328,6 @@ enum { BLANK_ROW_TILE = 0x61FF, TILES_A_ROW = 32, LABEL_TILES_AT = 0x5E00, LABEL
 /* The label above the name: a string of the menus' own, laid out on two
  * strips of the text layer. */
 enum {
-    LABEL_STRINGS = 0xFFCF3B,
     LABEL_STRING = 0,
     LABEL_TOP_AT = 0x50CA,
     LABEL_BOTTOM_AT = 0x514A,
@@ -388,10 +387,10 @@ void menu_naming_open(GameState *g, Platform *pf)
     charge_block_move(g, 2 * NAME_BYTES + 2 * TILES_A_ROW + LABEL_TILE_BYTES);
     menu_draw_windows(g, pf, NAME_WINDOW);
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
-    set_menu_text_strings(g, LABEL_STRINGS);
+    set_menu_text_strings(g, menu_label_strings());
     set_menu_text_string(g, LABEL_STRING);
     set_menu_load_destination(g, LABEL_TILES_AT);
-    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, LABEL_STRINGS, LABEL_STRING, LABEL_TILES_AT));
+    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, menu_label_strings(), LABEL_STRING, LABEL_TILES_AT));
     TIMED_AS(g, 0xC2FB97, menu_lay_out_label(g, LABEL_TOP_AT, LABEL_COLUMNS, LABEL_TOP_TILE));
     TIMED_AS(g, 0xC2FB97, menu_lay_out_label(g, LABEL_BOTTOM_AT, LABEL_COLUMNS, LABEL_BOTTOM_TILE));
     set_menu_cursor_sprite(g, (uint16_t)((menu_cursor_sprite(g) & 0xFF00) | CURSOR_TILE));
@@ -479,7 +478,6 @@ void menu_naming_open_the_battle_mode(GameState *g, Platform *pf)
 /* The mode on the cursor is described, two glyphs a frame, on a row of
  * its own: the menus' strings from the second. */
 enum {
-    MODE_TEXTS = 0xFFCF3B,
     MODE_LINE = 0x5248,
     MODE_ROW_VRAM = 0x6A20,
     MODE_ROW_BYTES = 0x200,
@@ -496,7 +494,7 @@ void menu_naming_describe_the_battle_mode(GameState *g)
     set_menu_text_string(g, text);
     set_menu_description_line(g, MODE_LINE);
     set_menu_description_row_vram(g, MODE_ROW_VRAM);
-    set_menu_text_strings(g, MODE_TEXTS);
+    set_menu_text_strings(g, menu_label_strings());
     set_menu_description_pace(g, TWO_GLYPHS_A_FRAME);
     set_menu_description_row_bytes(g, MODE_ROW_BYTES);
     TIMED_AS(g, 0xC2FA49, menu_start_typing(g));

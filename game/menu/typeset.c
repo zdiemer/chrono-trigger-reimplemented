@@ -371,7 +371,7 @@ static bool control_code(GameState *g, uint8_t code, uint8_t *budget)
     else if (names_a_character(code))
         insert_name_at(g, character_name_place(g, code, code == CODE_CHARACTER ? (uint8_t)next_argument(g, 1) : 0));
     else if (code == CODE_NADIA)
-        insert(g, FROM_INSERT, MENU_MARLE_REAL_NAME, MARLE_REAL_NAME_GLYPHS);
+        insert(g, FROM_INSERT, menu_marle_real_name(), MARLE_REAL_NAME_GLYPHS);
     else if (code == CODE_ITEM)
         insert_item_name(g, (uint8_t)event_variables(g, 0));
     else {   /* CODE_NAMED */

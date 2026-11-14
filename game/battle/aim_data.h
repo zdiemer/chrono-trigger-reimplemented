@@ -65,15 +65,20 @@ static inline uint16_t area_rules_place(const GameState *g, uint8_t area)
 }
 
 /* How many rules the set at `place` has. */
-static inline uint8_t area_rule_count(const GameState *g, uint16_t place) { return rom_read8(g, 0xCC0000u + place); }
+static inline uint8_t area_rule_count(const GameState *g, uint16_t place)
+{
+    return asset_read8_at_place(g, ASSET_AREA_RULES_PLACE, place);
+}
 
 /* The rule `n` of the set at `place` (its offset taken in a word, which
  * wraps in the bank). */
 static inline AreaRule area_rule(const GameState *g, uint16_t place, unsigned n)
 {
     uint16_t at = (uint16_t)(place + 1 + n * AREA_RULE_BYTES);
-    uint8_t placing = rom_read8(g, 0xCC0000u + (uint16_t)(at + 1)), size = rom_read8(g, 0xCC0000u + (uint16_t)(at + 2));
-    return (AreaRule){ rom_read8(g, 0xCC0000u + at), (uint8_t)(placing & ~AREA_RULE_TOP_BIT), (uint8_t)(size & ~AREA_RULE_TOP_BIT),
+    uint8_t placing = asset_read8_at_place(g, ASSET_AREA_RULES_PLACE, (uint16_t)(at + 1)),
+            size = asset_read8_at_place(g, ASSET_AREA_RULES_PLACE, (uint16_t)(at + 2));
+    return (AreaRule){ asset_read8_at_place(g, ASSET_AREA_RULES_PLACE, at), (uint8_t)(placing & ~AREA_RULE_TOP_BIT),
+                       (uint8_t)(size & ~AREA_RULE_TOP_BIT),
                        (placing & AREA_RULE_TOP_BIT) != 0, (size & AREA_RULE_TOP_BIT) != 0 };
 }
 

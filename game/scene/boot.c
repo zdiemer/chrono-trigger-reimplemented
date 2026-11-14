@@ -49,7 +49,7 @@ static bool boot(GameState *g, Platform *pf, uint8_t flags)
         tm_ack_line_irq(pf, PF_AT(0xC30052));
     }
     set_decompress_dest(g, PROGRAM_ADDRESS);   /* with a bank byte of 0, as the original writes it */
-    set_decompress_source(g, (uint32_t)SCENE_PROGRAM_STREAM_BANK << 16 | scene_program_stream_offset(g));
+    set_decompress_source(g, scene_program_stream(g));
     return line_irq;
 }
 

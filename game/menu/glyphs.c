@@ -62,15 +62,20 @@ typedef struct {
     uint8_t offset;
 } Pen;
 
-/* The font: a glyph's left pixels 24 bytes a glyph from $FF:2060, its right
- * four 24 bytes a pair from $FF:3860 (menu_data.h). The original works the
- * offsets out a word wide. */
-enum { FONT_BANK = 0xFF0000u, LEFT_PIXELS = 0x2060, RIGHT_PIXELS = 0x3860 };
+/* The font: a glyph's left pixels 24 bytes a glyph from its start
+ * ($FF:2060), its right four 24 bytes a pair after the left ones' 256
+ * (menu_data.h). The original works the offsets out a word wide. */
+enum { RIGHT_PIXELS = 0x1800 };
+
+static uint32_t in_the_font(uint16_t offset)
+{
+    return asset_place_address(ASSET_DIALOG_FONT, (uint16_t)(asset_address(ASSET_DIALOG_FONT) + offset));
+}
 
 static Glyph glyph_numbered(uint16_t glyph)
 {
-    return (Glyph){ FONT_BANK | (uint16_t)(LEFT_PIXELS + glyph * GLYPH_BYTES),
-                    FONT_BANK | (uint16_t)(RIGHT_PIXELS + (glyph >> 1) * GLYPH_BYTES), (glyph & 1) != 0 };
+    return (Glyph){ in_the_font((uint16_t)(glyph * GLYPH_BYTES)),
+                    in_the_font((uint16_t)(RIGHT_PIXELS + (glyph >> 1) * GLYPH_BYTES)), (glyph & 1) != 0 };
 }
 
 static Pen pen_at(uint8_t x) { return (Pen){ (uint8_t)(x / TILE_WIDTH), (uint8_t)(x % TILE_WIDTH) }; }
