@@ -198,7 +198,7 @@ static void show_again(GameState *g, Platform *pf, uint32_t site)
 /* The map loaded again (setup.c), where it is one the port loads. */
 static bool map_loaded(GameState *g, Platform *pf)
 {
-    if (!overworld_map_can_be_loaded_again(g)) {
+    if (!PORT_CHECK(overworld_map_can_be_loaded_again(g))) {
         program_fail(g, 0xC22C93, "a world map loaded again that the port doesn't take");
         return false;
     }
@@ -398,7 +398,7 @@ static Pass halt_the_game(GameState *g, Platform *pf)
 static Pass after_the_frame(GameState *g, Platform *pf)
 {
     OverworldMode mode = overworld_mode(g);
-    if (mode >= OVERWORLD_MODES || (mode == OVERWORLD_ENTERING_A_PLACE && !overworld_exit_here_is_in_range(g))) {
+    if (mode >= OVERWORLD_MODES || (mode == OVERWORLD_ENTERING_A_PLACE && !PORT_CHECK(overworld_exit_here_is_in_range(g)))) {
         program_fail(g, 0xC223D2, "a world map's mode the loop doesn't know");
         return PASS_STOPS;
     }
@@ -431,7 +431,7 @@ static Pass run_a_pass(GameState *g, Platform *pf)
 OverworldEnd overworld_runs(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2000F, menu_object_mode_starts(g, pf));
-    if (!overworld_can_be_set_up(g)) {
+    if (!PORT_CHECK(overworld_can_be_set_up(g))) {
         program_fail(g, 0xC223A8, "a world map the port doesn't set up");
         return OVERWORLD_WENT_NO_FURTHER;
     }

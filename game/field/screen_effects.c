@@ -666,7 +666,7 @@ enum { SCREEN_EFFECT = 0xC021E1 };
 
 bool field_screen_effect_moved_on(GameState *g, Platform *pf)
 {
-    if (!effect_fits(g)) {
+    if (!PORT_CHECK(effect_fits(g))) {
         program_breaks_a_contract(g, SCREEN_EFFECT, "a screen effect the port doesn't draw");
         return false;
     }

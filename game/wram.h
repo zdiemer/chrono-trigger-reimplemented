@@ -22,6 +22,12 @@
 
 uint8_t wram_read8(const GameState *g, uint32_t at);
 uint16_t wram_read16(const GameState *g, uint32_t at);
+/* A byte of RAM a pointer in the cartridge's data names -- a script or text
+ * the game copied or built in work RAM, or save RAM -- where the data's
+ * accessors read on (rom.h's rom_read8): the game's own RAM, read at the time
+ * the cartridge's bytes take, as the original's long reads through the
+ * pointer do. */
+uint8_t wram_data_read8(const GameState *g, uint32_t at);
 void wram_write8(GameState *g, uint32_t at, uint8_t v);
 void wram_write16(GameState *g, uint32_t at, uint16_t v);
 

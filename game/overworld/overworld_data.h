@@ -147,7 +147,8 @@ static inline Reach overworld_reach(const GameState *g, ReachRecord r)
 
 static inline uint8_t overworld_epoch_flying_animation(const GameState *g, bool wings, uint8_t facing)
 {
-    return rom_read8(g, (wings ? 0xC248C9u : 0xC248C5u) + facing);
+    enum { WINGS = 4 };   /* the wings' frames after the hull's */
+    return asset_read8(g, ASSET_OVERWORLD_EPOCH_FLYING_ANIMATION, (wings ? WINGS : 0) + facing);
 }
 
 /* How fast the Epoch flies the way it faces, in whole pixels a frame across

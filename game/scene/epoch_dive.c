@@ -843,7 +843,7 @@ enum { DIVE_SET_UP = 0x7E78DD };
 
 bool scene_dive_set_up(GameState *g, Platform *pf)
 {
-    if (!no_picture_yet(g)) {
+    if (!PORT_CHECK(no_picture_yet(g))) {
         program_fail(g, DIVE_SET_UP, "an Epoch's dive with a picture waiting already");
         return false;
     }
@@ -1122,7 +1122,7 @@ enum { GATHER_THE_EPOCH = 0x7E82A4 };
 bool scene_scale_the_epoch(GameState *g, Platform *pf)
 {
     (void)pf;
-    if (!scaling_takes(g)) {
+    if (!PORT_CHECK(scaling_takes(g))) {
         program_fail(g, PROGRAM_BANK | MAIN_LOOP_SCALES_THE_EPOCH, "an Epoch the port doesn't scale");
         return false;
     }
