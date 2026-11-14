@@ -153,11 +153,6 @@ int main(int argc, char **argv)
             while (next_shot < shots && game >= shot_frame[next_shot]) {
                 if (write_png(shot_path[next_shot], video, width, height) == 0)
                     printf("mgba_run: game frame %lu as %s\n", game, shot_path[next_shot]);
-                printf("debug: DISPCNT %04X OAM0 %04X %04X %04X OBJ tile word %08X objpal %04X\n",
-                       (unsigned)core->busRead16(core, 0x04000000), (unsigned)core->busRead16(core, 0x07000000),
-                       (unsigned)core->busRead16(core, 0x07000002), (unsigned)core->busRead16(core, 0x07000004),
-                       (unsigned)core->busRead32(core, 0x06010000 + 0x6F * 32 + 8),
-                       (unsigned)core->busRead16(core, 0x05000200 + 0x62));
                 next_shot++;
             }
         }

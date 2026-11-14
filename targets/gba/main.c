@@ -82,14 +82,14 @@ static uint32_t end_state_crc(GameState *g)
 }
 
 /* A part's cycles a frame over the run: the total, the heaviest, and a
- * histogram in eighths of a GBA frame (280,896 cycles) for its 99th
+ * histogram in quarters of a GBA frame (280,896 cycles) for its 99th
  * percentile, which needs no memory a frame. */
-enum { GBA_FRAME_CYCLES = 280896, BUCKET = GBA_FRAME_CYCLES / 8, BUCKETS = 512 };
+enum { GBA_FRAME_CYCLES = 280896, BUCKET = GBA_FRAME_CYCLES / 4, BUCKETS = 256 };
 typedef struct {
     const char *name;
     uint64_t total;
     uint32_t most;
-    uint32_t count[BUCKETS];
+    uint16_t count[BUCKETS];
 } Cycles;
 
 static void count_cycles(Cycles *c, uint32_t cycles)
@@ -97,7 +97,9 @@ static void count_cycles(Cycles *c, uint32_t cycles)
     c->total += cycles;
     if (cycles > c->most)
         c->most = cycles;
-    c->count[cycles / BUCKET < BUCKETS ? cycles / BUCKET : BUCKETS - 1]++;
+    uint16_t *count = &c->count[cycles / BUCKET < BUCKETS ? cycles / BUCKET : BUCKETS - 1];
+    if (*count < UINT16_MAX)
+        (*count)++;
 }
 
 /* As GBA frames, to hundredths. */
