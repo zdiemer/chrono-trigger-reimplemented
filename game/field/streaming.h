@@ -41,6 +41,7 @@ typedef struct {
     uint8_t due;
     bool held[3];                  /* the layer holds the field's map (FIELD_LAYERS) */
     bool taken[3];                 /* ... but a battle shows a picture of its own on it */
+    bool veil[3];                  /* ... and it is a veil, going on across the view */
     FieldLayerSpan span[3];
     /* Whether the map's left and right edge columns are a void where the
      * margins were last built: judged there, while the map's looks are the

@@ -2,7 +2,7 @@
 256x224 and at a wider view, and fail where the two end in different work RAM
 or save RAM (docs/PLATFORM.md, "The wider view, as built"). Then look at the
 margins of moments where they once showed what the original's screen never
-does (MARGINS), and fail where they hold more than the room's backdrop."""
+does (MARGINS), and fail where they hold more colours than they should."""
 import argparse
 import concurrent.futures
 import pathlib
@@ -21,13 +21,19 @@ from tools.suite import gate_movies
 ORIGINAL_VIEW, WIDEST_VIEW = '256x224', '480x224'
 ORIGINAL_WIDTH = 256
 
-# Moments whose margins are the backdrop alone (and the black of the lines
-# below the picture): (movie, frame, what it is). Crono's mother opens the
-# blinds with a send of BG1's whole tile map, whose columns past the screen
-# are the next room's (#331).
-MARGINS = [('new-game', 6164, "Crono's mother opens the blinds"),
-           ('new-game', 6165, "Crono's mother opens the blinds")]
-MOST_MARGIN_COLOURS = 2
+# Moments whose margins hold no more than a colour or two: (movie, frame,
+# what it is, the margin looked at, how many colours it may hold). The margin
+# is both sides whole, or the view's rightmost columns down to a line, which
+# must be black.
+# Crono's mother opens the blinds with a send of BG1's whole tile map, whose
+# columns past the screen are the next room's (#331): the margins are the
+# room's backdrop and the black of the lines below the picture. Denadoro's
+# battle moves the picture across past the room's right edge, where the view
+# is black, not BG3's grey-blue fill (#399).
+BOTH_SIDES = None
+MARGINS = [('new-game', 6164, "Crono's mother opens the blinds", BOTH_SIDES, 2),
+           ('new-game', 6165, "Crono's mother opens the blinds", BOTH_SIDES, 2),
+           ('saves/battle-denadoro', 7291, "a Denadoro battle past the room's edge", (60, 150), 1)]
 
 
 def png_pixels(path):
@@ -47,13 +53,18 @@ def png_pixels(path):
     return width, height, [raw[y * row + 1:(y + 1) * row] for y in range(height)]
 
 
-def margin_colours(path):
-    """The distinct colours either side of the original's screen."""
+def margin_colours(path, region=BOTH_SIDES):
+    """The distinct colours either side of the original's screen, or in the
+    view's rightmost `columns` down to `lines` (region)."""
     width, _, rows = png_pixels(path)
     side = (width - ORIGINAL_WIDTH) // 2
+    xs = list(range(side)) + list(range(width - side, width))
+    if region is not BOTH_SIDES:
+        columns, lines = region
+        xs, rows = list(range(width - columns, width)), rows[:lines]
     seen = set()
     for line in rows:
-        for x in list(range(side)) + list(range(width - side, width)):
+        for x in xs:
             seen.add(line[x * 3:x * 3 + 3])
     return seen
 
@@ -123,16 +134,17 @@ def main(argv=None):
                 return row[0], not found, ', '.join(found) or 'same work RAM and save RAM'
 
             def margins(moment):
-                name, frame, what = moment
+                name, frame, what, region, most = moment
                 movie = ROOT / 'movies' / (name + '.ctm')
-                shot = work / ('%s-%d.png' % (name, frame))
-                text, rc = run_native(binary, args.rom, movie, frame, None,
+                shot = work / ('%s-%d.png' % (name.replace('/', '-'), frame))
+                text, rc = run_native(binary, args.rom, movie, frame, save_for(movie, saves) or None,
                                       ['--assets', str(pack), '--view', args.view, '--screenshot', str(shot)])
                 if rc != 0 or not shot.exists():
                     return '%s at %d' % (name, frame), False, 'no picture (exit status %s)' % rc
-                found = len(margin_colours(shot))
-                return ('%s at %d' % (name, frame), found <= MOST_MARGIN_COLOURS,
-                        '%s: %d colour(s) in the margins' % (what, found))
+                colours = margin_colours(shot, region)
+                black = region is BOTH_SIDES or colours == {bytes(3)}
+                return ('%s at %d' % (name, frame), len(colours) <= most and black,
+                        '%s: %d colour(s) in the margin%s' % (what, len(colours), '' if black else ', not black'))
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(args.jobs, 2))) as pool:
                 results = list(pool.map(one, rows))
@@ -140,9 +152,9 @@ def main(argv=None):
         for name, ok, detail in results:
             print('%s: %s%s' % (name, detail, '' if ok else ' <-- DIFFERS'))
         for name, ok, detail in pictures:
-            print('%s: %s%s' % (name, detail, '' if ok else ' <-- MORE THAN THE BACKDROP'))
+            print('%s: %s%s' % (name, detail, '' if ok else ' <-- MORE THAN IT SHOULD SHOW'))
         results += pictures
-        print('wide: %d/%d movies end the same at %s as at %s, and %d/%d moments show the backdrop in the margins' % (
+        print('wide: %d/%d movies end the same at %s as at %s, and %d/%d moments show only what their margins should' % (
             sum(ok for _, ok, _ in results[:len(rows)]), len(rows), args.view, ORIGINAL_VIEW,
             sum(ok for _, ok, _ in pictures), len(pictures)))
         return int(any(not ok for _, ok, _ in results))

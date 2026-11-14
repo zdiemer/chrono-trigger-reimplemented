@@ -45,7 +45,8 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_display(ob, &v->display);
     vid_obs_enable_line_effects(ob, v->line_effects);
     vid_obs_frame_start(ob);
-    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->margin, v->margin_count);
+    vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->back_left, v->back_right, v->margin,
+                 v->margin_count);
     vid_obs_layouts(ob, v->layout_count, v->layout_map, v->layouts, v->parted ? &v->parting : NULL);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
@@ -76,6 +77,8 @@ void vid_host_frame_begins(Platform *pf)
         v->layer_left[bg] = 0;
         v->layer_right[bg] = VID_ORIGINAL_VIEW_WIDTH;
     }
+    v->back_left = INT16_MIN;
+    v->back_right = INT16_MAX;
     v->layout_count = 0;
     v->parted = false;
     v->margin_count = 0;
@@ -96,6 +99,11 @@ void vid_host_set_view(Platform *pf, VidView view)
 
 void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right)
 {
+    if (bg == VID_BACK) {
+        pf->video.back_left = left;
+        pf->video.back_right = right;
+        return;
+    }
     if (bg > VID_BG4)
         return;
     pf->video.layer_left[bg] = left;

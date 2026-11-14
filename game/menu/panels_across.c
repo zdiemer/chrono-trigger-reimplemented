@@ -175,6 +175,31 @@ static void part_the_row(PanelLayout *l, const LayerRow *r, uint8_t cut, int8_t 
  * blank). What lies between the edges stays where the original drew it. */
 enum { FRAME_EDGE = 4, OUTERMOST = 2 };
 
+/* Whether the layer runs on in a pattern across the frame's edge: the column
+ * just outside it, `outside`, is the one a pattern's width inside, and the
+ * pattern that would fill the gap -- the four columns inside from the edge,
+ * `fill` -- holds none of the tiles further out (`further`, `count` of them
+ * from it), a window's side or corner. Where it held one, a window begins
+ * again inside the pattern's width: the save screen's slots put a number's
+ * box at the frame's edge and its title's box against it, and the gap would
+ * repeat the boxes' sides (issue #400). */
+static bool runs_on_across(const uint16_t *cell, int outside, int fill, int further, int count)
+{
+    if (cell[outside] != cell[outside + (fill > outside ? PATTERN : -PATTERN)])
+        return false;
+    int beyond = fill > outside ? fill - PATTERN : fill + PATTERN;   /* the pattern's width outside the edge */
+    bool once_more = true;
+    for (int j = 0; j < PATTERN; j++)
+        once_more &= cell[beyond + j] == cell[fill + j];
+    if (once_more)
+        return true;   /* the pattern itself, out to the screen's side (the backdrop, a blank) */
+    for (int i = 0; i < count; i++)
+        for (int j = 0; j < PATTERN; j++)
+            if (cell[further + i] == cell[fill + j])
+                return false;
+    return true;
+}
+
 static void frame_the_row(PanelLayout *l, const LayerRow *r, int8_t moves)
 {
     PanelRows row = { r->row, 1 };
@@ -182,7 +207,7 @@ static void frame_the_row(PanelLayout *l, const LayerRow *r, int8_t moves)
     uint8_t left = FRAME_EDGE, right = PANEL_COLUMNS - FRAME_EDGE;
     panel_show_nothing(l, row, 0, PANEL_COLUMNS);
     panel_show_columns(l, row, 0, PANEL_COLUMNS, 0);
-    if (cell[left - 1] == cell[left + PATTERN - 1]) {
+    if (runs_on_across(cell, left - 1, left, 0, left - 1)) {
         panel_show_columns(l, row, 0, left, (int8_t)-moves);
         for (int s = left - moves; s < left; s++)
             panel_show_columns(l, row, (uint8_t)(left + ((s - left) % PATTERN + PATTERN) % PATTERN), 1, (int8_t)s);
@@ -190,7 +215,7 @@ static void frame_the_row(PanelLayout *l, const LayerRow *r, int8_t moves)
         for (int s = -moves; s < 0; s++)
             panel_show_columns_as_they_lie(l, row, (uint8_t)(s & (OUTERMOST - 1)), 1, (int8_t)s);
     }
-    if (cell[right] == cell[right - PATTERN]) {
+    if (runs_on_across(cell, right, right - PATTERN, right + 1, PANEL_COLUMNS - right - 1)) {
         for (int s = right; s < right + moves; s++)
             panel_show_columns(l, row, (uint8_t)(right - PATTERN + (s - right) % PATTERN), 1, (int8_t)s);
         panel_show_columns(l, row, right, FRAME_EDGE, (int8_t)(right + moves));
