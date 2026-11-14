@@ -907,7 +907,7 @@ mode, with gprof's call counts for who calls what:
 |---|---|---|---|---|---|
 | The state's address view: `vars_host_read8`/`write8` and a 3,360-case switch on the owner field, for alias accessors and reads by address; since resolved once (below) | 35%, now 23% | 48%, now 29% | 33%, now 23% | 48%, now 31% | |
 | The typed accessors' own calls (inlined into the game once optimized across files) | 23% | 16% | 25% | 17% | |
-| The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access | 10% | 8% | 10% | 7% | #426 |
+| The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access; since charged inline in 32 bits (below), 2-4% in its own functions, the rest inside the accessors | 10% | 8% | 10% | 7% | #426 |
 | The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
 | The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address | 2% | 3% | 6% | 4% | #425 |
 | Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
@@ -925,6 +925,26 @@ game: an address decode for every byte an alias view or a transfer touches,
 the time model's pricing of every access, and a mixer built to be exact. The
 game's own logic is a fifth of its frame or less, about 1-3 GBA frames' work
 by these estimates. Run `tools/measure.py` against a lean build to remeasure.
+
+**The time model in 32-bit sums** (issue #426). The account an access is
+charged to (`StateHostAccount`) follows the storage at the front of the
+state, so `state_host_game_access` is inline in every accessor. It holds the
+work as whole master clocks plus thousandths of one, and the current rate
+split the same way. An access adds its clocks times each part, which is
+exactly the sum the 64-bit product in thousandths gave, without the
+C library's 64-bit multiply. The thousandths are made whole as they pass 2^30, and once more
+when the timing backend takes the work. Anything the inline path can't
+bound goes through the out-of-line path, which saturates where the old
+64-bit sum clamped: an uncounted stretch, the per-routine report, an
+access over 65,535 clocks, or an account near full. A scope finds its row
+in a 128-entry table of the rows named lately (`row_of`), with the rate
+already split, instead of a binary search of all 2,318 rows. Every movie
+plays to the same lag frames and end states (the gate). In mGBA the game's
+frame falls from 3.6, 4.8 and 7.0 GBA frames to 3.2, 4.2 and 6.1
+(`title-start`, `new-game`, `gato-battle`; in all 5.3, 7.5 and 10.9). The
+time model's own functions fall from 13% of the `new-game` run to about 7%.
+Only the timing report's totals (`StateHostTime`, outside the lean build)
+are still 64-bit.
 
 **The address view, resolved once** (issue #424). The typed state's address
 view no longer decodes an address at each access. When the first state is
@@ -1085,8 +1105,7 @@ from the flat state one at a time (issue #425); the other 1.6 makes the
 GBA's picture. Without the native mixer the game's own frame is the whole
 cost: 3.6-7 GBA frames. The flat accessors now read work RAM in place, which
 halved it from 7-13. Sampled in mGBA over `new-game`, the time model's
-charges at every access are 13% of the run (`state_host_game_access`, its
-64-bit multiply, `charge_time_as_begin`; issue #426). The sends' byte reads
+charges were 13% of the run before they were made in 32 bits (above). The sends' byte reads
 by address are another 10% (#425). All of the code runs from the cartridge's
 16-bit bus.
 
