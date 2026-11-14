@@ -1061,14 +1061,35 @@ and the menus' `wram_*` reads, fills and copies (issue #424).
 `ct_gba` is the game on the GBA, with its picture and no sound heard: the
 lean build's game and state, compiled for the ARM7TDMI in Thumb (the state's
 accesses in ARM) by arm-none-eabi GCC with newlib, at -O3 and optimized
-across files, playing a movie the cartridge carries and
-reporting how it ended over mGBA's debug log. Everything GBA lives in
-`targets/gba/`, whose README says how its pieces fit (the toolchain, the
-driver and its system, the services' backends, the host's tools) and how to
-build it and play a movie in mGBA against ct_native's end state
-(`host/run.py`). The sound's voices are kept and not played
+across files: one ROM, `ct.gba`, played from the keypad with its save in the
+cartridge's SRAM, and driven from outside to play the movies. Everything GBA
+lives in `targets/gba/`, whose README says how its pieces fit (the toolchain,
+the driver and its system, the services' backends, the host's tools), the
+controls, and how to build it, drive it and play a movie in mGBA against
+ct_native's end state (`host/run.py`). The sound's voices are kept and not played
 (`services/silent_mixer.c`): the native mixer's 82 KiB and its 26 GBA frames
 of work a frame wait for the GBA's own (issues #428, #368).
+
+**Input, saves and driving.** The driver gives the game the keypad through
+the input service (`in_host_set`), as the desktop drivers give it their
+keys: the pad, A, B, L, R, Start and Select as the SNES's own, and X and Y as
+a shoulder held with A or B (`system/keypad.c`; a key keeps the button it
+was pressed as until let go, so the shift's order doesn't matter). The save
+service's 8 KiB start from the cartridge's SRAM and go back to it on a frame
+`sv_host_bytes` says the game wrote them, with a mark after them that says a
+save is there (`services/cartridge_save.c`); the image names its SRAM
+(`SRAM_V113`) for mGBA and flash carts. To be driven, the driver names a box
+in work RAM in its debug log as it starts; `host/mgba_run.c`, which reads
+the log through libmgba, arms it as the line is written, and from then on
+puts each frame's pads in the box's ring, from a movie or from commands on
+stdin modelled on `ct_native --drive` (run, movie, peek, wram, shot, end,
+mGBA's own snapshots in memory or a file, the SRAM as a `.sav`). Between
+frames with the ring empty the driver waits and answers the runner's reads
+of the game's memory and its asks for the report; the runner keeps the ring
+ahead of the game as a movie plays, so the wait isn't in the game's frames.
+A movie's starting save goes in as the `.sav` (`mgba_run --sav`). Before,
+the packing step put a movie's pads and its save in each image, one `.gba` a
+movie.
 
 **The state as the original's work RAM.** The typed state is 488 KiB, twice
 the GBA's work RAM. `CT_FLAT_STATE` keeps the game's state as the original
@@ -1146,7 +1167,7 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 
 | What | On the GBA |
 |---|---|
-| The outcome | `title-start` (1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`), `new-game` (7,200, 244, `9126C7F9`), `gato-battle` (21,600, `A2944878`) and `events-jetbike-race` (9,400, `68804B38`, its track read back from VRAM): each the same as ct_native's |
+| The outcome, driven by `mgba_run` | `title-start` (1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`), `new-game` (7,200, 244, `9126C7F9`), `gato-battle` (21,600, `A2944878`) and `events-jetbike-race` (9,400, `68804B38`, its track read back from VRAM) and `menus-save-point` (end state `497AE9A0`, which saves the game: the SRAM afterwards `DE9ED421`): each the same as ct_native's |
 | Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above |
 | Cartridge | the program 1.77 MiB (code 1.14, constants 0.63), the pack 3.73 MiB |
 | Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the C library's heap; 8.5 KiB free |
