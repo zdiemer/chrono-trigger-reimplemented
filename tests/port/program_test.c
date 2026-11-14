@@ -62,7 +62,7 @@ static void replacing_handler(GameState *g, Platform *pf)
     program_install_vblank_handler(g, next_handler);
 }
 static void line_handler(GameState *g, Platform *pf) { (void)g; (void)pf; note('L'); }
-static uint8_t read_game(void *g, uint32_t at) { return state_host_read8(g, at); }
+static void read_game(void *g, uint32_t at, uint8_t *out, uint32_t len) { state_host_read_span(g, at, out, len); }
 static Platform pf;
 
 int main(void)

@@ -103,7 +103,7 @@ static uint8_t *read_file(const char *path, long want, long *got)
     return bytes;
 }
 
-static uint8_t read_game(void *ctx, uint32_t addr) { return state_host_read8(ctx, addr); }
+static void read_game(void *ctx, uint32_t addr, uint8_t *out, uint32_t len) { state_host_read_span(ctx, addr, out, len); }
 
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }

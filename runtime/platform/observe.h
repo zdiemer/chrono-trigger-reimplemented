@@ -17,8 +17,8 @@
 
 #include "platform/video.h"
 
-/* `read` fetches a byte of game memory without side effects (snes_bus_peek). */
-VidObserver *vid_obs_create(uint8_t (*read)(void *ctx, uint32_t addr), void *ctx);
+/* `read` fetches the game's bytes a send names by address, without side effects. */
+VidObserver *vid_obs_create(PfReadGame *read, void *ctx);
 void vid_obs_destroy(VidObserver *ob);
 /* The bytes the observer holds: itself, and the copies of memory it has
  * taken for the frames' lines so far (ct_native --measure). */
