@@ -25,7 +25,12 @@ After extracting on Linux/macOS, run chmod +x ct_native before starting it.
 Controls: arrows move; X/Z/S/A are SNES A/B/X/Y; Q/W are L/R;
 Return is Start; Right Shift is Select. Gamepads use face buttons by position,
 D-pad/left stick, shoulders, Start/Back. P pauses, Tab/right trigger fast
-forwards, F11 or Alt+Return toggles fullscreen, Escape quits.
+forwards, F11 or Alt+Return toggles fullscreen, F9 changes the scaling
+(pixel-exact integer, or fit to the screen sharp-bilinear) and F10 the filter
+(scanlines). Escape asks before quitting: press it again to quit, or Return
+to play on; the window's close button quits at once. --scaling, --filter,
+--fullscreen and --fullscreen-mode borderless|exclusive choose them at
+launch, and the player remembers the last choices.
 ct_native.keys beside the executable supplies custom bindings. --keys FILE and
 repeatable --bind "INPUT=ACTION" override them; for example --bind "Space=A".
 
