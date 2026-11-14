@@ -1,4 +1,4 @@
-/* ct_gba: the game on the GBA with its picture and no sound heard
+/* ct_gba: the game on the GBA with its picture and its sound
  * (docs/PLATFORM.md, "The GBA build, as built").
  *
  * The driver runs one frame of the game per turn of its loop, as ct_native
@@ -25,6 +25,8 @@
 #include "sound_native.h"
 
 #include "services/cartridge_save.h"
+#include "services/direct_sound.h"
+#include "services/mixer.h"
 #include "services/video.h"
 #include "system/debug_log.h"
 #include "system/drive.h"
@@ -32,20 +34,36 @@
 #include "system/keypad.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
- * order. */
+ * order, and the sound's samples. */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
+    uint32_t samples_at;           /* services/mixer.h, MixerSamples */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
 
 extern const uint8_t __rom_end[];
 extern const uint8_t __iwram_bss_end[], __stack_top[];   /* the driver's stack, zeroed at the start (start.s) */
 
-/* The driver's stack's deepest use: from its lowest byte that isn't zero. */
+/* The driver's stack ends in a canary, which a frame that ran the stack
+ * down past its room writes over: the sound's mixing and the game's frame
+ * both run on it, and fast RAM leaves it little to spare. */
+enum { CANARY = 0x5AFEC0DEu };
+static volatile uint32_t *canary(void) { return (volatile uint32_t *)(uintptr_t)__iwram_bss_end; }
+
+static void check_driver_stack(void)
+{
+    if (*canary() != CANARY) {
+        fprintf(stderr, "ct_gba: the driver's stack ran past its %u bytes\n", (unsigned)(__stack_top - __iwram_bss_end));
+        abort();
+    }
+}
+
+/* The driver's stack's deepest use: from its lowest byte that isn't zero,
+ * above the canary. */
 static size_t driver_stack_used(void)
 {
-    const uint8_t *at = __iwram_bss_end;
+    const uint8_t *at = __iwram_bss_end + sizeof(uint32_t);
     while (at < __stack_top && !*at)
         at++;
     return (size_t)(__stack_top - at);
@@ -137,12 +155,28 @@ static void report_cycles(const Cycles *c, uint32_t frames)
             mean, p99, most);
 }
 
+/* The mixing's cycles a frame, the total and the heaviest: where the
+ * driver's time passed, which is in the game's frame as well as the
+ * sound's, so no histogram of its own (work RAM has no room for one). */
+typedef struct {
+    uint64_t total;
+    uint32_t most;
+} Mixing;
+
+static void count_mixing(Mixing *m, uint32_t cycles)
+{
+    m->total += cycles;
+    if (cycles > m->most)
+        m->most = cycles;
+}
+
 /* What the report covers: the frames run and each part's cycles in them. */
 typedef struct {
     GameState *g;
     Platform *pf;
     uint32_t frames;
     Cycles game, sounds, picture;
+    Mixing mixing;
 } Run;
 
 static void report(void *ctx)
@@ -154,7 +188,13 @@ static void report(void *ctx)
         report_cycles(&run->game, run->frames);
         report_cycles(&run->sounds, run->frames);
         report_cycles(&run->picture, run->frames);
+        char mean[16], most[16];
+        gba_frames(mean, sizeof mean, run->mixing.total / run->frames);
+        gba_frames(most, sizeof most, run->mixing.most);
+        fprintf(stderr, "ct_gba: mixing a frame, in GBA frames: mean %s, heaviest %s\n", mean, most);
     }
+    fprintf(stderr, "ct_gba: sound %u sample(s) queued, %u played, %u dropped\n", (unsigned)ct_gba_sound.queued,
+            (unsigned)ct_gba_sound.played, (unsigned)ct_gba_sound.dropped);
     fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(run->g),
             (unsigned)ct_crc32(state_host_sram(run->g), STATE_HOST_SRAM_BYTES));
     fprintf(stderr, "ct_gba: arena %u bytes, the SNES's video memory %u\n", (unsigned)arena_used(),
@@ -187,19 +227,25 @@ int main(void)
         fprintf(stderr, "ct_gba: no memory for the game's state\n");
         abort();
     }
+    *canary() = CANARY;
     cartridge_save_load(state_host_sram(g));   /* or none, erased */
     pf.save.bytes = state_host_sram(g);
     vid_host_start(&pf, read_game, g);
+    mixer_use_samples((const MixerSamples *)((const uint8_t *)head + head->samples_at));
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {
-        fprintf(stderr, "ct_gba: no memory for the sound\n");
+        fprintf(stderr, "ct_gba: no memory for the sound: %u bytes, with %u of the arena taken\n",
+                (unsigned)sound_native_bytes(), (unsigned)arena_used());
         abort();
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed, NULL }, 1);
+    direct_sound_start();
     bool driven = drive_open();
     fprintf(stderr, "ct_gba: playing, the pads from %s\n", driven ? "the runner" : "the keypad");
 
-    /* Each frame's cycles, the game's, the sound's and the picture's. */
+    /* Each frame's cycles: the game's, the sound driver's and the picture's,
+     * and the mixing's wherever the driver's time passed (the game's waits
+     * on the driver pass it too). */
     static Run run = { .game = { .name = "game" }, .sounds = { .name = "sound" }, .picture = { .name = "picture" } };
     run.g = g, run.pf = &pf;
     static Keypad keypad;
@@ -212,7 +258,6 @@ int main(void)
         tm_host_frame(&pf);
         uint32_t game_done = cycles_now();
         sound_native_frame(sound);
-        sound_native_discard_audio(sound);
         uint32_t sound_done = cycles_now();
         gba_video_await_blank();
         uint32_t blank = cycles_now();
@@ -220,6 +265,8 @@ int main(void)
         count_cycles(&run.game, game_done - began);
         count_cycles(&run.sounds, sound_done - game_done);
         count_cycles(&run.picture, cycles_now() - blank);
+        count_mixing(&run.mixing, mixer_take_cycles());
+        check_driver_stack();
         run.frames++;
         bool wrote;
         const uint8_t *save = sv_host_bytes(&pf, &wrote);

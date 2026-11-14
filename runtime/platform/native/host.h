@@ -102,7 +102,7 @@ typedef struct {
     uint32_t screens_applied;
     VidView view;                /* vid_host_set_view's; zero: the original's screen */
     /* What a wider view shows past the original's screen, 38 KiB, which a
-     * build that never draws wider (targets/gba/) leaves out. */
+     * build that never draws wider (VID_HOST_NO_WIDER_VIEW) leaves out. */
 #ifndef VID_HOST_NO_WIDER_VIEW
     int16_t layer_left[4], layer_right[4];   /* vid_show_a_layer_across's this frame */
     int16_t back_left, back_right;           /* ... and the backdrop's */

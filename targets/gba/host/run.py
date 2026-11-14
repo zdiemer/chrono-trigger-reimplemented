@@ -15,6 +15,9 @@ the one ROM a player plays too; the runner feeds it the movie's pads, and the
 save RAM the movie starts from goes in as its .sav. With
 `--profile FILE`, the runner samples where the processor is as the movie
 plays and FILE gets each function's share of the samples, the largest first.
+With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
+every sample the program queued, without the gaps where its frames were
+late. Nothing is played aloud.
 """
 import argparse
 import bisect
@@ -117,6 +120,10 @@ def main(argv=None):
     ap.add_argument("--movie", type=pathlib.Path, required=True)
     ap.add_argument("--shot", action="append", default=[], metavar="FRAME=FILE.png",
                     help="write the GBA's picture once the game has played FRAME frames")
+    ap.add_argument("--wav", type=pathlib.Path, metavar="FILE.wav",
+                    help="write what mGBA plays as the movie plays, in the GBA's time")
+    ap.add_argument("--stream", type=pathlib.Path, metavar="FILE.wav",
+                    help="write every sample the program queued, as it plays where the game keeps its time")
     ap.add_argument("--profile", type=pathlib.Path, metavar="FILE",
                     help="sample where the processor is as the movie plays; FILE gets each function's share")
     args = ap.parse_args(argv)
@@ -138,6 +145,10 @@ def main(argv=None):
     for shot in args.shot:
         frame, _, path = shot.partition("=")
         command += ["--shot", frame, path]
+    if args.wav:
+        command += ["--wav", str(args.wav)]
+    if args.stream:
+        command += ["--stream", str(args.stream)]
     samples = out_dir / (args.movie.stem + ".samples")
     if args.profile:
         command += ["--samples", str(samples)]

@@ -58,7 +58,13 @@ register writes; the driver has no mixer of its own.
   1. Write the 17 shadowed registers from the table at `$16FF`/`$1710`: FIR7-0,
      EFB, EVOL R/L, EON, KOFF, FLG, NON, PMON, KON. Clear the key shadows.
   2. Put the status on ports 0-3 (below), or in a meter mode never used by the
-     game (`$1438`), the voices' output levels.
+     game (`$1438`), the voices' output levels. Only command `$FF` with
+     `$01` turns it on, and nothing sends that: the C ports send `$FF` only
+     with `$F0`, the battle scripts' sound commands are constants, none of
+     the 462 location event scripts, unpacked, holds the bytes `$EC $FF`
+     (event `$EC`, a command of the script's own), and the whole movie
+     library plays without it turning on. The GBA's mixer answers a voice's
+     output only approximately (PLATFORM.md, "The GBA build, as built").
   3. Unless paused, every 7th tick advance the three volume fades and the
      global tempo and pitch modifiers (`$1492`).
   4. `$0377`, the sequencer: add the tempo (times the tempo modifier) to an 8-bit

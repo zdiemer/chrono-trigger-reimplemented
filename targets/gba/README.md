@@ -1,7 +1,7 @@
 # ct_gba: the game on the GBA
 
-`ct_gba` is the game on the Game Boy Advance, with its picture and no sound
-heard: the lean build's game and state (`CT_LEAN`, `CT_FLAT_STATE`), compiled
+`ct_gba` is the game on the Game Boy Advance, with its picture and its
+sound: the lean build's game and state (`CT_LEAN`, `CT_FLAT_STATE`), compiled
 for the ARM7TDMI by arm-none-eabi GCC with newlib. One ROM, `ct.gba`, is
 both the game a player plays from the keypad, its save in the cartridge's
 SRAM, and the program the checks drive from outside through mGBA's core.
@@ -51,6 +51,8 @@ platform services' backends. Nothing here is included from `game/`.
   - `system.c`, `debug_log.h`: the arena and the C library's heap over the end
     of work RAM, stdout and stderr to mGBA's debug log, a cycle count from two
     chained timers.
+  - `interrupts.c`, `interrupts.h`: the one interrupt vector, each source to
+    its own handler (the picture's lines, the sound's timer).
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, eight
     slots in fast RAM (the game's main thread's 3 KiB, the tasks' 2 KiB), each
     with a guard, and no snapshots.
@@ -61,18 +63,23 @@ platform services' backends. Nothing here is included from `game/`.
     without the mark starts with the save erased. mGBA keeps the SRAM in the
     `.sav` beside the `.gba`.
   - `video.c`, `video.h`: the video service on the GBA's own picture.
-  - `silent_mixer.c`, `silent_mixer.h`: the sound's voices kept and not
-    played, in the native mixer's place (frontend/sound_native.c takes it
-    through `SOUND_NATIVE_MIXER`): the sound driver plays as natively, and a
-    voice's output reads 0. A mixer the GBA can afford is issue #428.
+  - `mixer.c`, `mixer.h`: the sound driver's voices played, in the native
+    mixer's place (frontend/sound_native.c takes it through
+    `SOUND_NATIVE_MIXER` and `SOUND_NATIVE_MIXER_PLAYS`): the packed samples
+    mixed at the GBA's rate, 32 samples at a time.
+  - `direct_sound.c`, `direct_sound.h`: the mix played on Direct Sound A and
+    B from a ring, a timer's interrupt moving it to the FIFOs.
 - `host/`: tools that run on the host, not on the GBA.
   - `pack.py`: the packing step, the seed of the builder (issue #421). It
     verifies the player's cartridge, cuts the catalogue's resources from it,
     and appends them to the program with a directory the driver indexes in
     place. The program is code only; the packed `.gba` is never committed.
+  - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
+    the pack, their loops kept, each listed by its block's length and hash.
   - `mgba_run.c`: the runner, the GBA's `ct_native --drive`: `ct.gba` in
-    mGBA's core with no window and no sound, its pads from a movie or from
-    commands on stdin (Driving it, below).
+    mGBA's core with no window and nothing played aloud, its pads from a
+    movie or from commands on stdin (Driving it, below); with a movie,
+    `--wav` and `--stream` write the GBA's sound as WAV files.
   - `run.py`: the check. It builds the runner against libmgba and zlib,
     packs `ct.gba`, has the runner play a movie on it from the save RAM the
     movie starts from, plays the movie in ct_native too, and fails where the

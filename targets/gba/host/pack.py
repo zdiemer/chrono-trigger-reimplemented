@@ -8,8 +8,9 @@ committed.
         --out build/gba/ct.gba
 
 The pack after the program (targets/gba/system/main.c, PackHead): "CTGB", the
-catalogue's version and its count; then each resource's place and length, in
-the catalogue's order; then the resources. The game's save is the GBA's SRAM,
+catalogue's version and its count, where the sound's samples are; then each
+resource's place and length, in the catalogue's order; then the resources,
+and the sound's samples converted to 8-bit PCM (samples.py). The game's save is the GBA's SRAM,
 which mGBA keeps in the .sav beside the .gba (targets/gba/services/cartridge_save.h).
 """
 import argparse
@@ -23,8 +24,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 from tools import assets, rom  # noqa: E402
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import samples  # noqa: E402
+
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
-HEAD = struct.Struct("<4sII")
+HEAD = struct.Struct("<4sIII")
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 
@@ -44,6 +48,11 @@ def resources(cartridge):
     return out
 
 
+def sound_samples(cartridge):
+    """The sound's samples as the GBA's mixer plays them (samples.py)."""
+    return samples.table(cartridge, assets.load(), assets.bus_to_offset)
+
+
 def header_check(image):
     """The complement check the BIOS reads at $BD, over $A0-$BC."""
     return (-(sum(image[0xA0:0xBD]) + 0x19)) & 0xFF
@@ -61,7 +70,10 @@ def pack(program, cartridge):
         body += bytes(-(table + len(body)) % 4)
         entries.append((table + len(body), len(data)))
         body += data
-    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts))
+    body += bytes(-(table + len(body)) % 4)
+    samples_at = table + len(body)
+    body += sound_samples(cartridge)
+    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at)
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body

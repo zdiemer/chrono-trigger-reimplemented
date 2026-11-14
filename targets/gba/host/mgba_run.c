@@ -1,8 +1,9 @@
-/* mgba_run: play the GBA build (ct.gba) in mGBA's core with no window and no
- * sound, driving it from outside as `ct_native --drive` is driven
+/* mgba_run: play the GBA build (ct.gba) in mGBA's core with no window and
+ * nothing played aloud, driving it from outside as `ct_native --drive` is driven
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
  *   mgba_run ROM.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
+ *            [--wav FILE.wav] [--stream FILE.wav]
  *   mgba_run ROM.gba [--sav FILE.sav] --drive
  *
  * The program names its drive box in its debug log as it starts
@@ -16,7 +17,11 @@
  * it with the GBA frames the movie took. With --samples, it notes where the
  * processor is every SAMPLE_CYCLES cycles as the movie plays and writes each
  * address it was seen at with its count (run.py's --profile names the
- * functions).
+ * functions). With --wav, it writes what mGBA plays as the movie plays, in
+ * the GBA's time, gaps and all where the game's frame was late; with
+ * --stream, every sample the program queued (the sound's ring, which it
+ * names in its log, services/direct_sound.h), one after another, as the GBA
+ * plays them where the game keeps its time.
  *
  * With --drive, a command a line on stdin and a reply a line on stdout, as
  * ct_native's (docs/MOVIES.md, "Routes as a test"); the program's own lines
@@ -43,6 +48,7 @@
 
 #include <zlib.h>
 
+#include <mgba/core/blip_buf.h>
 #include <mgba/core/core.h>
 #include <mgba/core/log.h>
 #include <mgba/core/timing.h>
@@ -65,6 +71,7 @@ enum { GBA_SRAM_BYTES = 0x8000 };
 static struct mCore *core;
 static FILE *log_out;
 static uint32_t box;                       /* the drive box's address; 0 until named */
+static uint32_t ring;                      /* the sound's ring's address; 0 until named */
 static int reported, sampling;
 static char end_crcs[40];                  /* the report's "END SAVE" */
 static unsigned width, height;
@@ -174,6 +181,8 @@ static void log_line(struct mLogger *logger, int category, enum mLogLevel level,
     fprintf(log_out, "%s\n", text);
     fflush(log_out);
     unsigned at, end, sram;
+    if (sscanf(text, "ct_gba: sound ring at %8X", &at) == 1)
+        ring = at;
     if (sscanf(text, "ct_gba: drive box at %8X", &at) == 1) {
         /* armed before the program looks, as it logs the line */
         box = at;
@@ -189,12 +198,99 @@ static uint32_t box_get(size_t field) { return core->busRead32(core, box + (uint
 static void box_put(size_t field, uint32_t v) { core->busWrite32(core, box + (uint32_t)field, v); }
 static uint32_t frames_played(void) { return box_get(offsetof(DriveBox, taken)); }
 
+/* ---- The sound, recorded ----------------------------------------------------------------- */
+
+/* A WAV file of 16-bit stereo, its lengths written when it is closed. */
+typedef struct {
+    FILE *f;
+    uint32_t rate, frames;
+} Wav;
+
+static void put_le(FILE *f, uint32_t v, int bytes)
+{
+    for (int i = 0; i < bytes; i++)
+        fputc((int)(v >> (8 * i)) & 0xFF, f);
+}
+
+static void wav_head(const Wav *w)
+{
+    fwrite("RIFF", 1, 4, w->f), put_le(w->f, 36 + w->frames * 4, 4), fwrite("WAVEfmt ", 1, 8, w->f);
+    put_le(w->f, 16, 4), put_le(w->f, 1, 2), put_le(w->f, 2, 2), put_le(w->f, w->rate, 4);
+    put_le(w->f, w->rate * 4, 4), put_le(w->f, 4, 2), put_le(w->f, 16, 2);
+    fwrite("data", 1, 4, w->f), put_le(w->f, w->frames * 4, 4);
+}
+
+static int wav_open(Wav *w, const char *path, uint32_t rate)
+{
+    *w = (Wav){ fopen(path, "wb"), rate, 0 };
+    if (w->f)
+        wav_head(w);
+    return w->f ? 0 : -1;
+}
+
+static void wav_put(Wav *w, int16_t left, int16_t right)
+{
+    put_le(w->f, (uint16_t)left, 2), put_le(w->f, (uint16_t)right, 2);
+    w->frames++;
+}
+
+static int wav_close(Wav *w)
+{
+    if (!w->f)
+        return 0;
+    fseek(w->f, 0, SEEK_SET);
+    wav_head(w);
+    return fclose(w->f) ? -1 : 0;
+}
+
+/* The ring as services/direct_sound.h lays it out, and its rate. */
+enum { RING = 512, RING_LEFT = 12, RING_RIGHT = RING_LEFT + RING, STREAM_RATE = 13379, WAV_RATE = 32768 };
+
+static Wav heard, streamed;
+static int recording;
+static uint32_t stream_taken;
+
+static void record_frame(void)
+{
+    if (heard.f) {
+        struct blip_t *left = core->getAudioChannel(core, 0), *right = core->getAudioChannel(core, 1);
+        int16_t l[2048], r[2048];
+        int n = blip_samples_avail(left);
+        n = n < 2048 ? n : 2048;
+        blip_read_samples(left, l, n, 0);
+        blip_read_samples(right, r, n, 0);
+        for (int k = 0; recording && k < n; k++)
+            wav_put(&heard, l[k], r[k]);
+    }
+    if (streamed.f && ring) {
+        uint32_t queued = core->busRead32(core, ring);
+        for (; stream_taken != queued; stream_taken++) {
+            int8_t l = (int8_t)core->busRead8(core, ring + RING_LEFT + stream_taken % RING);
+            int8_t r = (int8_t)core->busRead8(core, ring + RING_RIGHT + stream_taken % RING);
+            if (recording)
+                wav_put(&streamed, (int16_t)(l * 256), (int16_t)(r * 256));
+        }
+    }
+}
+
+static int start_recording(const char *wav_path, const char *stream_path)
+{
+    if (wav_path) {
+        blip_set_rates(core->getAudioChannel(core, 0), core->frequency(core), WAV_RATE);
+        blip_set_rates(core->getAudioChannel(core, 1), core->frequency(core), WAV_RATE);
+        if (wav_open(&heard, wav_path, WAV_RATE))
+            return -1;
+    }
+    return stream_path && wav_open(&streamed, stream_path, STREAM_RATE) ? -1 : 0;
+}
+
 static unsigned long gba_frames;
 
 static void gba_frame(void)
 {
     core->runFrame(core);
     gba_frames++;
+    record_frame();
 }
 
 /* The program between frames with `frame` played and nothing asked of it. */
@@ -457,7 +553,8 @@ static int write_samples(const char *path)
     return fclose(f) ? -1 : 0;
 }
 
-static int play_movie(const char *path, unsigned long frames, Shot *shots, unsigned count, const char *samples_path)
+static int play_movie(const char *path, unsigned long frames, Shot *shots, unsigned count, const char *samples_path,
+                      const char *wav_path, const char *stream_path)
 {
     ct_movie movie;
     if (ct_movie_load(&movie, path))
@@ -466,10 +563,15 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
         fprintf(stderr, "mgba_run: no memory for the samples\n");
         return 2;
     }
+    if (start_recording(wav_path, stream_path)) {
+        fprintf(stderr, "mgba_run: cannot write the sound's files\n");
+        return 2;
+    }
     qsort(shots, count, sizeof *shots, by_frame);
     int rc = 0;
     unsigned long began = gba_frames, shooting = 0;
     sampling = 1;
+    recording = 1;
     for (unsigned i = 0; i <= count && !rc; i++) {
         unsigned long to = i < count && shots[i].frame < frames ? shots[i].frame : frames;
         if (play_to((uint32_t)to, from_movie, &movie)) {
@@ -482,6 +584,7 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
             shooting += gba_frames - before;
         }
     }
+    recording = 0;
     unsigned long gba = gba_frames - began - shooting;
     ct_movie_free(&movie);
     if (!rc && report()) {
@@ -491,6 +594,10 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
     if (!rc && frames)
         printf("mgba_run: %lu game frames in %lu GBA frames: %.0f cycles a game frame, %.1f GBA frames each\n", frames,
                gba, (double)gba * GBA_FRAME_CYCLES / (double)frames, (double)gba / (double)frames);
+    if (wav_close(&heard) || wav_close(&streamed)) {
+        fprintf(stderr, "mgba_run: cannot write the sound's files\n");
+        rc = 2;
+    }
     if (samples_path && write_samples(samples_path)) {
         fprintf(stderr, "mgba_run: cannot write %s\n", samples_path);
         rc = 2;
@@ -501,8 +608,8 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
-                                "[--shot FRAME FILE.png]... [--samples FILE] | --drive)\n";
-    const char *movie = NULL, *sav = NULL, *samples_path = NULL;
+                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] | --drive)\n";
+    const char *movie = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
     unsigned long frames = 0;
     int driving = 0;
     Shot shots[MAX_SHOTS];
@@ -516,6 +623,10 @@ int main(int argc, char **argv)
             sav = argv[++i];
         else if (!strcmp(argv[i], "--samples") && i + 1 < argc)
             samples_path = argv[++i];
+        else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
+            wav_path = argv[++i];
+        else if (!strcmp(argv[i], "--stream") && i + 1 < argc)
+            stream_path = argv[++i];
         else if (!strcmp(argv[i], "--drive"))
             driving = 1;
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc && count < MAX_SHOTS) {
@@ -566,7 +677,7 @@ int main(int argc, char **argv)
     if (driving)
         drive();
     else
-        rc = play_movie(movie, frames, shots, count, samples_path);
+        rc = play_movie(movie, frames, shots, count, samples_path, wav_path, stream_path);
     core->deinit(core);
     free(video);
     return rc;

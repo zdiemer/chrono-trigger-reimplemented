@@ -954,7 +954,7 @@ writes (a resource unpacked into work RAM, `wram_fill8`). Optimized across
 files the address view is half the frame (49-50%) and the time model 8%. The
 sound player costs as much again as the lean game: 95-97% of it is the
 host's mixer (`mixer_frame`: eight voices, Gaussian interpolation and the
-echo at 32 kHz), the sound driver itself 1-3% (issue #428).
+echo at 32 kHz), the sound driver itself 1-3% (the GBA mixes its own, "The GBA build, as built").
 
 So most of the 11-25x is the state's machinery and the mixer rather than the
 game: an address decode for every byte an alias view or a transfer touches,
@@ -1058,7 +1058,7 @@ and the menus' `wram_*` reads, fills and copies (issue #424).
 
 ### The GBA build, as built
 
-`ct_gba` is the game on the GBA, with its picture and no sound heard: the
+`ct_gba` is the game on the GBA, with its picture and its sound: the
 lean build's game and state, compiled for the ARM7TDMI in Thumb (the state's
 accesses in ARM) by arm-none-eabi GCC with newlib, at -O3 and optimized
 across files: one ROM, `ct.gba`, played from the keypad with its save in the
@@ -1066,9 +1066,9 @@ cartridge's SRAM, and driven from outside to play the movies. Everything GBA
 lives in `targets/gba/`, whose README says how its pieces fit (the toolchain,
 the driver and its system, the services' backends, the host's tools), the
 controls, and how to build it, drive it and play a movie in mGBA against
-ct_native's end state (`host/run.py`). The sound's voices are kept and not played
-(`services/silent_mixer.c`): the native mixer's 82 KiB and its 26 GBA frames
-of work a frame wait for the GBA's own (issues #428, #368).
+ct_native's end state (`host/run.py`). The C sound driver plays as it does
+natively; the GBA's own mixer (`services/mixer.c`) plays its voices (below,
+"The sound").
 
 **Input, saves and driving.** The driver gives the game the keypad through
 the input service (`in_host_set`), as the desktop drivers give it their
@@ -1163,6 +1163,66 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 - A sprite whose tiles run past a SNES tile table's row or table end takes
   the next row's on the GBA.
 
+**The sound.** The C sound driver (`game/sound/`) runs as natively and
+plays its eight voices through the platform's voices interface; the GBA
+answers it with `services/mixer.c` in the native mixer's place
+(frontend/sound_native.c's `SOUND_NATIVE_MIXER`, and
+`SOUND_NATIVE_MIXER_PLAYS`, which hands it the driver's time a pass at a time
+rather than a call for each of the S-DSP's 32,000 frames a second). What the
+driver reads back of the voices and the mix (their settings) is what it set,
+masked as natively, so the game's state is the same; the four movies measured below
+end as ct_native's with the sound playing.
+
+- **The samples are converted when the cartridge is packed.** The native
+  mixer's 64 KiB of sound memory is more than the GBA's work RAM has spare,
+  so sound memory isn't kept. `host/samples.py` decodes every sample the
+  driver can write (the songs' 62 sample blocks and the boot's own nine) from
+  BRR as the S-DSP plays it, its loop decoded a second time with the samples
+  before it as they are when the loop comes round, and scales each to fill
+  8 bits, keeping its peak: 395 KiB of PCM and the noise generator's whole
+  sequence, played from the cartridge. The driver still writes a sample
+  into sound memory a byte at a time; the mixer knows which by its bytes
+  (each block's length and a hash of it is in the table) and follows the
+  blocks as the driver moves them, so when the directory points a voice at
+  a place, it plays the packed sample there. Only the driver's own sample,
+  45 bytes it rewrites as it plays, is decoded on the GBA.
+- **The mix.** 13,379 samples a second, 224 a GBA frame (a sample every
+  1,254 cycles), mixed 32 at a time: each voice at its pitch (the nearest
+  sample), its envelope stepped by as many of its rate's steps as fell in
+  the mix, its volume on each side and the master's, both sides summed in
+  one word with one multiply a sample (`mix_wave`, ARM in fast RAM). A game
+  frame's 532.5 S-DSP frames make 224 samples, so a game frame a GBA frame
+  plays its sound in time with it.
+- **Out** (`services/direct_sound.c`): a ring of 512 samples a side;
+  timer 0 plays Direct Sound A on the left and B on the right, and timer 1,
+  counting it, interrupts every 16 samples to move the next 16 of each into
+  its FIFO, so the ring wraps anywhere and no DMA restarts. The game's frame
+  takes more than a GBA frame, so the ring runs dry: the FIFOs then get
+  silence until a frame's worth is queued again, and what is heard is the
+  game's sound gapped where it is late. `host/run.py --wav` records what
+  mGBA plays, gaps and all; `--stream` records every sample the program
+  queued, the sound as it plays once the game keeps its time. Neither plays
+  anything aloud.
+
+Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #457):
+
+- The Gaussian interpolation: the nearest sample, at a third of the S-DSP's
+  rate, so what lies above 6.7 kHz is lost or folds back.
+- 8 bits: each sample at its own scale, and the mix.
+- The echo (its delay, its eight taps and its feedback) isn't heard, nor
+  what its buffer writes over the samples under it; the voices sent to it
+  are heard dry, the mix a little quieter where a song leans on it.
+- Pitch modulation isn't heard. Noise is the generator's sequence played at
+  its clock.
+- Timing within 2.4 ms: key ons and offs take effect at the next mix, in
+  the order the driver asked, without the S-DSP's five frames to start a
+  note; envelopes step at the mix, their steps not on the S-DSP's shared
+  clock. The driver's own sample is decoded again when a voice starts it.
+- A mix louder than twice what 8 bits holds wraps rather than clips.
+- The meter's output (command `$FF` `$01`, docs/SOUND.md) is a voice's
+  sample at its level, not the S-DSP's output; the game never turns the
+  meter on.
+
 **Measured** (2026-11-14, mGBA 0.10.5):
 
 | What | On the GBA |
@@ -1170,9 +1230,10 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | The outcome, driven by `mgba_run` | `title-start` (1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`), `new-game` (7,200, 244, `9126C7F9`), `gato-battle` (21,600, `A2944878`) and `events-jetbike-race` (9,400, `68804B38`, its track read back from VRAM) and `menus-save-point` (end state `497AE9A0`, which saves the game: the SRAM afterwards `DE9ED421`): each the same as ct_native's |
 | Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above |
 | Cartridge | the program 1.77 MiB (code 1.14, constants 0.63), the pack 3.73 MiB |
-| Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the C library's heap; 8.5 KiB free |
-| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 17 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 2,048; five slots used), the code that runs most 4.9 KiB (the line interrupts 656 bytes of it), the tiles' conversion table 1 KiB, the driver's stack the 8.9 KiB above them (deepest use 2,048 bytes); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
+| Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the sound's ring 1 KiB and mixer 1 KiB, the drive box 4.3 KiB, the C library's heap; 0.2 KiB free (the next thing to take work RAM must give some back) |
+| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 17 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 2,048; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the driver's stack the 6.4 KiB above them, a canary at its end checked each frame (deepest use 2,048 bytes); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
+| The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.35 and 0.75, `new-game` 0.34 and 0.75, `gato-battle` 0.36 and 0.75, `events-jetbike-race` 0.36 and 0.75; of it the mixing 0.15, 0.14, 0.16 and 0.15 (the heaviest 0.31-0.38); with the silent mixer before it, the driver alone 0.2 |
 | Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 1.4 and 2.0, sound 0.2 and 0.5, picture 0.2 and 1.0, in all 1.9; `new-game`: game 1.8 and 5.5, picture 0.5 and 1.0, in all 2.5; `gato-battle`: game 2.4 and 6.0, picture 0.9 and 4.5, in all 3.5; `events-jetbike-race`: game 2.8 and 7.3, picture 1.1 and 3.0, in all 4.1. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
 Without the native mixer the game's own frame is most of the cost: 1.4-2.8
