@@ -66,7 +66,11 @@ WIND = death_peak_wind.PHASES[1:]
 # its ledges drop one way (the original's own code stops at them too, played
 # with the frozen emulator-oracle oracle from ctsave12 slot 1).
 GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 60
+GRIND_LEVEL = 58
+# The growing heals from the bag (Lapis, tonics, Ethers for Robo's Heal
+# Beam), and the field above the slope has no shop: it stops with enough left
+# to reach the mountain's save point, where a Shelter restores everyone.
+GRIND_RESERVE = 8
 # Then Marle wears the Wallet, which pays each fight's experience as gold,
 # until the purse holds PURSE: the shop's armour and helms, and its tonics and
 # Ethers to the bag's limit, for the long run of fights inside Lavos.
@@ -346,6 +350,11 @@ def grind_a_round(run, seed=1):
     fight_nearby(run, (lower, upper), seed)
     patch_up(run, 0.7, mp_well=0.4)
     assert run.exit_to(lower), "the lower field"
+
+
+def healing_left(machine):
+    """The bag's Lapis, Full and Mid Tonics and Ethers, all told."""
+    return sum(count_of(machine, item) for item in (LAPIS, FULL_TONIC, MID_TONIC, ETHER, MID_ETHER, FULL_ETHER))
 
 
 def gold(machine):
@@ -661,7 +670,7 @@ def main():
             run.checkpoint("lower_field")
         if later <= 2:
             equip(run, MARLE, ACCESSORY, MAGIC_SCARF)      # resumed with the Wallet on, it would earn no levels
-            while min(levels(machine)) < GRIND_LEVEL:
+            while min(levels(machine)) < GRIND_LEVEL and healing_left(machine) > GRIND_RESERVE:
                 grind_a_round(run, args.seed)
                 run.say("levels", levels(machine), "experience", experience(machine))
                 machine.save_state("%s_grinding.st" % run.prefix)

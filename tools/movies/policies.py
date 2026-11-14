@@ -326,23 +326,36 @@ def holding_out(bot, state, rng, inventory):
 
 INNER_ARMS, INNER_BODY = (3, 6), 10     # the inner Lavos's arms (8000 and 12000 HP) and body (20000)
 BODY_LAST_BLOWS = 4000                  # the body's HP from which the party readies for the core first
-# The guards a member wears through a fight, from the bag: the Barrier
-# (0xCB) takes three tenths off magic, the Shield (0xCC) off blows; one member
-# each. Their bits in the stat block's fourth status byte.
+# The guards a member wears through a fight: the Barrier (0xCB) takes three
+# tenths off magic, the Shield (0xCC) and Lucca's Protect (her tech list's
+# entry 4) off blows; one member each. Their bits in the stat block's fourth
+# status byte.
 BARRIER, SHIELD = 0xCB, 0xCC
 STATUS_4, BARRIERED, SHIELDED = 0x21 - 0x03, 0x40, 0x04
+LUCCA, PROTECT, PROTECT_MP = 2, 4, 6
 
 
 def guard_up(bot, state, inventory):
-    """A Barrier, then a Shield, on the first member standing without one, or
-    None: Lavos's spells and blows land three tenths lighter after."""
+    """A guard against blows on the first member standing without one (Lucca's
+    Protect while she has the MP, else a Shield), then a Barrier against
+    magic, or None: the core's center strikes everyone at once with a blow
+    of 240 power on its attack of 100, which a member with Lucca's defence
+    does not live through unguarded."""
+    member = state.member
     members = [slot for slot in range(bot.party) if state.hp(slot) > 0]
-    for item, bit in ((BARRIER, BARRIERED), (SHIELD, SHIELDED)):
-        for slot in members:
-            if not bot.machine.b(A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE + STATUS_4) & bit:
-                action = use(inventory, item, slot)
-                if action:
-                    return action
+    guarded = lambda slot, bit: bot.machine.b(A.BATTLE_STATS + slot * A.BATTLE_STAT_STRIDE + STATUS_4) & bit
+    for slot in members:
+        if not guarded(slot, SHIELDED):
+            if party_ids(bot)[member] == LUCCA and state.mp(member) >= PROTECT_MP and tech_known(bot, member, PROTECT):
+                return ("tech", PROTECT, slot)
+            action = use(inventory, SHIELD, slot)
+            if action:
+                return action
+    for slot in members:
+        if not guarded(slot, BARRIERED):
+            action = use(inventory, BARRIER, slot)
+            if action:
+                return action
     return None
 
 
@@ -454,18 +467,24 @@ def lavos_core(bot, state, rng, inventory):
     one falls the right bit lowers its guard to bring it back: the defence
     read from its stat block below the most is the window to hit it with
     everything. The center's Evil Star halves everyone and Grand Stone and
-    Crying Heavens hit all, so healing comes first, then a Heal for a member
-    its spell has stopped (the stat block's Stop bit), and Marle's Haste.
+    Crying Heavens hit all, and the center strikes everyone at once (2,666
+    before defence), so healing comes first, then a Heal for a member its
+    spell has stopped (the stat block's Stop bit), Marle's Haste, and guards
+    on everyone (guard_up). Some choices are left to chance (whether to guard
+    or top up first, the left bit or the center) so the bot's retries can
+    find a line through.
     (Gamercorner.net's and Neoseeker's core guides; the defence read is the
     port's own record.)"""
-    action = (keep_up(bot, state, inventory, well=0.4, badly=0.3) or unstop(bot, state, inventory) or hasten(bot, state)
-              or haste_fuel(bot, state, inventory) or guard_up(bot, state, inventory)
-              or keep_up(bot, state, inventory, well=0.7, badly=0.55) or refill(bot, state, inventory))
+    action = (keep_up(bot, state, inventory, well=0.4, badly=0.3) or unstop(bot, state, inventory)
+              or hasten(bot, state) or haste_fuel(bot, state, inventory)
+              or (rng.random() < 0.8 and guard_up(bot, state, inventory))
+              or (rng.random() < 0.7 and keep_up(bot, state, inventory, well=0.7, badly=0.55))
+              or refill(bot, state, inventory))
     if action:
         return action
     if state.hp(CORE_RIGHT) > 0 and stat(bot, CORE_RIGHT, STAT_DEFENCE) < CORE_GUARDED:
         return strongest_single(bot, state, CORE_RIGHT, LAVOS_BLOWS)
-    if state.hp(CORE_LEFT) > 0:
+    if state.hp(CORE_LEFT) > 0 and (state.hp(CORE_CENTER) == 0 or rng.random() < 0.7):
         return strongest_single(bot, state, CORE_LEFT, LAVOS_BLOWS)
     target = CORE_CENTER if state.hp(CORE_CENTER) > 0 else CORE_RIGHT
     return strongest_single(bot, state, target, LAVOS_SINGLES)
