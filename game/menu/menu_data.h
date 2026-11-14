@@ -565,7 +565,10 @@ static inline uint8_t menu_figure_cap(const GameState *g, uint8_t figure)
     return asset_read8(g, ASSET_MENU_FIGURE_CAP, figure);
 }
 
-static inline uint8_t menu_base_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xC2B315u + figure); }
+static inline uint8_t menu_base_figure_offset(const GameState *g, uint8_t figure)
+{
+    return asset_read8(g, ASSET_MENU_BASE_FIGURE_OFFSET, figure);
+}
 
 static inline uint8_t menu_stat_place(const GameState *g, unsigned stat)
 {
@@ -665,7 +668,7 @@ static inline uint8_t menu_window_byte(const GameState *g, uint16_t at) { return
  * $FF ($FF:C457, a word each). */
 static inline uint16_t menu_window_string(const GameState *g, uint16_t number)
 {
-    return rom_read16(g, (0xFFC457u + (uint16_t)(2u * number)) & 0xFFFFFFu);
+    return asset_read16(g, ASSET_MENU_WINDOW_STRINGS, (uint16_t)(2u * number));
 }
 
 /* A window's inside is a pattern of four rows of four tiles ($C2:EEF5), each
@@ -696,7 +699,8 @@ static inline uint8_t menu_portrait_first_tile(const GameState *g, uint8_t chara
 
 static inline uint16_t menu_portrait_colour(const GameState *g, uint8_t character, unsigned i)
 {
-    return rom_read16(g, 0xFF0000u | (uint16_t)(0xCC84u + character * 32u + 2u * i));
+    enum { PORTRAIT_COLOURS = 0xE8 };   /* in menu_colors, a portrait's 16 a character */
+    return asset_read16(g, ASSET_MENU_COLORS, PORTRAIT_COLOURS + character * 32u + 2u * i);
 }
 
 static inline uint16_t menu_load_screen_text_colour(const GameState *g, unsigned i)
@@ -724,7 +728,7 @@ static inline uint8_t menu_slot_name_shift(const GameState *g, uint8_t slot)
  * location's in the low half of its byte. */
 static inline uint8_t menu_era_of_location(const GameState *g, uint16_t location)
 {
-    uint16_t pair = rom_read16(g, (0xFFD296u + (location >> 1)) & 0xFFFFFFu);
+    uint16_t pair = asset_read16(g, ASSET_MENU_ERA_OF_LOCATION, location >> 1);
     uint16_t era = (uint16_t)(pair & 0x01FF);
     return (uint8_t)(((location & 1) ? era >> 4 : era) & 0x0F);
 }
@@ -946,12 +950,13 @@ static inline uint8_t menu_map_view_colour_byte(const GameState *g, unsigned i) 
 
 static inline uint16_t menu_period_location(const GameState *g, bool later_set, uint8_t period)
 {
-    return rom_read16(g, 0xC20000u | (uint16_t)((later_set ? 0x6CA5u : 0x6C97u) + (uint8_t)(period << 1)));
+    enum { LATER_SET = 0x0E };   /* the later set's seven words after the first's */
+    return asset_read16(g, ASSET_MENU_PERIOD_LOCATIONS, (later_set ? LATER_SET : 0) + (uint8_t)(period << 1));
 }
 
 static inline uint16_t menu_period_angle(const GameState *g, uint8_t period)
 {
-    return rom_read16(g, 0xC20000u | (uint16_t)(0x6CB3u + 2u * period));
+    return asset_read16(g, ASSET_MENU_PERIOD_ANGLES, 2u * period);
 }
 
 /* The gate's triangle: its three corners about the screen's centre, a signed
@@ -1213,12 +1218,17 @@ static inline uint8_t menu_tech_effect_byte(const GameState *g, uint8_t tech, un
  * for every member at once. */
 static inline uint8_t menu_tech_targets(const GameState *g, uint8_t tech)
 {
-    return rom_read8(g, 0xCC0000u | (uint16_t)(0x1ACB + 2u * tech));
+    return asset_read8(g, ASSET_PARTY_TECH_AIM, 2u * tech);
 }
 
 /* What each member's part of a tech costs in MP ($CC:253B), by the part's
  * number: a single tech's is the tech itself. */
-static inline uint8_t menu_tech_part_mp(const GameState *g, uint16_t part) { return rom_read8(g, 0xCC0000u | (uint16_t)(0x253B + part)); }
+static inline uint8_t menu_tech_part_mp(const GameState *g, uint16_t part)
+{
+    /* the table's place in its bank wraps round the bank, as the original's word does */
+    enum { COSTS_IN_THEIR_BANK = 0x253B };
+    return asset_read8(g, ASSET_PARTY_EFFECT_MP_COST, (uint32_t)(uint16_t)(COSTS_IN_THEIR_BANK + part) - COSTS_IN_THEIR_BANK);
+}
 
 /* The techs screen's member rows: the sprite beside each row stands this far
  * down the screen ($C2:BB1A, a byte a row: the three rows, then the row a

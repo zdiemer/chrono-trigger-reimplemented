@@ -102,7 +102,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xC26146u, 5u, "menu_marle_real_name", 0, 29 },
     { 0xC268E4u, 16u, "menu_landing_marker_x", 1, 29 },
     { 0xC269F0u, 68u, "menu_map_view_graphics", 1, 29 },
-    { 0xC26C97u, 42u, "words_c26c97", 1, 29 },
+    { 0xC26C97u, 28u, "menu_period_locations", 1, 29 },
+    { 0xC26CB3u, 14u, "menu_period_angles", 1, 29 },
     { 0xC26F2Du, 6u, "menu_gate_corner_x", 0, 29 },
     { 0xC271DDu, 28u, "menu_digit_x", 0, 29 },
     { 0xC27220u, 12u, "menu_gate_stream_source", 1, 29 },
@@ -126,7 +127,7 @@ const AssetEntry asset_catalogue[] = {
     { 0xC2AF3Au, 8u, "menu_item_power_label_at", 1, 29 },
     { 0xC2B045u, 6u, "menu_member_sprite_place", 1, 29 },
     { 0xC2B13Du, 4u, "menu_chance_limit", 0, 29 },
-    { 0xC2B316u, 6u, "undetermined_c2b316", 6, 29 },
+    { 0xC2B315u, 7u, "menu_base_figure_offset", 0, 29 },
     { 0xC2B519u, 7u, "menu_tech_casting_frame", 0, 29 },
     { 0xC2BB1Au, 5u, "menu_tech_row_sprite_y", 0, 29 },
     { 0xC2BD40u, 43u, "menu_tech_group_first", 0, 29 },
@@ -786,8 +787,12 @@ const AssetEntry asset_catalogue[] = {
     { 0xCCF941u, 22u, "battle_object_tile_buffer", 5, 29 },
     { 0xCCF957u, 16u, "battle_queued_transfer", 5, 29 },
     { 0xCCF967u, 16u, "battle_queued_transfer_f967", 5, 29 },
-    { 0xCCF977u, 132u, "battle_queued_transfer_f977", 5, 29 },
-    { 0xCCF9FBu, 154u, "battle_member_bit", 5, 29 },
+    { 0xCCF977u, 16u, "battle_queued_transfer_f977", 5, 29 },
+    { 0xCCF987u, 44u, "setup_upload_sources", 1, 29 },
+    { 0xCCF9B3u, 44u, "setup_upload_vram", 1, 29 },
+    { 0xCCF9DFu, 28u, "setup_upload_sizes", 1, 29 },
+    { 0xCCF9FBu, 70u, "battle_member_bit", 5, 29 },
+    { 0xCCFA41u, 84u, "battle_command_window_tiles", 5, 29 },
     { 0xCCFA95u, 84u, "battle_tech_page_column_tile", 5, 29 },
     { 0xCCFAE9u, 10u, "battle_item_cursor_cell", 5, 29 },
     { 0xCCFAF3u, 88u, "setup_sprite_entry_byte", 5, 29 },
@@ -810,7 +815,9 @@ const AssetEntry asset_catalogue[] = {
     { 0xCD3FFFu, 1u, "battle_debug_frame_advance", 5, 29 },
     { 0xCD4000u, 21u, "battle_weapon_animation", 5, 29 },
     { 0xCD4015u, 11479u, "battle_weapon_animation_4015", 5, 29 },
-    { 0xCD6CECu, 288u, "setup_member_color_set", 5, 29 },
+    { 0xCD6CECu, 96u, "setup_member_color_set", 5, 29 },
+    { 0xCD6D4Cu, 96u, "battle_weapon_swing_sounds", 0, 29 },
+    { 0xCD6DACu, 96u, "battle_weapon_hit_sounds", 0, 29 },
     { 0xCD6E0Cu, 32791u, "battle_animations_cd", 9, 30 },
     { 0xCDEE23u, 4573u, "mixed_cdee23", 5, 29 },
     { 0xCE0000u, 156u, "battle_animation_calls", 9, 30 },
@@ -866,7 +873,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xD159FCu, 84u, "battle_command_frame_tile", 5, 29 },
     { 0xD15A50u, 384u, "battle_tech_page_frames_tile", 5, 29 },
     { 0xD15BD0u, 384u, "battle_item_page_frames_tile", 5, 29 },
-    { 0xD15D50u, 498u, "setup_load_tilemap_start", 5, 29 },
+    { 0xD15D50u, 192u, "setup_load_tilemap_start", 5, 29 },
+    { 0xD15E10u, 306u, "battle_number_rise_tables", 5, 29 },
     { 0xD15F42u, 190u, "battle_character_falling_frame", 5, 29 },
     { 0xD16000u, 576u, "battle_background_color_sets", 1, 26 },
     { 0xD16240u, 556u, "battlefield_look", 5, 29 },
@@ -7238,7 +7246,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFB210u, 128u, "window_design_colors", 1, 28 },
     { 0xFFB290u, 128u, "mixed_ffb290", 5, 29 },
     { 0xFFB310u, 2636u, "menu_item_kind_label", 5, 29 },
-    { 0xFFBD5Cu, 3152u, "menu_main_menu_icon", 5, 29 },
+    { 0xFFBD5Cu, 1787u, "menu_main_menu_icon", 5, 29 },
+    { 0xFFC457u, 1365u, "menu_window_strings", 5, 29 },
     { 0xFFC9ACu, 80u, "menu_name_grid_letter", 5, 29 },
     { 0xFFC9FCu, 256u, "small_font_replacements", 10, 2 },
     { 0xFFCAFCu, 160u, "menu_small_digit_byte", 5, 29 },
@@ -7322,8 +7331,8 @@ const AssetEntry asset_catalogue[] = {
     { 0xFFFFF5u, 11u, "battle_screen_script_byte", 6, 29 },
 };
 
-AssetServed asset_served[7261];
+AssetServed asset_served[7270];
 
-const uint16_t asset_catalogue_count = 7261;
+const uint16_t asset_catalogue_count = 7270;
 
-const uint32_t asset_catalogue_version = 0xBD70D872u;
+const uint32_t asset_catalogue_version = 0xF9D90455u;

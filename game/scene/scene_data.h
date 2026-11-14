@@ -50,12 +50,12 @@ static inline uint8_t scene_figure_graphics_byte(const GameState *g, uint32_t at
 
 static inline uint16_t scene_figure_frames(const GameState *g, unsigned character)
 {
-    return rom_read16(g, 0xE42600 + character * 2);
+    return asset_read16(g, ASSET_SETUP_FRAME_LISTS, character * 2u);
 }
 
 static inline uint16_t scene_figure_delays(const GameState *g, unsigned character)
 {
-    return rom_read16(g, 0xE42800 + character * 2);
+    return asset_read16(g, ASSET_SETUP_DELAY_LISTS, character * 2u);
 }
 
 static inline uint8_t scene_figure_animation_byte(const GameState *g, uint16_t at)

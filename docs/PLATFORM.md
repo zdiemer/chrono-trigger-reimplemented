@@ -71,11 +71,14 @@ An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
 offset past the resource's end reads on by address, as the original's
-indexing does. 491 of the data headers' reads (call sites) name their
-resource. What the data's own pointers lead to (a stream a table points
-to, a script's text, a bank and a 16-bit place the data gives) is still
-read by the address the original keeps it at, 200 call sites, the address
-a key the catalogue's rows are looked up by. A region the catalogue hasn't
+indexing does. 511 of the game's reads (call sites) name their resource,
+every one whose table starts at a place the code names, two tables in a
+row of the catalogue each an offset in it (`SECOND_UPLOADS_SLOTS`). What
+the data's own pointers lead to (a stream a table points to, a script's
+text, a bank and a 16-bit place the data gives) is still read by the
+address the original keeps it at, 174 call sites, the address a key the
+catalogue's rows are looked up by: a pack can't move those resources until
+it moves the pointers to them too. A region the catalogue hasn't
 typed is cut where each accessor's table starts, the piece named for its
 accessor and still `mixed`, so a read names its own table rather than the
 region it shares (issue #127 types them).
