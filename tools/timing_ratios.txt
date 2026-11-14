@@ -187,3 +187,81 @@ C20405 3545 12943 3.65  # attract-demo 3.60 events-epoch-lavos 4.03 events-fair-
 C0A810 4979 4217 0.85  # field 0.96 attract-demo 0.88 events-epoch-lavos 0.80 menus-shop-inn 0.76
 # $C0:21E1's is measured, not applied: 2.02-2.19 in most movies but 1.43 in attract-demo, 1.63 in
 # events-end-of-time-gate and 1.71 in events-ocean-palace-lavos, so it isn't steady; it keeps 6772.
+
+# The field's and the events' one-off routines (issue #349, #376): the location's load, its scripts' setup commands, under 1000 calls in the 25 movies (each routine's calls within 20% of the original's, at least three movies, no movie's ratio more than 1.35 times another's). Left out: the waits and the song starts, the transfers whose bytes the port charges outside the routine (the edge uploads, the window design's send, the choice pointer's refresh, the location's palette), and the routines the port prices from their own work ($C0:56D4, $C0:0A14, $C0:6DCF, $C0:0960, $C0:09DD).
+C00005 4307 4917 1.14  # attract-demo 1.14 field-factory-switch 1.14 events-ocean-palace-lavos 1.14
+C000F4 3295 13378 4.06  # attract-demo 4.05 events-ocean-palace-lavos 4.14 field 4.01 menus-shop-inn 4.08
+C00B64 3500 5750 1.64  # attract-demo 1.61 events-ocean-palace-lavos 1.59 field 1.66 menus-epoch 1.68
+C00B75 3500 5289 1.51  # attract-demo 1.53 events-ocean-palace-lavos 1.53 field 1.50 menus-epoch 1.50
+C01ADF 4167 5915 1.42  # events-fair-rescue 1.40 events-end-of-time-gate 1.47 events-epoch-lavos 1.42 events-jetbike-race-won 1.41
+C0286C 7125 16278 2.28  # attract-demo 2.37 field 2.31 menu 2.30 menus-shop-inn 2.28
+C028E1 4994 9875 1.98  # attract-demo 1.99 field 2.00 menu 2.01 menus-shop-inn 1.96
+C02E87 4417 5937 1.34  # menus-end-of-time 1.31 events-end-of-time-gate 1.36 attract-demo 1.39 menus-save-point 1.34
+C02E8B 4417 6067 1.37  # attract-demo 1.39 events-end-of-time-gate 1.29 field 1.39 events-ocean-palace-lavos 1.50
+C02E8F 4417 6206 1.41  # attract-demo 1.38 events-fair-rescue 1.41 events-end-of-time-gate 1.51 events-ocean-palace-lavos 1.37
+C02F71 4530 6203 1.37  # events-jetbike-race 1.39 attract-demo 1.31 events-ocean-palace-lavos 1.39 events-end-of-time-gate 1.31
+C02FCA 5343 8980 1.68  # events-end-of-time-gate 1.77 events-ocean-palace-lavos 1.64 attract-demo 1.61
+C02FD2 5002 7860 1.57  # attract-demo 1.54 events-ocean-palace-lavos 1.57 events-end-of-time-gate 1.85
+C0326C 2728 3879 1.42  # events-ocean-palace-lavos 1.26 field-factory-switch 1.54 attract-demo 1.64 events-fair-rescue 1.48
+C0345A 3761 5929 1.58  # menus-shop-inn 1.62 events-end-of-time-gate 1.56 events-jetbike-race-won 1.55 events-jetbike-race 1.52
+C03557 3350 4354 1.30  # attract-demo 1.29 events-ocean-palace-lavos 1.31 field 1.32 menus-shop-inn 1.32
+C035B5 3054 4992 1.63  # events-ocean-palace-lavos 1.61 events-epoch-lavos 1.58 menus-end-of-time 1.79 events-jetbike-race 1.66
+C03643 2340 3593 1.54  # events-fair-rescue 1.59 events-jetbike-race-won 1.53 menus-shop-inn 1.44 events-jetbike-race 1.53
+C03711 7487 41293 5.52  # menus-end-of-time 5.52 events-end-of-time-gate 5.51 menus-save-point 5.51
+C03757 2792 3842 1.38  # field 1.44 menu 1.41 menus-new-game-plus 1.36 menus-shop-inn 1.44
+C038E8 8236 14979 1.82  # menus-end-of-time 1.81 menus-save-point 1.80 menus-shop-inn 1.81 events-end-of-time-gate 1.83
+C03A83 3136 4191 1.34  # attract-demo 1.30 events-ocean-palace-lavos 1.57 field-factory-switch 1.49
+C03AB7 2293 3036 1.32  # attract-demo 1.22 events-fair-rescue 1.14 events-ocean-palace-lavos 1.39 field 1.48
+C03B1B 3933 4928 1.25  # attract-demo 1.32 events-end-of-time-gate 1.20 events-jetbike-race-won 1.25 events-jetbike-race 1.25
+C03C05 3167 5087 1.61  # attract-demo 1.52 events-ocean-palace-lavos 1.59 field-factory-switch 1.65 events-end-of-time-gate 1.69
+C03CD0 3677 4970 1.35  # attract-demo 1.24 field 1.54 menu 1.54 new-game 1.54
+C03CFD 2857 5268 1.84  # events-ocean-palace-lavos 1.90 events-epoch-lavos 1.72 attract-demo 1.76
+C03D84 3235 5064 1.57  # events-ocean-palace-lavos 1.63 attract-demo 1.44 events-epoch-lavos 1.40
+C03DF4 4420 5328 1.21  # attract-demo 1.19 events-ocean-palace-lavos 1.20 events-epoch-lavos 1.31 events-jetbike-race-won 1.24
+C03FAF 5449 7268 1.33  # attract-demo 1.32 events-ocean-palace-lavos 1.36 events-end-of-time-gate 1.43 events-epoch-lavos 1.45
+C04214 5220 7417 1.42  # attract-demo 1.41 menus-shop-inn 1.41 field-factory-switch 1.42 field 1.38
+C04476 5223 5753 1.10  # menus-end-of-time 1.10 events-ocean-palace-lavos 1.10 events-end-of-time-gate 1.10 menus-save-point 1.10
+C04590 8880 6171 0.69  # attract-demo 0.68 events-ocean-palace-lavos 0.71 events-fair-rescue 0.71 menus-shop-inn 0.70
+C046DF 19393 7021 0.36  # attract-demo 0.36 events-ocean-palace-lavos 0.36 events-jetbike-race 0.35 field-factory-switch 0.36
+C04867 4000 6360 1.59  # attract-demo 1.58 menus-end-of-time 1.56 events-fair-rescue 1.66 events-ocean-palace-lavos 1.62
+C04876 4444 6967 1.57  # events-ocean-palace-lavos 1.56 attract-demo 1.55 field 1.56 menu 1.54
+C04892 8928 15003 1.68  # events-ocean-palace-lavos 1.69 events-end-of-time-gate 1.70 attract-demo 1.52
+C04B49 4000 6428 1.61  # attract-demo 1.60 events-ocean-palace-lavos 1.67 field-factory-switch 1.55 field 1.66
+C04B74 4770 7497 1.57  # attract-demo 1.59 events-ocean-palace-lavos 1.58 events-fair-rescue 1.54 menus-end-of-time 1.54
+C04C27 4324 5965 1.38  # events-ocean-palace-lavos 1.37 events-fair-rescue 1.41 attract-demo 1.37 events-end-of-time-gate 1.37
+C04C74 5277 7679 1.46  # attract-demo 1.45 events-ocean-palace-lavos 1.47 events-end-of-time-gate 1.48 menus-shop-inn 1.49
+C04CE0 2964 4380 1.48  # attract-demo 1.44 field 1.43 menu 1.42 new-game 1.42
+C04CEC 4917 7768 1.58  # menus-end-of-time 1.56 events-fair-rescue 1.67 menus-save-point 1.56 events-ocean-palace-lavos 1.50
+C05129 5147 2712 0.53  # attract-demo 0.54 events-ocean-palace-lavos 0.55 field 0.50 menu 0.50
+C05535 3094 4440 1.44  # events-ocean-palace-lavos 1.38 attract-demo 1.51 menus-end-of-time 1.49 events-end-of-time-gate 1.52
+C05539 3094 4465 1.44  # events-ocean-palace-lavos 1.45 attract-demo 1.43 events-end-of-time-gate 1.47 menus-end-of-time 1.40
+C0553D 3094 4439 1.43  # events-ocean-palace-lavos 1.41 attract-demo 1.47 menus-end-of-time 1.52 events-end-of-time-gate 1.39
+C05541 3094 4440 1.44  # events-fair-rescue 1.43 attract-demo 1.43 events-ocean-palace-lavos 1.45 menus-end-of-time 1.55
+C05545 3111 4305 1.38  # events-jetbike-race 1.45 events-jetbike-race-won 1.38 attract-demo 1.35 menus-shop-inn 1.36
+C05709 5440 9873 1.81  # attract-demo 1.85 events-ocean-palace-lavos 1.93 field 1.77 menus-shop-inn 1.88
+C05FB6 4794 5703 1.19  # events-fair-rescue 1.21 attract-demo 1.19 events-ocean-palace-lavos 1.20 menus-end-of-time 1.23
+C061E9 4798 5474 1.14  # events-fair-rescue 1.08 events-ocean-palace-lavos 1.17 attract-demo 1.16 events-epoch-lavos 1.14
+C06254 5000 7602 1.52  # events-fair-rescue 1.53 attract-demo 1.48 events-jetbike-race-won 1.48 events-jetbike-race 1.52
+C06282 4786 7739 1.62  # events-ocean-palace-lavos 1.51 field 1.89 menu 1.89 new-game 1.89
+C06295 5000 8028 1.61  # attract-demo 1.61 events-ocean-palace-lavos 1.55 events-fair-rescue 1.57 field-factory-switch 1.60
+C062A4 4625 7386 1.60  # attract-demo 1.60 menus-end-of-time 1.59 events-end-of-time-gate 1.60 field-factory-switch 1.63
+C06568 4590 6264 1.36  # menus-shop-inn 1.29 events-end-of-time-gate 1.33 events-epoch-lavos 1.11 events-jetbike-race-won 1.42
+C066BC 4303 6098 1.42  # events-ocean-palace-lavos 1.39 menus-end-of-time 1.43 events-end-of-time-gate 1.44 menus-save-point 1.43
+C067D7 4542 5588 1.23  # attract-demo 1.25 events-ocean-palace-lavos 1.27 field 1.24 menu 1.24
+C068A5 3841 5077 1.32  # attract-demo 1.38 events-fair-rescue 1.30 events-ocean-palace-lavos 1.26 events-end-of-time-gate 1.29
+C069A6 4556 6126 1.34  # attract-demo 1.34 menus-shop-inn 1.36 field 1.33 menu 1.33
+C06B76 5149 6695 1.30  # attract-demo 1.32 events-ocean-palace-lavos 1.35 events-jetbike-race-won 1.35 events-jetbike-race 1.27
+C06C69 3250 4221 1.30  # menus-shop-inn 1.26 attract-demo 1.29 field-factory-switch 1.31 events-end-of-time-gate 1.37
+C06CBD 3528 4897 1.39  # attract-demo 1.43 events-ocean-palace-lavos 1.38 events-end-of-time-gate 1.38 events-fair-rescue 1.46
+C06D09 4000 5542 1.39  # attract-demo 1.39 menus-shop-inn 1.48 menus-epoch 1.44
+C0885A 3934 7095 1.80  # attract-demo 1.78 events-end-of-time-gate 2.01 field-factory-switch 1.83 events-fair-rescue 1.67
+C0A33B 4252 6394 1.50  # attract-demo 1.51 field 1.50 menu 1.50 menus-shop-inn 1.50
+C0A509 3531 9750 2.76  # attract-demo 2.77 field 2.71 menu 2.72 menus-shop-inn 2.77
+C0B192 8328 9268 1.11  # attract-demo 1.13 field 1.10 menu 1.10 menus-shop-inn 1.11
+C0BCDC 3775 4270 1.13  # attract-demo 1.13 events-ocean-palace-lavos 1.15 events-end-of-time-gate 1.08 field-12kbc-1f4 1.07
+C0E935 4250 5415 1.27  # attract-demo 1.30 events-ocean-palace-lavos 1.29 field 1.28 menus-shop-inn 1.25
+C0E97A 4393 9390 2.14  # attract-demo 2.14 events-ocean-palace-lavos 2.18 events-end-of-time-gate 1.94 field-12kbc-1f4 1.94
+FDB438 11333 12629 1.11  # attract-demo 1.11 events-ocean-palace-lavos 1.12 field-factory-switch 1.11
+FDB4D6 11498 12768 1.11  # attract-demo 1.11 events-ocean-palace-lavos 1.12 field-factory-switch 1.10
+FDC124 5458 4051 0.74  # attract-demo 0.74 field 0.74 menu 0.74 menus-shop-inn 0.74
+FDFFEE 14300 18292 1.28  # events-end-of-time-gate 1.28 events-fair-rescue 1.28 events-jetbike-race-won 1.28 events-jetbike-race 1.28
