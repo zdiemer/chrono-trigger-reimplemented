@@ -63,32 +63,19 @@ void asset_note_outside(uint32_t at)
 
 /* ---- The store ---------------------------------------------------------------------------------- */
 
-static const AssetStore *store;
+static const AssetSource *source;
 
-void assets_use(const AssetStore *s)
-{
-    store = s;
-    for (uint16_t i = 0; i < asset_catalogue_count; i++)
-        asset_served[i] = (AssetServed){ NULL, 0 };
-}
+void assets_use(const AssetSource *s) { source = s; }
 
-/* A resource's bytes from the store, or NULL where there is no store or it
- * hasn't the resource. A resource is asked for once, by name and type, and
- * what the store answers kept. */
+/* A resource's bytes from the source, or NULL where there is no source or it
+ * hasn't the resource as the catalogue has it. */
 static const uint8_t *resource_bytes(AssetId id)
 {
-    if (!store)
+    if (!source)
         return NULL;
-    const AssetEntry *e = &asset_catalogue[id];
-    AssetServed *s = &asset_served[id];
-    if (!s->asked) {
-        uint32_t length = 0;
-        s->bytes = store->find(store->ctx, e->name, asset_type_names[e->type], &length);
-        if (length != e->length)
-            s->bytes = NULL;
-        s->asked = 1;
-    }
-    return s->bytes;
+    uint32_t length = 0;
+    const uint8_t *bytes = source->resource(source->ctx, id, &length);
+    return bytes && length == asset_catalogue[id].length ? bytes : NULL;
 }
 
 /* The store's copy of the cartridge byte at `at`, or NULL: the address is in

@@ -14,6 +14,7 @@
 # dictionary's words, as frontend/text.h's; `tiles:plane-pool` the battlefield's tiles of two or
 # three bitplanes, cut by their descriptors, as frontend/tiles.h's; `struct:sprite-records:N`,
 # `struct:location-exits` tables of records, as frontend/records.h's).
+# bytes crc32 315F7395
 # name	type	at	end	codec	found by
 menu_scene_scroll_pattern	bytes	C0:0000	C0:01BF	raw	accessor menu_scene_scroll_pattern_byte
 built_in_command_byte	script	C0:5D37	C0:5D6D	script:event-commands	accessor built_in_command_byte
@@ -30,7 +31,6 @@ random_bytes	bytes	C0:FE00	C0:FEFF	raw	accessor battle_random_table
 bit_masks	bytes	C0:FF18	C0:FF2F	raw	accessor bit_mask, bit_clear_mask
 field_wave_offsets	words	C0:FF30	C0:FFAB	raw	accessor field_wave_offset
 mixed_c0ffac	mixed	C0:FFAC	C0:FFAF	raw	read
-battle_script_handler	jump-table	C1:7A6B	C1:7C20	raw	accessor battle_script_handler
 selector_routine	jump-table	C1:B8BB	C1:B92C	raw	accessor selector_routine
 mixed_c1fdd3	mixed	C1:FDD3	C1:FFFE	raw	read
 battle_debugging_switch	bytes	C1:FFFF	C1:FFFF	raw	accessor battle_debugging_switch

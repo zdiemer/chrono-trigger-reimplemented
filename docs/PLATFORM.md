@@ -67,6 +67,23 @@ verifies the user's cartridge and imports a local pack. Game code loads named
 resources from that store, never an embedded ROM. Packs and decoded assets are
 not committed.
 
+A pack is held to a reference made apart from the import: `tools/assets.py crc
+ROM` records the CRC-32 of every resource's bytes, one after another in the
+catalogue's order, read from the ROM file by the catalogue's own addresses
+(`# bytes crc32` in `re/assets.tsv`, `asset_catalogue_bytes_crc32`), and
+`tools/assets.py check` holds the record to the catalogue where the ROM is
+staged. The import refuses a pack whose resources don't come to it, and
+`ct_native` imports again over a pack on disk that doesn't
+(`asset_pack_is_the_cartridges`); a pack remade from edited text isn't held
+to it. `assets_test` checks both ways with the ROM staged.
+
+The game reads its resources through a source that answers by the
+catalogue's row (`AssetSource`, `assets_use`): a pack's directory is in the
+catalogue's order, so a row is its entry, and the game keeps no table of its
+own per resource (a target keeps the pack's directory in its ROM). The
+battle's animation commands' handlers, which name their timing, are a table
+in `battle/scripts.c` rather than a resource read at run time.
+
 An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
