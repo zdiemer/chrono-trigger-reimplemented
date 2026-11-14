@@ -1,13 +1,13 @@
 /* The GBA build's memory (docs/PLATFORM.md, "The GBA build, as built").
  *
  * The cartridge (ROM, from 0x08000000) holds the code, the constants and
- * the initial values of the data; the packing step (targets/gba/pack.py)
+ * the initial values of the data; the packing step (targets/gba/host/pack.py)
  * appends the cartridge's resources and the movie after `__rom_end`. Work
  * RAM (EWRAM, 256 KiB at 0x02000000) holds the data and the zeroed state,
  * then the arena (port/arena.h) up to its end. Fast RAM (IWRAM, 32 KiB at
  * 0x03000000) holds the code that must be fast (the picture's line
  * interrupt), the fibers' stacks and the driver's own stack at its top.
- * Video RAM is the picture's (targets/gba/video.c). */
+ * Video RAM is the picture's (targets/gba/services/video.c). */
 OUTPUT_FORMAT("elf32-littlearm")
 OUTPUT_ARCH(arm)
 ENTRY(_start)
@@ -26,8 +26,20 @@ __stack_top = __iwram_end - 0x100;
 
 SECTIONS
 {
+    .header : { KEEP(*(.header)) } > rom
+
+    /* Fast RAM's code, copied there at the start: before the cartridge's
+     * code, since a function goes to the first place that names it. */
+    .iwram : {
+        __iwram_start = .;
+        *(.iwram .iwram.*)
+        INCLUDE fast_code.ld
+        . = ALIGN(4);
+        __iwram_data_end = .;
+    } > iwram AT > rom
+    __iwram_load = LOADADDR(.iwram);
+
     .text : {
-        KEEP(*(.header))
         *(.text .text.*)
         *(.glue_7 .glue_7t .vfp11_veneer .v4_bx)
     } > rom
@@ -39,15 +51,7 @@ SECTIONS
 
     .ARM.exidx : { *(.ARM.exidx* .gnu.linkonce.armexidx.*) } > rom
 
-    .iwram : {
-        __iwram_start = .;
-        *(.iwram .iwram.*)
-        . = ALIGN(4);
-        __iwram_data_end = .;
-    } > iwram AT > rom
-    __iwram_load = LOADADDR(.iwram);
-
-    /* Zeroed fast RAM: the fibers' stacks (targets/gba/fiber.c). */
+    /* Zeroed fast RAM: the fibers' stacks (targets/gba/system/fiber.c). */
     .iwram_bss (NOLOAD) : {
         __iwram_bss_start = .;
         *(.iwram_bss .iwram_bss.*)

@@ -5,10 +5,10 @@ as built"). The seed of the builder (issue #421): the cartridge's bytes come
 from the player's own copy, verified first, and the result is never
 committed.
 
-    python3 targets/gba/pack.py --program build/gba/ct_gba.bin --rom roms/ct-usa.sfc \\
+    python3 targets/gba/host/pack.py --program build/gba/ct_gba.bin --rom roms/ct-usa.sfc \\
         --movie movies/title-start.ctm --out build/gba/title-start.gba
 
-The pack after the program (targets/gba/main.c, PackHead): "CTGB", the
+The pack after the program (targets/gba/system/main.c, PackHead): "CTGB", the
 catalogue's version and its count, the movie's frames and where its pads are,
 where the save RAM is (0: none); then each resource's place and length, in
 the catalogue's order; then the resources, the movie's pads (a word a frame,
@@ -22,7 +22,7 @@ import struct
 import sys
 import zlib
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 from tools import assets, rom  # noqa: E402
 from tools.movies import mkmovie  # noqa: E402

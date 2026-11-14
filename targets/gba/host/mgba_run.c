@@ -1,6 +1,6 @@
 /* mgba_run: play a .gba in mGBA's core with no window and no sound, print
  * what the program writes to mGBA's debug log, and stop where it says it is
- * done (targets/gba/main.c's "ct_gba: done"), or after a number of the
+ * done (targets/gba/system/main.c's "ct_gba: done"), or after a number of the
  * GBA's frames (docs/PLATFORM.md, "The GBA build, as built").
  *
  *   mgba_run ROM.gba [MAX_FRAMES] [--frame-at ADDRESS] [--shot FRAME FILE.png]... [--samples FILE]
@@ -13,7 +13,7 @@
  * where the processor is every SAMPLE_CYCLES cycles while the movie plays
  * (to the driver's report of the frames played) and writes each address it was seen at with its count (run.py's
  * --profile names the functions). It is a host tool, built against libmgba
- * and zlib (targets/gba/run.py builds it). */
+ * and zlib (targets/gba/host/run.py builds it). */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
