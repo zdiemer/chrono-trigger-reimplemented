@@ -100,7 +100,7 @@ typedef struct {
     uint8_t line_map_count;
     uint32_t written[BLOCKS / 32];    /* blocks the game wrote since the picture was made */
     bool palette_written, settings_changed;
-    uint8_t (*read)(void *ctx, uint32_t addr);
+    PfReadGame *read;
     void *ctx;
 } Snes;
 
@@ -120,11 +120,43 @@ static uint16_t vram_mapped(void)
     return (uint16_t)(a & 0x7FFF);
 }
 
+static uint8_t game_byte(uint32_t addr)
+{
+    uint8_t byte = 0;
+    if (snes.read)
+        snes.read(snes.ctx, addr, &byte, 1);
+    return byte;
+}
+
+/* `n` bytes of the data a send names, from its `i`th: a host's own, or the
+ * game's, read a span at a time. */
+static void data_bytes(PfData src, uint32_t i, uint8_t *out, uint32_t n)
+{
+    if (src.ptr) {
+        memcpy(out, src.ptr + i, n);
+    } else if (src.byte_at) {
+        for (uint32_t k = 0; k < n; k++) {
+            const uint8_t *byte = pf_data_pointer(src, i + k);
+            out[k] = byte ? *byte : game_byte(pf_data_address(src, i + k));
+        }
+    } else if (snes.read) {
+        snes.read(snes.ctx, src.addr + i, out, n);
+    } else {
+        memset(out, 0, n);
+    }
+}
+
 static uint8_t data_byte(PfData src, uint32_t i)
 {
-    const uint8_t *byte = pf_data_pointer(src, i);
-    return byte ? *byte : snes.read ? snes.read(snes.ctx, pf_data_address(src, i)) : 0;
+    uint8_t byte;
+    data_bytes(src, i, &byte, 1);
+    return byte;
 }
+
+/* The sends' bytes come through here a piece at a time, kept off the fibers'
+ * small stacks. */
+enum { PIECE = 256 };
+static uint8_t piece[PIECE];
 
 /* A byte through the VRAM port, as the SNES's PPU takes it. */
 static void vram_put(bool high, uint8_t v)
@@ -136,6 +168,35 @@ static void vram_put(bool high, uint8_t v)
         snes.vram_addr = (uint16_t)(snes.vram_addr + snes.port.step);
 }
 
+/* `len` bytes of `src` through the VRAM port: words, low byte first (half
+ * -1), or one byte of each word (half 0 the low, 1 the high). Words through
+ * a port that steps a word after the high byte, with no remapping, go
+ * straight into VRAM's next bytes. */
+static void vram_put_bytes(PfData src, uint32_t len, int half)
+{
+    uint32_t i = 0;
+    if (half < 0 && snes.port.remap == 0 && snes.port.step == 1 && snes.port.after_high) {
+        while (len - i >= 2) {
+            uint32_t at = (uint32_t)(snes.vram_addr & 0x7FFF) << 1;
+            uint32_t n = (len - i) & ~1u;
+            if (n > VRAM_BYTES - at)
+                n = VRAM_BYTES - at;
+            data_bytes(src, i, &snes.vram[at], n);
+            for (uint32_t b = at - at % BLOCK_BYTES; b < at + n; b += BLOCK_BYTES)
+                block_written(b);
+            snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
+            i += n;
+        }
+    }
+    while (i < len) {
+        uint32_t n = len - i < PIECE ? len - i : PIECE;
+        data_bytes(src, i, piece, n);
+        for (uint32_t k = 0; k < n; k++)
+            vram_put(half < 0 ? ((i + k) & 1) != 0 : half == 1, piece[k]);
+        i += n;
+    }
+}
+
 static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill, const VidVramPort *port)
 {
     if (port)
@@ -143,8 +204,13 @@ static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill,
     if (len == 0)
         return;
     snes.vram_addr = vram_addr;
-    for (uint32_t i = 0; i < len; i++)
-        vram_put((i & 1) != 0, data_byte(src, fill ? 0 : i));
+    if (fill) {
+        uint8_t byte = data_byte(src, 0);
+        for (uint32_t i = 0; i < len; i++)
+            vram_put((i & 1) != 0, byte);
+        return;
+    }
+    vram_put_bytes(src, len, -1);
 }
 
 static void oam_put(uint8_t v)
@@ -162,7 +228,7 @@ static void oam_put(uint8_t v)
 
 /* ---- The host half ------------------------------------------------------------------------------ */
 
-void vid_host_start(Platform *pf, uint8_t (*read)(void *ctx, uint32_t addr), void *ctx)
+void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
     (void)pf;
     snes.read = read;
@@ -499,8 +565,7 @@ void vid_send_vram_half(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src
     if (len == 0)
         return;
     snes.vram_addr = vram_addr;
-    for (uint32_t i = 0; i < len; i++)
-        vram_put(half == VID_VRAM_HIGH_BYTES, data_byte(src, i));
+    vram_put_bytes(src, len, half == VID_VRAM_HIGH_BYTES);
 }
 
 void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData value, uint32_t len,
@@ -516,9 +581,11 @@ void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint1
     (void)o;
     charge_send(pf, 2u * count);
     uint8_t at = first;
-    for (uint16_t i = 0; i < count; i++) {
-        uint8_t lo = data_byte(src, 2u * i), hi = data_byte(src, 2u * i + 1);
-        snes.cgram[at++] = (uint16_t)((hi & 0x7F) << 8 | lo);
+    for (uint32_t i = 0; i < count; i += PIECE / 2) {
+        uint32_t n = count - i < PIECE / 2 ? count - i : PIECE / 2;
+        data_bytes(src, 2u * i, piece, 2u * n);
+        for (uint32_t k = 0; k < n; k++)
+            snes.cgram[at++] = (uint16_t)((piece[2 * k + 1] & 0x7F) << 8 | piece[2 * k]);
     }
     snes.palette_written = true;
 }
@@ -538,23 +605,20 @@ void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len)
 {
     (void)o;
     charge_send(pf, len);
-    for (uint32_t i = 0; i < len; i++)
-        vram_put((i & 1) != 0, data_byte(src, i));
+    vram_put_bytes(src, len, -1);
 }
 
 void vid_continue_vram_half(Platform *pf, PfOrigin o, PfData src, uint32_t len, VidVramHalf half)
 {
     (void)o;
     charge_send(pf, len);
-    for (uint32_t i = 0; i < len; i++)
-        vram_put(half == VID_VRAM_HIGH_BYTES, data_byte(src, i));
+    vram_put_bytes(src, len, half == VID_VRAM_HIGH_BYTES);
 }
 
 void vid_send_oam(Platform *pf, PfOrigin o, PfData oam, const VidSpritePlace *places)
 {
     (void)pf, (void)o, (void)places;
-    for (uint32_t i = 0; i < sizeof snes.oam; i++)
-        snes.oam[i] = data_byte(oam, i);
+    data_bytes(oam, 0, snes.oam, sizeof snes.oam);
 }
 
 void vid_send_oam_fill(Platform *pf, PfOrigin o, uint16_t word_addr, uint8_t value, uint16_t len)
@@ -1021,7 +1085,7 @@ typedef struct {
     uint16_t cursor, indirect;
 } Slot;
 
-static uint8_t line_read(uint32_t addr) { return snes.read ? snes.read(snes.ctx, addr) : 0; }
+static uint8_t line_read(uint32_t addr) { return game_byte(addr); }
 
 static void slot_entry(Slot *sl, const VidLineEffect *e)
 {

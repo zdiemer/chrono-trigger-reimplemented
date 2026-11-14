@@ -4434,5 +4434,8 @@ void vars_host_crossings_reset(VarsHost *h);
 void vars_host_init(VarsHost *h);
 bool vars_host_read8(const VarsHost *h, uint32_t addr, uint8_t *value);
 bool vars_host_write8(VarsHost *h, uint32_t addr, uint8_t value);
+/* `len` bytes of work RAM from `addr`, as vars_host_read8 reads each (0 where
+ * no owner keeps one), in one call: what a send names by address. */
+void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_t len);
 
 #endif
