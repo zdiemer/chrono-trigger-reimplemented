@@ -56,7 +56,9 @@ KEEPER = ["clone", "keepers_dome", "belthasar"]
 # Death Peak: the wind slope (death_peak_wind), the caves past two Lavos
 # Spawn to the last save point (death_peak), the last Spawn and the summit,
 # where the Chrono Trigger brings Crono back (death_peak_return).
-TO_THE_PEAK = ["peak"]
+# On the way, the 12000 B.C. village's shop: Ethers for Robo's Heal Beam and
+# tonics, what the purse holds, for the long growing ahead.
+TO_THE_PEAK = ["supplied", "peak"]
 WIND = death_peak_wind.PHASES[1:]
 # The party that comes this far (levels 34-38) is no match for Lavos: its
 # shell takes some 400 HP from each member a blow, and its inner form wipes a
@@ -68,7 +70,7 @@ WIND = death_peak_wind.PHASES[1:]
 # its ledges drop one way (the original's own code stops at them too, played
 # with the frozen emulator-oracle oracle from ctsave12 slot 1).
 GRIND = ["lower_field", "grinding", "ground"]
-GRIND_LEVEL = 58
+GRIND_LEVEL = 70
 # The growing heals from the bag (Lapis, tonics, Ethers for Robo's Heal
 # Beam), and the field above the slope has no shop: it stops with enough left
 # to reach the mountain's save point, where a Shelter restores everyone.
@@ -702,6 +704,19 @@ def main():
             for want in ("f100", WORLD_2300):
                 assert run.exit_to(want), want
             board(run)
+            dial(run, PERIOD_12000)
+            go_through_time(run, WORLD_12000)
+            land_by(run, COMMONS_SHOP)
+            assert run.wait_control(), "the shop in hand"
+            run.say("gold", gold(machine))
+            stock_up(run, COMMONS_MERCHANT, [(ETHERS, ETHER, 99, 800), (MID_TONICS, MID_TONIC, 99, 100),
+                                             (FULL_TONICS, FULL_TONIC, 99, 700)])
+            assert run.exit_to(WORLD_12000), "out of the shop"
+            run.checkpoint("supplied")
+        if later <= 1:
+            board(run)
+            dial(run, PERIOD_2300)
+            go_through_time(run, WORLD_2300)
             land_by(run, DEATH_PEAK, enter=False)
             run.checkpoint("peak")
         later -= len(TO_THE_PEAK)
@@ -768,10 +783,10 @@ def main():
             assert run.wait_control() and run.find_player() is not None, "the Omen's field in hand"
             fight_through(run, lambda m, px, py: py <= OMEN_FIRST_FIGHT_Y, "the Omen's first fight", args.seed)
             assert machine.b(A.PARTY_SINGLE_TECHS_KNOWN + CRONO) == ALL_SINGLE_TECHS, "Crono's Luminaire"
-            black_omen.to_the_treasure(run, args.seed)
+            black_omen.to_the_treasure(run, args.seed, rest=lambda r: patch_up(r, 0.6, mp_well=0.3))
             run.checkpoint("omen_treasure")
         if later <= 3:
-            black_omen.back_to_the_dock(run, args.seed)
+            black_omen.back_to_the_dock(run, args.seed, rest=lambda r: patch_up(r, 0.6, mp_well=0.3))
             leave_the_omen(run, OMEN_DOOR)
             # Away from the Omen: a confirm over it would go back in.
             fly_to(run, machine.w(A.OVERWORLD_BLACK_OMEN) + CLEAR_OF_THE_OMEN,

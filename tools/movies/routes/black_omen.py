@@ -59,7 +59,7 @@ def in_hand(run, frames=3000):
 LEFT_THE_FIGHT = 240           # frames of the field in hand, with no command menu, that end a fight
 
 
-def fight_on(run, seed, on_foot=True):
+def fight_on(run, seed, rest=None, on_foot=True):
     """A fight the walk ran into, won with blows and healing first. It is over
     with every enemy down and someone standing, or once the field has stayed in
     hand for a while (the Incognitos leave a fight rather than fall)."""
@@ -73,9 +73,11 @@ def fight_on(run, seed, on_foot=True):
     run.fight("holding_out", over, party=3, seed=seed, max_frames=300000)
     # On the elevator the ride goes on after a fight, the field out of hand.
     assert not on_foot or in_hand(run), "the field after the fight"
+    if on_foot and rest:
+        rest(run)
 
 
-def advance(run, want, seed, limit=12):
+def advance(run, want, seed, rest=None, limit=12):
     """Walk to map `want`, winning the fights on the way."""
     machine = run.machine
     start = here(run)
@@ -95,11 +97,11 @@ def advance(run, want, seed, limit=12):
             continue
         if run.dialogs_until(lambda: A.battle_menu_open(machine) or bool(machine.b(A.FIELD_PLAYER_CONTROL)), 3000) \
                 and A.battle_menu_open(machine):
-            fight_on(run, seed)
+            fight_on(run, seed, rest)
     raise AssertionError(("reached", want))
 
 
-def reach(run, spot, seed, limit=6):
+def reach(run, spot, seed, rest=None, limit=6):
     """Go to `spot` on this map, winning the fights the way runs into."""
     machine = run.machine
     x, y = spot
@@ -112,7 +114,7 @@ def reach(run, spot, seed, limit=6):
         if machine.b(A.FIELD_PLAYER_CONTROL) and abs(px - x) <= 4 and abs(py - y) <= 4:
             return
         if run.dialogs_until(lambda: A.battle_menu_open(machine) or bool(machine.b(A.FIELD_PLAYER_CONTROL)), 3000)                 and A.battle_menu_open(machine):
-            fight_on(run, seed)
+            fight_on(run, seed, rest)
     raise AssertionError(("reached", spot, "at", run.me()))
 
 
@@ -139,11 +141,11 @@ def into_the_beam(run, beam_room):
     assert here(run) != beam_room and machine.b(A.FIELD_PLAYER_CONTROL), ("carried on from", beam_room)
 
 
-def ride_the_elevator(run, spot, seed):
+def ride_the_elevator(run, spot, seed, rest=None):
     """Start the elevator from `spot` in its hall and ride it, winning the
     fights that board it, back to the hall with its door opening elsewhere."""
     machine = run.machine
-    reach(run, spot, seed)
+    reach(run, spot, seed, rest)
     machine.run(2, "DOWN")
     machine.run(3, "A")
     for _ in range(80):
@@ -156,10 +158,12 @@ def ride_the_elevator(run, spot, seed):
         machine.run(30)
         run.close_dialogs()
         if A.battle_menu_open(machine):
-            fight_on(run, seed, on_foot=False)
+            fight_on(run, seed, rest, on_foot=False)
         if here(run) not in RIDES:
             break
     assert here(run) == ELEVATOR_HALL and in_hand(run), "off the elevator"
+    if rest:
+        rest(run)
 
 
 def take_chest(run, tx, ty, item):
@@ -179,29 +183,30 @@ def take_chest(run, tx, ty, item):
     raise AssertionError(("the chest at", tx, ty))
 
 
-def to_the_treasure(run, seed):
+def to_the_treasure(run, seed, rest=None):
     """From the dock, the field in hand, to the treasure room with all its
-    chests and those on the way opened."""
+    chests and those on the way opened; `rest(run)`, where given, readies the
+    party after each fight on foot."""
     for want in [MEGA_MUTANT_HALL] + HALLS:
-        advance(run, want, seed)
+        advance(run, want, seed, rest)
     # The teleporter's door is straight up the last hall's middle.
-    reach(run, BELOW_THE_TELEPORTER, seed)
+    reach(run, BELOW_THE_TELEPORTER, seed, rest)
     into_the_beam(run, HALLS[-1])
     into_the_beam(run, TELEPORTER)
-    advance(run, ELEVATOR_HALL, seed)
-    ride_the_elevator(run, DOWN_SPOT, seed)
+    advance(run, ELEVATOR_HALL, seed, rest)
+    ride_the_elevator(run, DOWN_SPOT, seed, rest)
     for want in (TREASURE_STAIRS, SEAL_HALL, TREASURE_ROOM):
-        advance(run, want, seed)
+        advance(run, want, seed, rest)
         for tx, ty, item in CHESTS[want]:
             take_chest(run, tx, ty, item)
 
 
-def back_to_the_dock(run, seed):
+def back_to_the_dock(run, seed, rest=None):
     """From the treasure room the way the party came, to the dock."""
     for want in (SEAL_HALL, TREASURE_STAIRS, ELEVATOR_HALL):
-        advance(run, want, seed)
-    ride_the_elevator(run, UP_SPOT, seed)
-    advance(run, ARRIVAL, seed)
+        advance(run, want, seed, rest)
+    ride_the_elevator(run, UP_SPOT, seed, rest)
+    advance(run, ARRIVAL, seed, rest)
     into_the_beam(run, ARRIVAL)
     for want in list(reversed(HALLS)) + [MEGA_MUTANT_HALL, DOCK]:
-        advance(run, want, seed)
+        advance(run, want, seed, rest)
