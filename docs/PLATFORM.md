@@ -133,7 +133,7 @@ techs, the enemies' attacks and their effects and animations), the battle's
 messages and fades, the menus' colours, tiles and window designs, the sound's
 songs' settings, boot blocks and sets of effects, the scripts the map view,
 the time dial and the Epoch run. Left `mixed`, `untyped` or `undetermined`:
-42 rows, 13,813 bytes, every one `unread` in its row's `found`: no accessor
+43 rows, 13,841 bytes, every one `unread` in its row's `found`: no accessor
 names it, and no read of the movies or the routes lands in it (mixed was 36
 rows, 117,842 bytes). `tools/assets.py check` fails a row of those types
 that doesn't say it is `unread`. A read that lands in one at run time is
@@ -143,7 +143,7 @@ line for it, which fails the run in the gate and is a finding in
 `suite.py --long`. The first long batch found six such readers, now typed:
 the accessories' data records the menus copy (`accessory_data_records`,
 $CC:0A1C), an enemy's message before its table's first entry
-(`enemy_messages_cd91`), strings past the table at $F6:B230
+(`enemy_messages_cd91`), a string past the table at $F6:B230
 (`strings_f6c7e5`), and three tables the routes read further than the
 movies had (`battle_palette_frames`, `battle_effect_frames`,
 `combination_tech_asks`).

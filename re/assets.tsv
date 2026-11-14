@@ -3794,7 +3794,8 @@ strings_f6b230.139	text	F6:C6F8	F6:C758	text:dialog	read
 strings_f6b230.140	text	F6:C759	F6:C78C	text:dialog	read
 strings_f6b230.141	text	F6:C78D	F6:C7BB	text:dialog	read
 strings_f6b230.142	text	F6:C7BC	F6:C7E4	text:dialog	read
-strings_f6c7e5	text	F6:C7E5	F6:C82F	text:dialog	read: strings past the table at $F6:B230
+strings_f6c7e5	text	F6:C7E5	F6:C813	text:dialog	read: a string past the table at $F6:B230
+untyped_f6c814	untyped	F6:C814	F6:C82F	raw	unread
 field_packed_script.75	lz	F6:C830	F6:CA54	lz:event	field_packed_script entry
 field_packed_script.76	lz	F6:CA55	F6:CE5F	lz:event	field_packed_script entry
 field_packed_script.77	lz	F6:CE60	F6:D48E	lz:event	field_packed_script entry
