@@ -945,8 +945,8 @@ mode, with gprof's call counts for who calls what:
 | The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access; since charged inline in 32 bits (below), 2-4% in its own functions, the rest inside the accessors | 10% | 8% | 10% | 7% | #426 |
 | The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
 | The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address, since read a span at a time (below) | 2% | 3% | 6% | 4% | |
-| Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
-| The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it | 20% | 16% | 10% | 11% | #429 |
+| Cartridge reads, each byte looked up in the store; since found among the resources read lately, and read on through a run (below) | 4%, now 3-4% | 4%, now 4-6% | 4%, now 5% | 4%, now 3-4% | #429 |
+| The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it; the interpreters since decode only what a row names (below) | 20% | 16% | 10% | 11% | |
 
 The heaviest frames share the same parts, with more of the address view's
 writes (a resource unpacked into work RAM, `wram_fill8`). Optimized across
@@ -981,6 +981,30 @@ frame falls from 2.6, 3.8 and 5.5 GBA frames to 2.3, 3.2 and 4.6
 time model's own functions fall from 13% of the `new-game` run to about 7%.
 Only the timing report's totals (`StateHostTime`, outside the lean build)
 are still 64-bit.
+
+**The interpreters decode what a row names, and reads go on through a run**
+(issue #429). The field's event engine and the menus' scripts decode a
+command by its row in the opcode table, and the language has 110 and 55
+parameters. A row names a handful of them; the others are `ARG_NONE`, which
+read nothing and decode to 0. The decoders and the event engine's own check
+(`event_runs_here`) now pass those over instead of running each through its
+switch. Sampled, the interpreters' functions fall from 11-12% of the field's
+game frame to 4-5%, and from 14-15% of the menus' to 5-6%.
+
+The cartridge's reads find their resource among those read lately: the last
+resource found in each 4 KiB of the cartridge (`asset_containing`), and the
+store's bytes for the last 16 resources asked for (`resource_bytes`). A new
+source (`assets_use`, which `ct_native --measure` also calls at each stay, so
+it counts each stay's resources afresh) asks again. A reader that goes on
+through the data from one address finds its run of the store's bytes once
+(`rom_run_from`, `rom_run_read8`), and each byte inside it is a load and the
+read's time. The unpacker's streams and the menus' commands read this way. The
+cartridge reads fall from 4-7% of the game frame to 3-6%; what is left is each
+read's own call and time charge. In mGBA the game's frame falls from 2.6, 3.8
+and 5.5 GBA frames to 2.6, 3.3 and 4.7 (`title-start`, `new-game`,
+`gato-battle`). The heaviest frames are the ones that unpack a location, and
+they fall from 457 to 360 GBA frames (`new-game`) and from 758 to 622
+(`gato-battle`).
 
 **The address view, resolved once** (issue #424). The typed state's address
 view no longer decodes an address at each access. When the first state is
