@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Halves round up, the 8:7 pixel at three rows a row (3.5 across) among them. */
+/* Halves round up, the 7:6 pixel at three rows a row (3.5 across) among them. */
 static int nearest(double v) { return (int)(v + 0.5 + 1e-9); }
 
 static PresentRect centred(int w, int h, int out_w, int out_h)
@@ -69,11 +69,41 @@ int present_scanlines(PresentRect place, int rows, PresentRect *out, int most)
     return n;
 }
 
+/* ---- pixels and the view ----------------------------------------------------------- */
+
+/* A television showed the original's 256 pixels across the width of a 4:3
+ * screen, and hid eight rows top and bottom in its overscan. */
+enum { ORIGINAL_WIDTH = 256, TV_CROP = 8 };
+
+static const int view_shapes[VIEW_SHAPES][2] = { { 0, 0 }, { 4, 3 }, { 16, 10 }, { 16, 9 }, { 21, 9 } };
+
+PixelLook present_pixel_look(PixelShape shape, int height)
+{
+    if (shape == PIXELS_SQUARE)
+        return (PixelLook){ 0, 1.0 };
+    return (PixelLook){ TV_CROP, 4.0 / 3.0 * height / ORIGINAL_WIDTH };
+}
+
+int present_view_width(const PresentSettings *s, int height, int least, int most)
+{
+    int width = s->view_width ? s->view_width : least;
+    if (s->view != VIEW_WIDTH) {
+        PixelLook look = present_pixel_look(s->pixels, height);
+        int rows = height - 2 * look.crop;
+        width = nearest(rows * view_shapes[s->view][0] / (view_shapes[s->view][1] * look.aspect));
+    }
+    return width < least ? least : width > most ? most : width;
+}
+
 /* ---- names and the settings' text ---------------------------------------------- */
 
 static const char *const scaling_names[SCALINGS] = { "integer", "fit" };
 static const char *const filter_names[FILTERS] = { "none", "scanlines" };
 static const char *const mode_names[FULLSCREEN_MODES] = { "borderless", "exclusive" };
+static const char *const pixel_names[PIXEL_SHAPES] = { "tv", "square" };
+static const char *const view_names[VIEW_SHAPES] = { "", "4:3", "16:10", "16:9", "21:9" };
+
+const char *present_pixel_shape_name(PixelShape p) { return pixel_names[p]; }
 
 const char *present_scaling_name(Scaling s) { return scaling_names[s]; }
 const char *present_filter_name(Filter f) { return filter_names[f]; }
@@ -111,6 +141,33 @@ bool present_filter_from(const char *name, Filter *out)
     return i >= 0;
 }
 
+bool present_pixel_shape_from(const char *name, PixelShape *out)
+{
+    int i = named(name, pixel_names, PIXEL_SHAPES);
+    if (i >= 0)
+        *out = (PixelShape)i;
+    return i >= 0;
+}
+
+bool present_view_from(const char *name, ViewShape *view, int *width)
+{
+    int i = named(name, view_names, VIEW_SHAPES);
+    if (i > 0) {
+        *view = (ViewShape)i;
+        *width = 0;
+        return true;
+    }
+    int n = 0;
+    const char *c = name;
+    for (; *c >= '0' && *c <= '9' && n < 10000; c++)
+        n = n * 10 + (*c - '0');
+    if (c == name || *c)
+        return false;
+    *view = VIEW_WIDTH;
+    *width = n;
+    return true;
+}
+
 bool present_fullscreen_mode_from(const char *name, FullscreenMode *out)
 {
     int i = named(name, mode_names, FULLSCREEN_MODES);
@@ -121,9 +178,15 @@ bool present_fullscreen_mode_from(const char *name, FullscreenMode *out)
 
 size_t present_settings_write(const PresentSettings *s, char *out, size_t size)
 {
-    int n = snprintf(out, size, "scaling = %s\nfilter = %s\nfullscreen = %s\nfullscreen mode = %s\n",
+    char view[16];
+    if (s->view == VIEW_WIDTH)
+        snprintf(view, sizeof view, "%d", s->view_width ? s->view_width : ORIGINAL_WIDTH);
+    else
+        snprintf(view, sizeof view, "%s", view_names[s->view]);
+    int n = snprintf(out, size,
+                     "scaling = %s\nfilter = %s\nfullscreen = %s\nfullscreen mode = %s\npixels = %s\nview = %s\n",
                      present_scaling_name(s->scaling), present_filter_name(s->filter), s->fullscreen ? "on" : "off",
-                     present_fullscreen_mode_name(s->fullscreen_mode));
+                     present_fullscreen_mode_name(s->fullscreen_mode), present_pixel_shape_name(s->pixels), view);
     return n < 0 || (size_t)n >= size ? 0 : (size_t)n;
 }
 
@@ -152,6 +215,10 @@ static void read_line(PresentSettings *s, char *line)
         s->fullscreen = same_word(value, "on");
     else if (same_word(line, "fullscreen mode"))
         present_fullscreen_mode_from(value, &s->fullscreen_mode);
+    else if (same_word(line, "pixels"))
+        present_pixel_shape_from(value, &s->pixels);
+    else if (same_word(line, "view"))
+        present_view_from(value, &s->view, &s->view_width);
 }
 
 void present_settings_read(PresentSettings *s, const char *text, size_t len)
