@@ -38,6 +38,7 @@
 #include "battle/sound.h"
 #include "battle/wait.h"
 #include "charge.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -211,7 +212,7 @@ static bool dissolves(const GameState *g, uint8_t slot);
 static bool dissolve_under_the_rule(GameState *g, Platform *pf)
 {
     uint8_t slot = battle_ended_effect_object(g);
-    if (!dissolves(g, slot))
+    if (!PORT_CHECK(dissolves(g, slot)))
         return battle_contract_broken(g, 0xCD00A0, "an enemy whose dissolve the port doesn't run");
     bool done = false;
     TIMED_AS(g, 0xCD00A0, done = dissolve(g, pf, slot));
@@ -265,7 +266,7 @@ static bool see_off(GameState *g, Platform *pf, uint8_t slot)
  * for an enemy whose tiles' layout the dissolve's runs don't have. */
 static bool see_off_an_enemy(GameState *g, Platform *pf, uint8_t slot)
 {
-    if (!dissolves(g, slot))
+    if (!PORT_CHECK(dissolves(g, slot)))
         return battle_contract_broken(g, 0xCD0024, "an enemy whose dissolve the port doesn't run");
     bool done = false;
     TIMED_AS(g, 0xCD0024, done = see_off(g, pf, slot));
@@ -362,7 +363,7 @@ static bool palettes_as_kept(const GameState *g)
 /* The battle's step 6: the beaten enemies seen off. */
 bool battle_see_to_the_beaten_enemies(GameState *g, Platform *pf)
 {
-    if (!palettes_as_kept(g))
+    if (!PORT_CHECK(palettes_as_kept(g)))
         return battle_contract_broken(g, 0xCFFE20, "a beaten enemy's palette past the sprites'");
     bool done = false;
     TIMED_AS(g, 0xCFFE20, done = see_the_beaten_enemies_off(g, pf));

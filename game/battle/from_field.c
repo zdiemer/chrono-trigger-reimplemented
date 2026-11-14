@@ -24,6 +24,7 @@
 #include "charge.h"
 #include "core/program.h"
 #include "battle/setup_data.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -272,7 +273,7 @@ bool battle_fought(GameState *g, Platform *pf)
 {
     if (!come_in_from_the_field(g, pf) || !battle_main_loop_runs(g, pf))
         return false;
-    if (!party_as_the_game_has_it(g))
+    if (!PORT_CHECK(party_as_the_game_has_it(g)))
         return battle_contract_broken(g, RETURN_TO_THE_FIELD, "a battle's end with a party the port doesn't hand back");
     return go_back_to_the_field(g, pf);
 }
