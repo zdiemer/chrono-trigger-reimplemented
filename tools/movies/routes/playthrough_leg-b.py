@@ -922,14 +922,19 @@ STEPS = {
 STEPS.update({name: inner_room(name) for name in INNER_WAY})
 
 
-def play(run, start=2, seed=1):
+def play(run, start=2, seed=1, before=None):
     """The leg from the Forest Maze on (PHASES' index `start`, from 2): the save's or the
-    main playthrough's party on the 65,000,000 B.C. world map at story $78."""
+    main playthrough's party on the 65,000,000 B.C. world map at story $78. `before` maps
+    one of this route's own phases to what the caller plays first, within that phase (the
+    main playthrough's training before Magus)."""
+    before = before or {}
 
     def own(run, start, offset, phases):
         """This route's own `phases`, PHASES' indices `offset` on, from `start`."""
         for index, name in enumerate(phases, offset):
             if start <= index:
+                if name in before:
+                    before[name](run)
                 STEPS[name](run)
                 run.say(name, run.map_id(), run.me(), "world", run.world_pos(), "story", hex(story(run)))
                 run.checkpoint(name)

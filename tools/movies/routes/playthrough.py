@@ -223,6 +223,9 @@ STORY_SOUP, STORY_DREAMSTONE, STORY_AYLA = 0x72, 0x75, 0x78
 DREAMSTONE_ITEM, GATE_KEY = 0xDC, 0xD7
 AYLA_ASLEEP_REACH = (171, 191)              # up to her row, then right until she stops the party
 AYLA = 5
+# The Denadoro Mountains' foot and the map above it, each with the way in from the other.
+DENADORO_FOOT_AWAY, DENADORO_FOOT_BACK = (DENADORO_WAY_UP, (344, 24)), (DENADORO_ENTRANCE, (344, 1016))
+MAGUS_LEVEL = 24
 IOKA_HEALERS_HUT, IOKA_HEALERS_HUT_MAP, IOKA_HEALER = 0x116, "1601", 10
 CRONO, MARLE, LUCCA = 0, 1, 2
 SLASH, ICE, FIRE, AURA = 1, 2, 2, 0   # their places in Crono's, Marle's and Lucca's tech lists
@@ -632,6 +635,20 @@ def train(run, level, away, back, max_fights=200, policy=MOUNTAIN_FIGHTS):
     if run.map_id() != back[0]:
         climb(run, *back)
     run.say("trained", fights, "fights", crossings, "crossings: levels", levels(machine))
+
+
+def train_for_magus(run):
+    """Once Frog has joined: the party that will fight Magus (Crono, Frog, Marle) trains at
+    the Denadoro Mountains' foot, whose monsters come back each time it steps between the
+    entrance and the map above, until all are at MAGUS_LEVEL; then back to the world map.
+    Measured with this party: 87 experience a thousand frames there (the Cursed Woods' fights
+    the walk didn't find; Lab 16's, earlier, 6). At levels 19-20 the bot needed 1764 tries
+    for Magus, at 21-22 522."""
+    run.wait_world_control()
+    world_enter(run, DENADORO_MTS)
+    train(run, MAGUS_LEVEL, DENADORO_FOOT_AWAY, DENADORO_FOOT_BACK, max_fights=400, policy=LEG_B.castle_fights)
+    assert leave_fighting(run, WORLD_600, policy=LEG_B.castle_fights), "out of the mountains"
+    run.wait_world_control()
 
 
 def speak(run, obj, tries=3):
@@ -1691,7 +1708,7 @@ def main():
         later -= len(IOKA)
         if later <= len(FROM_LEG_B) - 1:
             run.chapter = LEG_B_CHAPTER
-            LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed)
+            LEG_B.play(run, LEG_B_FROM + max(0, later), args.seed, before={"mountainside": train_for_magus})
             run.chapter = ""
         run.finish("the playthrough's last checkpoint")
         if args.movie:
