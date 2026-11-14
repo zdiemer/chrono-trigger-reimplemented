@@ -25,14 +25,20 @@ static uint32_t cartridge_address(uint32_t at)
 
 bool asset_is_cartridge(uint32_t at) { return cartridge_address(at) != NOT_ROM; }
 
+/* The resource found last in each 4 KiB of the cartridge: reads come in
+ * runs through a few resources at once, and a run finds its resource with one
+ * comparison rather than a search of the catalogue. */
+enum { NEAR_SHIFT = 12, NEARBY = 32 };
+
 AssetId asset_containing(uint32_t at)
 {
-    static AssetId last = ASSET_NONE;   /* reads come in runs through one resource */
+    static uint16_t nearby[NEARBY];   /* the resource, plus 1; 0 for none yet */
     uint32_t a = cartridge_address(at);
     if (a == NOT_ROM)
         return ASSET_NONE;
-    if (last != ASSET_NONE && a - asset_catalogue[last].at < asset_catalogue[last].length)
-        return last;
+    uint16_t *near = &nearby[(a >> NEAR_SHIFT) & (NEARBY - 1)];
+    if (*near && a - asset_catalogue[*near - 1u].at < asset_catalogue[*near - 1u].length)
+        return (AssetId)(*near - 1u);
     /* The rows are in address order and don't overlap: the last one starting
      * at or before `a`, if `a` is inside it. */
     uint16_t lo = 0, hi = asset_catalogue_count;
@@ -45,8 +51,8 @@ AssetId asset_containing(uint32_t at)
     }
     if (lo == 0 || a - asset_catalogue[lo - 1].at >= asset_catalogue[lo - 1].length)
         return ASSET_NONE;
-    last = (AssetId)(lo - 1);
-    return last;
+    *near = lo;
+    return (AssetId)(lo - 1);
 }
 
 static AssetFault outside, unread;
@@ -94,30 +100,39 @@ void asset_note_outside(uint32_t at)
 
 static const AssetSource *source;
 
-/* The resource read last, and its bytes: the reads come in runs through one
- * resource, and a run asks the source once. A new source asks again. */
-static AssetId held = ASSET_NONE;
-static const uint8_t *held_bytes;
+/* The resources read lately, and their bytes: the reads come in runs through
+ * a few resources at once, and a run asks the source once. A new source asks
+ * again. */
+enum { HELD = 16 };
+static struct {
+    AssetId id;
+    const uint8_t *bytes;
+} held[HELD];
+static bool holding;
 
 void assets_use(const AssetSource *s)
 {
     source = s;
-    held = ASSET_NONE;
+    for (unsigned i = 0; i < HELD; i++)
+        held[i].id = ASSET_NONE;
+    holding = true;
 }
 
 /* A resource's bytes from the source, or NULL where there is no source or it
  * hasn't the resource as the catalogue has it. */
 static const uint8_t *resource_bytes(AssetId id)
 {
-    if (id == held)
-        return held_bytes;
+    if (!holding)
+        assets_use(source);
+    if (held[id % HELD].id == id)
+        return held[id % HELD].bytes;
     if (!source)
         return NULL;
     uint32_t length = 0;
     const uint8_t *bytes = source->resource(source->ctx, id, &length);
-    held = id;
-    held_bytes = bytes && length == asset_catalogue[id].length ? bytes : NULL;
-    return held_bytes;
+    held[id % HELD].id = id;
+    held[id % HELD].bytes = bytes && length == asset_catalogue[id].length ? bytes : NULL;
+    return held[id % HELD].bytes;
 }
 
 /* The store's copy of the cartridge byte at `at`, or NULL: the address is in
