@@ -233,7 +233,7 @@ enum { DECODE_BUFFER = 0x7E2D00 };
 
 static void unpack_the_tiles(GameState *g, uint16_t tiles_at)
 {
-    set_decompress_source(g, (uint32_t)ANIMATION_TILES_BANK << 16 | tiles_at);
+    set_decompress_source(g, battle_animation_tiles_stream(tiles_at));
     set_decompress_dest(g, DECODE_BUFFER);
     (void)unpack_stream(g);
     uint16_t end = decompress_length(g);

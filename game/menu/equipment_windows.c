@@ -127,7 +127,7 @@ static const uint8_t SLOT_RECORD_PLACES[SLOTS] = { WEAPON_AT, HELMET_AT, ARMOUR_
 static uint16_t draw_item_name(GameState *g, uint8_t item, uint16_t pen, uint8_t settings)
 {
     uint16_t after = pen;
-    after = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, settings);
+    after = menu_draw_string(g, menu_item_name_at(menu_item_name_places(g, item)), pen, settings);
     return after;
 }
 
@@ -416,7 +416,7 @@ void menu_equip_draw_list_row(GameState *g, uint16_t at)
     set_menu_text_attribute(g, LIST_ROW_ATTRIBUTE);
     uint8_t item = menu_item_operand(g);
     if (item != 0)
-        (void)menu_draw_string(g, MENU_ITEM_TABLES_BANK | (uint16_t)(menu_item_name_places(g, item) + NAME_PAST_THE_ICON), at,
+        (void)menu_draw_string(g, menu_item_name_at((uint16_t)(menu_item_name_places(g, item) + NAME_PAST_THE_ICON)), at,
                                LIST_NAME_SETTINGS);
     else
         (void)menu_draw_blanks(g, at, LIST_NAME_SETTINGS);

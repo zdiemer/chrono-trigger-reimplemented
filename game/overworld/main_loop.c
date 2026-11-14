@@ -31,6 +31,7 @@
 #include "menu/objects.h"
 #include "menu/vram.h"
 #include "overworld/music.h"
+#include "overworld/overworld_data.h"
 #include "overworld/overworld.h"
 #include "overworld/places.h"
 #include "overworld/setup.h"
@@ -149,22 +150,24 @@ static void interrupts(Platform *pf, uint32_t site, bool on)
     tm_enable_interrupts(pf, PF_AT(site), on ? TM_INT_VBLANK | TM_INT_AUTO_JOYPAD : 0);
 }
 
-/* The scripts that fade the map out and in, and the map view's own. */
+/* The scripts that fade the map out and in, and the map view's own: where
+ * each starts in the fades' scripts. */
 enum {
-    FADE_OUT = 0xC22EC1,
-    FADE_IN = 0xC22EC4,
-    FADE_OUT_TO_THE_MAP_VIEW = 0xC22EC7,
-    FADE_IN_FROM_THE_MAP_VIEW = 0xC22ED0,
+    FADE_OUT = 0x00,
+    FADE_IN = 0x03,
+    FADE_OUT_TO_THE_MAP_VIEW = 0x06,
+    FADE_IN_FROM_THE_MAP_VIEW = 0x0F,
 };
 
-static void start_a_script(GameState *g, uint32_t script)
+static void start_a_script(GameState *g, uint16_t fade)
 {
+    uint32_t script = overworld_fade_script(fade);
     TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, script, MENU_ORDINARY_SLOT));
 }
 
 /* The map fades out over a script of its own, the interrupts back on while
  * it plays. */
-static void fade_out_with(GameState *g, Platform *pf, uint32_t off, uint32_t script, uint32_t on)
+static void fade_out_with(GameState *g, Platform *pf, uint32_t off, uint16_t script, uint32_t on)
 {
     interrupts(pf, off, false);
     start_a_script(g, script);

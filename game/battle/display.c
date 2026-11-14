@@ -177,31 +177,35 @@ void battle_ripple_background(GameState *g)
  * of the window layer's tiles; and the party's window frames and the tiles
  * setup decoded. Each is a transfer in words to a place in VRAM. */
 typedef struct {
-    uint32_t source;
+    AssetId tiles;      /* the resource sent from, or ASSET_NONE for work RAM */
+    uint32_t from;      /* where in it, or the work RAM's address */
     uint16_t bytes, vram;
     uint32_t site;
 } VramLoad;
+
+/* The window layer's tiles a battle loads come in 64-byte blocks. */
+enum { WINDOW_TILE_BLOCK = 0x40 };
 
 /* Of the second tilemap setup built, 64 bytes go up from its 192nd. */
 enum { SECOND_TILEMAP_SENT_FROM = 192 };
 
 static const VramLoad step_1[] = {
-    { BATTLE_MESSAGE_LAYER_TILES, 0x1000, 0x5800, 0xCCE00C },
-    { BATTLE_WINDOW_TILE_BLOCK_2, 0x0040, 0x0060, 0xCCE047 },
-    { BATTLE_WINDOW_TILE_BLOCK_1, 0x0040, 0x0020, 0xCCE076 },
+    { ASSET_BATTLE_MESSAGE_LAYER_TILES, 0, 0x1000, 0x5800, 0xCCE00C },
+    { ASSET_BATTLE_WINDOW_TILE_BLOCKS, WINDOW_TILE_BLOCK, 0x0040, 0x0060, 0xCCE047 },
+    { ASSET_BATTLE_WINDOW_TILE_BLOCKS, 0, 0x0040, 0x0020, 0xCCE076 },
 };
 static const VramLoad step_2[] = {
-    { (uint16_t)RAM_BATTLE_WINDOW_TILEMAP, 0x0780, 0x7820, 0xCCE0AF },
-    { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0160, 0xCCE0EB },
-    { BATTLE_WINDOW_TILE_BLOCK_3, 0x0040, 0x0120, 0xCCE11B },
-    { RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, 0xCCE14B },
-    { RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, 0xCCE17A },
-    { BATTLE_WINDOW_TILE_BLOCK_4, 0x0040, 0x0000, 0xCCE22E },
-    { BATTLE_WINDOW_TILE_BLOCK_5, 0x0040, 0x0100, 0xCCE267 },
+    { ASSET_NONE, (uint16_t)RAM_BATTLE_WINDOW_TILEMAP, 0x0780, 0x7820, 0xCCE0AF },
+    { ASSET_BATTLE_WINDOW_TILE_BLOCKS, 2 * WINDOW_TILE_BLOCK, 0x0040, 0x0160, 0xCCE0EB },
+    { ASSET_BATTLE_WINDOW_TILE_BLOCKS, 2 * WINDOW_TILE_BLOCK, 0x0040, 0x0120, 0xCCE11B },
+    { ASSET_NONE, RAM_BATTLE_LOAD_TILEMAP, 0x01C0, 0x7B00, 0xCCE14B },
+    { ASSET_NONE, RAM_BATTLE_LOAD_TILEMAP_2 + SECOND_TILEMAP_SENT_FROM, 0x0040, 0x7800, 0xCCE17A },
+    { ASSET_WINDOW_TILES, 0, 0x0040, 0x0000, 0xCCE22E },
+    { ASSET_WINDOW_TILES, WINDOW_TILE_BLOCK, 0x0040, 0x0100, 0xCCE267 },
 };
 static const VramLoad step_3[] = {
-    { (uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP, 0x0180, 0x7A00, 0xCCE1B3 },
-    { RAM_BATTLE_DECODED_TILES, 0x0C00, 0x1800, 0xCCE1EE },
+    { ASSET_NONE, (uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP, 0x0180, 0x7A00, 0xCCE1B3 },
+    { ASSET_NONE, RAM_BATTLE_DECODED_TILES, 0x0C00, 0x1800, 0xCCE1EE },
 };
 
 static const struct {
@@ -224,7 +228,8 @@ static void load_the_next_step(GameState *g, Platform *pf)
         return;
     for (unsigned i = 0; i < load_steps[step - 1].count; i++) {
         const VramLoad *l = &load_steps[step - 1].loads[i];
-        vid_send_vram(pf, PF_AT(l->site), l->vram, battle_upload_data(l->source, l->bytes), l->bytes, NULL);
+        uint32_t source = l->tiles == ASSET_NONE ? l->from : asset_address(l->tiles) + l->from;
+        vid_send_vram(pf, PF_AT(l->site), l->vram, battle_upload_data(source, l->bytes), l->bytes, NULL);
     }
     set_battle_graphics_load_step(g, (uint8_t)(step + 1));
 }

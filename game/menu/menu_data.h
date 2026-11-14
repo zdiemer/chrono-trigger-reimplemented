@@ -17,34 +17,38 @@
 
 /* ---- The menus' graphics ------------------------------------------------------------------- */
 
-/* The graphics the menus build their tile sets from (game/menu/graphics.c),
- * in bank $FF: four-colour tiles (224 of them from $8E60, the second $100
- * bytes then replaced from $C9FC; more from $D5E4), three-plane tiles
- * ($DBE4), the eight windows' designs ($9E10, $280 bytes a design), and four
- * sixteen-colour tiles at $9CF0. */
+/* The graphics the menus build their tile sets from (game/menu/graphics.c):
+ * four-colour tiles (the small font, 224 of them, its second $100 bytes then
+ * replaced; more after the gate screen's setup), three-plane tiles (149 read,
+ * the last of them running on into the gate's tiles), the eight windows'
+ * designs ($280 bytes a design), and four sixteen-colour tiles, the window
+ * layer's. */
 enum {
-    MENU_ROM_BANK = 0xFF0000u,
-    MENU_ROM_FOUR_COLOUR_TILES = 0x8E60, MENU_ROM_FOUR_COLOUR_TILES_BYTES = 0x0E00,
-    MENU_ROM_REPLACED_TILES = 0xC9FC, MENU_ROM_REPLACED_TILES_BYTES = 0x0100,
-    MENU_ROM_MORE_FOUR_COLOUR_TILES = 0xD5E4, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES = 0x0600,
-    MENU_ROM_THREE_PLANE_TILES = 0xDBE4, MENU_THREE_PLANE_TILES = 0x95,
-    MENU_ROM_WINDOW_DESIGNS = 0x9E10, MENU_WINDOW_DESIGN_BYTES = 0x280, MENU_WINDOW_DESIGNS = 8,
-    MENU_ROM_SIXTEEN_COLOUR_TILES = 0x9CF0,
+    MENU_ROM_FOUR_COLOUR_TILES_BYTES = 0x0E00, MENU_ROM_REPLACED_TILES_BYTES = 0x0100,
+    MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES = 0x0600, MENU_THREE_PLANE_TILES = 0x95,
+    MENU_WINDOW_DESIGN_BYTES = 0x280, MENU_WINDOW_DESIGNS = 8,
 };
 
-/* The menus' colours in bank $FF, a word each: two sets of four for the
- * palette's first rows ($9C68, $9C78, $CBBC) and two of sixteen ($CBC4,
- * $9DF0). */
-enum {
-    MENU_ROM_FIRST_COLOURS = 0x9C68, MENU_ROM_SECOND_COLOURS = 0x9C78, MENU_ROM_THIRD_COLOURS = 0xCBBC,
-    MENU_ROM_ROW_7_COLOURS = 0xCBC4, MENU_ROM_ROW_8_COLOURS = 0x9DF0,
-};
+/* The runs of colours the menus load, a word a colour, from the windows'
+ * colours ($FF:9C68), the screens' ($FF:9DF0) and the menus' own ($FF:CB9C):
+ * two sets of four for the palette's first rows and two of sixteen; the
+ * healing numbers', the items screen's, the main menu's and its options',
+ * the arrows', the equipment screen's, the panels' (menu_rom_colour). */
+typedef enum {
+    MENU_ROM_FIRST_COLOURS, MENU_ROM_SECOND_COLOURS, MENU_ROM_THIRD_COLOURS,
+    MENU_ROM_ROW_7_COLOURS, MENU_ROM_ROW_8_COLOURS,
+    MENU_ROM_AMOUNT_COLOURS, MENU_ROM_ITEMS_LIST_COLOURS, MENU_ROM_ITEMS_HIGHLIGHT_COLOURS,
+    MENU_ROM_MAIN_MENU_COLOURS, MENU_ROM_OPTION_COLOURS, MENU_ROM_ARROW_COLOURS,
+    MENU_ROM_EQUIPMENT_COLOURS, MENU_ROM_PANEL_HIGHLIGHT_COLOURS,
+    MENU_ROM_TECH_PANEL_COLOURS, MENU_ROM_TECH_PANEL_LIST_COLOURS,
+    MENU_ROM_EXCHANGE_PANEL_COLOURS, MENU_ROM_SETTINGS_PANEL_COLOURS,
+    MENU_COLOUR_RUNS
+} MenuColourRun;
 
 /* The healing's rising numbers: their four colours ($FF:CB9C), the first
  * sprite palette's fifth to eighth, and the upload of their digits' tiles
  * ($C2:FC5A, a record of menu_upload_record's). */
 enum {
-    MENU_ROM_AMOUNT_COLOURS = 0xCB9C,
     MENU_AMOUNT_COLOURS = 4,
     MENU_FIRST_AMOUNT_COLOUR = 0x84,
     MENU_UPLOAD_AMOUNT_DIGITS = 0xFC5A,
@@ -64,10 +68,7 @@ enum {
  * use it) and figures (attack or defence, more for an accessory) are records
  * in bank $CC, where each table starts and how long its records are in bank
  * $FF ($CF0E and $CF18, $CF1D and $CF27). */
-enum { MENU_ITEM_CATEGORIES = 5, MENU_ITEMS = 0xF2, MENU_ITEM_TABLES_BANK = 0xCC0000u };
-
-/* The items' names start at $CC:0B5E, eleven bytes each (menu_item_name). */
-enum { MENU_ITEM_NAMES = 0x0B5E };
+enum { MENU_ITEM_CATEGORIES = 5, MENU_ITEMS = 0xF2 };
 
 /* ---- The items screen ----------------------------------------------------------------------- */
 
@@ -91,7 +92,6 @@ typedef struct {
 /* The items screen's colours in bank $FF: the list's eight ($CC34, row 5's
  * first half) and its highlight's four ($CBB4, row 2's), for
  * menu_rom_colour. */
-enum { MENU_ROM_ITEMS_LIST_COLOURS = 0xCC34, MENU_ROM_ITEMS_HIGHLIGHT_COLOURS = 0xCBB4 };
 
 /* ---- What the typesetter inserts ----------------------------------------------------------- */
 
@@ -109,7 +109,7 @@ enum { MENU_NAMES_BANK = 0x7E0000u, MENU_FIRST_NAME = 0x2C23, MENU_NAME_BYTES = 
 enum { MENU_NAME_TABLE_BYTES = 11 };
 
 /* Marle's real name, five glyphs ($C2:6146). */
-enum { MENU_MARLE_REAL_NAME = 0xC26146 };
+static inline uint32_t menu_marle_real_name(void) { return asset_address(ASSET_MENU_MARLE_REAL_NAME); }
 
 /* The eight window designs' colours ($FF:B210): eight colours a design, the
  * upper half of the palette row a window is drawn in. */
@@ -131,7 +131,7 @@ enum { MENU_CHAPTERS = 26 };
 
 /* The table of the era labels' graphics ($FF:D396), which the menus' loader
  * takes an era's from. */
-enum { MENU_ERA_LABELS = 0xFFD396 };
+static inline uint32_t menu_era_label_strings(void) { return asset_address(ASSET_MENU_ERA_LABELS); }
 
 /* The main menu ($FF): its window ($BD2E) and the window an option's
  * screen opens from ($BD51); its icons' sprites, the six options' along the
@@ -141,7 +141,6 @@ enum { MENU_ERA_LABELS = 0xFFD396 };
 enum {
     MENU_WINDOWS_MAIN_MENU = 0xBD2E, MENU_WINDOWS_OPTION_OPENING = 0xBD51,
     MENU_MAIN_MENU_OPTIONS = 6, MENU_LIT_ICON_TILES = 0x20,
-    MENU_ROM_MAIN_MENU_COLOURS = 0xCC14, MENU_ROM_OPTION_COLOURS = 0xCC24, MENU_ROM_ARROW_COLOURS = 0x9E0A,
     MENU_MAIN_MENU_COLOURS = 8, MENU_ARROW_COLOURS = 3,
 };
 
@@ -205,8 +204,7 @@ enum {
 enum { MENU_UPLOAD_SLOT_LABELS = 0xFC53, MENU_UPLOAD_CHAPTER_LABELS = 0xCF30, MENU_UPLOAD_SLOT_NAMES = 0xD198 };
 
 /* The sprite scripts an object script gives its object, by number: where each
- * starts in bank C3 ($C3:E000, a word each). */
-enum { MENU_SPRITE_SCRIPT_BANK = 0xC3 };
+ * starts in their bank ($C3:E000, a word each). */
 
 /* The scenes' resources the object scripts load (MD2 resources in bank C6,
  * 24-bit pointers to streams in bank C3): graphics, decompressed to the Mode 7
@@ -258,7 +256,6 @@ enum { MENU_FIRST_WORLD_MAP = 0x01F0, MENU_WORLD_MAPS = 8 };
  * locations, so one past $7F reads from the set's start again. */
 enum { MENU_PERIODS = 7, MENU_LATER_PERIODS = 0xCC };
 
-enum { MENU_GATE_TILEMAP_ROWS = 0xC27321 };
 
 /* ---- The sprites the menus' records show -------------------------------------------------- */
 
@@ -270,7 +267,7 @@ enum { MENU_GATE_TILEMAP_ROWS = 0xC27321 };
  * at $C2:F55C gives (a word a set, taken at the set's number doubled as a
  * byte); the first two sets' assignments are five bytes, the rest's ten. The
  * tables of places are at the end of the bank ($E4:FFE0 on, a word each). */
-enum { MENU_SPRITE_ASSIGNMENT_BYTES = 5, MENU_SPRITE_BANK = 0xE40000 };
+enum { MENU_SPRITE_ASSIGNMENT_BYTES = 5 };
 
 /* The first tile of each of the opening's seven records' sprites ($C2:F548, a
  * word each: tile and attributes), and of the eighth's ($C2:F556). */
@@ -279,7 +276,6 @@ enum { MENU_OPENING_RECORDS = 7 };
 /* A character's large portrait: the first of its 36 tiles ($FF:CE70, a byte
  * a character), and where in bank $FF its sixteen colours are ($FF:CE78, a
  * word each of the eight). */
-enum { MENU_PORTRAIT_BANK = 0xFF0000 };
 
 /* A character's element: lightning, shadow, water, fire or none ($C2:A2C6, a
  * byte a character, which the ROM keeps doubled: the offset of the element's
@@ -299,7 +295,6 @@ enum { MENU_SLOTS_BANDS_AT_REST = 6 };
 /* The equipment screen's four colours ($FF:9C70) and the four the main
  * menu's panel for it highlights with ($FF:CBAC), in bank $FF for
  * menu_rom_colour. */
-enum { MENU_ROM_EQUIPMENT_COLOURS = 0x9C70, MENU_ROM_PANEL_HIGHLIGHT_COLOURS = 0xCBAC };
 
 /* ---- The techs ------------------------------------------------------------------------------ */
 
@@ -317,26 +312,26 @@ enum { MENU_TECH_EFFECT_BYTES = 12, MENU_TECH_EFFECT_FACTOR = 1, MENU_TECH_EFFEC
 
 /* The items' descriptions: a table of where each string starts, a word each
  * in bank $CC ($CC:2EB1), by the item's number. */
-enum { MENU_ITEM_DESCRIPTIONS = 0xCC2EB1 };
+static inline uint32_t menu_item_description_strings(void) { return asset_address(ASSET_MENU_ITEM_DESCRIPTIONS); }
 
 /* The techs' descriptions: a table of where each string starts, a word each
  * in bank $CC ($CC:3A09); after the techs' come the captions of the kinds,
  * from $76. */
-enum { MENU_TECH_DESCRIPTIONS_BANK = 0xCC, MENU_TECH_DESCRIPTIONS = 0x3A09, MENU_TECH_KIND_CAPTIONS = 0x76 };
+enum { MENU_TECH_KIND_CAPTIONS = 0x76 };
+static inline uint32_t menu_tech_description_strings(void) { return asset_address(ASSET_BATTLE_DESCRIPTIONS); }
 
 /* The main menu's panel for the techs: the colours of its kinds' tabs and
  * its list ($FF:CE04 and $FF:CDF4, eight each), for menu_rom_colour. */
-enum { MENU_ROM_TECH_PANEL_COLOURS = 0xCE04, MENU_ROM_TECH_PANEL_LIST_COLOURS = 0xCDF4 };
 
 /* ---- The party exchange -------------------------------------------------------------------- */
 
 /* Its panel's colours ($FF:CC64, eight, palette row 6's first half); its
  * highlight takes the items screen's four. */
-enum { MENU_ROM_EXCHANGE_PANEL_COLOURS = 0xCC64, MENU_EXCHANGE_PANEL_COLOURS = 8, MENU_EXCHANGE_HIGHLIGHT_COLOURS = 4 };
+enum { MENU_EXCHANGE_PANEL_COLOURS = 8, MENU_EXCHANGE_HIGHLIGHT_COLOURS = 4 };
 
 /* The menus' labels, set by the typesetter (menu/typeset.h): the strings
  * at $FF:CF3B. */
-enum { MENU_LABEL_STRINGS = 0xFFCF3B };
+static inline uint32_t menu_label_strings(void) { return asset_address(ASSET_MENU_LABEL_STRINGS); }
 
 /* ---- The save code ------------------------------------------------------------------------ */
 
@@ -392,7 +387,7 @@ enum { MENU_DIGITS = 10, MENU_DIGIT_BYTES = 16 };
 /* Each option's icon at the description window's left ($FF:D562): the tile
  * word of its top left, the four tiles on from it. The descriptions' strings
  * ($FF:D3FE), an option's first, then the values' texts. */
-enum { MENU_SETTINGS_DESCRIPTIONS = 0xFFD3FE };
+static inline uint32_t menu_settings_description_strings(void) { return asset_address(ASSET_MENU_SETTINGS_DESCRIPTIONS); }
 
 /* Each of the ten boxes' place in the front layer's tilemap ($C2:C41B, a
  * tile's index), and whether it is ticked for a cell of 0 ($C2:C42F: the
@@ -410,8 +405,6 @@ enum { MENU_SETTINGS_BUTTON_CHOICES = 7, MENU_SETTINGS_NO_MORE_CHOICES = 0xFF };
  * row gives a button to ($C2:C2BD). */
 enum { MENU_SETTINGS_BUTTON_ROWS = 6 };
 
-/* The panel's colours ($FF:CBE4, 24). */
-enum { MENU_ROM_SETTINGS_PANEL_COLOURS = 0xCBE4 };
 
 /* ---- The shops ---------------------------------------------------------------------------- */
 
@@ -430,7 +423,6 @@ enum { MENU_UPLOAD_SHOP_SPRITES = 0xDB98 };
  * more ($FF:F6FE); and the wave its bands of lines follow ($FF:F759, 64
  * words). */
 enum {
-    MENU_GATE_PACKED_GRAPHICS = 0xFFE8DC,
     MENU_GATE_ROWS = 6,
     MENU_GATE_PALETTE_COLOURS = 8,
     MENU_GATE_COLOURS = 4,
@@ -466,7 +458,11 @@ static inline uint8_t menu_glyph_width(const GameState *g, uint8_t index)
     return asset_read8(g, ASSET_DIALOG_FONT_WIDTHS, index);
 }
 
-static inline uint8_t menu_rom_graphic_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+/* A byte of the menus' three-plane tiles, `at` bytes into them. */
+static inline uint8_t menu_three_plane_tile_byte(const GameState *g, uint32_t at)
+{
+    return asset_read8(g, ASSET_MENU_THREE_PLANE_TILES, at);
+}
 
 /* The heights the healing's numbers rise to, a frame at a time, above
  * their member's sprite: the HP's path from its start, the MP's from the
@@ -476,9 +472,38 @@ static inline uint8_t menu_amount_height(const GameState *g, uint8_t step)
     return asset_read8(g, ASSET_MENU_AMOUNT_HEIGHT, step);
 }
 
-static inline uint16_t menu_rom_colour(const GameState *g, uint16_t from, unsigned i)
+/* A colour of a run, `past` bytes on from the run's first (a set of an
+ * option's). */
+static inline uint16_t menu_rom_colour_past(const GameState *g, MenuColourRun run, unsigned past, unsigned i)
 {
-    return rom_read16(g, MENU_ROM_BANK | (uint16_t)(from + 2u * i));
+    static const struct {
+        AssetId colours;
+        uint16_t from;
+    } runs[MENU_COLOUR_RUNS] = {
+        [MENU_ROM_FIRST_COLOURS] = { ASSET_WINDOW_COLOURS, 0x00 },
+        [MENU_ROM_EQUIPMENT_COLOURS] = { ASSET_WINDOW_COLOURS, 0x08 },
+        [MENU_ROM_SECOND_COLOURS] = { ASSET_WINDOW_COLOURS, 0x10 },
+        [MENU_ROM_ROW_8_COLOURS] = { ASSET_SCREEN_COLOURS, 0x00 },
+        [MENU_ROM_ARROW_COLOURS] = { ASSET_SCREEN_COLOURS, 0x1A },
+        [MENU_ROM_AMOUNT_COLOURS] = { ASSET_MENU_COLORS, 0x00 },
+        [MENU_ROM_PANEL_HIGHLIGHT_COLOURS] = { ASSET_MENU_COLORS, 0x10 },
+        [MENU_ROM_ITEMS_HIGHLIGHT_COLOURS] = { ASSET_MENU_COLORS, 0x18 },
+        [MENU_ROM_THIRD_COLOURS] = { ASSET_MENU_COLORS, 0x20 },
+        [MENU_ROM_ROW_7_COLOURS] = { ASSET_MENU_COLORS, 0x28 },
+        [MENU_ROM_SETTINGS_PANEL_COLOURS] = { ASSET_MENU_COLORS, 0x48 },
+        [MENU_ROM_MAIN_MENU_COLOURS] = { ASSET_MENU_COLORS, 0x78 },
+        [MENU_ROM_OPTION_COLOURS] = { ASSET_MENU_COLORS, 0x88 },
+        [MENU_ROM_ITEMS_LIST_COLOURS] = { ASSET_MENU_COLORS, 0x98 },
+        [MENU_ROM_EXCHANGE_PANEL_COLOURS] = { ASSET_MENU_COLORS, 0xC8 },
+        [MENU_ROM_TECH_PANEL_LIST_COLOURS] = { ASSET_MENU_COLORS, 0x258 },
+        [MENU_ROM_TECH_PANEL_COLOURS] = { ASSET_MENU_COLORS, 0x268 },
+    };
+    return asset_read16(g, runs[run].colours, runs[run].from + past + 2u * i);
+}
+
+static inline uint16_t menu_rom_colour(const GameState *g, MenuColourRun run, unsigned i)
+{
+    return menu_rom_colour_past(g, run, 0, i);
 }
 
 static inline uint8_t menu_item_category_start(const GameState *g, unsigned category)
@@ -506,13 +531,26 @@ static inline uint8_t menu_item_figures_record_bytes(const GameState *g, unsigne
     return asset_read8(g, ASSET_MENU_ITEM_FIGURES_RECORD_BYTES, category);
 }
 
-static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at) { return rom_read8(g, MENU_ITEM_TABLES_BANK | at); }
+static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at)
+{
+    return rom_read8_in_bank_of(g, ASSET_WEAPON_RECORDS, at);
+}
+
+/* The items' names, eleven bytes each (menu_item_name): where an item's is
+ * in their bank, which the menus keep an item each, and what such a place
+ * names. */
+static inline uint16_t menu_item_names_place(uint8_t item)
+{
+    return (uint16_t)((uint16_t)asset_address(ASSET_BATTLE_ITEM_NAME_CHAR) + item * MENU_NAME_TABLE_BYTES);
+}
+
+static inline uint32_t menu_item_name_at(uint16_t place) { return asset_place_address(ASSET_BATTLE_ITEM_NAME_CHAR, place); }
 
 /* The label of an item's kind its row shows ("Weapon", "Item" and the
  * rest): where the string is in bank $FF, from a word an item at $FF:B310. */
 static inline uint32_t menu_item_kind_label(const GameState *g, uint8_t item)
 {
-    return 0xFF0000u | asset_read16(g, ASSET_MENU_ITEM_KIND_LABEL, 2u * item);
+    return asset_place_address(ASSET_MENU_ITEM_KIND_LABEL, asset_read16(g, ASSET_MENU_ITEM_KIND_LABEL, 2u * item));
 }
 
 /* Who an item of the rest is used on, a byte an item by its place in the
@@ -600,7 +638,7 @@ static inline uint16_t menu_hex_digit_glyph(const GameState *g, uint8_t digit)
  * count of glyphs and the glyphs ($DE:FA00, a word each, in bank $DE). */
 static inline uint32_t menu_dictionary_word(const GameState *g, uint16_t entry)
 {
-    return 0xDE0000u | asset_read16(g, ASSET_MENU_DICTIONARY_WORD, 2u * entry);
+    return asset_place_address(ASSET_MENU_DICTIONARY_WORD, asset_read16(g, ASSET_MENU_DICTIONARY_WORD, 2u * entry));
 }
 
 static inline uint16_t menu_character_name_place(const GameState *g, unsigned index)
@@ -611,19 +649,19 @@ static inline uint16_t menu_character_name_place(const GameState *g, unsigned in
 static inline uint32_t menu_item_name(const GameState *g, uint8_t item)
 {
     (void)g;
-    return 0xCC0000u | (uint16_t)(0x0B5E + item * MENU_NAME_TABLE_BYTES);
+    return asset_address(ASSET_BATTLE_ITEM_NAME_CHAR) + (uint32_t)(item * MENU_NAME_TABLE_BYTES);
 }
 
 static inline uint32_t menu_tech_name(const GameState *g, uint8_t tech)
 {
     (void)g;
-    return 0xCC0000u | (uint16_t)(0x15C4 + tech * MENU_NAME_TABLE_BYTES);
+    return asset_address(ASSET_BATTLE_TECH_NAME_CHAR) + (uint32_t)(tech * MENU_NAME_TABLE_BYTES);
 }
 
 static inline uint32_t menu_enemy_name(const GameState *g, uint8_t enemy)
 {
     (void)g;
-    return 0xCC0000u | (uint16_t)(0x6500 + enemy * MENU_NAME_TABLE_BYTES);
+    return asset_address(ASSET_SETUP_ENEMY_NAME_CHAR) + (uint32_t)(enemy * MENU_NAME_TABLE_BYTES);
 }
 
 /* ---- Text --------------------------------------------------------------------------------- */
@@ -659,7 +697,10 @@ static inline uint16_t menu_text_code_handler(const GameState *g, uint8_t code)
 
 /* The window command lists, and the runs of tilemap bytes their commands
  * copy, in bank $FF (menu/windows.c). `at` is the offset in the bank. */
-static inline uint8_t menu_window_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFF0000u | at); }
+static inline uint8_t menu_window_byte(const GameState *g, uint16_t at) { return rom_read8_in_bank_of(g, ASSET_MENU_WINDOW_STRINGS, at); }
+
+/* A string a window command names, where its place in their bank leads. */
+static inline uint32_t menu_window_string_at(uint16_t place) { return asset_place_address(ASSET_MENU_WINDOW_STRINGS, place); }
 
 /* The strings a window command names by number: where each starts in bank
  * $FF ($FF:C457, a word each). */
@@ -740,7 +781,7 @@ static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
 {
     uint8_t b[7];
     for (unsigned i = 0; i < 7; i++)
-        b[i] = rom_read8(g, 0xC20000u | (uint16_t)(at + i));
+        b[i] = rom_read8_in_bank_of(g, ASSET_MENU_NEW_GAME_SETTING, (uint16_t)(at + i));
     /* The old queue copied an unused eighth byte, sometimes from code. */
     charge_rom_accesses((GameState *)g, 1);
     return (MenuUpload){ (uint16_t)(b[0] | b[1] << 8), (uint32_t)b[4] << 16 | (uint16_t)(b[2] | b[3] << 8),
@@ -749,7 +790,7 @@ static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
 
 static inline uint16_t menu_option_colour(const GameState *g, uint8_t option, unsigned i)
 {
-    return menu_rom_colour(g, (uint16_t)(MENU_ROM_OPTION_COLOURS + 2u * MENU_MAIN_MENU_COLOURS * option), i);
+    return menu_rom_colour_past(g, MENU_ROM_OPTION_COLOURS, 2u * MENU_MAIN_MENU_COLOURS * option, i);
 }
 
 static inline MenuIcon menu_main_menu_icon(const GameState *g, unsigned option)
@@ -818,6 +859,11 @@ static inline uint16_t menu_sprite_script_start(const GameState *g, uint8_t scri
     return asset_read16(g, ASSET_MENU_SPRITE_SCRIPT_START, 2u * script);
 }
 
+static inline uint32_t menu_sprite_script_at(const GameState *g, uint8_t script)
+{
+    return asset_place_address(ASSET_MENU_SPRITE_SCRIPTS, menu_sprite_script_start(g, script));
+}
+
 /* For each plane of the map ($C2:0556, $C2:055C, $C2:0562, a word a plane):
  * where its tile groups and its map are in bank $7E, and where its tilemap is
  * in VRAM. The original indexes them by the plane's number doubled, a byte
@@ -825,19 +871,26 @@ static inline uint16_t menu_sprite_script_start(const GameState *g, uint8_t scri
  * code after them. */
 static inline uint16_t menu_plane_word(const GameState *g, uint32_t table, uint8_t plane)
 {
-    return rom_read16(g, table + (uint16_t)(2u * plane));
+    return asset_read16(g, ASSET_MENU_PLANE_GROUPS, table + (uint16_t)(2u * plane));
 }
 
-static inline uint16_t menu_plane_groups(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC20556u, plane); }
+static inline uint16_t menu_plane_groups(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0x0, plane); }
 
-static inline uint16_t menu_plane_map(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC2055Cu, plane); }
+static inline uint16_t menu_plane_map(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0x6, plane); }
 
-static inline uint16_t menu_plane_tilemap(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC20562u, plane); }
+static inline uint16_t menu_plane_tilemap(const GameState *g, uint8_t plane) { return menu_plane_word(g, 0xC, plane); }
+
+/* The menu scripts the map view and the time dial run, and the scripts of
+ * the map view's markers: where each starts, `at` bytes into its table. */
+static inline uint32_t menu_map_view_script(uint16_t at) { return asset_address(ASSET_MENU_MAP_VIEW_SCRIPTS) + at; }
+static inline uint32_t menu_map_view_marker(uint16_t at) { return asset_address(ASSET_MENU_MAP_VIEW_MARKER_SCRIPTS) + at; }
+static inline uint32_t menu_time_dial_script(uint16_t at) { return asset_address(ASSET_MENU_TIME_DIAL_SCRIPTS) + at; }
 
 static inline uint32_t menu_scene_stream(const GameState *g, MenuSceneResource kind, uint8_t number)
 {
-    uint32_t at = (kind == MENU_SCENE_GRAPHICS ? 0xC6FDF0u : 0xC6FEA0u) + MENU_SCENE_POINTER_BYTES * number;
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    AssetId streams = kind == MENU_SCENE_GRAPHICS ? ASSET_OVERWORLD_SPRITE_GRAPHICS : ASSET_OVERWORLD_PALETTES;
+    uint32_t at = MENU_SCENE_POINTER_BYTES * number;
+    return asset_read16(g, streams, at) | (uint32_t)asset_read8(g, streams, at + 2) << 16;
 }
 
 /* The way the party faces coming back to the world map from a location, by
@@ -1018,9 +1071,9 @@ static inline uint16_t menu_gate_tile_row(const GameState *g, unsigned row)
 
 /* Only the row number is used. Keep the time of the discarded high-byte
  * read without loading the byte beyond the last row. */
-static inline uint8_t menu_gate_row_pick(const GameState *g, uint32_t at)
+static inline uint8_t menu_gate_row_pick(const GameState *g, uint16_t row_of_vram)
 {
-    uint8_t row = rom_read8(g, at & 0xFFFFFFu);
+    uint8_t row = asset_read8(g, ASSET_MENU_GATE_TILEMAP_ROWS, row_of_vram);
     charge_rom_accesses((GameState *)g, 1);
     return row;
 }
@@ -1045,7 +1098,7 @@ static inline uint16_t menu_sprite_set_place(const GameState *g, uint8_t set_dou
 
 static inline uint8_t menu_sprite_assignment_byte(const GameState *g, uint16_t at)
 {
-    return rom_read8(g, MENU_SPRITE_BANK | at);
+    return asset_read8_at_place(g, ASSET_FIELD_SPRITE_RECORDS, at);
 }
 
 /* The graphics and the frames of a sprite: a 24-bit address each, three
@@ -1063,7 +1116,8 @@ static inline uint16_t menu_sprite_frames_table(const GameState *g)
 
 static inline uint32_t menu_sprite_place(const GameState *g, uint16_t at)
 {
-    return (uint32_t)rom_read16(g, MENU_SPRITE_BANK + at) | (uint32_t)rom_read8(g, MENU_SPRITE_BANK + at + 2u) << 16;
+    return (uint32_t)rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at) |
+           (uint32_t)rom_read8_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, (uint16_t)(at + 2u)) << 16;
 }
 
 /* A sprite's animations: where their frames and their frame times start in
@@ -1079,7 +1133,13 @@ static inline uint16_t menu_sprite_animation_times_table(const GameState *g)
     return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0x6u);
 }
 
-static inline uint16_t menu_sprite_table_word(const GameState *g, uint16_t at) { return rom_read16(g, MENU_SPRITE_BANK + at); }
+static inline uint16_t menu_sprite_table_word(const GameState *g, uint16_t at)
+{
+    return rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at);
+}
+
+/* Where a place in the sprites' tables' bank leads, which a record keeps. */
+static inline uint32_t menu_sprite_tables_at(uint16_t place) { return asset_place_address(ASSET_SPRITE_RESOURCE_BASES, place); }
 
 /* A sprite's colours: twelve colours (24 bytes) at the place the table
  * $E4:FFE8 gives, a word a sprite; its second set $200 bytes on. */
@@ -1088,7 +1148,10 @@ static inline uint16_t menu_sprite_colours_table(const GameState *g)
     return asset_read16(g, ASSET_SPRITE_RESOURCE_BASES, 0x8u);
 }
 
-static inline uint8_t menu_sprite_colour_byte(const GameState *g, uint16_t at) { return rom_read8(g, MENU_SPRITE_BANK | at); }
+static inline uint8_t menu_sprite_colour_byte(const GameState *g, uint16_t at)
+{
+    return asset_read8_at_place(g, ASSET_FIELD_SPRITE_PALETTES, at);
+}
 
 /* The blocks a sprite's size class has ($C2:F562), and the bytes a frame of
  * that many blocks takes in its frames ($C2:F755: 40 a block). */
@@ -1144,7 +1207,7 @@ static inline uint16_t menu_large_portrait_colours(const GameState *g, unsigned 
 
 static inline uint16_t menu_large_portrait_colour(const GameState *g, uint16_t colours, unsigned i)
 {
-    return rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
+    return asset_read16_at_place(g, ASSET_MENU_LARGE_PORTRAIT_PALETTES, (uint16_t)(colours + 2u * i));
 }
 
 static inline MenuElement menu_character_element(const GameState *g, uint8_t character)
@@ -1163,13 +1226,13 @@ static inline uint16_t menu_element_label_tile(const GameState *g, MenuElement e
 static inline uint16_t menu_element_label_colour(const GameState *g, MenuElement element, unsigned i)
 {
     uint16_t colours = asset_read16(g, ASSET_MENU_ELEMENT_LABEL_COLOUR, 2u * element);
-    return rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
+    return rom_read16_in_bank_of(g, ASSET_MENU_COLORS, (uint16_t)(colours + 2u * i));
 }
 
 static inline uint32_t menu_slot_label(const GameState *g, uint8_t slot)
 {
     (void)g;
-    return 0xC20000u | (uint16_t)(0xA3BA + slot * MENU_SLOT_LABEL_BYTES);
+    return asset_address(ASSET_MENU_SLOT_LABELS) + (uint32_t)(slot * MENU_SLOT_LABEL_BYTES);
 }
 
 static inline uint8_t menu_slot_record_place(const GameState *g, uint8_t slot)
@@ -1317,7 +1380,7 @@ static inline uint16_t menu_saved_game_on_the_bus(const GameState *g, uint8_t sl
 
 static inline uint8_t menu_starting_record_byte(const GameState *g, uint8_t character, uint8_t at)
 {
-    return rom_read8(g, 0xCC0000u + (uint32_t)(character * MENU_STARTING_RECORD_BYTES) + at);
+    return asset_read8(g, ASSET_CHARACTER_START_RECORDS, (uint32_t)(character * MENU_STARTING_RECORD_BYTES) + at);
 }
 
 static inline uint8_t menu_starting_equipment_place(const GameState *g, unsigned which)
@@ -1325,7 +1388,10 @@ static inline uint8_t menu_starting_equipment_place(const GameState *g, unsigned
     return asset_read8(g, ASSET_MENU_CARRIED_RUNS_BYTE, 0xEu + which);
 }
 
-static inline uint8_t menu_new_game_record_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xCC0000u + i); }
+static inline uint8_t menu_new_game_record_byte(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_CHARACTER_START_RECORDS, i);
+}
 
 static inline uint8_t menu_new_game_setting(const GameState *g, unsigned i)
 {
@@ -1448,18 +1514,19 @@ static inline uint16_t menu_settings_conflicts_place(const GameState *g, unsigne
 
 static inline uint8_t menu_settings_conflicts_count(const GameState *g, unsigned assignment)
 {
-    return rom_read8(g, 0xC20000u | menu_settings_conflicts_place(g, assignment));
+    return asset_read8_at_place(g, ASSET_MENU_SETTINGS_ROW_ASSIGNMENT, menu_settings_conflicts_place(g, assignment));
 }
 
 static inline uint8_t menu_settings_conflict(const GameState *g, unsigned assignment, unsigned i)
 {
-    return rom_read8(g, 0xC20000u | (uint16_t)(menu_settings_conflicts_place(g, assignment) + 1u + i));
+    return asset_read8_at_place(g, ASSET_MENU_SETTINGS_ROW_ASSIGNMENT,
+                                (uint16_t)(menu_settings_conflicts_place(g, assignment) + 1u + i));
 }
 
 static inline uint8_t menu_shop_good(const GameState *g, uint8_t shop, unsigned i)
 {
     uint16_t list = asset_read16(g, ASSET_MENU_SHOP_GOOD, 2u * shop);
-    return rom_read8(g, 0xCC0000u | (uint16_t)(list + i));
+    return asset_read8_at_place(g, ASSET_MENU_SHOP_GOOD, (uint16_t)(list + i));
 }
 
 /* Where each member's sprite stands along the shop's bottom window
@@ -1527,17 +1594,23 @@ static inline uint8_t menu_scene_pattern_tile(const GameState *g, unsigned tile)
  * a converted asset can replace it without exposing a code bank to the effect. */
 static inline uint8_t menu_scene_scroll_pattern_byte(const GameState *g, unsigned byte)
 {
-    return rom_read8(g, 0xC00000u + byte);
+    return asset_read8(g, ASSET_MENU_SCENE_SCROLL_PATTERN, byte);
 }
 
 /* Menu graphics selected by an upload record, including RAM-built tilemaps. */
 static inline PfData menu_upload_data(uint32_t source, uint32_t bytes) { return rom_data(source, bytes); }
 
 /* Font tiles, replacement tiles and window designs copied into screen buffers. */
-static inline PfData menu_screen_graphics_data(uint16_t offset, uint32_t bytes) { return rom_data(0xFF0000u | offset, bytes); }
+static inline PfData menu_screen_graphics_data(AssetId graphics, uint32_t bytes)
+{
+    return rom_data(asset_address(graphics), bytes);
+}
 
 /* The two tiles marking the Epoch's map view. */
-static inline PfData menu_map_view_tiles(bool second) { return rom_data(second ? 0xC6F520u : 0xC6F500u, 32); }
+static inline PfData menu_map_view_tiles(bool second)
+{
+    return rom_data(asset_address(ASSET_MENU_MAP_VIEW_TILES) + (second ? 32u : 0u), 32);
+}
 
 static inline uint16_t menu_string_offset(const GameState *g, uint32_t strings, uint8_t string)
 {

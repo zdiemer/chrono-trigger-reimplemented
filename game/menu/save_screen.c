@@ -167,7 +167,7 @@ static uint8_t set_era_label(GameState *g, uint8_t era)
     set_menu_save_slot_era(g, era);
     set_menu_load_destination(g, ERA_LABEL_GRAPHIC);
     uint8_t width;
-    TIMED_AS(g, 0xC2F90C, width = menu_set_label(g, MENU_ERA_LABELS, era, ERA_LABEL_GRAPHIC));
+    TIMED_AS(g, 0xC2F90C, width = menu_set_label(g, menu_era_label_strings(), era, ERA_LABEL_GRAPHIC));
     return width;
 }
 
@@ -492,8 +492,8 @@ static void charge_summary_read(GameState *g, Platform *pf)
  * graphic (menu_data.h): the slots' names ($FF:D3FE, the first slot's $0E),
  * and the chapters' (the empty slot's the one after the last chapter,
  * $FF:D03E). */
-enum { SLOT_NAMES = 0xFFD3FE, FIRST_SLOT_NAME = 0x0E };
-enum { CHAPTER_LABELS = 0xFFD03E, EMPTY_SLOT_LABEL = MENU_CHAPTERS };
+enum { FIRST_SLOT_NAME = 0x0E };
+enum { EMPTY_SLOT_LABEL = MENU_CHAPTERS };
 
 /* Set a label of `table` into its place at `at`, noted as where the menus'
  * graphic goes. */
@@ -552,7 +552,7 @@ static void draw_chapter_label(GameState *g)
     uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
     wram_fill8(g, 0x7E0000u | at, MENU_CHAPTER_LABEL_BYTES, 0);
     charge_block_move(g, MENU_CHAPTER_LABEL_BYTES);
-    set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
+    set_label_at(g, asset_address(ASSET_MENU_CHAPTER_LABELS), menu_text_string(g), at);
 }
 
 // $C2:D2C4
@@ -561,7 +561,7 @@ static void draw_slot_name(GameState *g)
 {
     uint8_t slot = menu_save_slot_shown(g);
     uint16_t at = (uint16_t)(MENU_SLOT_NAMES_AT + slot * MENU_SLOT_NAME_BYTES);
-    set_label_at(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
+    set_label_at(g, menu_settings_description_strings(), (uint8_t)(FIRST_SLOT_NAME + slot), at);
     /* a shift of 0 is taken as 256 moves */
     uint8_t moves = menu_slot_name_shift(g, slot);
     do
@@ -791,7 +791,7 @@ static bool labels_drawable(const GameState *g) { return menu_save_slot_shown(g)
 static bool chapter_label_drawable(const GameState *g)
 {
     uint16_t at = (uint16_t)(MENU_CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * MENU_CHAPTER_LABEL_BYTES);
-    return labels_drawable(g) && menu_label_can_be_set(g, CHAPTER_LABELS, menu_text_string(g), at);
+    return labels_drawable(g) && menu_label_can_be_set(g, asset_address(ASSET_MENU_CHAPTER_LABELS), menu_text_string(g), at);
 }
 
 /* A summary is read from a game the check found within the save memory,

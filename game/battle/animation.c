@@ -119,13 +119,13 @@ static void give_posing(GameState *g, unsigned slot) { set_work_word(g, POSING_C
 
 static void give_effect_enemy(GameState *g, unsigned enemy) { set_battle_effect_enemy(g, (uint16_t)enemy); }
 
-/* A member's frame lists are in bank $E4, four entries an animation, and
- * each facing's part of them a stride after the last. */
-enum { PARTY_LISTS_BANK = 0xE4, FRAMES_PER_ANIMATION = 4 };
+/* A member's frame lists are in the frame lists' bank, four entries an
+ * animation, and each facing's part of them a stride after the last. */
+enum { FRAMES_PER_ANIMATION = 4 };
 
 uint8_t battle_party_list_byte(const GameState *g, uint16_t at)
 {
-    return battle_frame_list_byte(g, battle_at(PARTY_LISTS_BANK, at));
+    return battle_frame_list_byte(g, asset_place_address(ASSET_SETUP_FRAME_LISTS, at));
 }
 
 static uint16_t facing_stride(const GameState *g, unsigned slot)

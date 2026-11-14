@@ -439,7 +439,7 @@ class WorldMap:
             g0 = (word[plane] - WORLD_GROUPS_AT) // GROUP_BYTES
             m0 = word[3 + plane] - WORLD_MAPS_AT
             self.layers[layer] = (groups[g0:g0 + GROUPS_A_PLANE], planes[m0:m0 + PLANE_COLUMNS * PLANE_ROWS])
-        colors = maps.get(stream("menu_scene_stream_c6fea0", RECORD_PALETTE) or "", [])
+        colors = maps.get(stream("overworld_palettes", RECORD_PALETTE) or "", [])
         self.colors = [int(c[0:2]) | int(c[3:5]) << 5 | int(c[6:8]) << 10 for _, line in colors for c in line.split()]
 
     def pixel(self, layer: str, x: int, y: int):

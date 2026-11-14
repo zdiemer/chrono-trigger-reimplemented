@@ -813,7 +813,7 @@ static void ask_for_description(GameState *g, uint16_t line, uint8_t pace, uint8
     set_menu_description_pace(g, pace);
     if (!menu_description_shows_another(g, which))
         return;
-    menu_describe(g, which, (uint32_t)MENU_TECH_DESCRIPTIONS_BANK << 16 | MENU_TECH_DESCRIPTIONS, DESCRIPTION_ROW_VRAM);
+    menu_describe(g, which, menu_tech_description_strings(), DESCRIPTION_ROW_VRAM);
 }
 
 // $C2:BE33

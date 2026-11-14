@@ -330,7 +330,7 @@ void menu_exchange_panel_start(GameState *g, Platform *pf)
     menu_draw_windows(g, pf, GATE_PANEL_WINDOWS);
     uint8_t label = menu_story_items(g, 0) != 0 ? GATE_LABEL_WITH_A_RULE : GATE_LABEL;
     set_menu_load_destination(g, GATE_LABEL_AT);
-    TIMED_AS(g, 0xC2F90C, (void)menu_set_label_laid_out(g, MENU_LABEL_STRINGS, label, GATE_LABEL_AT, MENU_TEXT_SIXTEEN_COLOUR_LABEL));
+    TIMED_AS(g, 0xC2F90C, (void)menu_set_label_laid_out(g, menu_label_strings(), label, GATE_LABEL_AT, MENU_TEXT_SIXTEEN_COLOUR_LABEL));
     for (unsigned i = 0; i < GATE_COLOURS; i++)
         set_menu_palette(g, GATE_COLOURS_TO + i, menu_palette(g, GATE_COLOURS_FROM + i));
     charge_block_move(g, 2 * GATE_COLOURS);

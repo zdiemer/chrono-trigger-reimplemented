@@ -5,6 +5,7 @@
 #include "platform/video.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "data/assets.h"
 #include "state.h"
 #include "vars.h"
 
@@ -32,7 +33,7 @@ void menu_ask_for_the_block_move(GameState *g);
 /* Work RAM at $7E:`at`: `bytes` of it cleared, or filled from bank $FF's
  * `from` (a transfer through the work RAM port; 0 bytes is 64 KiB). */
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes);
-void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes);
+void menu_copy_rom_to_memory(GameState *g, Platform *pf, AssetId graphics, uint16_t at, uint16_t bytes);
 
 /* The mode at $C2:800E (the menus proper): asked for `asked_for` with
  * `asked_with` (the screen's argument), until a screen closes them, or no

@@ -295,8 +295,8 @@ static void load_member_graphics(GameState *g, unsigned member)
     set_battle_object_tile_lists(g, member, setup_tile_lists(g, set));
     uint8_t animation = (uint8_t)(character << 1), next = (uint8_t)(((animation >> 1) + 1) << 1);
     uint16_t frames = setup_frame_lists(g, animation);
-    set_battle_object_frame_lists(g, member, (uint32_t)SETUP_ANIMATION_BANK << 16 | frames);
-    set_battle_object_delay_lists(g, member, (uint32_t)SETUP_ANIMATION_BANK << 16 | setup_delay_lists(g, animation));
+    set_battle_object_frame_lists(g, member, setup_frame_lists_at(frames));
+    set_battle_object_delay_lists(g, member, setup_delay_lists_at(setup_delay_lists(g, animation)));
     uint16_t stride = (uint16_t)(setup_frame_lists(g, next) - frames) / FACINGS;
     set_battle_facing_stride_low(g, member, (uint8_t)stride);
     set_battle_facing_stride_high(g, member, (uint8_t)(stride >> 8));

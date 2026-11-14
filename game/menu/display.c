@@ -923,13 +923,13 @@ static void clear_the_screens_memory(GameState *g, Platform *pf)
 }
 
 // $C2:9542
-/* Copy `bytes` of the menus' screen graphics, from `from` in their bank,
+/* Copy `bytes` of the menus' screen graphics, from the start of `graphics`,
  * into work RAM at `at` through the work RAM port. */
-void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes)
+void menu_copy_rom_to_memory(GameState *g, Platform *pf, AssetId graphics, uint16_t at, uint16_t bytes)
 {
     uint32_t count = bytes ? bytes : 0x10000u;
     hw_port_seek(g, at, 0);
-    wram_port_copy(g, menu_screen_graphics_data(from, count), at, count);
+    wram_port_copy(g, menu_screen_graphics_data(graphics, count), at, count);
     tm_charge_transfer(pf, PF_AT(0xC2954B), count);
 }
 
