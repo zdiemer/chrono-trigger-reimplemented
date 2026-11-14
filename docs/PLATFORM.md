@@ -905,11 +905,11 @@ mode, with gprof's call counts for who calls what:
 
 | Share of the lean game frame | Field | Menus | Battle | Scene | Issue |
 |---|---|---|---|---|---|
-| The state's address view: `vars_host_read8`/`write8` and a 3,360-case switch on the owner field, for alias accessors and reads by address; since resolved once (below) | 35%, now 23% | 48%, now 29% | 33%, now 23% | 48%, now 31% | |
+| The state's address view: `vars_host_read8`/`write8` and a 3,360-case switch on the owner field, for alias accessors and reads by address; since resolved once and the sends read a span at a time (below) | 35%, now 15% | 48%, now 22% | 33%, now 10% | 48%, now 20% | #424 |
 | The typed accessors' own calls (inlined into the game once optimized across files) | 23% | 16% | 25% | 17% | |
 | The time model: `charge_time_as_begin`'s search of the rates at every scope, `state_host_game_access` at every access | 10% | 8% | 10% | 7% | #426 |
 | The overlays' last writer (`vars_host_claim`) | 3% | 3% | 10% | 5% | #427 |
-| The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address | 2% | 3% | 6% | 4% | #425 |
+| The video uploads' own part; their byte reads are in the address view above, 9.6 million of the menu movie's 11.6 million reads by address, since read a span at a time (below) | 2% | 3% | 6% | 4% | |
 | Cartridge reads, each byte looked up in the store | 4% | 4% | 4% | 4% | #429 |
 | The game's own logic, the script interpreters' decoding (the field's event engine, the menus' scripts) the largest of it | 20% | 16% | 10% | 11% | #429 |
 
@@ -945,8 +945,23 @@ field's game frame, 27-31% of the menus', 23% of the battle's and 30-33% of
 a scene's, down from 35-48%. Most alias views name bytes that more than one
 owner keeps, and owners that change from one index to the next: 952 of the
 971 views the generator can't resolve to one field. So what remains is the
-reads by address: the video sends' (issue #425) and the menus' `wram_*`
-reads, fills and copies.
+reads by address: the video sends' and the menus' `wram_*` reads, fills
+and copies.
+
+**Sends read their sources a span at a time** (issue #425). A send names the
+game's bytes by address (`PF_GAME`). The video service's host now reads them
+through the driver's `PfReadGame`, `len` bytes in one call
+(`state_host_read_span`, then `vars_host_read_span`); before, it was a call a
+byte. The flat state copies the span straight out of its banks. Its unowned
+bytes hold 0 from the start and are never written, so the copy reads what the
+address view reads. The typed state reads each byte through the resolved
+view inside the one call. The observer takes the sprite table in one read,
+and the palettes and VRAM sends 256 bytes at a time. On the GBA, a word send
+through a plain port (no remapping, a word's step after the high byte) goes
+straight into the kept VRAM. With both changes the address view is 14-16% of
+the field's game frame, 21-24% of the menus', 10% of the battle's and 18-21%
+of a scene's. What remains is the typed state's alias views of shared bytes
+and the menus' `wram_*` reads, fills and copies (issue #424).
 
 ### The GBA build, as built
 
@@ -1077,18 +1092,18 @@ Approximated, or not shown yet (each a follow-up of issue #367):
 | Work RAM (EWRAM, 256 KiB) | 246.6 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.4 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.6 KiB and tile caches 6 KiB, the C library's heap; 9.5 KiB free |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 24 KiB (deepest use 1,212 bytes, the main thread; five slots used), the line interrupt 168 bytes, the driver's stack the 7.6 KiB above them |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 3.6 and 7.3, sound 0.4 and 0.5, picture 1.6 and 4.0, in all 5.7; `new-game`: game 4.8 and 14, picture 2.8 and 6.0, in all 8.1; `gato-battle`: game 7.0 and 17, picture 4.4 and 20, in all 11.8 (before the flat accessors read in place, issue #424: game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5) |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 2.6 and 3.3, sound 0.4 and 0.5, picture 1.6 and 4.0, in all 4.7; `new-game`: game 3.8 and 11, picture 2.9 and 6.0, in all 7.2; `gato-battle`: game 5.5 and 15, picture 4.5 and 20, in all 10.5. Before the flat accessors read in place (issue #424) and the sends read a span at a time (#425): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-The picture adds about 4 GBA frames of work a frame to `title-start`.
-About 2.4 of it falls in the game's frame, where each send reads its bytes
-from the flat state one at a time (issue #425); the other 1.6 makes the
-GBA's picture. Without the native mixer the game's own frame is the whole
-cost: 3.6-7 GBA frames. The flat accessors now read work RAM in place, which
-halved it from 7-13. Sampled in mGBA over `new-game`, the time model's
-charges at every access are 13% of the run (`state_host_game_access`, its
-64-bit multiply, `charge_time_as_begin`; issue #426). The sends' byte reads
-by address are another 10% (#425). All of the code runs from the cartridge's
-16-bit bus.
+The picture adds about 2.6 GBA frames of work a frame to `title-start`.
+About 1 of it falls in the game's frame, where the sends copy their spans
+out of the flat state (2.4 when each byte was looked up); the other 1.6
+makes the GBA's picture. Without the native mixer the game's own frame is the
+whole cost: 2.6-5.5 GBA frames, from 7-13 before the flat accessors read in
+place and the sends read spans. Sampled in mGBA over `new-game`, the time
+model's charges at every access are 13% of the run (`state_host_game_access`,
+its 64-bit multiply, `charge_time_as_begin`; issue #426). The picture's own
+conversion and line interrupt are most of the rest. All of the code runs from
+the cartridge's 16-bit bus.
 
 ## Scene map fills
 
