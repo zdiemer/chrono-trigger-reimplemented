@@ -283,7 +283,7 @@ static void start_the_new_game(GameState *g, Platform *pf)
 // $C2:E841
 /* New Game+: the slots again, without the fourth row, to choose the game it
  * carries on from; the slot's header gives way to the question's label. */
-enum { QUESTION_LABEL = 3, QUESTION_LABEL_AT = 0x5E00, QUESTION_LABEL_TABLE = 0xFFCF3B };
+enum { QUESTION_LABEL = 3, QUESTION_LABEL_AT = 0x5E00 };
 
 /* The question's label, once drawn: two strips of it over the header. */
 enum {
@@ -301,7 +301,7 @@ void menu_ask_which_game_to_carry_on_from(GameState *g)
     uint16_t taken = menu_save_header_taken(g);
     set_menu_save_header_taken(g, (uint16_t)((taken & 0xFF00) | (uint8_t)(taken + 1)));
     set_menu_load_destination(g, QUESTION_LABEL_AT);
-    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, QUESTION_LABEL_TABLE, QUESTION_LABEL, QUESTION_LABEL_AT));
+    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, menu_label_strings(), QUESTION_LABEL, QUESTION_LABEL_AT));
     TIMED_AS(g, 0xC2FBB4, (void)menu_lay_out_strip(g, LABEL_TOP_AT, LABEL_TOP_COLUMNS, LABEL_TOP_TILE));
     TIMED_AS(g, 0xC2FBB4, (void)menu_lay_out_strip(g, LABEL_BOTTOM_AT, LABEL_BOTTOM_COLUMNS, LABEL_BOTTOM_TILE));
     menu_queue_fixed_upload(g, MENU_UPLOAD_CARRY_ON_LABEL);

@@ -579,7 +579,7 @@ static void draw_row(GameState *g, uint16_t at, uint8_t item)
         (void)menu_draw_blanks(g, at, BLANK_ROW_TILES);
         return;
     }
-    uint16_t pen = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), at, NAME_SETTINGS);
+    uint16_t pen = menu_draw_string(g, menu_item_name_at(menu_item_name_places(g, item)), at, NAME_SETTINGS);
     (void)menu_draw_number_value(g, menu_shop_row_price(g), PRICE_FORMAT, pen);
 }
 
@@ -959,7 +959,7 @@ void menu_shop_open_quantity(GameState *g, Platform *pf, ShopStep step)
     for (unsigned band = 0; band < QUANTITY_BANDS; band++)
         set_menu_row_line_values_past(g, band, QUANTITY_BAND);
     charge_block_move(g, 2 * QUANTITY_BANDS);
-    (void)menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), QUANTITY_NAME_AT, NAME_SETTINGS);
+    (void)menu_draw_string(g, menu_item_name_at(menu_item_name_places(g, item)), QUANTITY_NAME_AT, NAME_SETTINGS);
     menu_draw_windows(g, pf, QUANTITY_WINDOWS);
     menu_queue_fixed_upload(g, UPLOAD_QUANTITY);
     MenuItemPlace p = menu_item_place(g, item);

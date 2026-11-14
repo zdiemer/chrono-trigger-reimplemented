@@ -275,13 +275,12 @@ static void swap_areas(GameState *g, TilePlace one, TilePlace other, MenuWindowS
 // $C2:EF48
 /* One of the menus' strings, by its number, drawn at a place (menu/text.c):
  * `settings` are the text's flags and the most tiles it may draw. */
-enum { STRINGS_BANK = 0xFF };
 
 static void draw_string(GameState *g, uint16_t number, TilePlace at, uint8_t settings)
 {
     uint16_t pen = place_of(g, at);
     set_menu_window_place(g, pen);
-    uint32_t string = (uint32_t)STRINGS_BANK << 16 | menu_window_string(g, number);
+    uint32_t string = menu_window_string_at(menu_window_string(g, number));
     TIMED_AS(g, 0xC2EF65, (void)menu_draw_string(g, string, pen, settings));
 }
 

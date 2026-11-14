@@ -38,7 +38,7 @@ menu_plane_groups	words	C2:0556	C2:0567	raw	accessor menu_plane_groups
 menu_script_handler	jump-table	C2:0F91	C2:1036	raw	accessor menu_script_handler
 menu_return_flags	bytes	C2:2509	C2:250C	raw	accessor menu_return_flags
 menu_vram_clearing_zero	bytes	C2:26D4	C2:26D5	raw	accessor menu_vram_clearing_zero
-bytes_c22ec1	bytes	C2:2EC1	C2:2ED8	raw	read
+overworld_fade_scripts	script	C2:2EC1	C2:2ED8	script:object	accessor overworld_fade_script
 epoch_boarded_in_a_scene	script	C2:31A8	C2:31B1	script:object	accessor epoch_boarded_in_a_scene
 bytes_c2324c	bytes	C2:324C	C2:3263	raw	read
 overworld_walking_animation	bytes	C2:397F	C2:3986	raw	accessor overworld_walking_animation
@@ -46,7 +46,7 @@ overworld_standing_animation	bytes	C2:39AA	C2:39AD	raw	accessor overworld_standi
 overworld_epoch_pace	words	C2:4899	C2:48A8	raw	accessor overworld_epoch_pace
 overworld_epoch_flying_animation	bytes	C2:48C5	C2:48CC	raw	accessor overworld_epoch_flying_animation
 bytes_c24946	bytes	C2:4946	C2:495D	raw	read
-epoch_takes_off_in_a_scene	script	C2:4A9B	C2:4CC4	script:object	accessor epoch_takes_off_in_a_scene
+epoch_scene_scripts	script	C2:4A9B	C2:4CC4	script:object	accessor epoch_scene_script
 overworld_dactyl_pace	words	C2:5037	C2:504A	raw	accessor overworld_dactyl_pace
 overworld_dactyl_second_sprite_below	words	C2:508F	C2:5096	raw	accessor overworld_dactyl_second_sprite_below
 overworld_formation_place	words	C2:543C	C2:545B	raw	accessor overworld_formation_place
@@ -57,7 +57,10 @@ menu_character_name_place	bytes	C2:5FD8	C2:60E5	raw	accessor menu_character_name
 dialog_font_widths	bytes	C2:60E6	C2:6145	font-widths:dialog_font:A0	accessor menu_glyph_width
 menu_marle_real_name	bytes	C2:6146	C2:614A	raw	accessor menu_character_name_place
 menu_landing_marker_x	words	C2:68E4	C2:68F3	raw	accessor menu_landing_marker_x
-menu_map_view_graphics	words	C2:69F0	C2:6A33	raw	accessor menu_map_view_graphics
+menu_map_view_graphics	bytes	C2:69F0	C2:69F7	raw	accessor menu_map_view_graphics
+menu_map_view_scripts	script	C2:69F8	C2:6A17	script:object	accessor menu_map_view_script
+menu_map_view_marker_scripts	script	C2:6A18	C2:6A29	script:object	accessor menu_map_view_marker
+menu_map_view_marker_groups	bytes	C2:6A2A	C2:6A33	raw	menu_map_view_marker entry
 menu_period_locations	words	C2:6C97	C2:6CB2	raw	accessor menu_period_location
 menu_period_angles	words	C2:6CB3	C2:6CC0	raw	accessor menu_period_angle
 menu_gate_corner_x	bytes	C2:6F2D	C2:6F32	raw	accessor menu_gate_corner_x
@@ -65,7 +68,7 @@ menu_digit_x	bytes	C2:71DD	C2:71F8	raw	accessor menu_digit_x
 menu_gate_stream_source	words	C2:7220	C2:722B	raw	accessor menu_gate_stream_source
 menu_gate_tile_row	words	C2:72B8	C2:72D7	raw	accessor menu_gate_tile_row
 menu_gate_tilemap_rows	bytes	C2:7321	C2:7360	raw	accessor menu_gate_tilemap_rows
-script_c274ae	script	C2:74AE	C2:754C	script:object	read
+menu_time_dial_scripts	script	C2:74AE	C2:754C	script:object	accessor menu_time_dial_script
 menu_scene_pattern_tile	bytes	C2:7C28	C2:7C47	raw	accessor menu_scene_pattern_tile
 menu_screen_opened_on	bytes	C2:808F	C2:8095	raw	accessor menu_screen_opened_on
 menu_screen_step_list	ptr16	C2:8292	C2:82B1	raw	accessor menu_screen_step_list
@@ -75,7 +78,7 @@ menu_item_category_start	bytes	C2:88A7	C2:88AC	raw	accessor menu_item_category_s
 menu_slot_first_item	bytes	C2:89DC	C2:89E3	raw	accessor menu_slot_first_item
 menu_clearing_zero	bytes	C2:9510	C2:9511	raw	accessor menu_clearing_zero
 menu_character_element	bytes	C2:A2C6	C2:A2CC	raw	accessor menu_character_element
-text_c2a3ba	text	C2:A3BA	C2:A3E1	text:names:10	read
+menu_slot_labels	text	C2:A3BA	C2:A3E1	text:names:10	accessor menu_slot_label
 menu_slot_record_place	bytes	C2:A4AB	C2:A4AE	raw	accessor menu_slot_record_place
 menu_equipment_figure_shown	bytes	C2:A642	C2:A64C	raw	accessor menu_equipment_figure_shown
 menu_slots_bands_at_rest_byte	bytes	C2:AA06	C2:AA18	raw	accessor menu_slots_bands_at_rest_byte
@@ -7768,7 +7771,7 @@ mixed_ff9c60	mixed	FF:9C60	FF:9C67	raw	read
 window_colours	words	FF:9C68	FF:9CEF	raw	accessor menu_rom_colour
 window_tiles	gfx	FF:9CF0	FF:9DEF	raw	accessor battle_load_graphics
 screen_colours	words	FF:9DF0	FF:9E0F	raw	accessor setup_fixed_color
-menu_screen_graphics	gfx	FF:9E10	FF:B20F	raw	accessor menu_screen_graphics_data
+menu_window_designs	gfx	FF:9E10	FF:B20F	raw	accessor menu_screen_graphics_data
 window_design_colors	words	FF:B210	FF:B28F	palette:8	accessor menu_window_design_colour
 mixed_ffb290	mixed	FF:B290	FF:B30F	raw	read
 menu_item_kind_label	words	FF:B310	FF:BD5B	raw	accessor menu_item_kind_label
@@ -7803,34 +7806,34 @@ menu_label_strings.4	text	FF:CFF1	FF:D005	text:dialog	read
 menu_label_strings.5	text	FF:D006	FF:D014	text:dialog	menu_label_strings entry
 menu_label_strings.6	text	FF:D015	FF:D023	text:dialog	menu_label_strings entry
 menu_chapter_start	bytes	FF:D024	FF:D03D	raw	accessor menu_chapter_start
-strings_ffd03e	ptr16	FF:D03E	FF:D073	raw	read
-strings_ffd03e.0	text	FF:D074	FF:D08A	text:dialog	read
-strings_ffd03e.1	text	FF:D08B	FF:D09E	text:dialog	read
-strings_ffd03e.2	text	FF:D09F	FF:D0B2	text:dialog	read
-strings_ffd03e.3	text	FF:D0B3	FF:D0C5	text:dialog	strings_ffd03e entry
-strings_ffd03e.4	text	FF:D0C6	FF:D0D8	text:dialog	read
-strings_ffd03e.5	text	FF:D0D9	FF:D0ED	text:dialog	read
-strings_ffd03e.6	text	FF:D0EE	FF:D102	text:dialog	read
-strings_ffd03e.7	text	FF:D103	FF:D116	text:dialog	read
-strings_ffd03e.8	text	FF:D117	FF:D12C	text:dialog	strings_ffd03e entry
-strings_ffd03e.9	text	FF:D12D	FF:D140	text:dialog	strings_ffd03e entry
-strings_ffd03e.10	text	FF:D141	FF:D155	text:dialog	strings_ffd03e entry
-strings_ffd03e.11	text	FF:D156	FF:D169	text:dialog	strings_ffd03e entry
-strings_ffd03e.12	text	FF:D16A	FF:D17F	text:dialog	read
-strings_ffd03e.13	text	FF:D180	FF:D192	text:dialog	read
-strings_ffd03e.14	text	FF:D193	FF:D1A6	text:dialog	read
-strings_ffd03e.15	text	FF:D1A7	FF:D1BA	text:dialog	read
-strings_ffd03e.16	text	FF:D1BB	FF:D1CF	text:dialog	read
-strings_ffd03e.17	text	FF:D1D0	FF:D1E3	text:dialog	read
-strings_ffd03e.18	text	FF:D1E4	FF:D1F8	text:dialog	read
-strings_ffd03e.19	text	FF:D1F9	FF:D20C	text:dialog	read
-strings_ffd03e.20	text	FF:D20D	FF:D220	text:dialog	strings_ffd03e entry
-strings_ffd03e.21	text	FF:D221	FF:D233	text:dialog	read
-strings_ffd03e.22	text	FF:D234	FF:D246	text:dialog	read
-strings_ffd03e.23	text	FF:D247	FF:D259	text:dialog	read
-strings_ffd03e.24	text	FF:D25A	FF:D26D	text:dialog	read
-strings_ffd03e.25	text	FF:D26E	FF:D283	text:dialog	read
-strings_ffd03e.26	text	FF:D284	FF:D295	text:dialog	read
+menu_chapter_labels	ptr16	FF:D03E	FF:D073	raw	read
+menu_chapter_labels.0	text	FF:D074	FF:D08A	text:dialog	read
+menu_chapter_labels.1	text	FF:D08B	FF:D09E	text:dialog	read
+menu_chapter_labels.2	text	FF:D09F	FF:D0B2	text:dialog	read
+menu_chapter_labels.3	text	FF:D0B3	FF:D0C5	text:dialog	menu_chapter_labels entry
+menu_chapter_labels.4	text	FF:D0C6	FF:D0D8	text:dialog	read
+menu_chapter_labels.5	text	FF:D0D9	FF:D0ED	text:dialog	read
+menu_chapter_labels.6	text	FF:D0EE	FF:D102	text:dialog	read
+menu_chapter_labels.7	text	FF:D103	FF:D116	text:dialog	read
+menu_chapter_labels.8	text	FF:D117	FF:D12C	text:dialog	menu_chapter_labels entry
+menu_chapter_labels.9	text	FF:D12D	FF:D140	text:dialog	menu_chapter_labels entry
+menu_chapter_labels.10	text	FF:D141	FF:D155	text:dialog	menu_chapter_labels entry
+menu_chapter_labels.11	text	FF:D156	FF:D169	text:dialog	menu_chapter_labels entry
+menu_chapter_labels.12	text	FF:D16A	FF:D17F	text:dialog	read
+menu_chapter_labels.13	text	FF:D180	FF:D192	text:dialog	read
+menu_chapter_labels.14	text	FF:D193	FF:D1A6	text:dialog	read
+menu_chapter_labels.15	text	FF:D1A7	FF:D1BA	text:dialog	read
+menu_chapter_labels.16	text	FF:D1BB	FF:D1CF	text:dialog	read
+menu_chapter_labels.17	text	FF:D1D0	FF:D1E3	text:dialog	read
+menu_chapter_labels.18	text	FF:D1E4	FF:D1F8	text:dialog	read
+menu_chapter_labels.19	text	FF:D1F9	FF:D20C	text:dialog	read
+menu_chapter_labels.20	text	FF:D20D	FF:D220	text:dialog	menu_chapter_labels entry
+menu_chapter_labels.21	text	FF:D221	FF:D233	text:dialog	read
+menu_chapter_labels.22	text	FF:D234	FF:D246	text:dialog	read
+menu_chapter_labels.23	text	FF:D247	FF:D259	text:dialog	read
+menu_chapter_labels.24	text	FF:D25A	FF:D26D	text:dialog	read
+menu_chapter_labels.25	text	FF:D26E	FF:D283	text:dialog	read
+menu_chapter_labels.26	text	FF:D284	FF:D295	text:dialog	read
 menu_era_of_location	bytes	FF:D296	FF:D395	raw	accessor menu_era_of_location
 menu_era_labels	ptr16	FF:D396	FF:D3A5	raw	accessor menu_era_labels
 menu_era_labels.0	text	FF:D3A6	FF:D3AE	text:dialog	read
@@ -7841,10 +7844,45 @@ menu_era_labels.4	text	FF:D3CF	FF:D3DB	text:dialog	read
 menu_era_labels.5	text	FF:D3DC	FF:D3E6	text:dialog	read
 menu_era_labels.6	text	FF:D3E7	FF:D3F1	text:dialog	read
 menu_era_labels.7	text	FF:D3F2	FF:D3FD	text:dialog	read
-menu_settings_descriptions	mixed	FF:D3FE	FF:D553	raw	accessor menu_settings_descriptions
+menu_settings_descriptions	ptr16	FF:D3FE	FF:D461	raw	accessor menu_settings_descriptions
+menu_settings_descriptions.30	text	FF:D462	FF:D462	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.0	text	FF:D463	FF:D469	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.1	text	FF:D46A	FF:D475	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.2	text	FF:D476	FF:D487	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.3	text	FF:D488	FF:D49B	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.4	text	FF:D49C	FF:D4B3	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.5	text	FF:D4B4	FF:D4C0	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.6	text	FF:D4C1	FF:D4CD	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.7	text	FF:D4CE	FF:D4DA	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.8	text	FF:D4DB	FF:D4E6	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.9	text	FF:D4E7	FF:D4F7	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.10	text	FF:D4F8	FF:D50A	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.11	text	FF:D50B	FF:D51C	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.27	text	FF:D51D	FF:D51F	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.26	text	FF:D520	FF:D523	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.12	text	FF:D524	FF:D525	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.13	text	FF:D526	FF:D527	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.14	text	FF:D528	FF:D529	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.15	text	FF:D52A	FF:D52B	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.16	text	FF:D52C	FF:D52D	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.17	text	FF:D52E	FF:D52F	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.18	text	FF:D530	FF:D531	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.19	text	FF:D532	FF:D533	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.20	text	FF:D534	FF:D535	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.21	text	FF:D536	FF:D537	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.22	text	FF:D538	FF:D540	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.23	text	FF:D541	FF:D547	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.24	text	FF:D548	FF:D54C	text:dialog	menu_settings_descriptions entry
+menu_settings_descriptions.25	text	FF:D54D	FF:D553	text:dialog	menu_settings_descriptions entry
 menu_button_glyph	words	FF:D554	FF:D561	raw	accessor menu_button_glyph
 menu_settings_option_icon	words	FF:D562	FF:D579	raw	accessor menu_settings_option_icon
-menu_gate_screen_setup	bytes	FF:D57A	FF:F007	raw	accessor menu_gate_screen_setup
+menu_gate_screen_setup	bytes	FF:D57A	FF:D585	raw	accessor menu_gate_screen_setup
+mixed_ffd586	mixed	FF:D586	FF:D5E3	raw	unread
+menu_more_four_colour_tiles	gfx	FF:D5E4	FF:DBE3	tiles:2bpp	accessor menu graphics
+menu_three_plane_tiles	gfx	FF:DBE4	FF:E55B	raw	accessor menu graphics
+menu_gate_tiles	gfx	FF:E55C	FF:E8DB	raw	accessor menu_upload_data
+menu_gate_swirl_graphics	lz	FF:E8DC	FF:EB87	lz	accessor menu_draw_gate_screen
+mixed_ffeb88	mixed	FF:EB88	FF:F007	raw	unread
 menu_battle_mode_screen_tile	words	FF:F008	FF:F547	raw	accessor menu_battle_mode_screen_tile
 menu_gate_row_first_tile	words	FF:F6F2	FF:F715	raw	accessor menu_gate_row_first_tile
 menu_gate_wave	words	FF:F759	FF:F7D8	raw	accessor menu_gate_wave

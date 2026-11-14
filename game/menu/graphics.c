@@ -45,7 +45,10 @@ static void move_block(GameState *g, uint32_t from, uint16_t to, uint32_t bytes)
 }
 
 static void move_in_work_ram(GameState *g, uint16_t from, uint16_t to, uint32_t bytes) { move_block(g, in_work_ram(from), to, bytes); }
-static void move_from_rom(GameState *g, uint16_t from, uint16_t to, uint32_t bytes) { move_block(g, MENU_ROM_BANK | from, to, bytes); }
+static void move_from_rom(GameState *g, AssetId graphics, uint16_t from, uint16_t to, uint32_t bytes)
+{
+    move_block(g, asset_address(graphics) + from, to, bytes);
+}
 
 // $C2:96B2
 /* Four-colour tiles laid out as sixteen-colour ones: each tile's 16 bytes the
@@ -65,9 +68,9 @@ static void widen_three_plane_tiles(GameState *g, uint16_t from, uint16_t to, un
     for (unsigned t = 0; t < tiles; t++) {
         uint16_t tile = (uint16_t)(from + t * THREE_PLANE_TILE);
         uint16_t into = (uint16_t)(to + t * SIXTEEN_COLOUR_TILE);
-        move_from_rom(g, tile, into, FOUR_COLOUR_TILE);
+        move_from_rom(g, ASSET_MENU_THREE_PLANE_TILES, tile, into, FOUR_COLOUR_TILE);
         for (unsigned row = 0; row < TILE_ROWS; row++) {
-            uint8_t third = menu_rom_graphic_byte(g, MENU_ROM_BANK | (uint16_t)(tile + FOUR_COLOUR_TILE + row));
+            uint8_t third = menu_three_plane_tile_byte(g, (uint16_t)(tile + FOUR_COLOUR_TILE + row));
             put_tile_byte(g, (uint16_t)(into + LAST_PLANES + 2 * row), third);
             put_tile_byte(g, (uint16_t)(into + LAST_PLANES + 2 * row + 1), 0);
         }
@@ -150,9 +153,9 @@ enum {
  * with their ink in the third plane, and the four-colour tiles as they are. */
 static void build_first_sets(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, MENU_ROM_FOUR_COLOUR_TILES, FIRST_TILES_AT,
+    TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, ASSET_SMALL_FONT, FIRST_TILES_AT,
                                                    MENU_ROM_FOUR_COLOUR_TILES_BYTES));
-    TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, MENU_ROM_REPLACED_TILES, REPLACED_AT,
+    TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, ASSET_SMALL_FONT_REPLACEMENTS, REPLACED_AT,
                                                    MENU_ROM_REPLACED_TILES_BYTES));
     widen_to_sixteen_colours(g, WIDENED_FROM, WIDENED_AT, WIDENED_TILES);
     ink_the_third_plane(g, INKED_TILE);
@@ -168,8 +171,8 @@ static void build_first_sets(GameState *g, Platform *pf)
  * inked in their fourth plane, behind more four-colour tiles. */
 static void build_second_set(GameState *g, Platform *pf)
 {
-    move_from_rom(g, MENU_ROM_MORE_FOUR_COLOUR_TILES, FOUR_COLOUR_AT, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES);
-    widen_three_plane_tiles(g, MENU_ROM_THREE_PLANE_TILES, THREE_PLANE_AT, MENU_THREE_PLANE_TILES);
+    move_from_rom(g, ASSET_MENU_MORE_FOUR_COLOUR_TILES, 0, FOUR_COLOUR_AT, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES);
+    widen_three_plane_tiles(g, 0, THREE_PLANE_AT, MENU_THREE_PLANE_TILES);
     ink_the_fourth_plane(g, THREE_PLANE_AT, INKED_THREE_PLANE_TILES);
     move_in_work_ram(g, FOUR_COLOUR_AT, BUFFER, SECOND_SET_BYTES);
     TIMED_AS(g, 0xC28385, queue_records(g, MENU_UPLOAD_SECOND_SET, 1));
@@ -181,7 +184,7 @@ static void build_second_set(GameState *g, Platform *pf)
  * their fourth plane, sent with two sets straight from the ROM. */
 static void build_window_sets(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, MENU_ROM_WINDOW_DESIGNS, BUFFER,
+    TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, ASSET_MENU_WINDOW_DESIGNS, BUFFER,
                                                    MENU_WINDOW_DESIGNS * MENU_WINDOW_DESIGN_BYTES));
     move_in_work_ram(g, DESIGN_TILES_FROM, DESIGN_TILES_PLACE, DESIGN_TILES_BYTES);
     ink_the_fourth_plane(g, BUFFER, INKED_WINDOW_TILES);
@@ -190,7 +193,7 @@ static void build_window_sets(GameState *g, Platform *pf)
 }
 
 /* The menus' colours from the ROM, into the working palette. */
-static void load_colours(GameState *g, uint16_t from, unsigned first, unsigned count)
+static void load_colours(GameState *g, MenuColourRun from, unsigned first, unsigned count)
 {
     for (unsigned i = 0; i < count; i++)
         set_menu_palette(g, first + i, menu_rom_colour(g, from, i));
@@ -231,7 +234,7 @@ static void build_last_set(GameState *g, Platform *pf)
     ink_the_fourth_plane(g, SPREAD_TO, INKED_LAST_TILES);
     /* two pairs of tiles from the ROM, each pair's second in the row below */
     for (unsigned i = 0; i < 4; i++)
-        move_from_rom(g, (uint16_t)(MENU_ROM_SIXTEEN_COLOUR_TILES + i * ROM_TILE_PAIR),
+        move_from_rom(g, ASSET_WINDOW_TILES, (uint16_t)(i * ROM_TILE_PAIR),
                       (uint16_t)(SPREAD_TO + (i & 1) * ROWS_APART + (i >> 1) * ROM_TILE_PAIR), ROM_TILE_PAIR);
     ink_the_last_two_planes(g, SPREAD_TO, 4);
     ink_the_last_two_planes(g, (uint16_t)(SPREAD_TO + ROWS_APART), 4);
@@ -270,7 +273,7 @@ enum { DESIGN_BUFFER = 0x8800, DESIGN_TILES = 20, DESIGN_VRAM = 0x3DC0 };
 void menu_load_window_design(GameState *g)
 {
     uint8_t design = (uint8_t)(menu_window_design(g) & DESIGN_SETTING_BITS);
-    move_from_rom(g, (uint16_t)(MENU_ROM_WINDOW_DESIGNS + design * MENU_WINDOW_DESIGN_BYTES), DESIGN_BUFFER,
+    move_from_rom(g, ASSET_MENU_WINDOW_DESIGNS, (uint16_t)(design * MENU_WINDOW_DESIGN_BYTES), DESIGN_BUFFER,
                   MENU_WINDOW_DESIGN_BYTES + 1);
     ink_the_fourth_plane(g, DESIGN_BUFFER, DESIGN_TILES);
     TIMED_AS(g, 0xC28385, queue_records(g, MENU_UPLOAD_WINDOW_DESIGN, 1));

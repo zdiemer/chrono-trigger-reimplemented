@@ -794,7 +794,7 @@ static void draw_record_sprites(GameState *g, unsigned record)
  * VRAM, a block (32 by 32 pixels) at a time, and the records' task shares a
  * frame's uploads out among the records (menu_record_block_limit). */
 enum { NO_SPRITE = 0xFF, NO_FRAME = 0xFF, NO_ANIMATION = 0xFF, ANIMATION_BITS = 0x7F, LOOPS = 0x80 };
-enum { SPRITE_TABLES_BANK = 0xE4, OTHER_COLOURS = 0x10, OTHER_COLOURS_OFFSET = 0x200 };
+enum { OTHER_COLOURS = 0x10, OTHER_COLOURS_OFFSET = 0x200 };
 enum { FRAMES_AN_ANIMATION = 4, FACINGS = 4 };
 /* The standing animation, which holds its frame. */
 enum { STANDING = 0 };
@@ -922,8 +922,8 @@ static Unpacking load_record_sprite(GameState *g, unsigned record)
     set_menu_record_hidden(g, record, 0);
     set_menu_record_animation_shown(g, record, NO_ANIMATION);
     set_menu_record_frame_shown(g, record, NO_FRAME);
-    set_menu_record_frame_list(g, record, (uint32_t)SPRITE_TABLES_BANK << 16 | (uint16_t)menu_record_frame_list(g, record));
-    set_menu_record_frame_times(g, record, (uint32_t)SPRITE_TABLES_BANK << 16 | (uint16_t)menu_record_frame_times(g, record));
+    set_menu_record_frame_list(g, record, menu_sprite_tables_at((uint16_t)menu_record_frame_list(g, record)));
+    set_menu_record_frame_times(g, record, menu_sprite_tables_at((uint16_t)menu_record_frame_times(g, record)));
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     SpriteAssignment a = read_assignment(g, assignment_place(g, set, sprite));
     charge_assignment(g, set, sprite);

@@ -154,7 +154,12 @@ uint32_t asset_place_address(AssetId resource, uint16_t place) { return (asset_c
 
 uint8_t rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
 {
-    return rom_read8(g, (asset_catalogue[resource].at & 0xFF0000u) | place);
+    return rom_read8(g, asset_place_address(resource, place));
+}
+
+uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+{
+    return rom_read16(g, asset_place_address(resource, place));
 }
 
 uint16_t rom_read16(const GameState *g, uint32_t at)

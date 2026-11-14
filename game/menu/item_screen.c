@@ -511,7 +511,7 @@ void menu_items_draw_row(GameState *g, uint16_t at, uint8_t row)
         return;
     }
     uint16_t pen = at;
-    pen = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, NAME_SETTINGS);
+    pen = menu_draw_string(g, menu_item_name_at(menu_item_name_places(g, item)), pen, NAME_SETTINGS);
     pen = menu_draw_colon(g, pen);
     pen = menu_draw_number_value(g, count, COUNT_FORMAT, pen);
     pen = (uint16_t)(pen + TILE_BYTES);

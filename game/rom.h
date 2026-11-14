@@ -39,6 +39,7 @@ uint16_t asset_read16_at_place(const GameState *g, AssetId resource, uint16_t pl
  * whose records link to one another by place): read by the address, a key
  * the catalogue's rows are looked up by. */
 uint8_t rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place);
+uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place);
 
 /* The address of a 16-bit place the data gives, in the bank a named
  * resource is in: what the game hands on where it keeps a long pointer to
