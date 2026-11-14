@@ -359,10 +359,12 @@ def strongest_single(bot, state, target):
 
 
 def lavos_inner(bot, state, rng, inventory):
-    """Lavos's inner form. Its arms open with a spell (37 power on its level
-    and magic, $C1:E0F5) that takes 2,960 before magic defence: a member
-    with less than 85 dies before anyone acts, so the party is the one whose
-    magic defence holds (Crono, Marle and Lucca). Its body's defence turns
+    """Lavos's inner form. Before anyone acts an arm's spell hits each member
+    once: 37 power on its level and magic (50 and 50, read from its stat
+    block, $C1:E0F5), 2,960 before magic defence ($C1:E65F) and 0-16 of
+    variance. Computed so, a member at full HP needs about 70 magic defence
+    (69 at 999 HP, 73 at 891) to live through it; Robo (67) does not (1,029
+    in ct_native), so the party is Crono, Marle and Lucca. Its body's defence turns
     weapons and the arms raise it again, so the arms go first and together,
     the one with more HP left taken down (cavesofnarshe.com's walkthrough
     chapter 35, and gamercorner.net's: Span Death revives the body while an

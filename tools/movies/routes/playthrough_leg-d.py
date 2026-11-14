@@ -73,9 +73,9 @@ CAVES = ["mountain_save"] + death_peak.PHASES[1:]
 SUMMIT = ["rested"] + death_peak_return.PHASES[1:]
 # Crono back, he joins in Robo's place at the End of Time, grown with the
 # others (the experience the party wins is shared with those in reserve).
-# Lavos's inner form opens with a spell no member with less than 85 magic
-# defence survives (policies.lavos_inner), and Crono, Marle and Lucca have
-# it where Robo does not. The purse the growing filled buys the 12000 B.C.
+# Lavos's inner form opens with a spell a member at full HP lives through
+# with about 70 magic defence (computed, policies.lavos_inner): Crono, Marle
+# and Lucca have it, Robo (67) does not. The purse the growing filled buys the 12000 B.C.
 # village's best armour and helms and its Full and Mid Tonics and Ethers,
 # before the End of Time's light and its bucket into Lavos's shell
 # (other_endings). The shell's imitations fall to the party's techs (Crono's
@@ -723,7 +723,7 @@ def main():
             run.fight("lavos_shell", lambda r, s: r.map_id() == other_endings.INSIDE_LAVOS, party=3,
                       seed=args.seed, idle=walk_on)
             run.checkpoint("cavern")
-        if later <= 3:
+        if later <= 4:
             # Inside the shell, before its inner form, whose first blow lands
             # before anyone acts: everyone healed and their MP back.
             assert run.wait_control(), "inside Lavos"
@@ -732,6 +732,7 @@ def main():
             other_endings.lavos(run, max(4, later + 1), party=3, seed=args.seed, policy="lavos_inner",
                                 core_policy="lavos_core")
         later -= len(LAVOS)
+        # Not reached yet: the core's fight wipes the party (docs/MOVIES.md).
         run.finish("Lavos beaten")
         if args.movie:
             run.write_movie(args.movie, HEADER.splitlines())
