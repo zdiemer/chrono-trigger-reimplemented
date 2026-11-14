@@ -1475,6 +1475,101 @@ static void show_the_picture_beside_the_panels(VidRenderer *r, const VidFrame *f
     r->time_over = time_over;
 }
 
+/* A line laying a panel out across the view (vid_lay_out_a_map_across): some
+ * layer it shows draws a map a layout parts -- the battle window, its
+ * windows at the view's sides. */
+static bool lays_a_panel_out(const VidFrame *f, const VidSpan *span)
+{
+    const VidLineState *st = &span->state;
+    if (st->display.blank || st->mode.mode == 7)
+        return false;
+    for (int bg = 0; bg < 4; bg++) {
+        bool shown = ((st->main_layers | st->sub_layers) >> bg) & 1;
+        if (!shown || st->bg[bg].map_w != 32 || (st->bg[bg].hofs & 0xFF))
+            continue;
+        for (int n = 0; n < f->layout_count; n++)
+            if (f->layout_map[n] == st->bg[bg].map_base)
+                return true;
+    }
+    return false;
+}
+
+/* Whether the line leaves the view's pixel `x` clear: every layer it shows
+ * draws a laid-out panel there, and every layout shows nothing at it -- the
+ * gap a parted panel leaves between its windows. */
+static bool clear_between_the_windows(const VidFrame *f, const VidLineState *st, int line, int x, int left)
+{
+    bool any = false;
+    for (int bg = 0; bg < 4; bg++) {
+        const VidBg *b = &st->bg[bg];
+        if (!(((st->main_layers | st->sub_layers) >> bg) & 1))
+            continue;
+        const VidMapLayout *layout = NULL;
+        for (int n = 0; n < f->layout_count && b->map_w == 32 && !(b->hofs & 0xFF); n++)
+            if (f->layout_map[n] == b->map_base)
+                layout = &f->layouts[n];
+        if (!layout)
+            return false;
+        uint32_t row = (((uint32_t)line + b->vofs) & ((uint32_t)b->map_h * 8u - 1u)) >> 3;
+        uint32_t column = ((uint32_t)((b->hofs & 0xFF) + left + x) & (VID_LAYOUT_COLUMNS * 8u - 1u)) >> 3;
+        if (layout->column[row & (VID_LAYOUT_ROWS - 1)][column] != VID_LAYOUT_NOTHING)
+            return false;
+        any = true;
+    }
+    return any;
+}
+
+/* Between a parted panel's windows the view shows the picture behind them,
+ * as the nearest lines without a panel show it -- the lines above it, or
+ * below a panel at the top -- drawn at the panel's own lines: the battlefield
+ * the battle window hides on the original's screen goes on behind it. Where
+ * that picture has nothing of its own (an arena drawn only above the window)
+ * the gap stays as the panel's lines leave it. The lines are drawn afresh
+ * each frame, and drawing them again sets none of the frame's sprite flags. */
+static void show_the_picture_between_the_windows(VidRenderer *r, const VidFrame *f, uint32_t *out)
+{
+    if (r->left == 0)
+        return;
+    int width = r->width;
+    bool range_over = r->range_over, time_over = r->time_over;
+    for (int i = 0; i < f->span_count; i++) {
+        if (!lays_a_panel_out(f, &f->spans[i]))
+            continue;
+        int source = -1;
+        for (int k = i - 1; k >= 0 && source < 0; k--)
+            if (!f->spans[k].state.display.blank && !lays_a_panel_out(f, &f->spans[k]))
+                source = k;
+        for (int k = i + 1; k < f->span_count && source < 0; k++)
+            if (!f->spans[k].state.display.blank && !lays_a_panel_out(f, &f->spans[k]))
+                source = k;
+        int from = f->spans[i].line < 1 ? 1 : f->spans[i].line;
+        int to = i + 1 < f->span_count ? f->spans[i + 1].line - 1 : H;
+        if (to > H)
+            to = H;
+        if (source < 0 || from > to)
+            continue;
+        const VidLineState *panel = &f->spans[i].state;
+        const VidSpan *behind = &f->spans[source];
+        const uint8_t *vram = behind->vram ? behind->vram : f->vram;
+        span_begin(r, behind, f, vram != r->span.vram);
+        SpanCtx *sp = &r->span;
+        static uint32_t picture[W];
+        for (int line = from; line <= to; line++) {
+            if (sp->parting && parting_row(line) != sp->parted_row)
+                span_windows(sp, line);
+            LineCtx c = { .sp = sp, .line = line };
+            draw_line(r, &c, picture);
+            uint32_t *row = out + (size_t)(line - 1) * width;
+            for (int x = 0; x < width; x++)
+                if (r->main_s.z[x] && clear_between_the_windows(f, panel, line, x, r->left))
+                    row[x] = picture[x];
+            r->lines[line].valid = false;
+        }
+    }
+    r->range_over = range_over;
+    r->time_over = time_over;
+}
+
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
     r->range_over = r->time_over = false;
@@ -1596,6 +1691,7 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
         }
     }
     show_the_picture_beside_the_panels(r, f, out);
+    show_the_picture_between_the_windows(r, f, out);
     if (flags) {
         flags->range_over = r->range_over;
         flags->time_over = r->time_over;
