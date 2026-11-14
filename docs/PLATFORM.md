@@ -71,14 +71,18 @@ An accessor reads its resource by name (`game/rom.h`): `asset_read8(g,
 ASSET_LOCATION_RECORDS, place + 3)`, a place in the resource, which the
 store finds by the resource's name, so a pack may keep it anywhere; an
 offset past the resource's end reads on by address, as the original's
-indexing does. 511 of the game's reads (call sites) name their resource,
+indexing does. 526 of the game's reads (call sites) name their resource,
 every one whose table starts at a place the code names, two tables in a
 row of the catalogue each an offset in it (`SECOND_UPLOADS_SLOTS`). What
 the data's own pointers lead to (a stream a table points to, a script's
 text, a bank and a 16-bit place the data gives) is still read by the
-address the original keeps it at, 174 call sites, the address a key the
+address the original keeps it at, 160 call sites, the address a key the
 catalogue's rows are looked up by: a pack can't move those resources until
-it moves the pointers to them too. A pointer in the data may name RAM (a
+it moves the pointers to them too. The scene program's resources it copies
+as they are (the scenes' colours, the planet's order of tiles) are read by
+their number in its table at `$FE:0000` through a list of the rows they lie
+in (`SCENE_RESOURCE_ROWS`, `game/scene/scene_data.h`); the streams it
+unpacks are found where the table, read by name, points. A pointer in the data may name RAM (a
 script or text the game copied or built in work RAM, `$7E:2C35`,
 `$7F:8020`): those reads are the game's RAM's (`wram_data_read8`,
 `game/wram.h`), sent there by `rom_read8` before any cartridge store is

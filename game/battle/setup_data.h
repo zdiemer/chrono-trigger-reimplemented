@@ -66,9 +66,10 @@ typedef struct {
  * the previous setting's last). */
 enum { SPEEDS_A_SETTING = 16 };
 
-static inline uint32_t rom_read24(const GameState *g, uint32_t at)
+/* A long pointer, `at` bytes into a named table of them. */
+static inline uint32_t setup_long_pointer(const GameState *g, AssetId table, uint32_t at)
 {
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+    return asset_read16(g, table, at) | (uint32_t)asset_read8(g, table, at + 2) << 16;
 }
 
 /* ---- The window and the screen ----------------------------------------------------------- */
@@ -189,9 +190,9 @@ static inline uint8_t setup_member_tech_list_start(const GameState *g, uint8_t m
     return asset_read8(g, ASSET_SETUP_MEMBER_TECH_LIST_START, member);
 }
 
-static inline uint32_t setup_character_graphics(const GameState *g, uint8_t at) { return rom_read24(g, 0xE42000u + at); }
+static inline uint32_t setup_character_graphics(const GameState *g, uint8_t at) { return setup_long_pointer(g, ASSET_SETUP_CHARACTER_GRAPHICS, at); }
 
-static inline uint32_t setup_tile_lists(const GameState *g, uint16_t at) { return rom_read24(g, 0xE42300u + at); }
+static inline uint32_t setup_tile_lists(const GameState *g, uint16_t at) { return setup_long_pointer(g, ASSET_SETUP_TILE_LISTS, at); }
 
 static inline uint16_t setup_frame_lists(const GameState *g, uint16_t at)
 {

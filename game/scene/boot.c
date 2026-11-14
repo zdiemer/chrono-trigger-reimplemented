@@ -92,12 +92,12 @@ void scene_boot_line(GameState *g, Platform *pf)
 /* ---- Resources copied as they are ------------------------------------------------------------ */
 
 // $C3:099C, $C3:09A0
-/* `count` bytes of a resource in bank $FE from `from` to `to`, a byte at a time
- * forward. */
-void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count)
+/* `count` bytes of a resource, by its number in the table, to `to`, a byte at
+ * a time forward. */
+void scene_copy_resource_bytes(GameState *g, uint8_t bank, unsigned resource, uint16_t to, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++)
-        wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_data_byte(g, (uint16_t)(from + i)));
+        wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_resource_byte(g, resource, (uint16_t)i));
 }
 
 /* ---- Resources unpacked ------------------------------------------------------------------------ */

@@ -250,9 +250,6 @@ enum { MENU_ARCTANGENT_STEP = 4, MENU_ARCTANGENT_STEPS = 32 };
  * word a map). Maps count from the first world map's location, $1F0. */
 enum { MENU_FIRST_WORLD_MAP = 0x01F0, MENU_WORLD_MAPS = 8 };
 
-/* The map view's sprites: the cursor's tiles, two runs of 32 bytes, and
- * their sixteen colours with the byte after them. */
-enum { MENU_MAP_VIEW_COLOURS = 0xC6F540 };
 
 /* The time dial's seven periods: the location each travels to, in the two
  * sets the story moves between ($C2:6C97, and $C2:6CA5 once the story has
@@ -946,7 +943,12 @@ static inline uint16_t menu_cursor_path_zoom_y(const GameState *g, uint16_t at)
     return asset_read16(g, ASSET_MENU_CURSOR_PATH_ZOOM_Y, at);
 }
 
-static inline uint8_t menu_map_view_colour_byte(const GameState *g, unsigned i) { return rom_read8(g, MENU_MAP_VIEW_COLOURS + i); }
+/* The map view's sprites' sixteen colours (after the cursor's tiles, two
+ * runs of 32 bytes), and the byte after them. */
+static inline uint8_t menu_map_view_colour_byte(const GameState *g, unsigned i)
+{
+    return asset_read8(g, ASSET_MENU_MAP_VIEW_COLORS, i);
+}
 
 static inline uint16_t menu_period_location(const GameState *g, bool later_set, uint8_t period)
 {
