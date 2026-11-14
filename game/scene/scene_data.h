@@ -43,16 +43,23 @@ static const SceneResource SCENE_RESOURCE_ROWS[SCENE_RESOURCE_COUNT] = {
     [57] = { true, ASSET_ATTRACT_COLORS_FEF91E, 0x500 },
 };
 
+/* Where a resource lies in bank $FE, by its number in the table: its
+ * pointer's low word, which the program's copy reads first (the copy takes
+ * the bank as $FE). */
+static inline uint16_t scene_resource_offset(const GameState *g, unsigned resource)
+{
+    return asset_read16(g, ASSET_ATTRACT_RESOURCE_PTRS, resource * SCENE_RESOURCE_SIZE);
+}
+
 /* A byte of a resource the program copies as it is, by its number in the
- * table, `at` bytes in. A resource no scene copies (a stream, or a number
- * past the table) is read where the table's pointer leads, wrapping in bank
- * $FE as the original's copy does. */
-static inline uint8_t scene_resource_byte(const GameState *g, unsigned resource, uint16_t at)
+ * table, `at` bytes in, `from` being where the table says it lies. A
+ * resource no scene copies (a stream, or a number past the table) is read
+ * there, wrapping in bank $FE as the original's copy does. */
+static inline uint8_t scene_resource_byte(const GameState *g, unsigned resource, uint16_t from, uint16_t at)
 {
     const SceneResource *r = resource < SCENE_RESOURCE_COUNT ? &SCENE_RESOURCE_ROWS[resource] : NULL;
     if (r && r->copied)
         return asset_read8(g, r->asset, (uint32_t)r->offset + at);
-    uint16_t from = asset_read16(g, ASSET_ATTRACT_RESOURCE_PTRS, resource * SCENE_RESOURCE_SIZE);
     return rom_read8(g, 0xFE0000u | (uint16_t)(from + at));
 }
 

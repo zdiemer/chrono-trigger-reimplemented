@@ -96,8 +96,9 @@ void scene_boot_line(GameState *g, Platform *pf)
  * a time forward. */
 void scene_copy_resource_bytes(GameState *g, uint8_t bank, unsigned resource, uint16_t to, uint32_t count)
 {
+    uint16_t from = scene_resource_offset(g, resource);
     for (uint32_t i = 0; i < count; i++)
-        wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_resource_byte(g, resource, (uint16_t)i));
+        wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_resource_byte(g, resource, from, (uint16_t)i));
 }
 
 /* ---- Resources unpacked ------------------------------------------------------------------------ */

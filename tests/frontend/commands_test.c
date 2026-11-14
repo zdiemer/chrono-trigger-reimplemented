@@ -13,6 +13,7 @@
 
 #include "assets.h"
 #include "commands.h"
+#include "scene/scene_data.h"
 
 static int failures;
 
@@ -112,6 +113,13 @@ static void the_cartridge(void)
         fprintf(stderr, "  the cartridge's %s doesn't read back\n", why);
     else
         printf("commands_test: every script of the cartridge reads back as its bytes\n");
+    /* the scenes' copied resources lie where the table at $FE:0000 points */
+    enum { TABLE = 0x3E0000 };   /* $FE:0000 in the image */
+    for (unsigned k = 0; size == ASSET_ROM_SIZE && k < SCENE_RESOURCE_COUNT; k++) {
+        const SceneResource *r = &SCENE_RESOURCE_ROWS[k];
+        uint32_t pointer = (uint32_t)(rom[TABLE + 3 * k] | rom[TABLE + 3 * k + 1] << 8 | rom[TABLE + 3 * k + 2] << 16);
+        CHECK(!r->copied || asset_catalogue[r->asset].at + r->offset == pointer);
+    }
     free(file);
 }
 
@@ -197,6 +205,17 @@ int main(void)
     refused(&made, edit, 5);                                                 /* no such action */
     snprintf(edit, sizeof edit, "[enemy_scripts]\nstarts %04X\nif always 00 00 00\nthen\ndo attack AA BB\n", first);
     refused(&made, edit, 5);                                                 /* an attack is four bytes */
+    /* lines longer than any condition or action: refused, not read past their room */
+    snprintf(edit, sizeof edit, "[enemy_scripts]\nstarts %04X\nif always", first);
+    for (int k = 0; k < 40; k++)
+        strcat(edit, " 00");
+    strcat(edit, "\n");
+    refused(&made, edit, 3);
+    snprintf(edit, sizeof edit, "[enemy_scripts]\nstarts %04X\nif always 00 00 00\nthen\ndo attack", first);
+    for (int k = 0; k < 40; k++)
+        strcat(edit, " AA");
+    strcat(edit, "\n");
+    refused(&made, edit, 5);
     snprintf(edit, sizeof edit, "[enemy_scripts]\nstarts %04X\nif always 00 00 00 @05\n", first);
     refused(&made, edit, 3);                                                 /* kind $05 isn't `always` */
 

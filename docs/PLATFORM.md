@@ -299,8 +299,8 @@ two (the field's 64 sets and BG3's 19, and the world maps' tile groups);
 effects' layer); `lz:bytes:96` the world maps' planes, a byte a map tile;
 `lz:nibbles:96` their regions and `lz:nibbles:4` their ground kinds, a hex
 digit a cell; `lz:colors:16` the world maps' packed palettes
-(`menu_scene_stream_c6fea0.N`); and `lz` for the streams that have no
-text of their own yet (the world maps' scene scripts, issue #130), in hex. A
+(`menu_scene_stream_c6fea0.N`); and `lz` for the three attract streams
+whose layout no reader has shown yet, in hex. A
 tilemap entry is `TTT:P:hvp` (the tile, its palette, and each flag or `-`),
 so a map is edited by its tile numbers, flips, priority and palettes.
 

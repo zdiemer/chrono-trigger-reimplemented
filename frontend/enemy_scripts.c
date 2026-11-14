@@ -209,7 +209,7 @@ static const char *put(DecodedReading *r, const uint8_t *bytes, unsigned n)
 const char *enemy_scripts_read_line(Decoded *d, DecodedReading *r, const char *s, const char *end)
 {
     uint8_t out[MOST_ACTION + 1];
-    uint32_t v[WORDS_A_LINE + 1];
+    uint32_t v[MOST_ACTION];   /* room for the most any line gives (hex_values' `most` below) */
     const char *w = s;
     while (s < end && !space(*s))
         s++;

@@ -218,9 +218,17 @@ static int hex_run(const char *s, const char *end, char between, uint8_t *out, u
 
 /* The command a row makes of a line, into c (room for MOST_COMMAND): its
  * length, or 0 where the line isn't one of the row's. */
-static uint16_t encode(const LanguageRow *row, const Line *l, uint8_t *c)
-{
+/* A command as it is made from its line, its data, and a line's bytes: kept
+ * off the stack (a small host's is small), with the writing or the reading. */
+typedef struct {
+    uint8_t command[MOST_COMMAND];
     uint8_t data[MOST_COMMAND];
+    uint8_t line[MOST_COMMAND];
+} Scratch;
+
+static uint16_t encode(const LanguageRow *row, const Line *l, Scratch *sc)
+{
+    uint8_t *c = sc->command, *data = sc->data;
     int data_n = 0;
     bool given[LANGUAGE_MOST_PARAMS] = { false };
     unsigned built = row->length;
@@ -256,7 +264,7 @@ static uint16_t encode(const LanguageRow *row, const Line *l, uint8_t *c)
                 return 0;
             c[at] = (uint8_t)bits;
         } else if (word_is(v->key, v->key_end, "data") && !data_n) {
-            data_n = hex_run(v->value, v->end, '.', data, sizeof data);
+            data_n = hex_run(v->value, v->end, '.', data, MOST_COMMAND);
             if (data_n <= 0)
                 return 0;
         } else {
@@ -290,7 +298,7 @@ static uint16_t encode(const LanguageRow *row, const Line *l, uint8_t *c)
 
 /* The row a line names: the hinted opcode, or the first of its name's rows
  * its parameters fit; and the command made of it. */
-static const char *read_command(const Language *language, const Line *l, uint8_t *c, uint16_t *length,
+static const char *read_command(const Language *language, const Line *l, Scratch *sc, uint16_t *length,
                                 const LanguageRow **found)
 {
     bool named = false;
@@ -301,7 +309,7 @@ static const char *read_command(const Language *language, const Line *l, uint8_t
         named = true;
         if (l->hint >= 0 && l->hint != (int)op)
             continue;
-        if ((*length = encode(row, l, c)) != 0) {
+        if ((*length = encode(row, l, sc)) != 0) {
             *found = row;
             return NULL;
         }
@@ -326,19 +334,18 @@ static void put_hex(DecodedText *t, const uint8_t *p, unsigned n, const char *be
 }
 
 /* The opcode a command's line is read as, without its @XX; -1 for none. */
-static int read_as(const Language *language, const char *text, size_t len)
+static int read_as(const Language *language, const char *text, size_t len, Scratch *sc)
 {
-    uint8_t c[MOST_COMMAND];
     Line l;
     uint16_t length;
     const LanguageRow *row = NULL;
-    if (split_line(text, text + len, &l) || read_command(language, &l, c, &length, &row))
+    if (split_line(text, text + len, &l) || read_command(language, &l, sc, &length, &row))
         return -1;
     return row->opcode;
 }
 
 static void write_command(DecodedText *out, const Language *language, const LanguageRow *row, const uint8_t *c,
-                          uint16_t length)
+                          uint16_t length, Scratch *sc)
 {
     char s[48];
     DecodedText line = { 0 }, *t = &line;
@@ -367,7 +374,7 @@ static void write_command(DecodedText *out, const Language *language, const Lang
         put_hex(t, c + k, 1, "");
         data = true;
     }
-    if (!line.full && read_as(language, line.text, line.len) != row->opcode) {
+    if (!line.full && read_as(language, line.text, line.len, sc) != row->opcode) {
         snprintf(s, sizeof s, " @%02X", row->opcode);
         decoded_put(t, s);
     }
@@ -388,12 +395,15 @@ static uint16_t starts_a_command(const Language *language, const uint8_t *b, uin
     return row->known ? command_length(row, b + at, len - at) : 0;
 }
 
-static void write_commands(DecodedText *t, const Language *language, const uint8_t *bytes, uint32_t len)
+static bool write_commands(DecodedText *t, const Language *language, const uint8_t *bytes, uint32_t len)
 {
+    Scratch *sc = malloc(sizeof *sc);
+    if (!sc)
+        return false;
     for (uint32_t at = 0; at < len;) {
         uint16_t length = starts_a_command(language, bytes, at, len);
         if (length) {
-            write_command(t, language, language->row(bytes[at]), bytes + at, length);
+            write_command(t, language, language->row(bytes[at]), bytes + at, length, sc);
             at += length;
             continue;
         }
@@ -405,6 +415,8 @@ static void write_commands(DecodedText *t, const Language *language, const uint8
         decoded_put(t, "\n");
         at += n;
     }
+    free(sc);
+    return true;
 }
 
 static bool write_resource(DecodedText *t, const AssetStore *store, const AssetEntry *e, const uint8_t *bytes)
@@ -416,8 +428,7 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     if (!packed(e)) {
         snprintf(s, sizeof s, "# %s script, %u bytes\n", language->what, (unsigned)e->length);
         decoded_put(t, s);
-        write_commands(t, language, bytes, e->length);
-        return true;
+        return write_commands(t, language, bytes, e->length);
     }
     size_t len = 0;
     bool long_runs = false;
@@ -427,9 +438,9 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
     snprintf(s, sizeof s, "# %s scripts, %u bytes unpacked\n", language->what, (unsigned)len);
     decoded_put(t, s);
     packed_write_form(t, long_runs);
-    write_commands(t, language, unpacked, (uint32_t)len);
+    bool written = write_commands(t, language, unpacked, (uint32_t)len);
     free(unpacked);
-    return true;
+    return written;
 }
 
 /* ---- Reading ---------------------------------------------------------------------------------- */
@@ -437,16 +448,19 @@ static bool write_resource(DecodedText *t, const AssetStore *store, const AssetE
 static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const char *end)
 {
     const AssetEntry *e = &asset_catalogue[r->entry];
-    uint8_t c[MOST_COMMAND];
-    int n;
     if (enemies(e))
         return enemy_scripts_read_line(d, r, s, end);
     if (packed(e) && r->form == PACKED_UNSAID)
         return packed_read_form(d, r, s, end);
+    Scratch *sc = r->own ? r->own : (r->own = malloc(sizeof *sc));
+    if (!sc)
+        return "out of memory";
+    const uint8_t *c = sc->line;
+    int n;
     if (decoded_word(&s, end, "bytes")) {
         while (s < end && space(*s))
             s++;
-        n = hex_run(s, end, ' ', c, sizeof c);
+        n = hex_run(s, end, ' ', sc->line, MOST_COMMAND);
         if (n <= 0)
             return "bytes are two hex digits each, a space between";
     } else {
@@ -455,9 +469,10 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
         const LanguageRow *row;
         const char *wrong = split_line(s, end, &l);
         if (!wrong)
-            wrong = read_command(language_of(e), &l, c, &length, &row);
+            wrong = read_command(language_of(e), &l, sc, &length, &row);
         if (wrong)
             return wrong;
+        c = sc->command;
         n = length;
     }
     if (packed(e)) {
@@ -474,6 +489,13 @@ static const char *read_line(Decoded *d, DecodedReading *r, const char *s, const
     memcpy(r->bytes + r->at, c, (size_t)n);
     r->at += (uint32_t)n;
     return NULL;
+}
+
+/* The reading's scratch, let go once the text is read. */
+static void forget(DecodedReading *r)
+{
+    free(r->own);
+    r->own = NULL;
 }
 
 /* A script keeps its length: other tables point into it, and the scene's
@@ -504,5 +526,5 @@ const DecodedKind command_text = {
     "# scripts: `if` a condition, `then`, `do` an action, `done`, `end` a section.\n"
     "# A script keeps its length: other tables point into it. Edit and start the\n"
     "# game again; delete the file to write it afresh.\n",
-    decodes, write_resource, read_line, read_end, NULL, language,
+    decodes, write_resource, read_line, read_end, forget, language,
 };
