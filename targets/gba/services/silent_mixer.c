@@ -1,7 +1,7 @@
-/* The voices kept and not played (targets/gba/silent_mixer.h): each call
+/* The voices kept and not played (targets/gba/services/silent_mixer.h): each call
  * keeps what runtime/platform/native/mixer.c's keeps of the settings the
  * driver reads back, masked as it masks them. */
-#include "silent_mixer.h"
+#include "services/silent_mixer.h"
 
 #include <string.h>
 

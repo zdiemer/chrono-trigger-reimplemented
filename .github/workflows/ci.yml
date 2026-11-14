@@ -114,7 +114,7 @@ jobs:
       - name: Configure
         run: >-
           cmake -S targets/gba -B build/gba -G Ninja -DCT_WERROR=ON
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/targets/gba/toolchain.cmake
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/targets/gba/toolchain/toolchain.cmake
       - name: Build the GBA program
         run: cmake --build build/gba -j 2
 

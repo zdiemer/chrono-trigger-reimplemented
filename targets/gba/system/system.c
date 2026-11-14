@@ -1,4 +1,4 @@
-/* What the C library and the runtime need of the GBA (targets/gba/main.c):
+/* What the C library and the runtime need of the GBA (targets/gba/system/main.c):
  * the arena (runtime/port/arena.h) and the library's heap over the end of
  * work RAM, text out to mGBA's debug log, and a stop.
  *
@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 
 #include "port/arena.h"
-#include "debug_log.h"
+#include "system/debug_log.h"
 
 extern uint8_t __arena_start[], __ewram_end[];
 
