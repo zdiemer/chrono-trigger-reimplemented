@@ -36,8 +36,8 @@ TILE_BYTES = {"tiles:2bpp": 16, "tiles:4bpp": 32}
 # grids of tilemap entries, bytes, hex digits or colors N a row, and streams
 # without a text of their own yet (frontend/maps.h writes and reads them); a
 # location's event script and a world map's lists of places
-# (frontend/scripts.h).
-PACKED_CODEC = re.compile(r"lz(:event|:place-lists|:2bpp|:4bpp|:8bpp|:4bpp-chunky|:field-map|:looks|:chunky"
+# (frontend/scripts.h); a world map's scene's object scripts (frontend/commands.h).
+PACKED_CODEC = re.compile(r"lz(:event|:place-lists|:object|:2bpp|:4bpp|:8bpp|:4bpp-chunky|:field-map|:looks|:chunky"
                           r"|:(tilemap|bytes|colors):[1-9][0-9]*|:nibbles:([2468]|[1-9][0-9]*[02468]))?")
 
 # Text's codecs: a string, names of N glyphs each, the dictionary

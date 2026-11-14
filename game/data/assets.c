@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "rom.h"
+#include "wram.h"
 
 /* The cartridge is HiROM: banks $C0-$FF hold it whole, banks $40-$7D mirror
  * them, and the upper half of each of banks $00-$3F and $80-$BF mirrors the
@@ -103,7 +104,14 @@ static const uint8_t *served(uint32_t at)
     return bytes ? bytes + (cartridge_address(at) - asset_catalogue[id].at) : NULL;
 }
 
-uint8_t rom_read8(const GameState *g, uint32_t at) { return rom_cartridge_read(g, at, served(at)); }
+/* Where a pointer in the data names RAM, the byte is the game's RAM's
+ * (wram_data_read8), never the cartridge's. */
+uint8_t rom_read8(const GameState *g, uint32_t at)
+{
+    if (cartridge_address(at) == NOT_ROM)
+        return wram_data_read8(g, at & 0xFFFFFFu);
+    return rom_cartridge_read(g, at, served(at));
+}
 
 /* The read is the same one the address would make: timed as a cartridge
  * read at the address the original keeps the byte at. */

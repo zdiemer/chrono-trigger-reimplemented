@@ -37,6 +37,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "script_text.h"
 #include "menu/object.h"
 #include "platform/platform.h"
 #include "sound/sound.h"
@@ -191,7 +192,11 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
         (void)command;                                                                         \
         return op(g);                                                                          \
     }
+#if CT_SCRIPT_TEXT
+#define OPERATION(op) .run = op##_command, .name = #op
+#else
 #define OPERATION(op) .run = op##_command
+#endif
 
 /* ---- How an operand becomes a parameter -------------------------------------------------- */
 
@@ -226,6 +231,9 @@ typedef struct {
 typedef struct {
     uint8_t opcode;
     ScriptOperation run;
+#if CT_SCRIPT_TEXT
+    const char *name;      /* the operation's name (OPERATION), what the text calls the command */
+#endif
     struct {
 #define SCRIPT_PARAMETER_SPEC(type, name) ScriptArg name;
         SCRIPT_PARAMETERS(SCRIPT_PARAMETER_SPEC)
