@@ -15,6 +15,9 @@ HEADER = """# Reptite Lair: defeat Nizbel, recover the Gate Key, regain field co
 # <start_frame> <frame_count> <buttons>"""
 
 
+NIZBEL_HP_ABOVE = 4000      # Nizbel's 4200 HP: no other monster of the lair has as much
+
+
 def nizbel_party(bot, state, rng, inventory):
     member = state.member
     character = policies.party_ids(bot)[member]
@@ -42,10 +45,11 @@ def nizbel_party(bot, state, rng, inventory):
     living = policies.enemies(state)
     if not living:
         return ("attack", None)
-    if character == 0:
-        if state.mp(member) >= 2:
-            return ("tech", 2, living[0])
-    if character == 5 and state.max_hp(living[0]) > 4000 and state.mp(member) >= 3 \
+    # Crono's Lightning lowers Nizbel's hide (rpgclassics.com's boss guide: "have Crono use
+    # Lightning to lower his defence"); on the lair's other monsters his magic is kept for him.
+    if character == 0 and state.max_hp(living[0]) > NIZBEL_HP_ABOVE and state.mp(member) >= 2:
+        return ("tech", 2, living[0])
+    if character == 5 and state.max_hp(living[0]) > NIZBEL_HP_ABOVE and state.mp(member) >= 3 \
             and policies.tech_known(bot, member, 2):
         return ("tech", 2, living[0])
     return ("attack", living[0])

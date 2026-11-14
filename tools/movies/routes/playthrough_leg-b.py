@@ -153,12 +153,26 @@ def world_toward(run, x, y, near=24):
 def forest_maze(run):
     run.wait_world_control()
     world_enter(run, FOREST_MAZE)
-    assert main_leg.in_hand(run, 20000)
+    assert main_leg.in_hand(run, 20000, policy=blows_for_crono)
+
+
+CRONO = 0
+
+
+def blows_for_crono(bot, state, rng, inventory):
+    """The maze's fights as the early policy fights them, but Crono strikes where it would
+    have him cast: his magic is kept for Nizbel, whose hide his Lightning lowers, and there
+    is nowhere to rest between the maze and the lair."""
+    action = early.early_party(bot, state, rng, inventory)
+    if action[0] == "tech" and policies.party_ids(bot)[state.member] == CRONO:
+        foes = policies.enemies(state)
+        return "attack", min(foes, key=state.hp) if foes else None
+    return action
 
 
 def maze_out(run):
     main_leg.through(run, *MAZE_FOOT, lambda: run.map_id() == WORLD_65M and run.world_pos()[1] > BELOW_MAZE,
-                     rounds=30, limit=MAZE_SEARCH)
+                     rounds=30, limit=MAZE_SEARCH, policy=blows_for_crono)
 
 
 def mystic_mountains(run):
@@ -908,17 +922,34 @@ STEPS = {
 STEPS.update({name: inner_room(name) for name in INNER_WAY})
 
 
-def play(run, start=2, seed=1):
+class LegEnds(Exception):
+    """play()'s caller asked it to stop after a phase (`last`)."""
+
+
+def play(run, start=2, seed=1, before=None, last=None):
     """The leg from the Forest Maze on (PHASES' index `start`, from 2): the save's or the
-    main playthrough's party on the 65,000,000 B.C. world map at story $78."""
+    main playthrough's party on the 65,000,000 B.C. world map at story $78. `before` maps
+    one of this route's own phases to what the caller plays first, within that phase (the
+    main playthrough's training before Magus); `last` is the phase to stop after."""
+    try:
+        play_on(run, start, seed, before or {}, last)
+    except LegEnds:
+        pass
+
+
+def play_on(run, start, seed, before, last):
 
     def own(run, start, offset, phases):
         """This route's own `phases`, PHASES' indices `offset` on, from `start`."""
         for index, name in enumerate(phases, offset):
             if start <= index:
+                if name in before:
+                    before[name](run)
                 STEPS[name](run)
                 run.say(name, run.map_id(), run.me(), "world", run.world_pos(), "story", hex(story(run)))
                 run.checkpoint(name)
+                if name == last:
+                    raise LegEnds()
 
     own(run, start, 2, START[2:])
     at = len(START)
