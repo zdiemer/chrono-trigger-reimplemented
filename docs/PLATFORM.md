@@ -1381,11 +1381,9 @@ mode 0's four tiled layers and its sprites:
   bands' first lines, the lines a mode asked of) and the band each line
   is in are found in order rather than searched for at every line. Over
   `events-jetbike-race` that took the picture from 1.20 GBA frames a frame
-  to 0.94 and the movie from 26,372 GBA frames to 23,919; `gato-battle`
-  0.57 to 0.49 (45,951 to 43,818), `menus-sweep` 0.53 to 0.49 (11,045 to
-  10,822), `new-game` 0.32 to 0.30 (11,279 to 11,189), `title-start` 0.21
-  to 0.20 (2,230 to 2,227), each frame's registers, sprites, palettes and
-  video memory the same (hashed after every frame's picture). The line counter's interrupt fires a line above each such line and the
+  to 0.94, and `gato-battle`'s from 0.57 to 0.49 (the work a frame,
+  below), each frame's registers, sprites, palettes and video memory the
+  same (hashed after every frame's picture). The line counter's interrupt fires a line above each such line and the
   horizontal blank's at its end sets the registers, two interrupts a change
   rather than one a line. A frame whose lines start from what the last
   frame's did (the registers, the slots, the changes below a line, the
