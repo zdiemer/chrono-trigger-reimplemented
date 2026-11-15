@@ -18,6 +18,7 @@
 #include "cpu_io.h"
 #include "platform/time_model.h"
 #include "port/time_rates.h"
+#include "port/vars_ram.h"
 #include "rom.h"
 #include "wram.h"
 
@@ -55,6 +56,8 @@ struct GameState {
     const char *stopped_what;
     uint32_t owed;            /* the original's time charged since the timing backend last took it (master clocks) */
     unsigned timed;           /* index in time_rates, or time_rate_count for untagged work */
+    unsigned looks;           /* a guard's looks open (vars_peek), nested */
+    uint32_t look_mark;       /* where the outermost look's uncounted stretch began */
     StateHostTime *time;      /* optional diagnostic totals; never used to schedule work */
     bool lasting;             /* in the arena, for the run's whole life (state_host_create_lasting) */
     uint8_t kept_sram[];      /* save RAM where the state keeps it: STATE_HOST_SRAM_BYTES, or none */
@@ -661,6 +664,29 @@ void charge_uncounted_end(GameState *g, uint32_t mark)
 {
     g->head.account.raw_bus = g->head.account.priced = mark;
     g->head.account.uncounted--;
+}
+
+/* A guard's look is an uncounted stretch: what it reads is counted as any
+ * access is, and dropped as it ends, so no access asks whether a look is
+ * open. The looks are the program's questions, made through a constant
+ * state; the account is the backing's own. Where the port's checks look too
+ * (PORT_CHECK, outside the lean build), the flag they look by is set with it. */
+void vars_peek(const GameState *g, bool on)
+{
+    GameState *state = (GameState *)(uintptr_t)g;
+    if (on) {
+        if (state->looks++ == 0) {
+            state->look_mark = charge_uncounted_begin(state);
+#ifndef CT_LEAN
+            vars_peek_flag(true);
+#endif
+        }
+    } else if (state->looks && --state->looks == 0) {
+        charge_uncounted_end(state, state->look_mark);
+#ifndef CT_LEAN
+        vars_peek_flag(false);
+#endif
+    }
 }
 
 /* Whether the accesses counted so far must be priced before the work is

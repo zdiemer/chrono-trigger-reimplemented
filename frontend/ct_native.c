@@ -535,10 +535,9 @@ static int native_flush(void *ctx)
  * doesn't count, so reporting the places never changes the run. */
 static uint16_t observed_location(GameState *g)
 {
-    bool was = vars_peeking();
-    vars_peek(true);
+    vars_peek(g, true);
     uint16_t location = location_id(g);
-    vars_peek(was);
+    vars_peek(g, false);
     return location;
 }
 
