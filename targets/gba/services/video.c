@@ -1288,7 +1288,8 @@ typedef struct {
 static ReadLine read_lines[READ_LINES];
 
 /* Where each 32 bytes of the tables a frame's lines read came from, as they
- * read them, and a 32-bit FNV-1a hash of all their bytes in that order, so
+ * read them, and a 32-bit FNV-1a hash of all their bytes in that order (a
+ * word at a time), so
  * that the next frame can tell whether its tables are the same (below). In
  * fast RAM, which has the room work RAM hasn't, as the rest of what the next
  * frame keeps; a hash rather than the bytes, which it hasn't the room for
@@ -1310,10 +1311,17 @@ static void read_table_line(uint32_t line, uint8_t bytes[READ_LINE_BYTES])
 
 enum { FNV_START = 2166136261u, FNV_PRIME = 16777619u };
 
+/* FNV-1a a word at a time, then the bytes left over. */
 static uint32_t hash_on(uint32_t h, const void *bytes, size_t count)
 {
     const uint8_t *b = bytes;
-    for (size_t i = 0; i < count; i++)
+    size_t i = 0;
+    for (; i + 4 <= count; i += 4) {
+        uint32_t word;
+        memcpy(&word, b + i, sizeof word);
+        h = (h ^ word) * FNV_PRIME;
+    }
+    for (; i < count; i++)
         h = (h ^ b[i]) * FNV_PRIME;
     return h;
 }
@@ -1849,7 +1857,10 @@ static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, b
                 table_unit(sl->bank, sl->cursor, sl->unit, unit);
                 sl->cursor = (uint16_t)(sl->cursor + sl->unit);
             }
-            applies = !apart || !sl->applied || memcmp(unit, sl->last, sl->unit) != 0;
+            bool same = apart && sl->applied;
+            for (unsigned k = 0; same && k < sl->unit; k++)
+                same = unit[k] == sl->last[k];
+            applies = !same;
             if (applies) {
                 memcpy(sl->last, unit, sizeof unit);
                 sl->applied = true;
