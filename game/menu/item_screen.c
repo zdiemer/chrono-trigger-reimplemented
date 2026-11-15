@@ -299,6 +299,12 @@ void menu_items_show_users(GameState *g, Platform *pf)
 /* The window stays while the cursor is held; any button closes it. */
 bool menu_items_users_closed(const GameState *g) { return chose(g) || went_back(g); }
 
+/* Both windows run the same per-line effect (MEMBER_LINE_EFFECT). */
+bool menu_items_window_beside_the_list(const GameState *g)
+{
+    return (menu_screen(g) == MENU_SCREEN_ITEMS) && (menu_line_effects(g) & USERS_LINE_EFFECT);
+}
+
 void menu_items_close_users(GameState *g)
 {
     set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~USERS_LINE_EFFECT));
