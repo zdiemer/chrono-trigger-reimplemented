@@ -217,6 +217,18 @@ static void mix(SoundNative *n, uint32_t cycles)
 }
 #endif
 
+/* Of `cycles`, the whole timer steps the driver has nothing to do in: no
+ * command on the ports, no echo to wait for, and no tick due by their end.
+ * Taken at once, they are only sound to mix, as they are a step at a time. */
+static uint32_t quiet_cycles(const SoundNative *n, uint32_t cycles)
+{
+    uint32_t tick = tick_cycles(n);
+    if (n->starting || n->phase != WAITING || n->in[0] || n->timer + TIMER_STEP_CYCLES >= tick)
+        return 0;
+    uint32_t steps = (tick - n->timer - 1) / TIMER_STEP_CYCLES, whole = cycles / TIMER_STEP_CYCLES;
+    return (steps < whole ? steps : whole) * TIMER_STEP_CYCLES;
+}
+
 /* The driver's time in steps of at most a timer step: a tick where one is
  * due, a command from the ports between them, the echo's wait counting down. */
 static void pass(void *ctx, uint32_t cycles)
@@ -225,6 +237,13 @@ static void pass(void *ctx, uint32_t cycles)
     if (!n->booted)
         return;
     while (cycles) {
+        uint32_t quiet = quiet_cycles(n, cycles);
+        if (quiet) {
+            cycles -= quiet;
+            mix(n, quiet);
+            n->timer += quiet;
+            continue;
+        }
         uint32_t step = cycles < TIMER_STEP_CYCLES ? cycles : TIMER_STEP_CYCLES;
         cycles -= step;
         mix(n, step);

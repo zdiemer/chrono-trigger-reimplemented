@@ -417,18 +417,24 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
     mixing_cycles += cycles_now() - began;
 }
 
+/* The frames are taken up to the one that owes a chunk's last sample, the
+ * chunk mixed there, and so on: however many frames a pass brings, each
+ * chunk is mixed as its samples fall due. */
 void mixer_pass(Mixer *m, uint32_t frames)
 {
-    m->frames = (uint16_t)(m->frames + frames);
-    m->owed += frames * OUT_PER;
-    while (m->owed >= FRAMES_PER) {
-        m->owed -= FRAMES_PER;
-        m->pending++;
-    }
-    if (m->pending >= CHUNK) {
-        m->pending -= CHUNK;
-        mix_chunk(m, CHUNK, m->frames);
-        m->frames = 0;
+    while (frames) {
+        uint32_t to_chunk = ((uint32_t)(CHUNK - m->pending) * FRAMES_PER - m->owed + OUT_PER - 1) / OUT_PER;
+        uint32_t take = to_chunk < frames ? to_chunk : frames;
+        frames -= take;
+        m->frames = (uint16_t)(m->frames + take);
+        m->owed += take * OUT_PER;
+        m->pending = (uint16_t)(m->pending + m->owed / FRAMES_PER);
+        m->owed %= FRAMES_PER;
+        if (m->pending >= CHUNK) {
+            m->pending -= CHUNK;
+            mix_chunk(m, CHUNK, m->frames);
+            m->frames = 0;
+        }
     }
 }
 
