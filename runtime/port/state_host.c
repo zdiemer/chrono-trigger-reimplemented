@@ -631,6 +631,12 @@ void charge_uncounted_end(GameState *g, uint32_t mark)
     g->head.account.uncounted--;
 }
 
+/* Whether the accesses counted so far must be priced before the work is
+ * timed at `rate`: where the rate stays the same, pricing them now or with
+ * the rest of the stretch adds the same thousandths, so only a run that
+ * keeps each routine's totals (REPORTING) prices at every scope. */
+static bool reprices(const GameState *g, uint32_t rate) { return rate != g->head.account.rate || REPORTING(g); }
+
 /* A tag the rates don't name leaves the work at the rate it was at, as the
  * machine leaves an attribution to no hand port with the port's own. */
 int charge_time_as_begin(GameState *g, uint32_t routine)
@@ -639,8 +645,10 @@ int charge_time_as_begin(GameState *g, uint32_t routine)
     const RecentRow *row = row_of(routine);
     unsigned index = row->index;
     if (row->rate) {
-        price_accesses(g);
-        set_rate(g, row);
+        if (reprices(g, row->rate)) {
+            price_accesses(g);
+            set_rate(g, row);
+        }
         g->timed = index;
     }
     if (REPORTING(g))
@@ -648,11 +656,19 @@ int charge_time_as_begin(GameState *g, uint32_t routine)
     return was;
 }
 
+/* The scope's end times the work as the routine before it, whose row the
+ * scope's start kept: a row the rates name, or none. */
 void charge_time_as_end(GameState *g, int was)
 {
-    price_accesses(g);
-    g->timed = (unsigned)was;
-    set_rate(g, g->timed < time_rate_count ? row_of(time_rates[g->timed].routine) : NULL);
+    unsigned index = (unsigned)was;
+    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
+    if (reprices(g, rate)) {
+        price_accesses(g);
+        g->head.account.rate = rate;
+        g->head.account.rate_clocks = rate / 1000u;
+        g->head.account.rate_milli = rate % 1000u;
+    }
+    g->timed = index;
 }
 
 /* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
