@@ -70,6 +70,8 @@ platform services' backends. Nothing here is included from `game/`.
     mixer's place (frontend/sound_native.c takes it through
     `SOUND_NATIVE_MIXER` and `SOUND_NATIVE_MIXER_PLAYS`): the packed samples
     mixed at the GBA's rate, 32 samples at a time.
+  - `mix.s`: the mixer's loops, ARM in fast RAM: a voice's wave into the
+    mix four samples a turn, and the mix to each side's 8 bits.
   - `direct_sound.c`, `direct_sound.h`: the mix played on Direct Sound A and
     B from a ring, a timer's interrupt moving it to the FIFOs.
 - `host/`: tools that run on the host, not on the GBA.
