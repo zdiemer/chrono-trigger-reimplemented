@@ -51,5 +51,8 @@ void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open);
 /* The screen's lines from `top`, `lines` of them, kept in view from the
  * view's line `at`, the view's middle across on the original's. */
 void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at);
+/* The view's lines from `at`, `lines` of them, black, over the camera's
+ * picture: what a layout of bands leaves over. */
+void view_keep_nothing(Platform *pf, int16_t at, uint16_t lines);
 
 #endif

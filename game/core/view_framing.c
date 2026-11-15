@@ -59,3 +59,9 @@ void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at)
     VidViewPanel panel = { top, lines, (int16_t)((VID_ORIGINAL_VIEW_WIDTH - view.width) / 2), at };
     vid_keep_a_panel_in_view(pf, &panel);
 }
+
+void view_keep_nothing(Platform *pf, int16_t at, uint16_t lines)
+{
+    /* the lines below the original's screen, where it shows nothing */
+    view_keep_lines(pf, VID_ORIGINAL_VIEW_HEIGHT, lines, at);
+}

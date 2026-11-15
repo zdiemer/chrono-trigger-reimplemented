@@ -35,6 +35,9 @@ bool menu_naming_keeps_the_named_ones_record(const GameState *g);
  * first column and row stand at these. */
 uint16_t menu_naming_cursor_place(const GameState *g);
 enum { MENU_NAME_GRID_LEFT = 0x24, MENU_NAME_GRID_TOP = 0x53 };
+/* The line effects the naming runs: the grid's, and the first naming's,
+ * whose instructions stand over the grid until the first button. */
+enum { MENU_NAMING_LINE_EFFECTS = 0x1D, MENU_NAMING_FIRST_LINE_EFFECTS = 0x7F };
 typedef enum { NAMING_NOTHING_TYPED, NAMING_LETTER_TYPED, NAMING_LETTER_TAKEN_BACK } NamingTyped;
 NamingTyped menu_naming_type(GameState *g);
 void menu_naming_draw_the_name(GameState *g, Platform *pf);

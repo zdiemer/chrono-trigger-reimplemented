@@ -211,7 +211,7 @@ static inline bool vid_view_is_wider(VidView v) { return v.width > VID_ORIGINAL_
  * frames (vid_aim_the_view, vid_keep_a_panel_in_view, below): a camera on the
  * picture, and panels -- a dialog, a battle's windows -- kept in view over
  * it. Screen coordinates stay the original's. */
-enum { VID_MIN_VIEW_WIDTH = 160, VID_MIN_VIEW_HEIGHT = 144, VID_VIEW_PANELS = 2 };
+enum { VID_MIN_VIEW_WIDTH = 160, VID_MIN_VIEW_HEIGHT = 144, VID_VIEW_PANELS = 16 };
 static inline bool vid_view_is_smaller(VidView v)
 {
     return v.width < VID_ORIGINAL_VIEW_WIDTH || v.height < VID_ORIGINAL_VIEW_HEIGHT;
@@ -232,7 +232,8 @@ static inline VidAim vid_aim_held_to_the_screen(VidView v, VidAim a)
  * camera's picture: the screen's lines from `top`, `lines` of them, shown
  * from the view's line `at`, with the screen X `left` at the view's left
  * side. What the band holds -- every layer, sprite, window and colour of
- * those lines -- is shown as the original's screen shows it. */
+ * those lines -- is shown as the original's screen shows it; lines past the
+ * screen's show black. */
 typedef struct {
     int16_t top;
     uint16_t lines;
