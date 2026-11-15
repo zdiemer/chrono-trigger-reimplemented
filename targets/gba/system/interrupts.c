@@ -15,7 +15,8 @@ static void (*handlers[SOURCES])(void);
  * that hands work on (gba_interrupt_nested) keeps its frames there while an
  * interrupt taken meanwhile runs below them. The nested work's own stack.
  * Both start zeroed (start.s), so their deepest use is their lowest byte
- * that isn't zero. */
+ * that isn't zero, above a canary in their lowest word that a run past
+ * their room writes over (gba_interrupt_stacks_whole). */
 enum { INTERRUPTS_STACK_BYTES = 192, NESTED_STACK_BYTES = 448 };
 static uint8_t interrupts_stack[INTERRUPTS_STACK_BYTES] __attribute__((section(".iwram_bss"), aligned(8)));
 static uint8_t nested_stack[NESTED_STACK_BYTES] __attribute__((section(".iwram_bss"), aligned(8)));
@@ -33,11 +34,18 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void dispatch
             handlers[n]();
 }
 
+enum { CANARY = 0x5AFEC0DEu };
+static volatile uint32_t *canary_of(uint8_t *stack) { return (volatile uint32_t *)(void *)stack; }
+
 void gba_interrupt_handler(uint16_t sources, void (*handler)(void))
 {
     static bool stacked;
-    if (!stacked)
-        gba_interrupts_stack(interrupts_stack + INTERRUPTS_STACK_BYTES), stacked = true;
+    if (!stacked) {
+        *canary_of(interrupts_stack) = CANARY;
+        *canary_of(nested_stack) = CANARY;
+        gba_interrupts_stack(interrupts_stack + INTERRUPTS_STACK_BYTES);
+        stacked = true;
+    }
     for (unsigned n = 0; n < SOURCES; n++)
         if (sources & (1u << n))
             handlers[n] = handler;
@@ -49,9 +57,14 @@ __attribute__((target("arm"), section(".iwram"), noinline)) void gba_interrupt_n
     gba_run_nested(work, nested_stack + NESTED_STACK_BYTES);
 }
 
+bool gba_interrupt_stacks_whole(void)
+{
+    return *canary_of(interrupts_stack) == CANARY && *canary_of(nested_stack) == CANARY;
+}
+
 static size_t used(const uint8_t *stack, size_t bytes)
 {
-    size_t low = 0;
+    size_t low = sizeof(uint32_t);
     while (low < bytes && !stack[low])
         low++;
     return bytes - low;

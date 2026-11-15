@@ -52,10 +52,14 @@ extern const uint8_t __iwram_bss_end[], __stack_top[];   /* the driver's stack, 
 enum { CANARY = 0x5AFEC0DEu };
 static volatile uint32_t *canary(void) { return (volatile uint32_t *)(uintptr_t)__iwram_bss_end; }
 
-static void check_driver_stack(void)
+static void check_stacks(void)
 {
     if (*canary() != CANARY) {
         fprintf(stderr, "ct_gba: the driver's stack ran past its %u bytes\n", (unsigned)(__stack_top - __iwram_bss_end));
+        abort();
+    }
+    if (!gba_interrupt_stacks_whole()) {
+        fprintf(stderr, "ct_gba: the interrupts' or the mixing's stack ran past its room\n");
         abort();
     }
 }
@@ -268,7 +272,7 @@ int main(void)
         count_cycles(&run.sounds, sound_done - game_done);
         count_cycles(&run.picture, cycles_now() - blank);
         count_mixing(&run.mixing, mixer_take_cycles());
-        check_driver_stack();
+        check_stacks();
         run.frames++;
     }
 }

@@ -7,6 +7,7 @@
 #ifndef CT_GBA_INTERRUPTS_H
 #define CT_GBA_INTERRUPTS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -21,8 +22,10 @@ void gba_interrupt_handler(uint16_t sources, void (*handler)(void));
  * running. */
 void gba_interrupt_nested(void (*work)(void));
 
-/* The interrupts' and the nested work's stacks: their size and deepest use
- * (main.c's report). */
+/* Whether the interrupts' and the nested work's stacks kept within their
+ * room (their canaries, which main.c checks each frame), and their size and
+ * deepest use (its report). */
+bool gba_interrupt_stacks_whole(void);
 size_t gba_interrupts_stack_used(void);
 size_t gba_interrupts_stack_size(void);
 size_t gba_nested_stack_used(void);

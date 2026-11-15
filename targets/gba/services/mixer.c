@@ -201,6 +201,23 @@ static void decode_own_sample(Mixer *m)
     m->own_changed = false;
 }
 
+/* ---- The mix kept from what the driver is writing ---------------------------------------- */
+
+/* While a call of the driver's changes what the mix reads, the playback's
+ * interrupt doesn't mix (mixer_fill). The barriers keep the compiler from
+ * moving the call's writes out from between the two. */
+static void hold_the_mix(Mixer *m)
+{
+    m->writing++;
+    __asm__ volatile("" ::: "memory");
+}
+
+static void release_the_mix(Mixer *m)
+{
+    __asm__ volatile("" ::: "memory");
+    m->writing--;
+}
+
 /* ---- What sound memory holds ------------------------------------------------------------- */
 
 enum { FNV_OFFSET = 0x811C9DC5u, FNV_PRIME = 0x01000193u, NOT_WRITING = 0xFFFFFFFFu };
@@ -220,11 +237,11 @@ static void forget_overlapping(Mixer *m, uint16_t at, uint16_t length)
 static void know_block(Mixer *m, uint16_t at, uint16_t block)
 {
     uint16_t length = (uint16_t)packed_block(block)->length;
-    m->writing++;   /* the regions a voice's start looks in (mixer_fill) */
+    hold_the_mix(m);   /* the regions a voice's start looks in (mixer_fill) */
     forget_overlapping(m, at, length);
     if (m->regions < MIXER_REGIONS)
         m->region[m->regions++] = (MixerRegion){ at, length, (uint8_t)block };
-    m->writing--;
+    release_the_mix(m);
 }
 
 static void start_run(Mixer *m, uint32_t at)
@@ -432,10 +449,10 @@ static AuVoiceSettings *voice(AuVoices *v, uint8_t n) { return &mixer(v)->voice[
 static Mixer *begin_write(AuVoices *v)
 {
     Mixer *m = mixer(v);
-    m->writing++;
+    hold_the_mix(m);
     return m;
 }
-static void end_write(Mixer *m) { m->writing--; }
+static void end_write(Mixer *m) { release_the_mix(m); }
 
 static void start(AuVoices *v) { (void)v; }
 static void set_sample(AuVoices *v, uint8_t n, uint8_t sample)

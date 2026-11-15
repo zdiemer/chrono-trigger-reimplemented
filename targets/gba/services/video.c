@@ -4022,7 +4022,7 @@ static void hide_the_picture(void)
         DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
     }
     DMA0CNT = 0;
-    DMA1CNT = 0;
+    DMA3CNT = 0;
     DISPCNT = (uint16_t)(DISPCNT & ~(0xF * DISPCNT_BG0 | DISPCNT_OBJ));
     BLDCNT = 0;
     BG_PALETTE[0] = 0;
