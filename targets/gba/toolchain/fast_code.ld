@@ -9,10 +9,12 @@
 *(.text.charge_time_as_begin .text.charge_time_as_begin.*)
 *(.text.charge_time_as_end .text.charge_time_as_end.*)
 *(.text.state_host_read8 .text.state_host_read8.*)
-*(.text.state_host_write8 .text.state_host_write8.*)
+*(.text.state_host_write8 .text.state_host_write8.lto_priv.*)   /* not a .constprop copy: its callers are the scenes, in the cartridge */
 *(.text.row_of .text.row_of.*)
 *(.text.note_if_unread .text.note_if_unread.*)
 *(.text.read_game .text.read_game.*)
+*(.text.place_of .text.place_of.*)
+*(.text.vars_host_read_span .text.vars_host_read_span.*)
 *(.text.rom_read8 .text.rom_read8.*)
 *(.text.asset_containing .text.asset_containing.*)
 *(.text.asset_read8 .text.asset_read8.*)

@@ -16,7 +16,7 @@
 enum {
     DRIVE_ARMED = 0x56495244u,   /* "DRIV": a runner drives */
     DRIVE_RING = 64,             /* frames of pads the runner can put ahead */
-    DRIVE_BYTES = 4096,          /* the most one read answers */
+    DRIVE_BYTES = 256,           /* the most one read answers */
 };
 
 /* What the runner asks while the driver waits; the driver sets the command

@@ -3873,12 +3873,36 @@ typedef struct {
 
 #ifdef CT_FLAT_STATE
 /* Work RAM as the original lays it out (runtime/port/vars_flat.c): its two
- * 64 KiB banks, a byte for each address, where the backing keeps them
- * (runtime/port/vars_flat_host.c, or a target's). The typed records above
- * are left unused. */
+ * 64 KiB banks, a byte for each address, in pages of 4 KiB where the backing
+ * keeps them (runtime/port/vars_flat_host.c): one run of memory from
+ * $7E:0000, page[0] on, but for the top a target may keep in memory of its
+ * own (vars_host_cold), from VARS_FLAT_COLD_FROM (bytes from $7E:0000, a
+ * page's start) to the end, as a second run: the GBA keeps its coldest
+ * there, in the cartridge's SRAM. That is read and written a byte at a
+ * time, and no value of the map read or written in place runs across the
+ * page it starts at (VARS_FLAT_CROSSED_STEPS has a bit for each page start
+ * one does). The typed records above are left unused. */
+enum { VARS_FLAT_PAGE_SHIFT = 12, VARS_FLAT_PAGE_BYTES = 1 << VARS_FLAT_PAGE_SHIFT,
+       VARS_FLAT_PAGES = 0x20000 >> VARS_FLAT_PAGE_SHIFT };
+#ifndef VARS_FLAT_COLD_FROM
+#define VARS_FLAT_COLD_FROM 0x20000u   /* none: all of it in the one run */
+#endif
+#define VARS_FLAT_CROSSED_STEPS 0x80321D62u
+_Static_assert(VARS_FLAT_COLD_FROM % VARS_FLAT_PAGE_BYTES == 0 && VARS_FLAT_COLD_FROM <= 0x20000u &&
+               (VARS_FLAT_COLD_FROM == 0x20000u ||
+                !(VARS_FLAT_CROSSED_STEPS >> (VARS_FLAT_COLD_FROM >> VARS_FLAT_PAGE_SHIFT & 31u) & 1u)),
+               "work RAM's cold top starts where a value runs across");
 typedef struct {
-    uint8_t *bank[2];
+    uint8_t *page[VARS_FLAT_PAGES];
 } VarsHost;
+/* The byte `at` bytes from $7E:0000 (under 128 KiB), where it is kept. */
+static inline uint8_t *vars_flat_byte(const VarsHost *h, uint32_t at)
+{
+    return &h->page[at >> VARS_FLAT_PAGE_SHIFT][at & (VARS_FLAT_PAGE_BYTES - 1)];
+}
+/* The target's memory for the cold top, 0x20000 - VARS_FLAT_COLD_FROM
+ * bytes, where it keeps one. */
+uint8_t *vars_host_cold(void);
 /* Whether the map gives the address an owner: bytes no owner keeps read 0
  * and drop writes, as the typed state's address view does. */
 bool vars_flat_owned(uint32_t addr);
