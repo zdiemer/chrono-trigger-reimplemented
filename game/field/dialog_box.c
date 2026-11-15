@@ -372,12 +372,26 @@ static unsigned lines_shown(const GameState *g, const Page *p, VidView view, uns
     return lines;
 }
 
+/* Where the view can't draw a window afresh, the screen's band of it kept in
+ * view instead, its middle across, opening from its middle as on the screen. */
+static ViewLines keep_the_screens_window(Platform *pf, VidView view, WindowPosition position, FieldWindowBand band)
+{
+    int16_t middle = position == WINDOW_AT_TOP ? (int16_t)band.full : (int16_t)(view.height - band.full);
+    view_keep_lines(pf, (int16_t)(band.middle - band.half), (uint16_t)(2 * band.half), (int16_t)(middle - band.half));
+    uint16_t open = (uint16_t)(view.height - 2 * band.full);
+    int16_t clear_of = (int16_t)(band.middle - band.full), clear_to = (int16_t)(band.middle + band.full);
+    return position == WINDOW_AT_TOP ? (ViewLines){ (int16_t)(2 * band.full), open, clear_of, clear_to }
+                                     : (ViewLines){ 0, open, clear_of, clear_to };
+}
+
 ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView view)
 {
     WindowPosition position = dialog_window_at(g);
     if (position != WINDOW_AT_TOP && position != WINDOW_AT_BOTTOM)
         return view_all_lines(view);
     FieldWindowBand band = field_dialog_window_band(g, (uint8_t)position);
+    if (!vid_view_draws_panels(pf))
+        return keep_the_screens_window(pf, view, position, band);
     VidBg frame_layer, text_layer;
     uint16_t middle_line = (uint16_t)(band.middle + 1);
     vid_layer_last_shown(pf, VID_BG1, middle_line, &frame_layer);

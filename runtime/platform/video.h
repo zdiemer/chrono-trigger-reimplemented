@@ -755,6 +755,9 @@ PF_API void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel);
  * is VRAM as the game's sends leave it, with what vid_send_panel_vram sent
  * this frame over it: the panel's own maps and tiles, which nothing else
  * shows and the game never reads back (vid_vram_word). */
+/* Whether this view draws them (a smaller view's, where the host can);
+ * where it can't, a mode keeps a band of the screen's lines in view instead. */
+PF_API bool vid_view_draws_panels(const Platform *pf);
 PF_API void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel);
 PF_API void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len);
 

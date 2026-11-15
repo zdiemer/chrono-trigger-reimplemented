@@ -139,6 +139,8 @@ void vid_aim_the_view(Platform *pf, VidAim aim)
 
 VidAim vid_view_aim(const Platform *pf) { return pf->video.aim; }
 
+bool vid_view_draws_panels(const Platform *pf) { return vid_view_is_smaller(vid_view(pf)); }
+
 void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel)
 {
     if (!vid_view_is_smaller(vid_view(pf)))
