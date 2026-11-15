@@ -351,6 +351,11 @@ typedef struct {
     bool back;             /* the jump goes back */
     bool member_may_be_absent;   /* a party member operand may name an empty place */
     EventCheck accepts;    /* NULL, or what else the port needs of the game's state */
+    /* A row outside the table names its parameters here (`named_count` of
+     * them, in the language's order); a table's row, by its opcode in
+     * event_named_parameters. */
+    const uint8_t *named;
+    uint8_t named_count;
 #if CT_SCRIPT_TEXT
     EventMeasure measure;  /* NULL where the command is always `length` bytes (MEASURED) */
 #endif
@@ -371,6 +376,10 @@ extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_ch
     event_facing_opcodes, event_flow_opcodes, event_input_opcodes, event_locations_opcodes, event_memory_opcodes,
     event_movement_opcodes, event_party_opcodes, event_properties_opcodes, event_screen_opcodes,
     event_sound_opcodes, event_story_opcodes, event_variables_opcodes;
+
+/* A row outside the table, which names its own parameters: a screen
+ * command's circle's place and width (event/screen.c). */
+extern const EventOpcode event_circle_opening;
 
 /* The row of an opcode, or NULL for one with no port (event/engine.c). */
 const EventOpcode *event_opcode(uint8_t opcode);

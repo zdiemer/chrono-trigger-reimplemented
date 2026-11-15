@@ -445,8 +445,10 @@ static bool restart_the_game(GameState *g, Platform *pf)
  * the command's number; the others are the opcode and the number alone, and
  * nothing reads on past them (the last command of a script is often one,
  * and past the script lie whatever bytes were there before it). */
-static const EventOpcode circle_opening = {
-    0xFF, .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 5
+static const uint8_t circle_named[] = { EVENT_PARAMETER_x, EVENT_PARAMETER_y, EVENT_PARAMETER_radius };
+const EventOpcode event_circle_opening = {
+    0xFF, .x = OPERAND(2), .y = OPERAND(3), .radius = OPERAND(4), .length = 5,
+    .named = circle_named, .named_count = sizeof circle_named,
 };
 
 /* The work of the three operand reads the command's decode made when it took
@@ -472,7 +474,7 @@ bool event_screen_command(GameState *g, Platform *pf, uint16_t at, EventStep *st
         return true;
     }
     if (opens_a_circle) {
-        EventCommand circle = event_decode(g, pf, &circle_opening, at);
+        EventCommand circle = event_decode(g, pf, &event_circle_opening, at);
         c.x = circle.x;
         c.y = circle.y;
         c.radius = circle.radius;

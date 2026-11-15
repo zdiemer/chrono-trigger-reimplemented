@@ -39,6 +39,24 @@ void named_event_rows(Named *n)
     n->built_from = event_named_from;
 }
 
+/* A row outside the table names its own parameters: those its decoding
+ * names, in the language's order. */
+static int names_its_own(const char *what, const EventOpcode *row)
+{
+    unsigned count = 0;
+    int ok = row->named != NULL;
+#define NAMED(type, name)                                                         \
+    if (row->name.kind != ARG_NONE)                                               \
+        ok = ok && count < row->named_count && row->named[count] == EVENT_PARAMETER_##name, count++;
+    EVENT_PARAMETERS(NAMED)
+#undef NAMED
+    if (!ok || count != row->named_count) {
+        fprintf(stderr, "named_parameters: %s doesn't name the parameters its decoding names\n", what);
+        return 0;
+    }
+    return 1;
+}
+
 static int same(const char *what, const Named *n)
 {
     for (unsigned op = 0; op <= NAMED_OPCODES; op++)
@@ -60,7 +78,7 @@ static int write_named(const char *root, const char *language, const Named *n)
 {
     char file[1024];
     snprintf(file, sizeof file, "%s/game/%s/named_parameters.c", root, language);
-    FILE *f = fopen(file, "w");
+    FILE *f = fopen(file, "wb");
     if (!f) {
         fprintf(stderr, "named_parameters: can't write %s\n", file);
         return 0;
@@ -98,7 +116,8 @@ int main(int argc, char **argv)
     named_menu_rows(&menu_named);
     if (argc == 3 && strcmp(argv[1], "--write") == 0)
         return write_named(argv[2], "event", &event_named) && write_named(argv[2], "menu", &menu_named) ? 0 : 1;
-    if (!same("event", &event_named) || !same("menu", &menu_named))
+    if (!same("event", &event_named) || !same("menu", &menu_named) ||
+        !names_its_own("event_circle_opening", &event_circle_opening))
         return 1;
     printf("named_parameters: %u event and %u menu parameters named, as the rows name them\n",
            (unsigned)event_named.from[NAMED_OPCODES], (unsigned)menu_named.from[NAMED_OPCODES]);

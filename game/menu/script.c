@@ -117,7 +117,7 @@ ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, Me
     c.opcode = row->opcode;
     c.pf = pf;
     for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++)
-        switch (menu_named_parameters[p]) {
+        switch ((MenuScriptParameter)menu_named_parameters[p]) {
             SCRIPT_PARAMETERS(SCRIPT_DECODE_ONE)
         default: break;
         }

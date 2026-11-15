@@ -137,7 +137,7 @@ static bool names_what_it_says(const GameState *g, const EventOpcode *row, const
 }
 
 /* How the row decodes parameter `p`. */
-static const EventArg *row_arg(const EventOpcode *row, uint8_t p)
+static const EventArg *row_arg(const EventOpcode *row, EventParameter p)
 {
     switch (p) {
 #define ROW_ARG(type, name) case EVENT_PARAMETER_##name: return &row->name;
@@ -155,6 +155,8 @@ typedef struct {
 
 static NamedParameters named_parameters(const EventOpcode *row)
 {
+    if (row->named)
+        return (NamedParameters){ row->named, row->named + row->named_count };
     return (NamedParameters){ &event_named_parameters[event_named_from[row->opcode]],
                               &event_named_parameters[event_named_from[row->opcode + 1]] };
 }
@@ -165,7 +167,7 @@ bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
         return false;
     NamedParameters named = named_parameters(row);
     for (const uint8_t *p = named.first; p != named.end; p++)
-        if (!names_what_it_says(g, row, row_arg(row, *p), at))
+        if (!names_what_it_says(g, row, row_arg(row, (EventParameter)*p), at))
             return false;
 #define CHECK_RECORD(type, name)                                                     \
     if (row->name.kind != ARG_NONE && !names_what_it_says(g, row, &row->name, at)) \
@@ -354,7 +356,7 @@ static void decode_into(EventCommand *c, const GameState *g, Platform *pf, const
     *c = (EventCommand){ .self = object_current(g), .at = at, .platform = pf };
     NamedParameters named = named_parameters(row);
     for (const uint8_t *p = named.first; p != named.end; p++)
-        switch (*p) {
+        switch ((EventParameter)*p) {
 #define DECODE_PARAMETER(type, name) \
         case EVENT_PARAMETER_##name: c->name = (type)decode(g, &row->name, at); break;
         EVENT_PARAMETERS(DECODE_PARAMETER)
