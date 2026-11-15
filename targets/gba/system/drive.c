@@ -40,5 +40,12 @@ uint32_t drive_next_pads(GameState *g, void (*report)(void *), void *ctx)
             answer(g, report, ctx);
     }
     box.waiting = 0;
-    return box.pads[box.taken++ % DRIVE_RING];
+    /* The pads are read before the frame is counted taken: the runner fills
+     * the ring between mGBA's frames, wherever the program is, and a count
+     * it saw first would let it write the frame DRIVE_RING on into the slot
+     * still to be read -- a frame's pads that hung on the GBA's own speed. */
+    uint32_t frame = box.taken;
+    uint32_t pads = box.pads[frame % DRIVE_RING];
+    box.taken = frame + 1;
+    return pads;
 }
