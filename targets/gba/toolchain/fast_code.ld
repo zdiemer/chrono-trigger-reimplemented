@@ -19,5 +19,7 @@
 *(.text.asset_containing .text.asset_containing.*)
 *(.text.asset_read8 .text.asset_read8.*)
 *(.text.cartridge_address .text.cartridge_address.*)
+*(.text.served .text.served.*)
+*(.text.resource_bytes .text.resource_bytes.*)
 *libgcc.a:_udivsi3.o(.text)
 *libc.a:libc_a-memcmp.o(.text)
