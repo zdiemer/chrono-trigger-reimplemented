@@ -1254,6 +1254,16 @@ mGBA's own snapshots in memory or a file, the SRAM as a `.sav`). Between
 frames with the ring empty the driver waits and answers the runner's reads
 of the game's memory and its asks for the report; the runner keeps the ring
 ahead of the game as a movie plays, so the wait isn't in the game's frames.
+The driver reads a frame's pads out of the ring before it counts the frame
+taken (`system/drive.c`): the runner refills the ring between mGBA's frames,
+wherever the program is, and with the count published first, a frame of
+mGBA's that ended between the two let it put the pads of the frame 64 on
+into the slot the driver had yet to read. Which frame that hit depended on
+nothing but how long the GBA took over its frames, so a change to the
+picture's or the mixing's speed could change a movie's end
+(`events-jetbike-race` took twelve more lag frames with the window widened);
+now an idle loop in `gba_video_present` or the mixer leaves every movie's
+end state as it was (issue #492).
 A movie's starting save goes in as the `.sav` (`mgba_run --sav`). Before,
 the packing step put a movie's pads and its save in each image, one `.gba` a
 movie.
