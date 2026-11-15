@@ -894,15 +894,19 @@ made in `game/` as presentation and never as a rule:
   text, nor the blank lines both columns share. A run starts and ends only
   between rows of text in every column, so no row shows sliced. The load
   and save screens (with their erase question whole over the slots), the
-  techs, the settings and both party exchanges fit whole. The items, the
-  shops and the equipment still have more lines than the view, so one
-  window's insides (the list beside the party, the list beside what is
-  bought, the whole equipment screen) show the most lines the view holds
-  between two places where both columns are between rows (a table of them
-  a screen), round the cursor, the room over black. The items' list alone
-  cuts between any two rows (8 of its 10 in view); with the members' or
-  the users' window beside it, between the members (3 or 7 rows); the
-  equipment shows down to its figures' last row, the clock and the
+  techs, the settings and both party exchanges fit whole. The items and
+  the shops are laid out as bands of their own (`items_bands`,
+  `shop_bands`) with every window and every row in view: the items' list
+  keeps each row with two of the four blank lines under it (the cursor's
+  row its hand's), or, with the members' or the users' window beside it,
+  all but the blank lines both columns share; a shop's list leaves out the
+  blank lines under its first and third rows, where every window beside it
+  is blank whatever it shows, the party's window kept with room for the
+  jump. The equipment's two columns have rows 8 and 12 lines apart with no
+  blank lines in common, about 165 lines of text and pictures in all, so
+  it still shows the most lines the view holds between two places where
+  both columns are between rows, round the cursor (issue #494): down to
+  its figures' last row, the clock and the
   experience out of view. The main menu keeps its window whole over the
   option's panel. The naming screen is laid out
   again as bands of its lines: the
@@ -1254,6 +1258,20 @@ mGBA's own snapshots in memory or a file, the SRAM as a `.sav`). Between
 frames with the ring empty the driver waits and answers the runner's reads
 of the game's memory and its asks for the report; the runner keeps the ring
 ahead of the game as a movie plays, so the wait isn't in the game's frames.
+The driver reads a frame's pads out of the ring before it counts the frame
+taken (`system/drive.c`): the runner refills the ring between mGBA's frames,
+wherever the program is, and with the count published first, a frame of
+mGBA's that ended between the two let it put the pads of the frame 64 on
+into the slot the driver had yet to read. Which frame that hit depended on
+nothing but how long the GBA took over its frames, so a change to the
+picture's or the mixing's speed could change a movie's end: an idle loop of
+10,000 turns in `gba_video_present` put the ends of the picture's work near
+mGBA's frame ends and `events-jetbike-race` ended with 220 lag frames for
+ct_native's 1,732. Read first, the pads are the movie's whatever the GBA's
+speed: with idle loops of 60, 300 and 10,000 turns in `gba_video_present`,
+or 300 and 3,000 in the mixer's chunk, `title-start`, `new-game`,
+`gato-battle`, `events-jetbike-race` and `attract-demo` each end with
+ct_native's end state and lag frames (issue #492).
 A movie's starting save goes in as the `.sav` (`mgba_run --sav`). Before,
 the packing step put a movie's pads and its save in each image, one `.gba` a
 movie.
