@@ -891,17 +891,20 @@ made in `game/` as presentation and never as a rule:
   160. Each is laid out again as runs of its lines (a table a screen):
   every window's top and foot edges, a few lines of each, and its insides
   without the blank lines between an edge and the first or last line of
-  text, nor the blank lines both columns share. The load and save screens
-  (with their erase question whole over the slots) and the settings fit
-  whole; the items, the techs and the shops still have more lines than the
-  view, so one window's insides (the list beside the party, the members
-  beside the techs) show as many lines as are over, round the cursor, with
-  every other window whole above and below them: 19, 11 and 37 lines of
-  them out of view at a time. The main menu keeps its window whole over
-  the option's panel. The equipment and the party exchange, whose two
-  columns' lines share no blank ones (the members' four lines eight apart
-  beside the equipment's twelve apart), can't be laid out as whole lines
-  and follow the cursor (issue #468). The naming screen is laid out
+  text, nor the blank lines both columns share. A run starts and ends only
+  between rows of text in every column, so no row shows sliced. The load
+  and save screens (with their erase question whole over the slots), the
+  techs, the settings and both party exchanges fit whole. The items, the
+  shops and the equipment still have more lines than the view, so one
+  window's insides (the list beside the party, the list beside what is
+  bought, the whole equipment screen) show the most lines the view holds
+  between two places where both columns are between rows (a table of them
+  a screen), round the cursor, the room over black. The items' list alone
+  cuts between any two rows (8 of its 10 in view); with the members' or
+  the users' window beside it, between the members (3 or 7 rows); the
+  equipment shows down to its figures' last row, the clock and the
+  experience out of view. The main menu keeps its window whole over the
+  option's panel. The naming screen is laid out
   again as bands of its lines: the
   name's window, every row of letters with most of the blank lines between
   them left out (the cursor's row with room for its hand), and the letters'

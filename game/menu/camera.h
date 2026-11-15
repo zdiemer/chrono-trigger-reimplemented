@@ -6,11 +6,10 @@
  * always in view and the rest of a screen comes into view as the cursor
  * goes to it; across, a view 240 dots wide
  * shows them whole. The world map, and a screen without a cursor, are
- * framed at the screen's middle. The naming, the items, the techs, the
- * settings, saving and loading and the shops are laid out again down the
- * view as runs of their lines (menu/camera.c); the equipment and the party
- * exchange, whose columns share no blank lines, follow the cursor (issue
- * #468). */
+ * framed at the screen's middle. Every windowed screen is laid out again
+ * down the view as runs of its lines, starting and ending only between rows
+ * of text (menu/camera.c); where one window's insides still have more lines
+ * than the view, they show the part round the cursor (issue #468). */
 #ifndef CT_GAME_MENU_CAMERA_H
 #define CT_GAME_MENU_CAMERA_H
 
