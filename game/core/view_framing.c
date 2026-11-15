@@ -25,8 +25,20 @@ static int16_t glide(int from, int to)
     return (int16_t)(from + step);
 }
 
-static void glide_to(Platform *pf, VidView view, VidAim now, VidAim to)
+/* The camera's top moved off the screen's lines `open` keeps clear of, to
+ * the nearer side, where its lines would show any of them. */
+static int16_t clear_of_the_panel(int16_t top, ViewLines open)
 {
+    int shown = top + open.at, end = shown + open.lines;
+    if (open.clear_to <= open.clear_of || end <= open.clear_of || shown >= open.clear_to)
+        return top;
+    int up = end - open.clear_of, down = open.clear_to - shown;
+    return (int16_t)(up <= down ? top - up : top + down);
+}
+
+static void glide_to(Platform *pf, VidView view, VidAim now, VidAim to, ViewLines open)
+{
+    to.top = clear_of_the_panel(to.top, open);
     to = vid_aim_held_to_the_screen(view, to);
     vid_aim_the_view(pf, (VidAim){ glide(now.left, to.left), glide(now.top, to.top) });
 }
@@ -39,7 +51,8 @@ void view_follow(Platform *pf, ViewFocus focus, ViewLines open)
     VidAim now = vid_view_aim(pf);
     glide_to(pf, view, now,
              (VidAim){ (int16_t)kept_in_the_middle(now.left, focus.x, 0, view.width),
-                       (int16_t)kept_in_the_middle(now.top, focus.y, open.at, open.lines) });
+                       (int16_t)kept_in_the_middle(now.top, focus.y, open.at, open.lines) },
+             open);
 }
 
 void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open)
@@ -48,7 +61,7 @@ void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open)
     if (!vid_view_is_smaller(view))
         return;
     glide_to(pf, view, vid_view_aim(pf),
-             (VidAim){ (int16_t)(focus.x - view.width / 2), (int16_t)(focus.y - open.at - open.lines / 2) });
+             (VidAim){ (int16_t)(focus.x - view.width / 2), (int16_t)(focus.y - open.at - open.lines / 2) }, open);
 }
 
 void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at)
@@ -56,6 +69,21 @@ void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at)
     VidView view = vid_view(pf);
     if (!vid_view_is_smaller(view) || lines == 0)
         return;
-    VidViewPanel panel = { top, lines, (int16_t)((VID_ORIGINAL_VIEW_WIDTH - view.width) / 2), at };
+    VidViewPanel panel = { top, lines, (int16_t)((VID_ORIGINAL_VIEW_WIDTH - view.width) / 2), at, 0, 0 };
     vid_keep_a_panel_in_view(pf, &panel);
+}
+
+void view_keep_lines_cut(Platform *pf, int16_t top, uint16_t lines, int16_t at, int16_t cut_from, uint16_t cut_dots)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_smaller(view) || lines == 0)
+        return;
+    VidViewPanel panel = { top, lines, 0, at, cut_from, cut_dots };
+    vid_keep_a_panel_in_view(pf, &panel);
+}
+
+void view_keep_nothing(Platform *pf, int16_t at, uint16_t lines)
+{
+    /* the lines below the original's screen, where it shows nothing */
+    view_keep_lines(pf, VID_ORIGINAL_VIEW_HEIGHT, lines, at);
 }

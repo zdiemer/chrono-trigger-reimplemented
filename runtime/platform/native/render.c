@@ -158,6 +158,7 @@ struct VidRenderer {
     VidRenderStats stats;
     bool range_over, time_over;
     uint32_t screen[VID_RENDER_WIDTH * H];   /* a smaller view's original screen, which its framing shows part of */
+    uint32_t panel_row[VID_MAX_VIEW_WIDTH];  /* a drawn panel's line */
 };
 
 /* ---- tables ---------------------------------------------------------------------- */
@@ -1380,15 +1381,17 @@ static void show_the_framing(const VidFrame *f, const uint32_t *screen, uint32_t
     int width = f->view.width, height = f->view.height;
     VidAim aim = vid_aim_held_to_the_screen(f->view, f->aim);
     for (int y = 0; y < height; y++) {
-        int line = aim.top + y, left = aim.left;
+        int line = aim.top + y, left = aim.left, cut_at = width, cut_dots = 0;
         for (unsigned n = 0; n < f->panel_count; n++) {
             const VidViewPanel *p = &f->panels[n];
-            if (y >= p->at && y < p->at + (int)p->lines)
+            if (y >= p->at && y < p->at + (int)p->lines) {
                 line = p->top + (y - p->at), left = p->left;
+                cut_at = p->cut_dots ? p->cut_at : width, cut_dots = p->cut_dots;
+            }
         }
         uint32_t *row = out + (size_t)y * width;
         for (int x = 0; x < width; x++) {
-            int sx = left + x;
+            int sx = left + x + (x >= cut_at ? cut_dots : 0);
             row[x] = line >= 0 && line < H && sx >= 0 && sx < VID_RENDER_WIDTH ? screen[line * VID_RENDER_WIDTH + sx] : 0;
         }
     }
@@ -1603,6 +1606,7 @@ static void show_the_picture_between_the_windows(VidRenderer *r, const VidFrame 
 }
 
 static void render_the_screen(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags);
+static void draw_the_panel(VidRenderer *r, const VidFrame *f, uint32_t *out);
 
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
@@ -1612,6 +1616,55 @@ void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRende
     }
     render_the_screen(r, f, r->screen, flags);
     show_the_framing(f, r->screen, out);
+    draw_the_panel(r, f, out);
+}
+
+/* A drawn panel (VidDrawnPanel): each of its lines drawn as the screen's
+ * line it looks like, its own layers from its own memory in place of the
+ * screen's, the sprites left out, from the original's screen's middle
+ * across. Drawing them sets none of the frame's sprite flags, and the line
+ * cache finds VRAM changed where the panel's memory differs. */
+static void draw_the_panel(VidRenderer *r, const VidFrame *f, uint32_t *out)
+{
+    const VidDrawnPanel *p = f->drawn;
+    if (!p || !f->drawn_vram || !f->span_count || !p->lines)
+        return;
+    int width = f->view.width, left = (VID_RENDER_WIDTH - width) / 2;
+    bool range_over = r->range_over, time_over = r->time_over, first = true;
+    for (int i = 0; i < (int)p->lines; i++) {
+        int y = p->at + i;
+        if (y < 0 || y >= f->view.height)
+            continue;
+        int line = p->looks + 1 + (int)((long)i * p->looks_lines / p->lines);
+        line = line < 1 ? 1 : line > H ? H : line;
+        uint16_t k = 0;
+        while (k + 1 < f->span_count && f->spans[k + 1].line <= line)
+            k++;
+        VidSpan span = f->spans[k];
+        uint32_t *row = out + (size_t)y * width;
+        if (span.state.display.blank) {
+            memset(row, 0, sizeof *row * (size_t)width);
+            continue;
+        }
+        span.vram = f->drawn_vram;
+        span.sprites = NULL;
+        VidLineState *st = &span.state;
+        for (int bg = 0; bg < 4; bg++)
+            if (p->layers & VID_LAYER_BIT(bg)) {
+                st->bg[bg] = p->bg[bg];
+                st->bg[bg].hofs = (uint16_t)(p->bg[bg].hofs - left);
+                st->bg[bg].vofs = (uint16_t)(p->bg[bg].vofs + i - line);
+            }
+        st->main_layers = p->layers;
+        st->sub_layers &= p->layers;
+        span_begin(r, &span, f, first);
+        first = false;
+        LineCtx c = { .sp = &r->span, .line = line };
+        draw_line(r, &c, r->panel_row);
+        memcpy(row, r->panel_row + left, sizeof *row * (size_t)width);
+    }
+    r->range_over = range_over;
+    r->time_over = time_over;
 }
 
 static void render_the_screen(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)

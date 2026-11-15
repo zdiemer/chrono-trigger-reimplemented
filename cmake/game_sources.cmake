@@ -67,6 +67,7 @@ set(CT_GAME_SOURCES
   game/field/streaming.c
   game/field/margin_objects.c
   game/field/switches.c
+  game/field/dialog_box.c
   game/field/dialog_window.c
   game/field/map.c
   game/field/screen_setup.c

@@ -211,7 +211,7 @@ static inline bool vid_view_is_wider(VidView v) { return v.width > VID_ORIGINAL_
  * frames (vid_aim_the_view, vid_keep_a_panel_in_view, below): a camera on the
  * picture, and panels -- a dialog, a battle's windows -- kept in view over
  * it. Screen coordinates stay the original's. */
-enum { VID_MIN_VIEW_WIDTH = 160, VID_MIN_VIEW_HEIGHT = 144, VID_VIEW_PANELS = 2 };
+enum { VID_MIN_VIEW_WIDTH = 160, VID_MIN_VIEW_HEIGHT = 144, VID_VIEW_PANELS = 16 };
 static inline bool vid_view_is_smaller(VidView v)
 {
     return v.width < VID_ORIGINAL_VIEW_WIDTH || v.height < VID_ORIGINAL_VIEW_HEIGHT;
@@ -232,13 +232,32 @@ static inline VidAim vid_aim_held_to_the_screen(VidView v, VidAim a)
  * camera's picture: the screen's lines from `top`, `lines` of them, shown
  * from the view's line `at`, with the screen X `left` at the view's left
  * side. What the band holds -- every layer, sprite, window and colour of
- * those lines -- is shown as the original's screen shows it. */
+ * those lines -- is shown as the original's screen shows it; lines past the
+ * screen's show black. */
 typedef struct {
     int16_t top;
     uint16_t lines;
     int16_t left;
     int16_t at;
+    int16_t cut_at;         /* from the view's dot `cut_at` on, the screen's dots `cut_dots` further on: */
+    uint16_t cut_dots;      /* a panel narrower than it is drawn, the columns cut from inside it */
 } VidViewPanel;
+/* A panel a smaller view draws afresh rather than takes from the screen: a
+ * window laid out again for the view, which the screen has no room for
+ * (vid_draw_a_panel_in_view). Its `lines` lines from the view's line `at`
+ * look as the screen's `looks_lines` lines from `looks` do -- their colours,
+ * windows and colour math, spread over the panel's lines -- but draw the
+ * layers in `layers` (VID_LAYER_BIT) from the panel's own memory as `bg`
+ * places them, the scroll's 0,0 at the view's left on the panel's first
+ * line; the screen's other layers and the sprites are left out. */
+typedef struct {
+    int16_t at;
+    uint16_t lines;
+    int16_t looks;
+    uint16_t looks_lines;
+    uint8_t layers;
+    VidBg bg[4];
+} VidDrawnPanel;
 
 /* A panel laid out across a wider view: the menus', the battle window's and
  * the dialog's tilemaps are one screen across (32 columns), so on their own
@@ -535,6 +554,8 @@ typedef struct {
     VidAim aim;             /* a smaller view's camera (vid_aim_the_view) */
     uint8_t panel_count;    /* and its panels (vid_keep_a_panel_in_view) */
     VidViewPanel panels[VID_VIEW_PANELS];
+    const VidDrawnPanel *drawn;          /* and the one it draws (vid_draw_a_panel_in_view), or NULL */
+    const uint8_t *drawn_vram;           /* its memory: 64 KiB, VRAM with its own sends over it */
     int16_t layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across (vid_show_a_layer_across) */
     int16_t back_left, back_right;           /* and the backdrop: black past it */
     uint8_t layout_count;   /* the panels laid out across the view (vid_lay_out_a_map_across) */
@@ -729,6 +750,13 @@ PF_API VidAim vid_view_aim(const Platform *pf);
  * camera's picture; each frame starts with none, and past VID_VIEW_PANELS
  * they are left out. */
 PF_API void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel);
+/* A panel a smaller view draws (VidDrawnPanel, above) over the camera's
+ * picture and the panels kept in view, this frame; one a frame. Its memory
+ * is VRAM as the game's sends leave it, with what vid_send_panel_vram sent
+ * this frame over it: the panel's own maps and tiles, which nothing else
+ * shows and the game never reads back (vid_vram_word). */
+PF_API void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel);
+PF_API void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -928,7 +956,8 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
                   int16_t back_left, int16_t back_right, const VidMarginEntry *margin, uint16_t margin_count);
-void vid_obs_framing(VidObserver *ob, VidAim aim, uint8_t panel_count, const VidViewPanel *panels);
+void vid_obs_framing(VidObserver *ob, VidAim aim, uint8_t panel_count, const VidViewPanel *panels,
+                     const VidDrawnPanel *drawn, const uint8_t *drawn_vram);
 void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
                      const VidWindowParting *parting);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);

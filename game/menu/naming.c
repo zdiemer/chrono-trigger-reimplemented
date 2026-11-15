@@ -344,7 +344,7 @@ enum { UPLOAD_LABEL_TILES = ASSET_MENU_UPLOAD_LABEL_TILES };
 
 /* Its per-line effects: the naming's; or, for the game's first, one more,
  * the scroll bar's place hidden a frame less. */
-enum { NAMING_LINE_EFFECTS = 0x1D, FIRST_NAMING_LINE_EFFECTS = 0x7F };
+enum { NAMING_LINE_EFFECTS = MENU_NAMING_LINE_EFFECTS, FIRST_NAMING_LINE_EFFECTS = MENU_NAMING_FIRST_LINE_EFFECTS };
 
 static void set_name_cursor(GameState *g, unsigned sprite, uint8_t y, uint8_t attributes)
 {

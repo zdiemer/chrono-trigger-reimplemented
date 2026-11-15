@@ -30,18 +30,22 @@ static inline ViewFocus view_screen_middle(void)
     return (ViewFocus){ VID_ORIGINAL_VIEW_WIDTH / 2, VID_ORIGINAL_VIEW_HEIGHT / 2 };
 }
 
-/* Some of the view's lines: from its line `at`, `lines` of them. */
+/* Some of the view's lines: from its line `at`, `lines` of them; and the
+ * screen's lines from `clear_of` to short of `clear_to` they keep clear of
+ * (a panel's own lines on the screen, which the view shows elsewhere). */
 typedef struct {
     int16_t at;
     uint16_t lines;
+    int16_t clear_of, clear_to;
 } ViewLines;
 
 /* All of a view's lines. */
-static inline ViewLines view_all_lines(VidView view) { return (ViewLines){ 0, view.height }; }
+static inline ViewLines view_all_lines(VidView view) { return (ViewLines){ 0, view.height, 0, 0 }; }
 
 /* The camera moved toward keeping `focus` in the middle third of the view
  * across, and of `open` down: it moves only as far as that needs, a quarter
- * of the way a frame (at least a dot), held to the original's screen. */
+ * of the way a frame (at least a dot), held to the original's screen and
+ * where it can, to `open`'s lines clear of the screen's it keeps clear of. */
 void view_follow(Platform *pf, ViewFocus focus, ViewLines open);
 
 /* The camera moved toward putting `focus` in the middle of the view across
@@ -51,5 +55,13 @@ void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open);
 /* The screen's lines from `top`, `lines` of them, kept in view from the
  * view's line `at`, the view's middle across on the original's. */
 void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at);
+/* The same, the screen's lines whole from its left side, but for the dots
+ * from `cut_from` across, `cut_dots` of them, cut from them: a panel the
+ * original's screen's width shown narrower by a run of its insides. */
+void view_keep_lines_cut(Platform *pf, int16_t top, uint16_t lines, int16_t at, int16_t cut_from, uint16_t cut_dots);
+
+/* The view's lines from `at`, `lines` of them, black, over the camera's
+ * picture: what a layout of bands leaves over. */
+void view_keep_nothing(Platform *pf, int16_t at, uint16_t lines);
 
 #endif
