@@ -2,7 +2,9 @@
 #include "services/direct_sound.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "system/interrupts.h"
 
@@ -11,8 +13,14 @@
 #define SOUNDCNT_L REG16(0x04000080)
 #define SOUNDCNT_H REG16(0x04000082)
 #define SOUNDCNT_X REG16(0x04000084)
-#define FIFO_A REG32(0x040000A0)
-#define FIFO_B REG32(0x040000A4)
+#define FIFO_A 0x040000A0u
+#define FIFO_B 0x040000A4u
+#define DMA1SAD REG32(0x040000BC)
+#define DMA1DAD REG32(0x040000C0)
+#define DMA1CNT_H REG16(0x040000C6)
+#define DMA2SAD REG32(0x040000C8)
+#define DMA2DAD REG32(0x040000CC)
+#define DMA2CNT_H REG16(0x040000D2)
 #define TM0CNT_L REG16(0x04000100)
 #define TM0CNT_H REG16(0x04000102)
 #define TM1CNT_L REG16(0x04000104)
@@ -23,52 +31,91 @@
 
 enum {
     SOUND_ON = 0x0080,
-    /* both at full volume, A to the left on timer 0, B to the right on timer 0, their FIFOs emptied */
-    DIRECT_SOUND = 0x0004 | 0x0008 | 0x0200 | 0x0800 | 0x1000 | 0x8000,
+    /* both at full volume, A to the left and B to the right, both on timer 0 */
+    DIRECT_SOUND = 0x0004 | 0x0008 | 0x0200 | 0x1000,
+    FIFOS_EMPTIED = 0x0800 | 0x8000,
+    /* on, as its FIFO asks, again and again, words, to the FIFO again and again */
+    SOUND_DMA = 0x8000 | 0x3000 | 0x0200 | 0x0400 | 0x0040,
     TIMER_ON = 0x0080, TIMER_IRQ = 0x0040, TIMER_COUNTS_THE_LAST = 0x0004,
-    MOVE = 16,                         /* samples moved to each FIFO an interrupt, half of it */
+    QUARTERS = DIRECT_SOUND_RING / DIRECT_SOUND_QUARTER,
 };
+_Static_assert(DIRECT_SOUND_RING % DIRECT_SOUND_FILL == 0, "a fill never wraps the ring");
 
 DirectSound ct_gba_sound;
-static bool playing;
+static void (*filler)(void);
+static volatile bool filling;
+static unsigned quarter;
 
-/* The next 16 samples of each side to its FIFO, or silence where the ring
- * holds fewer; once dry, it plays again from a frame's worth queued. In ARM,
- * in fast RAM, as the interrupts are. */
-__attribute__((target("arm"), section(".iwram"), noinline)) static void move_to_fifos(void)
+/* The DMA given the ring's start with the FIFOs emptied: what they held is
+ * what the DMA read on past the ring's end, the sample just played being the
+ * ring's last. */
+__attribute__((target("arm"), section(".iwram"), noinline)) static void play_from_the_start(void)
+{
+    DMA1CNT_H = 0;
+    DMA2CNT_H = 0;
+    SOUNDCNT_H = DIRECT_SOUND | FIFOS_EMPTIED;
+    DMA1SAD = (uint32_t)(uintptr_t)ct_gba_sound.left;
+    DMA1DAD = FIFO_A;
+    DMA2SAD = (uint32_t)(uintptr_t)ct_gba_sound.right;
+    DMA2DAD = FIFO_B;
+    DMA1CNT_H = SOUND_DMA;
+    DMA2CNT_H = SOUND_DMA;
+}
+
+/* A quarter of the ring played: the DMA back to its start after the last
+ * quarter, silence where the quarter now playing wasn't filled, and the
+ * mixer asked to fill what was played. In ARM, in fast RAM, as the
+ * interrupts are. */
+__attribute__((target("arm"), section(".iwram"), noinline)) static void quarter_played(void)
 {
     REG_IF = GBA_IRQ_TIMER1;
     DirectSound *s = &ct_gba_sound;
-    uint32_t queued = s->queued, played = s->played;
-    if (!playing && queued - played >= DIRECT_SOUND_FRAME)
-        playing = true;
-    if (playing && queued - played < MOVE)
-        playing = false;
-    if (!playing) {
-        for (unsigned n = 0; n < MOVE / 4; n++)
-            FIFO_A = 0, FIFO_B = 0;
-        return;
+    if (++quarter == QUARTERS) {
+        quarter = 0;
+        play_from_the_start();
     }
-    const uint32_t *left = (const uint32_t *)&s->left[played % DIRECT_SOUND_RING];
-    const uint32_t *right = (const uint32_t *)&s->right[played % DIRECT_SOUND_RING];
-    for (unsigned n = 0; n < MOVE / 4; n++)
-        FIFO_A = left[n], FIFO_B = right[n];
-    s->played = played + MOVE;
+    uint32_t played = s->played + DIRECT_SOUND_QUARTER, queued = s->queued;
+    s->played = played;
+    /* the quarter now playing, to the fill's next place */
+    uint32_t needed = (played + DIRECT_SOUND_QUARTER + DIRECT_SOUND_FILL - 1) & ~(uint32_t)(DIRECT_SOUND_FILL - 1);
+    if (!filling && (int32_t)(needed - queued) > 0) {
+        /* what is playing now wasn't filled in time: silence from where it was */
+        uint32_t from = (int32_t)(played - queued) > 0 ? played : queued;
+        uint32_t at = from % DIRECT_SOUND_RING;
+        for (uint32_t n = needed - from; n; n--) {
+            s->left[at] = s->right[at] = 0;
+            if (++at == DIRECT_SOUND_RING)
+                at = 0;
+        }
+        s->silent += needed - queued;
+        s->queued = needed;
+    }
+    if (filler && !filling && direct_sound_room() >= DIRECT_SOUND_FILL) {
+        filling = true;
+        gba_interrupt_nested(filler);
+        filling = false;
+    }
 }
 
 /* The ring is named in the debug log for a runner that records it
- * (targets/gba/host/mgba_run.c --stream). */
-void direct_sound_start(void)
+ * (targets/gba/host/mgba_run.c --stream). It starts silent, its first fill
+ * coming as its first quarter is played. */
+void direct_sound_start(void (*fill)(void))
 {
-    fprintf(stderr, "ct_gba: sound ring at %08X\n", (unsigned)(uintptr_t)&ct_gba_sound);
+    DirectSound *s = &ct_gba_sound;
+    fprintf(stderr, "ct_gba: sound ring at %08X, %u samples, left at +%u, right at +%u\n",
+            (unsigned)(uintptr_t)s, (unsigned)DIRECT_SOUND_RING, (unsigned)offsetof(DirectSound, left),
+            (unsigned)offsetof(DirectSound, right));
+    filler = fill;
+    memset(s->left, 0, sizeof s->left);
+    memset(s->right, 0, sizeof s->right);
+    s->queued = s->played = s->silent = 0;
     SOUNDCNT_X = SOUND_ON;
     SOUNDCNT_L = 0;
-    SOUNDCNT_H = DIRECT_SOUND;
-    for (unsigned n = 0; n < 2 * MOVE / 4; n++)       /* the FIFOs full of silence to start */
-        FIFO_A = 0, FIFO_B = 0;
-    gba_interrupt_handler(GBA_IRQ_TIMER1, move_to_fifos);
+    play_from_the_start();
+    gba_interrupt_handler(GBA_IRQ_TIMER1, quarter_played);
     TM1CNT_H = 0;
-    TM1CNT_L = (uint16_t)(0x10000 - MOVE);
+    TM1CNT_L = (uint16_t)(0x10000 - DIRECT_SOUND_QUARTER);
     TM1CNT_H = TIMER_ON | TIMER_IRQ | TIMER_COUNTS_THE_LAST;
     TM0CNT_H = 0;
     TM0CNT_L = (uint16_t)(0x10000 - DIRECT_SOUND_CYCLES);
@@ -78,18 +125,11 @@ void direct_sound_start(void)
     TM0CNT_H = TIMER_ON;
 }
 
-/* The ring wraps on a multiple of MOVE, so the interrupt's 16 never do. */
-bool direct_sound_space(uint32_t count, int8_t **left, int8_t **right)
+void direct_sound_next(int8_t **left, int8_t **right)
 {
-    DirectSound *s = &ct_gba_sound;
-    uint32_t queued = s->queued;
-    if (queued + count - s->played > DIRECT_SOUND_RING) {
-        s->dropped += count;
-        return false;
-    }
-    *left = &s->left[queued % DIRECT_SOUND_RING];
-    *right = &s->right[queued % DIRECT_SOUND_RING];
-    return true;
+    uint32_t at = ct_gba_sound.queued % DIRECT_SOUND_RING;
+    *left = &ct_gba_sound.left[at];
+    *right = &ct_gba_sound.right[at];
 }
 
-void direct_sound_queued(uint32_t count) { ct_gba_sound.queued += count; }
+void direct_sound_queued(void) { ct_gba_sound.queued += DIRECT_SOUND_FILL; }

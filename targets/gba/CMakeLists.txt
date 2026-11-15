@@ -43,7 +43,7 @@ add_executable(ct_gba
   ${CT_ROOT}/runtime/platform/native/audio.c ${CT_ROOT}/runtime/platform/native/save.c
   ${CT_ROOT}/runtime/platform/voices.c
   ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/checksum.c
-  toolchain/start.s system/switch.s system/fiber.c system/interrupts.c system/system.c system/main.c
+  toolchain/start.s system/switch.s system/fiber.c system/interrupts.c system/nested.s system/system.c system/main.c
   system/copies.s system/drive.c system/keypad.c services/cartridge_save.c services/mixer.c services/mix.s services/direct_sound.c services/video.c)
 # The C library's system calls are called only from the library, which
 # optimizing across files doesn't see: compiled apart, they stay.

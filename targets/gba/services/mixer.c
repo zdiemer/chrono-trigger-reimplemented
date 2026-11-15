@@ -30,19 +30,28 @@ static const int8_t *packed_pcm(uint32_t at) { return (const int8_t *)packed + a
 
 /* ---- Time --------------------------------------------------------------------------------- */
 
-/* The driver's frame of sound time is 532.5 of the S-DSP's frames, and the
- * GBA plays 224 samples a frame: 448 output samples every 1,065 frames, so
- * that a game frame a GBA frame plays its sound in time. */
-enum { OUT_PER = 448, FRAMES_PER = 1065, CHUNK = 32 };
+/* The mix is made as the GBA plays it, a chunk whenever the ring has room
+ * for one (mixer_fill), so its time is the GBA's: 224 samples a GBA frame,
+ * 448 output samples every 1,065 of the S-DSP's frames, a chunk's envelopes
+ * stepped by the S-DSP's frames its samples last. The driver's time, which
+ * passes with the game's frames, only changes what the voices play. Where
+ * the game keeps its time the two are the same; where its frames take
+ * longer, the voices go on sounding as the driver last set them rather than
+ * the sound stopping, and the music's own steps come as the game's frames
+ * do. */
+enum { OUT_PER = 448, FRAMES_PER = 1065, CHUNK = DIRECT_SOUND_FILL };
 
 enum { NOISE_PEAK = 0x4000 };   /* the noise's 15 bits at their loudest */
 
-static uint32_t mixing_cycles;
+/* Every chunk's cycles, added from the interrupt; the report takes what was
+ * added since it last looked. */
+static volatile uint32_t mixing_cycles;
 
 uint32_t mixer_take_cycles(void)
 {
-    uint32_t c = mixing_cycles;
-    mixing_cycles = 0;
+    static uint32_t taken;
+    uint32_t total = mixing_cycles, c = total - taken;
+    taken = total;
     return c;
 }
 
@@ -192,6 +201,23 @@ static void decode_own_sample(Mixer *m)
     m->own_changed = false;
 }
 
+/* ---- The mix kept from what the driver is writing ---------------------------------------- */
+
+/* While a call of the driver's changes what the mix reads, the playback's
+ * interrupt doesn't mix (mixer_fill). The barriers keep the compiler from
+ * moving the call's writes out from between the two. */
+static void hold_the_mix(Mixer *m)
+{
+    m->writing++;
+    __asm__ volatile("" ::: "memory");
+}
+
+static void release_the_mix(Mixer *m)
+{
+    __asm__ volatile("" ::: "memory");
+    m->writing--;
+}
+
 /* ---- What sound memory holds ------------------------------------------------------------- */
 
 enum { FNV_OFFSET = 0x811C9DC5u, FNV_PRIME = 0x01000193u, NOT_WRITING = 0xFFFFFFFFu };
@@ -211,9 +237,11 @@ static void forget_overlapping(Mixer *m, uint16_t at, uint16_t length)
 static void know_block(Mixer *m, uint16_t at, uint16_t block)
 {
     uint16_t length = (uint16_t)packed_block(block)->length;
+    hold_the_mix(m);   /* the regions a voice's start looks in (mixer_fill) */
     forget_overlapping(m, at, length);
     if (m->regions < MIXER_REGIONS)
         m->region[m->regions++] = (MixerRegion){ at, length, (uint8_t)block };
+    release_the_mix(m);
 }
 
 static void start_run(Mixer *m, uint32_t at)
@@ -374,10 +402,9 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
     int8_t *left, *right;
     if (m->silenced)
         memset(mix, 0, sizeof mix[0] * count);
-    if (direct_sound_space(count, &left, &right)) {
-        to_8_bits(mix, left, right, count);
-        direct_sound_queued(count);
-    }
+    direct_sound_next(&left, &right);
+    to_8_bits(mix, left, right, count);
+    direct_sound_queued();
     mixing_cycles += cycles_now() - began;
 }
 
@@ -388,22 +415,28 @@ static uint16_t frames_to_chunk(uint32_t owed)
     return (uint16_t)((CHUNK * FRAMES_PER - owed + OUT_PER - 1) / OUT_PER);
 }
 
-/* The frames are counted down to the one that owes a chunk's last sample,
- * the chunk mixed there, and so on: however many frames a pass brings, each
- * chunk is mixed as its samples fall due, and a pass that brings fewer
- * frames than the chunk still needs is a subtraction. */
-void mixer_pass(Mixer *m, uint32_t frames)
+/* The driver's time makes no sound of its own here (the playback asks for
+ * it, mixer_fill). */
+void mixer_pass(Mixer *m, uint32_t frames) { (void)m, (void)frames; }
+
+/* The mixer the playback fills the ring from: the one made last. */
+static Mixer *played;
+
+/* Chunks mixed until the ring is full, from the playback's interrupt with
+ * the other interrupts on (services/direct_sound.h). The driver's calls run
+ * between the game's frames and in its waits, never inside this; where the
+ * interrupt came in the middle of one (`writing`), the voices may be half
+ * set, and the ring is filled at the next interrupt instead, 16 samples on. */
+__attribute__((target("arm"), section(".iwram"), noinline)) void mixer_fill(void)
 {
-    while (frames >= m->due) {
-        uint32_t chunk_frames = (uint32_t)m->frames + m->due;
-        frames -= m->due;
-        mix_chunk(m, CHUNK, chunk_frames);
-        m->frames = 0;
-        m->owed = m->owed + chunk_frames * OUT_PER - CHUNK * FRAMES_PER;
-        m->due = frames_to_chunk(m->owed);
+    Mixer *m = played;
+    if (!m || m->writing)
+        return;
+    while (direct_sound_room() >= CHUNK) {
+        uint32_t frames = frames_to_chunk(m->owed);
+        mix_chunk(m, CHUNK, frames);
+        m->owed = m->owed + frames * OUT_PER - CHUNK * FRAMES_PER;
     }
-    m->due = (uint16_t)(m->due - frames);
-    m->frames = (uint16_t)(m->frames + frames);
 }
 
 /* ---- The voices' calls ------------------------------------------------------------------- */
@@ -411,28 +444,54 @@ void mixer_pass(Mixer *m, uint32_t frames)
 static Mixer *mixer(AuVoices *v) { return (Mixer *)v; }
 static AuVoiceSettings *voice(AuVoices *v, uint8_t n) { return &mixer(v)->voice[n & 7]; }
 
+/* A call that changes what the mix reads says so while it does, so that the
+ * playback's interrupt doesn't mix from voices half set (mixer_fill). */
+static Mixer *begin_write(AuVoices *v)
+{
+    Mixer *m = mixer(v);
+    hold_the_mix(m);
+    return m;
+}
+static void end_write(Mixer *m) { release_the_mix(m); }
+
 static void start(AuVoices *v) { (void)v; }
-static void set_sample(AuVoices *v, uint8_t n, uint8_t sample) { mixer(v)->play[n & 7].sample = sample; }
+static void set_sample(AuVoices *v, uint8_t n, uint8_t sample)
+{
+    Mixer *w = begin_write(v);
+    mixer(v)->play[n & 7].sample = sample;
+    end_write(w);
+}
 
 static void set_envelope(AuVoices *v, uint8_t n, AuEnvelope e)
 {
+    Mixer *w = begin_write(v);
     voice(v, n)->envelope = (AuEnvelope){ e.adsr, (uint8_t)(e.attack & 0x0F), (uint8_t)(e.decay & 7),
                                           (uint8_t)(e.sustain_level & 7), (uint8_t)(e.sustain_rate & 0x1F) };
+    end_write(w);
 }
 
 static void set_gain(AuVoices *v, uint8_t n, AuGain g)
 {
+    Mixer *w = begin_write(v);
     MixerVoice *p = &mixer(v)->play[n & 7];
     p->gain_mode = (uint8_t)g.mode;
     p->gain_value = g.mode == AU_GAIN_DIRECT ? (uint8_t)(g.value & 0x7F) : (uint8_t)(g.value & 0x1F);
+    end_write(w);
 }
 
-static void set_pitch(AuVoices *v, uint8_t n, uint16_t pitch) { voice(v, n)->pitch = pitch; }
+static void set_pitch(AuVoices *v, uint8_t n, uint16_t pitch)
+{
+    Mixer *w = begin_write(v);
+    voice(v, n)->pitch = pitch;
+    end_write(w);
+}
 
 static void set_volume(AuVoices *v, uint8_t n, int8_t left, int8_t right)
 {
+    Mixer *w = begin_write(v);
     voice(v, n)->volume_left = left;
     voice(v, n)->volume_right = right;
+    end_write(w);
 }
 
 static void key_event(Mixer *m, bool on, AuVoiceSet voices)
@@ -446,13 +505,25 @@ static void key_event(Mixer *m, bool on, AuVoiceSet voices)
     m->keys[m->key_events++].voices = voices;
 }
 
-static void keys_on(AuVoices *v, AuVoiceSet voices) { key_event(mixer(v), true, voices); }
-static void keys_off(AuVoices *v, AuVoiceSet voices) { key_event(mixer(v), false, voices); }
+static void keys_on(AuVoices *v, AuVoiceSet voices)
+{
+    Mixer *w = begin_write(v);
+    key_event(mixer(v), true, voices);
+    end_write(w);
+}
+static void keys_off(AuVoices *v, AuVoiceSet voices)
+{
+    Mixer *w = begin_write(v);
+    key_event(mixer(v), false, voices);
+    end_write(w);
+}
 
 static void hold(AuVoices *v, bool held)
 {
+    Mixer *w = begin_write(v);
     for (uint8_t n = 0; n < AU_VOICES; n++)
         voice(v, n)->envelope.adsr = !held;
+    end_write(w);
 }
 
 /* The voice's output as the meter reads it: its sample where it is, at its
@@ -467,36 +538,69 @@ static int8_t output(AuVoices *v, uint8_t n)
 
 static void master_volume(AuVoices *v, int8_t left, int8_t right)
 {
+    Mixer *w = begin_write(v);
     mixer(v)->mix.master_left = left;
     mixer(v)->mix.master_right = right;
+    end_write(w);
 }
 
-static void noise_clock(AuVoices *v, uint8_t clock) { mixer(v)->noise_clock = clock & 0x1F; }
-static void muted(AuVoices *v, bool on) { mixer(v)->silenced = on; }
-static void reset(AuVoices *v, bool on) { mixer(v)->resetting = on; }
-static void noise_voices(AuVoices *v, AuVoiceSet voices) { mixer(v)->noise_voices = voices; }
+static void noise_clock(AuVoices *v, uint8_t clock)
+{
+    Mixer *w = begin_write(v);
+    mixer(v)->noise_clock = clock & 0x1F;
+    end_write(w);
+}
+static void muted(AuVoices *v, bool on)
+{
+    Mixer *w = begin_write(v);
+    mixer(v)->silenced = on;
+    end_write(w);
+}
+static void reset(AuVoices *v, bool on)
+{
+    Mixer *w = begin_write(v);
+    mixer(v)->resetting = on;
+    end_write(w);
+}
+static void noise_voices(AuVoices *v, AuVoiceSet voices)
+{
+    Mixer *w = begin_write(v);
+    mixer(v)->noise_voices = voices;
+    end_write(w);
+}
 static void pitch_modulation(AuVoices *v, AuVoiceSet voices) { (void)v, (void)voices; }
 static void echo_voices(AuVoices *v, AuVoiceSet voices) { (void)v, (void)voices; }
 
 static void echo_volume(AuVoices *v, int8_t left, int8_t right)
 {
+    Mixer *w = begin_write(v);
     mixer(v)->mix.echo_left = left;
     mixer(v)->mix.echo_right = right;
+    end_write(w);
 }
 
 static void echo_feedback(AuVoices *v, int8_t feedback) { (void)v, (void)feedback; }
-static void echo_filter(AuVoices *v, const int8_t taps[8]) { memcpy(mixer(v)->mix.taps, taps, sizeof mixer(v)->mix.taps); }
+static void echo_filter(AuVoices *v, const int8_t taps[8])
+{
+    Mixer *w = begin_write(v);
+    memcpy(mixer(v)->mix.taps, taps, sizeof mixer(v)->mix.taps);
+    end_write(w);
+}
 
 static void echo_delay(AuVoices *v, uint8_t delay)
 {
+    Mixer *w = begin_write(v);
     mixer(v)->mix.echo_delay = delay;
     mixer(v)->mix.echo_page = voices_echo_page(delay);
+    end_write(w);
 }
 
 static void echo_buffer(AuVoices *v, uint8_t page, uint8_t delay)
 {
+    Mixer *w = begin_write(v);
     mixer(v)->mix.echo_page = page;
     mixer(v)->mix.echo_delay = delay;
+    end_write(w);
 }
 
 static void echo_writes(AuVoices *v, bool on) { (void)v, (void)on; }
@@ -518,6 +622,7 @@ static void place(Mixer *m, uint8_t sample, uint16_t start_at, uint16_t loop)
 
 static void sample_define(AuVoices *v, uint8_t sample, const uint8_t *brr, uint16_t length, uint16_t loop)
 {
+    Mixer *w = begin_write(v);
     Mixer *m = mixer(v);
     for (uint16_t i = 0; i < length && i < VOICES_OWN_SAMPLE_BYTES; i++) {
         put(m, (uint16_t)(VOICES_OWN_SAMPLE + i));
@@ -526,18 +631,23 @@ static void sample_define(AuVoices *v, uint8_t sample, const uint8_t *brr, uint1
     m->own_loop = loop;
     m->own_changed = true;
     place(m, sample, VOICES_OWN_SAMPLE, (uint16_t)(VOICES_OWN_SAMPLE + loop));
+    end_write(w);
 }
 
 static void sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte)
 {
+    Mixer *w = begin_write(v);
     (void)sample;
     if (at < VOICES_OWN_SAMPLE_BYTES) {
         put(mixer(v), (uint16_t)(VOICES_OWN_SAMPLE + at));
         mixer(v)->own_brr[at] = byte;
         mixer(v)->own_changed = true;
     }
+    end_write(w);
 }
 
+/* A song's load is thousands of these, which the mix reads nothing of until
+ * a block is known (know_block): only that is kept from the mix. */
 static void sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte)
 {
     put(mixer(v), at);
@@ -548,6 +658,7 @@ static void sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte)
  * forgotten. */
 static void sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length)
 {
+    Mixer *w = begin_write(v);
     Mixer *m = mixer(v);
     for (uint32_t i = 0; i < length; i++)
         put(m, (uint16_t)(to + i));
@@ -567,11 +678,14 @@ static void sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t
     for (uint8_t r = 0; r < count && m->regions < MIXER_REGIONS; r++)
         m->region[m->regions++] = moved[r];
     m->run_next = NOT_WRITING;
+    end_write(w);
 }
 
 static void sample_place(AuVoices *v, uint8_t sample, uint16_t start_at, uint16_t loop)
 {
+    Mixer *w = begin_write(v);
     place(mixer(v), sample, start_at, loop);
+    end_write(w);
 }
 
 static AuVoiceSettings voice_settings(AuVoices *v, uint8_t n) { return *voice(v, n); }
@@ -597,7 +711,7 @@ void mixer_init(Mixer *m)
     m->voices.ops = &gba_ops;
     m->silenced = m->resetting = true;
     m->run_next = NOT_WRITING;
-    m->due = frames_to_chunk(0);
+    played = m;
 }
 
 uint8_t mixer_echo_delay(const Mixer *m) { return m->mix.echo_delay; }
