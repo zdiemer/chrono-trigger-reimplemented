@@ -886,10 +886,23 @@ made in `game/` as presentation and never as a rule:
   sits in the frames' repeating pattern, found again only where the frames'
   rows change or text comes into them (the view's memory keeps them). The camera centres the box round
   the combatants in the fight in the 112 lines above.
-- **The menus** (`menu/camera.c`) follow the cursor up and down. Their
-  screens keep within 224 dots across, which fit, and run up to 200 lines
-  down, of which the view shows 160 (laying out the others again is issue
-  #468). The naming screen is laid out again as bands of its lines: the
+- **The menus** (`menu/camera.c`). Their screens keep within 224 dots
+  across, which fit, and run up to 200 lines down, of which the view shows
+  160. Each is laid out again as runs of its lines (a table a screen):
+  every window's top and foot edges, a few lines of each, and its insides
+  without the blank lines between an edge and the first or last line of
+  text, nor the blank lines both columns share. The load and save screens
+  (with their erase question whole over the slots) and the settings fit
+  whole; the items, the techs and the shops still have more lines than the
+  view, so one window's insides (the list beside the party, the members
+  beside the techs) show as many lines as are over, round the cursor, with
+  every other window whole above and below them: 19, 11 and 37 lines of
+  them out of view at a time. The main menu keeps its window whole over
+  the option's panel. The equipment and the party exchange, whose two
+  columns' lines share no blank ones (the members' four lines eight apart
+  beside the equipment's twelve apart), can't be laid out as whole lines
+  and follow the cursor (issue #468). The naming screen is laid out
+  again as bands of its lines: the
   name's window, every row of letters with most of the blank lines between
   them left out (the cursor's row with room for its hand), and the letters'
   window's foot. While the first naming's instructions are up, they are
