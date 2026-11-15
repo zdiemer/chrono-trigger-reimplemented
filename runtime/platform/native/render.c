@@ -157,6 +157,7 @@ struct VidRenderer {
     VidMarginEntry margin[VID_MARGIN_SPRITES];
     VidRenderStats stats;
     bool range_over, time_over;
+    uint32_t screen[VID_RENDER_WIDTH * H];   /* a smaller view's original screen, which its framing shows part of */
 };
 
 /* ---- tables ---------------------------------------------------------------------- */
@@ -1356,10 +1357,41 @@ void vid_render_destroy(VidRenderer *r) { free(r); }
 
 void vid_render_get_stats(const VidRenderer *r, VidRenderStats *out) { *out = r->stats; }
 
+static bool smaller_view(const VidFrame *f)
+{
+    return vid_view_is_smaller(f->view) && f->view.width >= VID_MIN_VIEW_WIDTH && f->view.height >= VID_MIN_VIEW_HEIGHT;
+}
+
 int vid_render_width(const VidFrame *f)
 {
     int width = f->view.width;
+    if (smaller_view(f))
+        return width;
     return width > VID_ORIGINAL_VIEW_WIDTH && width <= VID_MAX_VIEW_WIDTH ? width : VID_ORIGINAL_VIEW_WIDTH;
+}
+
+int vid_render_height(const VidFrame *f) { return smaller_view(f) ? f->view.height : H; }
+
+/* A smaller view shows the original's screen through its framing: each of
+ * its lines the line of a panel kept in view there, the last kept over the
+ * first, or else the camera's. */
+static void show_the_framing(const VidFrame *f, const uint32_t *screen, uint32_t *out)
+{
+    int width = f->view.width, height = f->view.height;
+    VidAim aim = vid_aim_held_to_the_screen(f->view, f->aim);
+    for (int y = 0; y < height; y++) {
+        int line = aim.top + y, left = aim.left;
+        for (unsigned n = 0; n < f->panel_count; n++) {
+            const VidViewPanel *p = &f->panels[n];
+            if (y >= p->at && y < p->at + (int)p->lines)
+                line = p->top + (y - p->at), left = p->left;
+        }
+        uint32_t *row = out + (size_t)y * width;
+        for (int x = 0; x < width; x++) {
+            int sx = left + x;
+            row[x] = line >= 0 && line < H && sx >= 0 && sx < VID_RENDER_WIDTH ? screen[line * VID_RENDER_WIDTH + sx] : 0;
+        }
+    }
 }
 
 /* The span's state with the parts that can't affect a line in it zeroed, so
@@ -1570,11 +1602,23 @@ static void show_the_picture_between_the_windows(VidRenderer *r, const VidFrame 
     r->time_over = time_over;
 }
 
+static void render_the_screen(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags);
+
 void vid_render_frame(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
+{
+    if (!smaller_view(f)) {
+        render_the_screen(r, f, out, flags);
+        return;
+    }
+    render_the_screen(r, f, r->screen, flags);
+    show_the_framing(f, r->screen, out);
+}
+
+static void render_the_screen(VidRenderer *r, const VidFrame *f, uint32_t *out, VidRenderFlags *flags)
 {
     r->range_over = r->time_over = false;
     r->stats.frames++;
-    int width = vid_render_width(f);
+    int width = smaller_view(f) ? VID_RENDER_WIDTH : vid_render_width(f);
     /* The cached lines are the pixels in the framebuffer they were drawn into,
      * across the view they were drawn for. */
     bool laid_out_alike = (f->parting != NULL) == r->parted &&

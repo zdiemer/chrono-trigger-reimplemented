@@ -13,6 +13,7 @@
  * loader shared by the screens fills VRAM, the palette and work RAM for them.
  *
  * Everything reaches the hardware through the video and timing services. */
+#include "menu/camera.h"
 #include "menu/display.h"
 
 #include "charge.h"
@@ -280,6 +281,7 @@ static void menus_vblank(GameState *g, Platform *pf)
         set_menu_vblank_done(g, FRAME_SENT);
     }
     menu_lay_out_the_screen_across(g, pf);
+    menu_frame_the_view(g, pf);
     bool taken = false;
     TIMED_AS(g, 0xC28473, taken = menu_frame_input_taken(g, pf));
     if (!taken)

@@ -531,10 +531,67 @@ static void laid_out_panel(void)
     vid_host_stop(&pf);
 }
 
+/* A smaller view: the camera starts in the screen's middle and is held to
+ * the screen; the view shows the screen from where it is aimed, and a panel
+ * kept in view shows its lines where the view says, over the camera's
+ * picture, for that frame alone. */
+static void smaller_view(void)
+{
+    enum { WIDTH = 240, HEIGHT = 160, X = 100, Y = 50 };
+    Platform pf = {0};
+    vid_host_start(&pf, NULL, NULL);
+    vid_host_frame_begins(&pf);
+    vid_host_set_view(&pf, (VidView){ WIDTH, HEIGHT });
+    CHECK(vid_view_is_smaller(vid_view(&pf)));
+    VidAim aim = vid_view_aim(&pf);
+    CHECK(aim.left == 8 && aim.top == 32);
+    vid_aim_the_view(&pf, (VidAim){ 300, -5 });
+    aim = vid_view_aim(&pf);
+    CHECK(aim.left == 16 && aim.top == 0);
+    vid_aim_the_view(&pf, (VidAim){ X, Y - 10 });   /* held to 16 across */
+    vid_set_display(&pf, PF_AT(0), &(VidDisplay){ .brightness = 15 });
+    vid_set_mode(&pf, PF_AT(0), &(VidMode){ .mode = 1 });
+    vid_set_screens(&pf, PF_AT(0), VID_OBJ_BIT, 0, VID_SCREEN_MAIN);
+    vid_set_obj_config(&pf, PF_AT(0), &(VidObjConfig){ 0 });
+    vid_set_palette_color(&pf, PF_AT(0), 0, 31);
+    vid_set_palette_color(&pf, PF_AT(0), 129, 31 << 10);
+    uint8_t tile[32] = { 0 };
+    for (unsigned row = 0; row < 8; row++)
+        tile[2 * row] = 0xFF;   /* every pixel colour 1 */
+    vid_send_vram(&pf, PF_AT(0), 0, (PfData){ .ptr = tile }, sizeof tile, VID_VRAM_WORD_PORT);
+    uint8_t oam[0x220] = { 0 };
+    for (unsigned n = 0; n < VID_SPRITES; n++)
+        oam[4 * n + 1] = VID_OAM_HIDDEN_Y;
+    oam[0] = X, oam[1] = Y;
+    vid_send_oam(&pf, PF_AT(0), (PfData){ .ptr = oam }, NULL);
+    vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ Y, 8, 8, HEIGHT - 8 });
+    const VidFrame *f = vid_host_picture(&pf);
+    CHECK(vid_render_width(f) == WIDTH && vid_render_height(f) == HEIGHT);
+
+    VidRenderer *r = vid_render_create();
+    uint32_t *pixels = calloc(VID_RENDER_MAX_PIXELS, sizeof *pixels);
+    vid_render_frame(r, f, pixels, NULL);
+    uint32_t backdrop = vid_render_rgb565_to_xrgb8888(vid_render_color(31, 15));
+    uint32_t sprite = vid_render_rgb565_to_xrgb8888(vid_render_color(31 << 10, 15));
+    CHECK(pixels[10 * WIDTH + X - 16] == sprite);
+    CHECK(pixels[10 * WIDTH + X - 8] == backdrop);
+    CHECK(pixels[9 * WIDTH + X - 16] == backdrop);
+    CHECK(pixels[(HEIGHT - 8) * WIDTH + X - 8] == sprite && pixels[(HEIGHT - 9) * WIDTH + X - 8] == backdrop);
+
+    vid_host_frame_begins(&pf);
+    f = vid_host_picture(&pf);
+    vid_render_frame(r, f, pixels, NULL);
+    CHECK(pixels[(HEIGHT - 8) * WIDTH + X - 8] == backdrop && pixels[10 * WIDTH + X - 16] == sprite);
+    free(pixels);
+    vid_render_destroy(r);
+    vid_host_stop(&pf);
+}
+
 int main(void)
 {
     view_size();
     wider_view();
+    smaller_view();
     panel_over_the_picture();
     laid_out_panel();
     resource_transfers();

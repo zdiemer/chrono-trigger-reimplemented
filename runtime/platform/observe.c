@@ -969,6 +969,13 @@ void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], co
     memcpy(ob->frame.layer_right, layer_right, sizeof ob->frame.layer_right);
 }
 
+void vid_obs_framing(VidObserver *ob, VidAim aim, uint8_t panel_count, const VidViewPanel *panels)
+{
+    ob->frame.aim = aim;
+    ob->frame.panel_count = panel_count < VID_VIEW_PANELS ? panel_count : VID_VIEW_PANELS;
+    memcpy(ob->frame.panels, panels, sizeof *panels * ob->frame.panel_count);
+}
+
 void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
                      const VidWindowParting *parting)
 {

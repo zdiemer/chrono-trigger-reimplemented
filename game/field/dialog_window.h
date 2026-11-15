@@ -29,6 +29,9 @@ typedef enum {
     DIALOG_CLOSES = 13,
 } DialogState;
 
+/* How far the window opens: the lines either side of its middle (dialog_window_state). */
+enum { DIALOG_WINDOW_FULL = 0x28 };
+
 /* A dialog starts, for a script or for the field's own message (the window
  * opens, clears its text and sets the line). */
 void dialog_begin(GameState *g);

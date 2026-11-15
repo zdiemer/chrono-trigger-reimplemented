@@ -38,12 +38,15 @@ void vid_render_destroy(VidRenderer *r);
 /* The bytes a renderer holds, its caches included (ct_native --measure). */
 size_t vid_render_bytes(void);
 
-/* How many pixels across the frame is drawn: its view's width. */
+/* How many pixels across the frame is drawn, and how many lines down: its
+ * view's width and height. */
 int vid_render_width(const VidFrame *f);
+int vid_render_height(const VidFrame *f);
 
-/* Draw the whole frame into `out`: vid_render_width(f) by 224 XRGB8888, row 0
- * being line 1, the original's screen in the middle of a wider view. `flags`
- * may be NULL.
+/* Draw the whole frame into `out`: vid_render_width(f) by vid_render_height(f)
+ * XRGB8888, row 0 being line 1, the original's screen in the middle of a wider
+ * view, or framed by a smaller one (VidFrame.aim, .panels). `flags` may be
+ * NULL.
  *
  * `out` must be the same buffer every frame and must not be written to outside
  * the renderer: a line whose inputs are unchanged keeps the pixels it has. */

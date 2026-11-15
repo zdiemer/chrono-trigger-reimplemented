@@ -67,10 +67,17 @@ static void update_title(SDL_Window *window, const WindowClient *client, bool pa
 }
 
 static int display_width(const Display *d) { return d->width ? d->width : VID_RENDER_WIDTH; }
+static int display_height(const Display *d) { return d->height ? d->height : VID_RENDER_HEIGHT; }
 
-/* The rows the pixel shape shows, from `look.crop` down, and their pixels' shape. */
-static PixelLook display_look(const PresentSettings *p) { return present_pixel_look(p->pixels, VID_RENDER_HEIGHT); }
-static int display_rows(PixelLook look) { return VID_RENDER_HEIGHT - 2 * look.crop; }
+/* The rows the pixel shape shows, from `look.crop` down, and their pixels'
+ * shape. A smaller view is a handheld's screen: square pixels, every row. */
+static PixelLook display_look(const Display *d, const PresentSettings *p)
+{
+    if (display_height(d) < VID_RENDER_HEIGHT)
+        return present_pixel_look(PIXELS_SQUARE, display_height(d));
+    return present_pixel_look(p->pixels, VID_RENDER_HEIGHT);
+}
+static int display_rows(const Display *d, PixelLook look) { return display_height(d) - 2 * look.crop; }
 
 /* ---- presentation ---------------------------------------------------------------- */
 
@@ -85,11 +92,11 @@ typedef struct {
 
 static SDL_Rect sdl_rect(PresentRect r) { return (SDL_Rect){ r.x, r.y, r.w, r.h }; }
 
-static bool screen_open(Screen *s, SDL_Renderer *renderer, int width)
+static bool screen_open(Screen *s, SDL_Renderer *renderer, int width, int height)
 {
     *s = (Screen){ renderer, NULL, NULL, 0, 0 };
     s->picture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, width,
-                                   VID_RENDER_HEIGHT);
+                                   height);
     if (s->picture)
         SDL_SetTextureScaleMode(s->picture, SDL_ScaleModeNearest);
     return s->picture != NULL;
@@ -130,8 +137,8 @@ enum { SCANLINE_DARKNESS = 96, MOST_SCANLINES = VID_RENDER_HEIGHT };
  * where the presentation lays it out, scaled as it says, the filter over it. */
 static void screen_draw(Screen *s, const Display *d, const PresentSettings *p, int out_w, int out_h)
 {
-    PixelLook look = display_look(p);
-    int width = display_width(d), rows = display_rows(look);
+    PixelLook look = display_look(d, p);
+    int width = display_width(d), rows = display_rows(d, look);
     const SDL_Rect src = { 0, look.crop, width, rows };
     PresentLayout l = present_layout(p->scaling, width, rows, look.aspect, out_w, out_h);
     SDL_Rect place = sdl_rect(l.place);
@@ -167,7 +174,7 @@ int window_present_picture(const uint32_t *pixels, const Display *display, const
     SDL_Renderer *renderer = surface ? SDL_CreateSoftwareRenderer(surface) : NULL;
     Screen screen = { 0 };
     int rc = -1;
-    if (renderer && screen_open(&screen, renderer, display_width(display))) {
+    if (renderer && screen_open(&screen, renderer, display_width(display), display_height(display))) {
         SDL_UpdateTexture(screen.picture, NULL, pixels, display_width(display) * 4);
         screen_draw(&screen, display, present, out_w, out_h);
         SDL_RenderPresent(renderer);
@@ -301,13 +308,13 @@ int window_run(const WindowClient *client, WindowOptions *o)
         return 1;
     }
     int window_w, window_h;
-    PixelLook look = display_look(present);
-    present_window_size(o->scale, display_width(display), display_rows(look), look.aspect, &window_w, &window_h);
+    PixelLook look = display_look(display, present);
+    present_window_size(o->scale, display_width(display), display_rows(display, look), look.aspect, &window_w, &window_h);
     SDL_Window *window = SDL_CreateWindow(client->name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, window_w,
                                           window_h, SDL_WINDOW_RESIZABLE);
     SDL_Renderer *sdl_renderer = window ? SDL_CreateRenderer(window, -1, 0) : NULL;
     Screen screen = { 0 };
-    if (!sdl_renderer || !screen_open(&screen, sdl_renderer, display_width(display))) {
+    if (!sdl_renderer || !screen_open(&screen, sdl_renderer, display_width(display), display_height(display))) {
         fprintf(stderr, "cannot create window: %s\n", SDL_GetError());
         if (sdl_renderer)
             SDL_DestroyRenderer(sdl_renderer);
@@ -316,7 +323,7 @@ int window_run(const WindowClient *client, WindowOptions *o)
         SDL_Quit();
         return 1;
     }
-    SDL_SetWindowMinimumSize(window, (int)(display_width(display) * look.aspect + 0.5), display_rows(look));
+    SDL_SetWindowMinimumSize(window, (int)(display_width(display) * look.aspect + 0.5), display_rows(display, look));
     if (present->fullscreen)
         apply_fullscreen(window, present);
     static Audio audio;   /* large; keep it off the stack */

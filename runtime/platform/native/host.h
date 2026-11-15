@@ -101,8 +101,9 @@ typedef struct {
     uint8_t line_effects_below;
     uint32_t screens_applied;
     VidView view;                /* vid_host_set_view's; zero: the original's screen */
-    /* What a wider view shows past the original's screen, 38 KiB, which a
-     * build that never draws wider (VID_HOST_NO_WIDER_VIEW) leaves out. */
+    /* What a wider view shows past the original's screen, 38 KiB, and how a
+     * smaller one is framed, which a build with a video service of its own
+     * (VID_HOST_NO_WIDER_VIEW) leaves out. */
 #ifndef VID_HOST_NO_WIDER_VIEW
     int16_t layer_left[4], layer_right[4];   /* vid_show_a_layer_across's this frame */
     int16_t back_left, back_right;           /* ... and the backdrop's */
@@ -113,6 +114,9 @@ typedef struct {
     VidWindowParting parting;
     uint16_t margin_count;                   /* vid_show_a_sprite_in_the_margins's this frame */
     VidMarginEntry margin[VID_MARGIN_SPRITES];
+    VidAim aim;                  /* a smaller view's camera (vid_aim_the_view) */
+    uint8_t panel_count;         /* vid_keep_a_panel_in_view's this frame */
+    VidViewPanel panels[VID_VIEW_PANELS];
 #endif
 } VidHost;
 

@@ -824,6 +824,51 @@ compares the whole end state, work RAM and save RAM: all 58 end the same,
 movies twice over, about six minutes at `-j 2` beside the gate's own four and a half, so
 it runs in the non-blocking `suite.py --long` batch rather than the gate.
 
+### The smaller view, as built
+
+`ct_native --view 240x160` (any size from `VID_MIN_VIEW_WIDTH` by
+`VID_MIN_VIEW_HEIGHT`, 160x144, to the original's 256x224) shows a handheld's
+screen: the GBA's, without scaling, as part of the original's screen.
+Coordinates stay the original's. What part is the game's choice each frame,
+made in `game/` as presentation and never as a rule:
+
+- **The camera** (`vid_aim_the_view`, `vid_view_aim`): the screen point at
+  the view's top left, held to the original's screen (16 dots across and 64
+  lines down at 240x160). It stays where it was aimed and starts in the
+  middle. `core/view_framing.c` moves it a quarter of the way a frame (at
+  least a dot): `view_follow` keeps a point in the middle third of the view,
+  `view_centre_on` puts it in the middle. It keeps nothing beside the game:
+  the camera's place is the view's own.
+- **Panels** (`vid_keep_a_panel_in_view`, `VidViewPanel`): bands of the
+  screen's lines shown at lines of the view's own over the camera's picture,
+  whole as the original draws them (every layer, sprite, window and colour),
+  stated each frame.
+- **The renderer** draws the original's screen into its own buffer and
+  composes the view from it, a line at a time from the camera or a panel.
+- **The field** (`field/camera.c`) follows the party leader, where it can be
+  seen on the screen, or the screen's middle (a scene the scripts pan to);
+  the field's own screen already follows the leader and stops at the room's
+  edges. The dialog window is a panel at the view's top or bottom, opening
+  from its middle as on the screen (`field_dialog_window_band`), and the
+  camera frames the leader in the 80 lines it leaves. The window shows its
+  240 dots of text area and loses its side borders: its lines of text reach
+  240 dots (measured over six dialog-heavy movies), so a 240-dot window with
+  borders would cut them.
+- **A battle** (`battle/camera.c`) keeps the battle window's 48 lines whole
+  at the view's foot and centres the box round the combatants in the fight in
+  the 112 lines above.
+- **The menus** (`menu/camera.c`) follow the cursor: their screens are 224
+  dots across, which fit, and up to 200 lines down, of which the view shows
+  160, the rest coming into view as the cursor goes to it. The world map is
+  framed at its middle.
+
+`tools/wide_check.py --view 240x160` plays the gate movies at 256x224 and
+240x160 and compares the whole end state: all 59 end the same. The long
+batch runs it (`handheld`); `video_test` checks the camera's hold, the
+composed view and a panel's one frame.
+The GBA build still shows the fixed middle of the screen ("The GBA build, as
+built"); following the same camera there is issue #366.
+
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
 fiber backend or resumable game tasks.

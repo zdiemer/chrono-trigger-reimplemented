@@ -10,6 +10,8 @@ set(CT_GAME_SOURCES
   game/core/tile_animation.c
   game/core/sprite_table.c
   game/core/panel_layout.c
+  game/core/view_framing.c
+  game/menu/camera.c
   game/menu/panels_across.c
   game/data/assets.c
   game/data/asset_catalogue.c
@@ -35,6 +37,7 @@ set(CT_GAME_SOURCES
   game/event/sound.c
   game/event/story.c
   game/event/variables.c
+  game/field/camera.c
   game/field/animation.c
   game/field/battle_return.c
   game/field/battle_start.c
@@ -296,6 +299,7 @@ set(CT_GAME_SOURCES
   game/battle/battlefield_change.c
   game/battle/battlefield_restore.c
   game/battle/beaten_enemies.c
+  game/battle/camera.c
   game/battle/closing.c
   game/battle/uploads.c
   game/battle/wide_window.c
