@@ -1222,7 +1222,13 @@ mode 0's four tiled layers and its sprites:
   transfers), and the windows, layers, maps, scroll,
   brightness and colour math each of the GBA's 160 lines should show are
   worked out where they change and kept where the GBA's registers change.
-  The line counter's interrupt fires a line above each such line and the
+  Only the lines something happens at are visited: each slot is walked on
+  to its next transfer that changes what it last applied (where no two
+  slots' targets set the same register, as a battle's eight don't, a
+  transfer of the unit a slot last applied changes nothing), the display's
+  change below a line, and the line shown after a change; where only a
+  layer's scroll changed, a line's registers are the last change's with
+  its scroll. The line counter's interrupt fires a line above each such line and the
   horizontal blank's at its end sets the registers, two interrupts a change
   rather than one a line. A frame whose lines start from what the last
   frame's did (the registers, the slots, the changes below a line, the
