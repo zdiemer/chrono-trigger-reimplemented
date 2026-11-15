@@ -1402,6 +1402,7 @@ enum { PANEL_TILES = 600, PANEL_TILES_AT_FIRST = 256, RUN_STEP = BLOCK_BYTES / 3
 typedef struct {
     bool made, asked;
     bool missed;                         /* the last layout was asked for it and found no room */
+    uint8_t mapped;                      /* the SNES layers whose map was sent since, a bit each */
     uint8_t map_block[PANEL_LAYERS];     /* the GBA's screen blocks */
     uint16_t run;                        /* the run's first place, its blank */
     uint16_t run_tiles;                  /* the tiles it holds past its blank */
@@ -1415,12 +1416,16 @@ static void make_room_for_the_panel(bool kept)
 {
     bool asked = panel_room.asked || (kept && panel_room.made);
     uint16_t tiles = panel_room.sent > PANEL_TILES_AT_FIRST ? panel_room.sent : PANEL_TILES_AT_FIRST;
+    PanelRoom was = panel_room;
     panel_room = (PanelRoom){ 0 };
     if (!asked)
         return;
     tiles = (uint16_t)((tiles + RUN_STEP - 1) / RUN_STEP * RUN_STEP);
     tiles = tiles > PANEL_TILES ? PANEL_TILES : tiles;
-    int32_t run = -1;
+    /* where it was, where that is still free, so that what was sent stays
+     * shown: the dialog sends again only what it changes */
+    bool same_run = was.made && was.run_tiles == tiles && room_at(was.run, tiles + 1u);
+    int32_t run = same_run ? was.run : -1;
     for (int32_t first = (int32_t)((PLACES - tiles - 1) / RUN_STEP * RUN_STEP); first >= 0 && run < 0; first -= RUN_STEP)
         if ((uint32_t)first % 512 + tiles + 1 <= CACHE_TILES && room_at((uint32_t)first, tiles + 1u))
             run = first;
@@ -1429,18 +1434,27 @@ static void make_room_for_the_panel(bool kept)
         return;
     }
     take_room((uint32_t)run, tiles + 1u);
+    uint8_t mapped = was.made ? was.mapped : 0;
     for (unsigned s = 0; s < PANEL_LAYERS; s++) {
-        int32_t block = room_from_the_top(SCREEN_BYTES / 32, SCREEN_BYTES / 32);
+        uint32_t old = was.made ? was.map_block[s] * (SCREEN_BYTES / 32u) : PLACES;
+        int32_t block = old < PLACES && room_at(old, SCREEN_BYTES / 32) ? (take_room(old, SCREEN_BYTES / 32), (int32_t)old)
+                                                                         : room_from_the_top(SCREEN_BYTES / 32, SCREEN_BYTES / 32);
         if (block < 0) {
             panel_room.missed = true;
             return;   /* what it took stays taken until the next layout */
         }
         panel_room.map_block[s] = (uint8_t)(block * 32 / SCREEN_BYTES);
+        /* a map moved, or naming tiles in a run that moved, is sent again */
+        unsigned n = panel.layer[s];
+        if (n != NO_LAYER && ((uint32_t)block != old || (!same_run && (panel.own_tiles >> n & 1))))
+            mapped &= (uint8_t)~(1u << n);
     }
     panel_room.run = (uint16_t)run;
     panel_room.run_tiles = tiles;
-    for (unsigned w = 0; w < 8; w++)
-        BG_VRAM[(uint32_t)run * 8u + w] = 0;
+    panel_room.mapped = mapped;
+    if (!same_run)
+        for (unsigned w = 0; w < 8; w++)
+            BG_VRAM[(uint32_t)run * 8u + w] = 0;
     panel_room.made = true;
 }
 
@@ -1507,6 +1521,114 @@ static void convert_plane_unit(uint32_t first)
     }
 }
 
+/* The places free in the cache window from char block `block`, and the
+ * window with the most. */
+static unsigned free_in_window(uint8_t block)
+{
+    unsigned free = 0;
+    for (uint32_t place = block * 512u; place < block * 512u + CACHE_TILES && place < PLACES; place++)
+        free += !is_taken(place);
+    return free;
+}
+
+static uint8_t roomiest_window(void)
+{
+    uint8_t best = 0;
+    unsigned most = 0;
+    for (uint8_t block = 0; block < 3; block++) {
+        unsigned free = free_in_window(block);
+        if (free > most)
+            most = free, best = block;
+    }
+    return best;
+}
+
+/* The cache for a layer's tiles: one this layout has for the same tiles, or
+ * the last layout had (`had`, a bit each), or one free, or one the last
+ * layout had for others; CACHES where all three are taken. */
+static unsigned cache_for(const Layer *l, uint8_t had)
+{
+    for (unsigned c = 0; c < CACHES; c++)
+        if ((caches[c].used || had >> c & 1) && caches[c].bpp == l->bpp && caches[c].char_byte == l->char_byte)
+            return c;
+    for (unsigned c = 0; c < CACHES; c++)
+        if (!caches[c].used && !(had >> c & 1))
+            return c;
+    for (unsigned c = 0; c < CACHES; c++)
+        if (!caches[c].used)
+            return c;
+    return CACHES;
+}
+
+/* The tiles each cache's maps name (the layers' own maps and the line
+ * effects' that the layout keeps), a bit each; and the places in each
+ * cache's window the drawn panel's maps name (`placed`, a bit each), whose
+ * tiles the panel sent no map of the screen's need name. */
+static void name_the_tiles(uint32_t named[CACHES][CACHE_TILES / 32], uint32_t placed[CACHES][CACHE_TILES / 32])
+{
+    memset(named, 0, sizeof(uint32_t) * CACHES * (CACHE_TILES / 32));
+    memset(placed, 0, sizeof(uint32_t) * CACHES * (CACHE_TILES / 32));
+    for (unsigned k = 0; panel_room.made && k < PANEL_LAYERS; k++) {
+        unsigned n = panel.layer[k], c = 0;
+        if (n == NO_LAYER || (panel.own_tiles >> n & 1) || !(panel_room.mapped >> n & 1))
+            continue;
+        while (c < CACHES && !(caches[c].used && caches[c].bpp == layers[n].bpp && caches[c].char_byte == panel.char_byte[k]))
+            c++;
+        const volatile uint16_t *map = (const volatile uint16_t *)BG_VRAM + panel_room.map_block[k] * (SCREEN_BYTES / 2);
+        for (unsigned e = 0; c < CACHES && e < SCREEN_BYTES / 2; e++) {
+            unsigned place = map[e] & (CACHE_TILES - 1);
+            placed[c][place / 32] |= 1u << (place % 32);
+        }
+    }
+    for (unsigned k = 0; k < 4u + snes.line_map_count; k++) {
+        const LineMap *lm = k < 4 ? NULL : &snes.line_maps[k - 4];
+        const Layer *l = &layers[lm ? lm->layer : k];
+        if (!l->shown || (!lm && !l->own_map))
+            continue;
+        uint32_t from = lm ? lm->byte : l->map_byte, bytes = lm ? lm->bytes : l->map_bytes;
+        uint32_t *bits = named[l->cache];
+        for (uint32_t i = 0; i < bytes; i += 2) {
+            uint32_t at = (from + i) & (VRAM_BYTES - 1);
+            unsigned tile = (unsigned)(snes.vram[at] | snes.vram[at + 1] << 8) & (CACHE_TILES - 1);
+            bits[tile / 32] |= 1u << (tile % 32);
+        }
+    }
+}
+
+/* A cache the last layout had for the same tiles keeps its window and the
+ * places of the tiles its maps still name, but those this layout's maps and
+ * rooms took, so that what the GBA shows stays as it was while the
+ * layout's maps are converted again, frames of work. A cache started
+ * afresh handed the tiles new places the maps still on screen didn't name
+ * yet, which showed the room in stray tiles as a dialog opened and each
+ * time the caches filled; the tiles no map names give their places back as
+ * starting afresh did. */
+static void keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const uint32_t placed[CACHE_TILES / 32])
+{
+    uint32_t first = c->block * 512u;
+    c->next = 0;
+    for (unsigned t = 0; t < CACHE_TILES; t++) {
+        uint16_t slot = c->slot_of[t];
+        if (slot == NO_SLOT)
+            continue;
+        bool needed = (named[t / 32] >> (t % 32) & 1) || (placed[slot / 32] >> (slot % 32) & 1);
+        if (!needed || first + slot >= PLACES || is_taken(first + slot))
+            c->slot_of[t] = NO_SLOT;
+        else
+            take(first + slot);
+    }
+    if (first + c->blank < PLACES && !is_taken(first + c->blank)) {
+        take(first + c->blank);
+        return;
+    }
+    c->blank = take_slot(c);
+    if (c->blank == NO_SLOT)
+        c->blank = 0;
+    else
+        for (unsigned w = 0; w < 8; w++)
+            BG_VRAM[(first + c->blank) * 8u + w] = 0;
+}
+
 /* The maps the frame's lines showed since the layout (layer_control): each
  * layer's own (bit n) and each line map (bit LINE_MAPS_SHOWN + m). */
 enum { LINE_MAPS_SHOWN = 4 };
@@ -1520,7 +1642,7 @@ static uint16_t maps_shown IN_FAST_RAM;
  * given to the rest; a map left out that a line shows again is noted, and
  * the next layout has it. */
 
-static void lay_out(bool pruned)
+static uint8_t lay_out(bool pruned)
 {
     memset(view_memory, 0, sizeof view_memory);   /* the panel's room and the caches' places are made afresh */
     if (pruned) {
@@ -1531,7 +1653,13 @@ static void lay_out(bool pruned)
         snes.line_map_count = (uint8_t)kept;
     }
     memset(layers, 0, sizeof layers);
-    memset(caches, 0, sizeof caches);
+    /* the caches the last layout had, a bit each */
+    uint8_t had = 0;
+    for (unsigned c = 0; c < CACHES; c++) {
+        if (caches[c].used)
+            had |= (uint8_t)(1u << c);
+        caches[c].used = false;
+    }
     memset(roles, 0, sizeof roles);
     memset(taken, 0, sizeof taken);
     misses = frames_since_layout = 0;
@@ -1554,11 +1682,11 @@ static void lay_out(bool pruned)
         /* a layer no screen shows, its map where the plane is, left out for it */
         if (plane_wanted() && l->map_byte < PLANE_BYTES && !((snes.main_layers | snes.sub_layers) >> n & 1))
             continue;
-        unsigned c = 0;
-        while (c < CACHES && caches[c].used && !(caches[c].bpp == l->bpp && caches[c].char_byte == l->char_byte))
-            c++;
+        unsigned c = cache_for(l, had);
         if (c == CACHES)
             continue;   /* mode 0's fourth set of tiles: not shown yet */
+        if (!caches[c].used && !(caches[c].bpp == l->bpp && caches[c].char_byte == l->char_byte))
+            had &= (uint8_t)~(1u << c);
         caches[c].used = true;
         caches[c].bpp = l->bpp;
         caches[c].char_byte = l->char_byte;
@@ -1636,18 +1764,29 @@ static void lay_out(bool pruned)
         else if (has_tiles_in_front(lm->byte, lm->bytes) && (lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
             front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
     }
+    /* The caches the last layout had keep their windows and their tiles'
+     * places (keep_places), but where the rooms made took so much of a
+     * window that another has more places free: that cache starts afresh
+     * there, as it would have. */
+    if (had) {
+        uint32_t named[CACHES][CACHE_TILES / 32];
+        uint32_t placed[CACHES][CACHE_TILES / 32];
+        name_the_tiles(named, placed);
+        for (unsigned c = 0; c < CACHES; c++) {
+            if (!caches[c].used || !(had >> c & 1))
+                continue;
+            if (free_in_window(caches[c].block) < free_in_window(roomiest_window()))
+                had &= (uint8_t)~(1u << c);
+            else
+                keep_places(&caches[c], named[c], placed[c]);
+        }
+    }
     for (unsigned c = 0; c < CACHES; c++) {
         Cache *cache = &caches[c];
-        if (!cache->used)
+        if (!cache->used || had >> c & 1)
             continue;
-        unsigned most = 0;
-        for (unsigned blk = 0; blk < 3; blk++) {
-            unsigned free = 0;
-            for (uint32_t place = blk * 512u; place < blk * 512u + CACHE_TILES && place < PLACES; place++)
-                free += !is_taken(place);
-            if (free > most)
-                most = free, cache->block = (uint8_t)blk;
-        }
+        cache->next = 0;
+        cache->block = roomiest_window();
         memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
         cache->blank = take_slot(cache);
         if (cache->blank == NO_SLOT)
@@ -1655,6 +1794,30 @@ static void lay_out(bool pruned)
         else
             for (unsigned w = 0; w < 8; w++)
                 BG_VRAM[(cache->block * 512u + cache->blank) * 8u + w] = 0;
+    }
+    uint8_t kept = 0;
+    for (unsigned c = 0; c < CACHES; c++)
+        if (caches[c].used && had >> c & 1)
+            kept |= (uint8_t)(1u << c);
+    return kept;
+}
+
+/* What a layout leaves to convert: every unit but those that hold only the
+ * tiles of caches it kept (`kept`, a bit each), which are already where
+ * they were, and VRAM no role names, but the plane's. A layout converted all
+ * of VRAM, tiles and all: ten GBA frames and more of work, through which the
+ * GBA showed the last frame's lines over maps half converted. */
+static void layout_changed(uint8_t kept)
+{
+    for (unsigned k = 0; k < BLOCKS; k++) {
+        uint32_t byte = (uint32_t)k * BLOCK_BYTES;
+        bool convert = (roles[k] & (MAP | LINE_MAP | SPRITE_TILES)) || (plane_room && byte < PLANE_BYTES);
+        for (unsigned c = 0; c < CACHES && !convert; c++)
+            convert = (roles[k] & TILES) && caches[c].used && !(kept >> c & 1) &&
+                      within(byte, caches[c].char_byte, CACHE_TILES * tile_bytes(caches[c].bpp));
+        if (convert)
+            for (uint32_t u = byte / UNIT_BYTES; u < (byte + BLOCK_BYTES) / UNIT_BYTES; u++)
+                snes.changed[u / 32] |= 1u << (u % 32);
     }
 }
 
@@ -1856,7 +2019,17 @@ static void panel_map_taken(unsigned s, uint32_t first, const uint8_t *bytes, ui
     Cache *c = own ? NULL : cache_of(layers[n].bpp, panel.char_byte[s]);
     uint16_t base = (uint16_t)(panel_room.run % 512), tiles = panel_room.any_tile ? panel_room.run_tiles : 0;
     uint16_t palettes = layers[n].bpp == 2 ? 8 : 0;
-    volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + panel_room.map_block[s] * (SCREEN_BYTES / 2) + first;
+    volatile uint16_t *block = (volatile uint16_t *)BG_VRAM + panel_room.map_block[s] * (SCREEN_BYTES / 2);
+    /* the first send since the room was made blanks the rest of the map,
+     * which held whatever the room's places did: a dialog opening showed
+     * those as rows of stray tiles until its rows were sent */
+    if (!(panel_room.mapped >> n & 1)) {
+        uint16_t blank = own ? base : c ? c->blank : 0;
+        for (unsigned k = 0; k < SCREEN_BYTES / 2; k++)
+            block[k] = blank;
+        panel_room.mapped |= (uint8_t)(1u << n);
+    }
+    volatile uint16_t *gba = block + first;
     for (uint32_t i = 0; i + 1 < count && first + i / 2 < SCREEN_BYTES / 2; i += 2) {
         uint16_t e = (uint16_t)(bytes[i] | bytes[i + 1] << 8), tile = 0;
         if (own) {
@@ -1939,7 +2112,7 @@ static void present_palettes(void)
     bool copies = !plane_room;
     for (unsigned c = 0; c < CACHES; c++)
         copies |= caches[c].used && caches[c].bpp == 2;
-    for (unsigned i = 0; i < 128; i++)
+    for (unsigned i = 1; i < 128; i++)   /* 0: the backdrop, each line's own (set_line) */
         BG_PALETTE[i] = snes.cgram[i];
     if (plane_room && !copies)
         for (unsigned i = 128; i < 256; i++)
@@ -3835,6 +4008,25 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     }
 }
 
+/* The picture hidden, black, until this frame's lines are set: while a
+ * layout whose tiles start afresh converts what they name, frames of work
+ * through which the last frame's lines would show maps naming tiles not
+ * converted yet (the room's tiles in stray rows as a scene was set behind
+ * the opening's first words). */
+static void hide_the_picture(void)
+{
+    if (by_line) {
+        by_line = false;
+        REG_IE = (uint16_t)(REG_IE & ~(IRQ_VCOUNT | IRQ_HBLANK));
+        DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
+    }
+    DMA0CNT = 0;
+    DMA1CNT = 0;
+    DISPCNT = (uint16_t)(DISPCNT & ~(0xF * DISPCNT_BG0 | DISPCNT_OBJ));
+    BLDCNT = 0;
+    BG_PALETTE[0] = 0;
+}
+
 void gba_video_present(Platform *pf)
 {
     /* Tiles that found no place have the caches started afresh: a second
@@ -3847,8 +4039,13 @@ void gba_video_present(Platform *pf)
     bool laid_out = snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode ||
                     (laid_out_mode == 2 && third_on_lines && !laid_out_third);
     if (laid_out) {
-        lay_out(usage_known);
-        memset(snes.changed, 0xFF, sizeof snes.changed);
+        uint8_t kept = lay_out(usage_known);
+        for (unsigned c = 0; c < CACHES; c++)
+            if (caches[c].used && !(kept >> c & 1)) {
+                hide_the_picture();
+                break;
+            }
+        layout_changed(kept);
         snes.settings_changed = false;
     }
     for (unsigned w = 0; w < UNITS / 32; w++) {
