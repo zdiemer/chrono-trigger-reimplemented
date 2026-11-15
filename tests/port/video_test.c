@@ -534,10 +534,11 @@ static void laid_out_panel(void)
 /* A smaller view: the camera starts in the screen's middle and is held to
  * the screen; the view shows the screen from where it is aimed, and a panel
  * kept in view shows its lines where the view says, over the camera's
- * picture, for that frame alone, a run of its dots cut where it says. */
+ * picture, for that frame alone, a run of its dots cut where it says, and
+ * its dots short of a column's end from the column's own lines. */
 static void smaller_view(void)
 {
-    enum { WIDTH = 240, HEIGHT = 160, X = 100, Y = 50, CUT_ROW = 20 };
+    enum { WIDTH = 240, HEIGHT = 160, X = 100, Y = 50, CUT_ROW = 20, COLUMN_ROW = 60, PAST_THE_COLUMN_ROW = 80 };
     Platform pf = {0};
     vid_host_start(&pf, NULL, NULL);
     vid_host_frame_begins(&pf);
@@ -567,6 +568,11 @@ static void smaller_view(void)
     vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ .top = Y, .lines = 8, .left = 8, .at = HEIGHT - 8 });
     /* the same lines again, from the screen's left, 16 dots cut from 10 on */
     vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ .top = Y, .lines = 8, .at = CUT_ROW, .cut_at = 10, .cut_dots = 16 });
+    /* blank lines, but for a column from the sprite's line, which ends past it or at it */
+    vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ .top = Y - 30, .lines = 8, .left = 8, .at = COLUMN_ROW,
+                                                   .column_top = Y, .column_end = X - 8 + 1 });
+    vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ .top = Y - 30, .lines = 8, .left = 8, .at = PAST_THE_COLUMN_ROW,
+                                                   .column_top = Y, .column_end = X - 8 });
     const VidFrame *f = vid_host_picture(&pf);
     CHECK(vid_render_width(f) == WIDTH && vid_render_height(f) == HEIGHT);
 
@@ -580,6 +586,8 @@ static void smaller_view(void)
     CHECK(pixels[9 * WIDTH + X - 16] == backdrop);
     CHECK(pixels[(HEIGHT - 8) * WIDTH + X - 8] == sprite && pixels[(HEIGHT - 9) * WIDTH + X - 8] == backdrop);
     CHECK(pixels[CUT_ROW * WIDTH + X - 16] == sprite && pixels[CUT_ROW * WIDTH + X - 17] == backdrop);
+    CHECK(pixels[COLUMN_ROW * WIDTH + X - 8] == sprite && pixels[COLUMN_ROW * WIDTH + X - 7] == backdrop);
+    CHECK(pixels[PAST_THE_COLUMN_ROW * WIDTH + X - 8] == backdrop);
 
     vid_host_frame_begins(&pf);
     f = vid_host_picture(&pf);

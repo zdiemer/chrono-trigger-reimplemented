@@ -51,6 +51,12 @@ typedef enum { MEMBER_POINTED_AT, MEMBER_CHOSEN, MEMBER_LEFT_FOR_THE_MAIN_MENU }
  * again; going back leaves for the main menu; otherwise the cursor points at
  * a member. */
 MemberChoice menu_equip_choose_member(GameState *g);
+/* Whether the screen is at its first step, the member list down the left;
+ * past it the left shows the chosen member, the slot and what fits it. */
+bool menu_equip_choosing_a_member(const GameState *g);
+/* Whether the screen is at its last step, choosing from what fits the slot:
+ * the list down the left, the description across the foot. */
+bool menu_equip_choosing_an_item(const GameState *g);
 
 /* Pointing at a member: with more members than the list shows, a push past
  * the list's top or bottom slides it a member along; with fewer, the cursor
