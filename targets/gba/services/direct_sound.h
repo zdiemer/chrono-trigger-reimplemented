@@ -11,6 +11,7 @@
 #ifndef CT_GBA_DIRECT_SOUND_H
 #define CT_GBA_DIRECT_SOUND_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 enum {
@@ -30,7 +31,11 @@ typedef struct {
 extern DirectSound ct_gba_sound;
 
 void direct_sound_start(void);
-/* `count` samples of each side, after those queued. */
-void direct_sound_queue(const int8_t *left, const int8_t *right, uint32_t count);
+/* Where the next `count` samples of each side go, after those queued, or
+ * false with the ring too full to take them (they're dropped). `count`
+ * divides the ring, and every count queued is the same, so the place never
+ * wraps; once they are written there, direct_sound_queued(count). */
+bool direct_sound_space(uint32_t count, int8_t **left, int8_t **right);
+void direct_sound_queued(uint32_t count);
 
 #endif

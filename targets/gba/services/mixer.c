@@ -291,53 +291,13 @@ static void find_sample(Mixer *m, MixerVoice *v)
  * as loud as 8 bits can say (to_8_bits). */
 static int32_t gains_of(int left, int right) { return (int32_t)((uint32_t)left << 16) + right; }
 
-/* A wave's `count` samples added into `mix` at `gains`, from `position` in
- * 4096ths of a sample stepping `step`; false where the wave ended. Two at a
- * time while the end is further off. In ARM, in fast RAM. */
-__attribute__((target("arm"), section(".iwram"), long_call, noinline)) static bool
-mix_wave(int32_t *mix, unsigned count, const MixerWave *w, uint32_t *position, uint32_t step, int32_t gains)
-{
-    const int8_t *pcm = w->pcm;
-    uint32_t at = *position, end = w->length << 12;
-    uint32_t back = w->loop == MIXER_NO_LOOP ? 0 : (w->length - w->loop) << 12;
-    while (count) {
-        for (; count >= 2 && at + 2 * step < end; count -= 2, mix += 2) {
-            int first = pcm[at >> 12];
-            at += step;
-            int second = pcm[at >> 12];
-            at += step;
-            mix[0] += first * gains;
-            mix[1] += second * gains;
-        }
-        if (!count)
-            break;
-        *mix++ += pcm[at >> 12] * gains;
-        count--;
-        at += step;
-        if (at >= end) {
-            if (!back)
-                return false;
-            do
-                at -= back;
-            while (at >= end);
-        }
-    }
-    *position = at;
-    return true;
-}
-
-/* The mix to 8 bits, each side: the bottom half is the right side's sum,
- * and what is left above it the left's. */
-__attribute__((target("arm"), section(".iwram"), long_call, noinline)) static void
-to_8_bits(const int32_t *mix, int8_t *left, int8_t *right, unsigned count)
-{
-    for (unsigned i = 0; i < count; i++) {
-        int r = (int16_t)mix[i], l = (mix[i] - r) >> 16;
-        l >>= 7, r >>= 7;
-        left[i] = (int8_t)(l > 127 ? 127 : l < -128 ? -128 : l);
-        right[i] = (int8_t)(r > 127 ? 127 : r < -128 ? -128 : r);
-    }
-}
+/* The mixer's loops (services/mix.s: ARM, in fast RAM). A wave's `count`
+ * samples added into `mix` at `gains`, from `position` in 4096ths of a
+ * sample stepping `step`; false where the wave ended. */
+__attribute__((long_call)) bool mix_wave(int32_t *mix, unsigned count, const MixerWave *w, uint32_t *position,
+                                         uint32_t step, int32_t gains);
+/* The mix to 8 bits, each side, `count` a multiple of 4. */
+__attribute__((long_call)) void to_8_bits(const int32_t *mix, int8_t *left, int8_t *right, unsigned count);
 
 static void key_on(Mixer *m, MixerVoice *v)
 {
@@ -409,33 +369,39 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
         if (!mix_wave(mix, count, &v->wave, &v->position, step, gains(v, set, &m->mix)))
             v->wave.pcm = NULL, v->level = 0, v->phase = MIXER_RELEASE;
     }
-    int8_t left[CHUNK], right[CHUNK];
+    int8_t *left, *right;
     if (m->silenced)
         memset(mix, 0, sizeof mix[0] * count);
-    to_8_bits(mix, left, right, count);
-    direct_sound_queue(left, right, count);
+    if (direct_sound_space(count, &left, &right)) {
+        to_8_bits(mix, left, right, count);
+        direct_sound_queued(count);
+    }
     mixing_cycles += cycles_now() - began;
 }
 
-/* The frames are taken up to the one that owes a chunk's last sample, the
- * chunk mixed there, and so on: however many frames a pass brings, each
- * chunk is mixed as its samples fall due. */
+/* The S-DSP's frames from a chunk's start, `owed` toward its first sample,
+ * to the one its last sample falls due at. */
+static uint16_t frames_to_chunk(uint32_t owed)
+{
+    return (uint16_t)((CHUNK * FRAMES_PER - owed + OUT_PER - 1) / OUT_PER);
+}
+
+/* The frames are counted down to the one that owes a chunk's last sample,
+ * the chunk mixed there, and so on: however many frames a pass brings, each
+ * chunk is mixed as its samples fall due, and a pass that brings fewer
+ * frames than the chunk still needs is a subtraction. */
 void mixer_pass(Mixer *m, uint32_t frames)
 {
-    while (frames) {
-        uint32_t to_chunk = ((uint32_t)(CHUNK - m->pending) * FRAMES_PER - m->owed + OUT_PER - 1) / OUT_PER;
-        uint32_t take = to_chunk < frames ? to_chunk : frames;
-        frames -= take;
-        m->frames = (uint16_t)(m->frames + take);
-        m->owed += take * OUT_PER;
-        m->pending = (uint16_t)(m->pending + m->owed / FRAMES_PER);
-        m->owed %= FRAMES_PER;
-        if (m->pending >= CHUNK) {
-            m->pending -= CHUNK;
-            mix_chunk(m, CHUNK, m->frames);
-            m->frames = 0;
-        }
+    while (frames >= m->due) {
+        uint32_t chunk_frames = (uint32_t)m->frames + m->due;
+        frames -= m->due;
+        mix_chunk(m, CHUNK, chunk_frames);
+        m->frames = 0;
+        m->owed = m->owed + chunk_frames * OUT_PER - CHUNK * FRAMES_PER;
+        m->due = frames_to_chunk(m->owed);
     }
+    m->due = (uint16_t)(m->due - frames);
+    m->frames = (uint16_t)(m->frames + frames);
 }
 
 /* ---- The voices' calls ------------------------------------------------------------------- */
@@ -629,6 +595,7 @@ void mixer_init(Mixer *m)
     m->voices.ops = &gba_ops;
     m->silenced = m->resetting = true;
     m->run_next = NOT_WRITING;
+    m->due = frames_to_chunk(0);
 }
 
 uint8_t mixer_echo_delay(const Mixer *m) { return m->mix.echo_delay; }
