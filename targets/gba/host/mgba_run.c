@@ -3,7 +3,7 @@
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
  *   mgba_run ROM.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
- *            [--wav FILE.wav] [--stream FILE.wav]
+ *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR]
  *   mgba_run ROM.gba [--sav FILE.sav] --drive
  *
  * The program names its drive box in its debug log as it starts
@@ -21,7 +21,12 @@
  * the GBA's time, gaps and all where the game's frame was late; with
  * --stream, every sample the program queued (the sound's ring, which it
  * names in its log, services/direct_sound.h), one after another, as the GBA
- * plays them where the game keeps its time.
+ * plays them where the game keeps its time. With --watch, it writes every
+ * picture the GBA shows while it plays the game's frames FROM to TO, as
+ * DIR/wGBAFRAME_GAMEFRAME.png (the GBA's frame, and the game's frame it had
+ * taken), at the GBA's own speed: what a player sees, the picture's work
+ * running past the vertical blank and all, where --shot waits for each
+ * frame's picture to be finished.
  *
  * With --drive, a command a line on stdin and a reply a line on stdout, as
  * ct_native's (docs/MOVIES.md, "Routes as a test"); the program's own lines
@@ -288,12 +293,20 @@ static int start_recording(const char *wav_path, const char *stream_path)
 }
 
 static unsigned long gba_frames;
+static unsigned long watch_from, watch_to;
+static const char *watch_dir;
 
 static void gba_frame(void)
 {
     core->runFrame(core);
     gba_frames++;
     record_frame();
+    uint32_t taken = watch_dir ? frames_played() : 0;
+    if (watch_dir && taken >= watch_from && taken <= watch_to) {
+        char path[1024];
+        snprintf(path, sizeof path, "%s/w%07lu_%06lu.png", watch_dir, gba_frames, (unsigned long)taken);
+        write_png(path, video, width, height);
+    }
 }
 
 /* The program between frames with `frame` played and nothing asked of it. */
@@ -611,7 +624,8 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
-                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] | --drive)\n";
+                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] "
+                                "[--watch FROM TO DIR] | --drive)\n";
     const char *movie = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
     unsigned long frames = 0;
     int driving = 0;
@@ -632,6 +646,11 @@ int main(int argc, char **argv)
             stream_path = argv[++i];
         else if (!strcmp(argv[i], "--drive"))
             driving = 1;
+        else if (!strcmp(argv[i], "--watch") && i + 3 < argc) {
+            watch_from = strtoul(argv[++i], NULL, 10);
+            watch_to = strtoul(argv[++i], NULL, 10);
+            watch_dir = argv[++i];
+        }
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc && count < MAX_SHOTS) {
             shots[count].frame = strtoul(argv[++i], NULL, 10);
             shots[count++].path = argv[++i];

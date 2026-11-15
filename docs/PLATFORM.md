@@ -1328,9 +1328,25 @@ mode 0's four tiled layers and its sprites:
   map takes are handed out to the tiles the maps name as they name them,
   converted from bitplanes to the GBA's packed nibbles (2bpp widened to
   4bpp, a table's lookup a bitplane's byte) then and again as the game
-  changes them. A tile no place is left for shows blank until the caches
-  start afresh, a second on; where the maps name more tiles than there are
-  places and no tile has missed since the last start, eight seconds on.
+  changes them. A tile no place is left for shows blank until a layout
+  gives the caches' places again, a second on; where the maps name more
+  tiles than there are places and no tile has missed since the last, eight
+  seconds on. A layout keeps each cache whose set of tiles it still shows
+  in the window it had, with the places of the tiles its maps still name
+  and of those the drawn panel's maps show, but those its maps and rooms
+  take; the others' places it gives back. What the GBA shows stays as it
+  was while the layout's work goes on, and a layout converts the maps, the
+  sprites' tiles and the caches it starts afresh rather than all of VRAM.
+  A cache whose window the rooms took so much of that another has more
+  places free starts afresh in that one, and the picture is black until
+  the frame's lines are set. Started afresh at every layout, the caches
+  gave the tiles new places the maps still on screen didn't name yet, for
+  the frames the layout took: watched as a player sees them in mGBA
+  (`mgba_run --watch`) against ct_native, `new-game` showed Crono's room in
+  stray tiles for ten GBA frames as Mom's first words opened their window,
+  and the dialog window's in stray tiles each time the caches filled
+  (issue #503). The first colour, the backdrop, is each line's own, set
+  with its registers.
 - **Sprites**: the SNES's two tables of tiles one under the other in the
   GBA's sprite VRAM (its two-dimensional layout, 32 tiles a row, so that a
   sprite's rows are 16 names apart on both), and the sprite table converted
@@ -1514,7 +1530,11 @@ mode 0's four tiled layers and its sprites:
   the dialog keeps the screen's band): two screen blocks and a run as long
   as the panel has sent, 256 tiles at first and 600 at most (a 240x160
   screen's), within one char block's reach, 12 to 23 KiB in all. Later
-  layouts keep it until the settings move. A layer whose tiles the panel
+  layouts keep it until the settings move, and make it where it was where
+  that is still free, so that what was sent stays shown; a map of it made
+  elsewhere is blanked by the first send to it, rather than showing what
+  its places held (rows of stray tiles in the opening's first window as
+  it opened). A layer whose tiles the panel
   sends draws only those. A send is converted as it comes, so a glyph may
   show a GBA frame early.
 - **A cut** (the battle window, two columns cut from inside it): the maps
