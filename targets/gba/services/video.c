@@ -63,6 +63,10 @@
 #define REG16(at) (*(volatile uint16_t *)(at))
 /* State kept in fast RAM (IWRAM), which has the room work RAM hasn't. */
 #define IN_FAST_RAM __attribute__((section(".iwram_bss")))
+/* Code that toolchain/fast_code.ld places in fast RAM, compiled as ARM:
+ * fast RAM fetches its 32-bit instructions as quickly as Thumb's, and ARM
+ * does a frame's line effects in fewer of them. */
+#define ARM_CODE __attribute__((target("arm")))
 #define DISPCNT REG16(0x04000000)
 #define BGCNT(n) REG16(0x04000008 + 2 * (n))
 #define BGHOFS(n) REG16(0x04000010 + 4 * (n))
@@ -1042,8 +1046,9 @@ static uint32_t sprite_table(unsigned table)
 
 /* A bitplane's byte spread out as the first bit of each of a row's eight
  * packed nibbles, its leftmost dot (the byte's top bit) in the lowest:
- * filled at the start, in fast RAM, for the tiles' conversion. */
-static uint32_t spread[256] __attribute__((section(".iwram_bss")));
+ * filled at the start, for the tiles' conversion. In work RAM: fast RAM's
+ * kilobyte does more as the line effects' code (toolchain/fast_code.ld). */
+static uint32_t spread[256];
 
 static void fill_spread(void)
 {
@@ -2342,23 +2347,23 @@ typedef struct {
 } Slot;
 
 /* The tables are read 32 bytes at a time, kept for the frame's reading of
- * them (the game's memory doesn't change while the picture is made). */
+ * them (the game's memory doesn't change while the picture is made): in
+ * fast RAM, since each of a frame's transfers reads them. */
 enum { READ_LINES = 8, READ_LINE_BYTES = 32 };
 typedef struct {
     uint32_t tag;    /* the line's address / READ_LINE_BYTES, plus one; 0: none */
     uint8_t bytes[READ_LINE_BYTES];
 } ReadLine;
-static ReadLine read_lines[READ_LINES];
+static ReadLine read_lines[READ_LINES] IN_FAST_RAM;
 
 /* Where each 32 bytes of the tables a frame's lines read came from, as they
  * read them, and a 32-bit FNV-1a hash of all their bytes in that order (a
  * word at a time), so
- * that the next frame can tell whether its tables are the same (below). In
- * fast RAM, which has the room work RAM hasn't, as the rest of what the next
- * frame keeps; a hash rather than the bytes, which it hasn't the room for
- * either. */
+ * that the next frame can tell whether its tables are the same (below):
+ * the places in work RAM, written once for each 32 bytes read, the rest in
+ * fast RAM; a hash rather than the bytes, which neither has the room for. */
 enum { LINES_READ_KEPT = 64 };
-static uint32_t lines_read[LINES_READ_KEPT] IN_FAST_RAM;
+static uint32_t lines_read[LINES_READ_KEPT];
 static uint32_t lines_read_hash IN_FAST_RAM;
 static uint8_t lines_read_count IN_FAST_RAM;
 static bool lines_read_overflowed IN_FAST_RAM;
@@ -2389,7 +2394,7 @@ static uint32_t hash_on(uint32_t h, const void *bytes, size_t count)
     return h;
 }
 
-static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
+ARM_CODE static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
 {
     if (lines_read_count == LINES_READ_KEPT) {
         lines_read_overflowed = true;
@@ -2400,7 +2405,7 @@ static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
 }
 
 /* The 32 bytes of the tables at `line` (an address / READ_LINE_BYTES). */
-static const uint8_t *line_bytes(uint32_t line)
+ARM_CODE static const uint8_t *line_bytes(uint32_t line)
 {
     ReadLine *r = &read_lines[line % READ_LINES];
     if (r->tag != line + 1) {
@@ -2412,7 +2417,7 @@ static const uint8_t *line_bytes(uint32_t line)
     return r->bytes;
 }
 
-static uint8_t line_read(uint32_t addr)
+ARM_CODE static uint8_t line_read(uint32_t addr)
 {
     return line_bytes(addr / READ_LINE_BYTES)[addr % READ_LINE_BYTES];
 }
@@ -2420,7 +2425,7 @@ static uint8_t line_read(uint32_t addr)
 /* A transfer's `n` bytes from `at` on in `bank`, the address wrapping in the
  * bank as HDMA's does: from one read of the tables where they lie in one 32
  * bytes (which a bank's end never splits), a byte at a time where not. */
-static void table_unit(uint8_t bank, uint16_t at, uint8_t n, uint8_t out[4])
+ARM_CODE static void table_unit(uint8_t bank, uint16_t at, uint8_t n, uint8_t out[4])
 {
     uint32_t from = (uint32_t)bank << 16;
     if ((at % READ_LINE_BYTES) + n <= READ_LINE_BYTES) {
@@ -2449,7 +2454,7 @@ static bool tables_unchanged(void)
     return h == lines_read_hash;
 }
 
-static void slot_entry(Slot *sl, const VidLineEffect *e)
+ARM_CODE static void slot_entry(Slot *sl, const VidLineEffect *e)
 {
     uint32_t bank = (uint32_t)sl->bank << 16;
     sl->count = line_read(bank | sl->cursor);
@@ -3419,9 +3424,9 @@ static const Band *band_down_to(unsigned *from, int row)
  * line, with its unit in `last`; NO_LINE where it has none left. Where the
  * slots' targets are `apart`, a transfer of the unit the slot last applied
  * changes nothing and is passed over. */
-static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint16_t stop);
+ARM_CODE static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint16_t stop);
 
-static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, bool apart)
+ARM_CODE static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, bool apart)
 {
     bool passed = false;   /* whether a transfer here changed nothing */
     while (sl->active && sl->line < stop) {
@@ -3474,7 +3479,7 @@ static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, b
  * transfer, `stop`, or a unit that differs or lies across two reads of the
  * tables, which next_transfer takes one at a time. The tables are read in
  * the same order as a transfer at a time reads them. */
-static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint16_t stop)
+ARM_CODE static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint16_t stop)
 {
     uint16_t *at = e->indirect ? &sl->indirect : &sl->cursor;
     uint32_t bank = (uint32_t)(e->indirect ? e->indirect_bank : sl->bank) << 16;

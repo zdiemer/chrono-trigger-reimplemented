@@ -78,8 +78,10 @@ __attribute__((target("arm"), section(".iwram"))) static int decay_end(const AuE
     return v->gain_mode == AU_GAIN_DIRECT ? (v->gain_value & 0x7F) >> 5 : 3 + v->gain_mode;
 }
 
-/* One step of the envelope at its rate, as the S-DSP takes it. */
-__attribute__((target("arm"), section(".iwram"), noinline)) static void envelope_step(const AuEnvelope *e, MixerVoice *v)
+/* One step of the envelope at its rate, as the S-DSP takes it: in the
+ * cartridge, as Thumb, since it runs only at the envelope's steps and fast
+ * RAM's room does more as the picture's code (toolchain/fast_code.ld). */
+__attribute__((noinline)) static void envelope_step(const AuEnvelope *e, MixerVoice *v)
 {
     int level = v->level;
     if (e->adsr) {
