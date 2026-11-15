@@ -87,7 +87,9 @@ platform services' backends. Nothing here is included from `game/`.
   - `mgba_run.c`: the runner, the GBA's `ct_native --drive`: `ct.gba` in
     mGBA's core with no window and nothing played aloud, its pads from a
     movie or from commands on stdin (Driving it, below); with a movie,
-    `--wav` and `--stream` write the GBA's sound as WAV files.
+    `--wav` and `--stream` write the GBA's sound as WAV files, and
+    `--watch` every picture the GBA shows over a run of the game's frames,
+    as a player sees them at the GBA's speed.
   - `run.py`: the check. It builds the runner against libmgba and zlib,
     packs `ct.gba`, has the runner play a movie on it from the save RAM the
     movie starts from, plays the movie in ct_native too, and fails where the
@@ -152,7 +154,7 @@ processor was as the movie played. CI builds the program (the
 `ct_native --drive`; `run.py` builds it into the program's directory (on
 Windows, with mGBA's `bin` on `PATH` to run it):
 
-    mgba_run ct.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
+    mgba_run ct.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR]
     mgba_run ct.gba [--sav FILE.sav] --drive
 
 `--sav` is the SRAM to start from, held in memory and never written back.
