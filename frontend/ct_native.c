@@ -128,14 +128,14 @@ enum { DARK_LEVEL = 0x10 };
 typedef struct {
     VidRenderer *renderer;
     uint32_t *pixels;
-    unsigned width;              /* the view's: pixels across a row */
+    unsigned width, height;      /* the view's: pixels across a row, and rows */
     unsigned long dark_since;    /* the frame the current dark run began; 0 while showing */
     unsigned long longest_from, longest;
 } Picture;
 
-static bool picture_is_dark(const uint32_t *px, unsigned width)
+static bool picture_is_dark(const uint32_t *px, unsigned width, unsigned height)
 {
-    for (unsigned i = 0; i < width * VID_RENDER_HEIGHT; i++) {
+    for (unsigned i = 0; i < width * height; i++) {
         uint32_t c = px[i];
         if (((c >> 16) & 0xFF) > DARK_LEVEL || ((c >> 8) & 0xFF) > DARK_LEVEL || (c & 0xFF) > DARK_LEVEL)
             return false;
@@ -146,7 +146,7 @@ static bool picture_is_dark(const uint32_t *px, unsigned width)
 static void picture_frame(Picture *p, Platform *pf, unsigned long frame)
 {
     vid_render_frame(p->renderer, vid_host_picture(pf), p->pixels, NULL);
-    if (!picture_is_dark(p->pixels, p->width)) {
+    if (!picture_is_dark(p->pixels, p->width, p->height)) {
         p->dark_since = 0;
         return;
     }
@@ -559,7 +559,7 @@ static bool native_frame(void *ctx, uint32_t pads)
     if (d->measure)
         measure_frame(d->measure, d->game, game_done - began, sound_done - game_done, measure_now_ns() - sound_done);
     if (d->outcomes && outcome_picture_due(d->frame, d->frames))
-        outcome_picture(d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT, d->frame);
+        outcome_picture(d->picture->pixels, d->picture->width, d->picture->height, d->frame);
     if (d->locations && observed_location(d->game) != d->location) {
         d->location = observed_location(d->game);
         fprintf(stderr, "location: frame %lu $%03X\n", d->frame, d->location & LOCATION_BITS);
@@ -567,7 +567,7 @@ static bool native_frame(void *ctx, uint32_t pads)
     if (d->shot_every && d->frame % d->shot_every == 0) {
         char path[1024];
         snprintf(path, sizeof path, "%s/frame_%06lu.png", d->shot_dir, d->frame);
-        if (ct_png_write(path, d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT) != 0)
+        if (ct_png_write(path, d->picture->pixels, d->picture->width, d->picture->height) != 0)
             fprintf(stderr, "ct_native: cannot write %s\n", path);
     }
     uint32_t routine;
@@ -620,7 +620,7 @@ static bool route_shot(void *ctx, const char *path)
 {
     NativeDriver *d = ctx;
     picture_frame(d->picture, d->pf, d->frame);
-    return ct_png_write(path, d->picture->pixels, d->picture->width, VID_RENDER_HEIGHT) == 0;
+    return ct_png_write(path, d->picture->pixels, d->picture->width, d->picture->height) == 0;
 }
 /* The frame's background layers in `layers` alone, for comparing a layer
  * with a map drawn from its resources (tests/test_map_pictures.py): every
@@ -653,7 +653,7 @@ static bool route_layer_shot(void *ctx, const char *path, uint8_t layers, uint16
         }
         memcpy(colors, f->cgram, 256 * sizeof *colors);
         vid_render_frame(r, f, pixels, NULL);
-        ok = ct_png_write(path, pixels, (unsigned)vid_render_width(f), VID_RENDER_HEIGHT) == 0;
+        ok = ct_png_write(path, pixels, (unsigned)vid_render_width(f), (unsigned)vid_render_height(f)) == 0;
     }
     free(pixels);
     if (r)
@@ -691,7 +691,7 @@ static FrameDigest frame_digest(NativeDriver *d, uint8_t *state)
     int16_t audio[8192 * 2];
     size_t count = sound_native_take_audio(d->sound, audio, 8192);
     return (FrameDigest){ ct_crc32(state, state_host_snapshot_bytes()),
-                          ct_crc32((const uint8_t *)d->picture->pixels, d->picture->width * VID_RENDER_HEIGHT * sizeof(uint32_t)),
+                          ct_crc32((const uint8_t *)d->picture->pixels, d->picture->width * d->picture->height * sizeof(uint32_t)),
                           ct_crc32((const uint8_t *)audio, count * 2 * sizeof *audio) };
 }
 
@@ -742,7 +742,7 @@ static void usage(FILE *out)
                  "                 [--load-state FILE] [--save-state FILE] [--record out.ctm] [--save-dir DIR] [--import ROM] [--keys FILE] [--bind INPUT=ACTION]\n"
                  "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--fullscreen-mode borderless|exclusive]\n"
                  "                 [--scaling integer|fit] [--filter none|scanlines] [--pixels tv|square] [--mute]\n"
-                 "                 [--view WIDTHx224|16:9|16:10|21:9|4:3] [--present WxH]\n"
+                 "                 [--view WIDTHx224|16:9|16:10|21:9|4:3|240x160] [--present WxH]\n"
                  "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
@@ -768,8 +768,10 @@ static bool count_from(const char *text, unsigned long *out)
 
 /* --view WIDTHx224: a view as wide as the original's screen or wider, up to
  * the widest the renderer draws, and as tall; or a screen shape (16:9, 16:10,
- * 21:9, 4:3) for the presentation to work the width out from. */
-static bool view_from(const char *text, ViewShape *shape, int *out)
+ * 21:9, 4:3) for the presentation to work the width out from; or
+ * WIDTHxHEIGHT, a smaller view (a handheld's, 240x160), which the game frames
+ * and which this launch alone shows (`smaller`; else it is left zero). */
+static bool view_from(const char *text, ViewShape *shape, int *out, VidView *smaller)
 {
     char head[16];
     const char *x = strchr(text, 'x');
@@ -781,6 +783,13 @@ static bool view_from(const char *text, ViewShape *shape, int *out)
         return false;
     memcpy(head, text, n);
     head[n] = 0;
+    *smaller = (VidView){ 0, 0 };
+    if (count_from(head, &width) && count_from(x + 1, &height) && width >= VID_MIN_VIEW_WIDTH &&
+        height >= VID_MIN_VIEW_HEIGHT && width <= VID_ORIGINAL_VIEW_WIDTH && height <= VID_ORIGINAL_VIEW_HEIGHT &&
+        (width < VID_ORIGINAL_VIEW_WIDTH || height < VID_ORIGINAL_VIEW_HEIGHT)) {
+        *smaller = (VidView){ (uint16_t)width, (uint16_t)height };
+        return true;
+    }
     if (!count_from(head, &width) || !count_from(x + 1, &height) || width < VID_ORIGINAL_VIEW_WIDTH ||
         width > VID_MAX_VIEW_WIDTH || height != VID_ORIGINAL_VIEW_HEIGHT)
         return false;
@@ -838,7 +847,7 @@ int main(int argc, char **argv)
     unsigned long frames = 600, shot_every = 0, scale = 3, check_every = 0, check_span = 60;
     bool frames_given = false, mute = false;
     bool drive = false;
-    VidView view = { VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
+    VidView view = { VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT }, smaller = { 0, 0 };
     int display_mode = 0;   /* auto, headless, window */
     /* The presentation as given on the command line, over what the last
      * window play left (frontend/presentation.h): the view's width among it. */
@@ -882,7 +891,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--drive")) drive = true;
         else if (!strcmp(a, "--window")) display_mode = 2;
         else if (!strcmp(a, "--scale") && v && count_from(v, &scale) && scale >= 1 && scale <= 10) i++;
-        else if (!strcmp(a, "--view") && v && view_from(v, &asked.view, &asked.view_width)) view_asked = true, i++;
+        else if (!strcmp(a, "--view") && v && view_from(v, &asked.view, &asked.view_width, &smaller)) view_asked = !smaller.width, i++;
         else if (!strcmp(a, "--mute")) mute = true;
         else if (!strcmp(a, "--help")) help = true;
         else if (!strcmp(a, "--shot-every") && v && count_from(v, &shot_every)) i++;
@@ -966,8 +975,10 @@ int main(int argc, char **argv)
     if (pixels_asked) present.pixels = asked.pixels;
     if (view_asked) present.view = asked.view, present.view_width = asked.view_width;
     view.width = (uint16_t)present_view_width(&present, VID_RENDER_HEIGHT, VID_ORIGINAL_VIEW_WIDTH, VID_MAX_VIEW_WIDTH);
+    if (smaller.width)
+        view = smaller;
 #ifdef CT_HAVE_SDL
-    const Display display = { view.width };
+    const Display display = { view.width, view.height };
 #endif
     if (!rom_path && !pack_path && config[0]) {
         size_t len;
@@ -1068,7 +1079,7 @@ int main(int argc, char **argv)
     }
     static uint32_t pixels[VID_RENDER_MAX_PIXELS];
     vid_host_set_view(&pf, view);
-    Picture picture = { vid_render_create(), pixels, view.width, 0, 0, 0 };
+    Picture picture = { vid_render_create(), pixels, view.width, view.height, 0, 0, 0 };
     if (!picture.renderer) {
         fprintf(stderr, "ct_native: out of memory\n");
         return 2;
@@ -1146,7 +1157,7 @@ int main(int argc, char **argv)
         free(shown);
     } else
 #endif
-    if (screenshot && ct_png_write(screenshot, picture.pixels, picture.width, VID_RENDER_HEIGHT)) driver.result = 2;
+    if (screenshot && ct_png_write(screenshot, picture.pixels, picture.width, picture.height)) driver.result = 2;
     if (save_state && !driver.result && !native_save_state(&driver, save_state)) driver.result = 2;
     native_flush(&driver);
     free(driver.track.pads);

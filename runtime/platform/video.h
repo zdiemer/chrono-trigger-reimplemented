@@ -205,6 +205,41 @@ static inline int16_t vid_view_left(VidView v) { return (int16_t)(((int)VID_ORIG
 static inline int16_t vid_view_right(VidView v) { return (int16_t)(vid_view_left(v) + (int)v.width); }
 static inline bool vid_view_is_wider(VidView v) { return v.width > VID_ORIGINAL_VIEW_WIDTH; }
 
+/* A smaller view: a handheld's screen, fewer dots across or lines down than
+ * the original's (the GBA's 240x160), down to VID_MIN_VIEW_WIDTH by
+ * VID_MIN_VIEW_HEIGHT. It shows part of the original's screen, which the game
+ * frames (vid_aim_the_view, vid_keep_a_panel_in_view, below): a camera on the
+ * picture, and panels -- a dialog, a battle's windows -- kept in view over
+ * it. Screen coordinates stay the original's. */
+enum { VID_MIN_VIEW_WIDTH = 160, VID_MIN_VIEW_HEIGHT = 144, VID_VIEW_PANELS = 2 };
+static inline bool vid_view_is_smaller(VidView v)
+{
+    return v.width < VID_ORIGINAL_VIEW_WIDTH || v.height < VID_ORIGINAL_VIEW_HEIGHT;
+}
+/* Where a smaller view's camera stands: the screen point at its top left,
+ * from 0,0 to the original's screen's far corner less the view. */
+typedef struct {
+    int16_t left, top;
+} VidAim;
+static inline VidAim vid_aim_held_to_the_screen(VidView v, VidAim a)
+{
+    int most_left = VID_ORIGINAL_VIEW_WIDTH - (int)v.width, most_top = VID_ORIGINAL_VIEW_HEIGHT - (int)v.height;
+    a.left = (int16_t)(a.left < 0 ? 0 : a.left > most_left ? most_left : a.left);
+    a.top = (int16_t)(a.top < 0 ? 0 : a.top > most_top ? most_top : a.top);
+    return a;
+}
+/* A band of the original's screen a smaller view keeps in view over its
+ * camera's picture: the screen's lines from `top`, `lines` of them, shown
+ * from the view's line `at`, with the screen X `left` at the view's left
+ * side. What the band holds -- every layer, sprite, window and colour of
+ * those lines -- is shown as the original's screen shows it. */
+typedef struct {
+    int16_t top;
+    uint16_t lines;
+    int16_t left;
+    int16_t at;
+} VidViewPanel;
+
 /* A panel laid out across a wider view: the menus', the battle window's and
  * the dialog's tilemaps are one screen across (32 columns), so on their own
  * they would repeat in the margins and keep the original's arrangement. A
@@ -497,6 +532,9 @@ typedef struct {
     VidSprite sprites[VID_SPRITES];
     uint8_t first_sprite;   /* OAM priority rotation */
     VidView view;           /* how much of the picture to draw (vid_view) */
+    VidAim aim;             /* a smaller view's camera (vid_aim_the_view) */
+    uint8_t panel_count;    /* and its panels (vid_keep_a_panel_in_view) */
+    VidViewPanel panels[VID_VIEW_PANELS];
     int16_t layer_left[4], layer_right[4];   /* the screen X each BG holds the picture across (vid_show_a_layer_across) */
     int16_t back_left, back_right;           /* and the backdrop: black past it */
     uint8_t layout_count;   /* the panels laid out across the view (vid_lay_out_a_map_across) */
@@ -681,6 +719,16 @@ PF_API bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line,
  * them shows them every frame; past VID_MARGIN_SPRITES, and on the
  * original's view, they are left out. */
 PF_API void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture);
+/* A smaller view's camera (VidAim, above): it stays where it was last aimed,
+ * held to the original's screen, and starts in the screen's middle. What a
+ * mode reads back of it is for its own framing: nothing the game decides
+ * reads it. On the original's view or a wider one it does nothing. */
+PF_API void vid_aim_the_view(Platform *pf, VidAim aim);
+PF_API VidAim vid_view_aim(const Platform *pf);
+/* A panel kept in a smaller view this frame (VidViewPanel, above), over the
+ * camera's picture; each frame starts with none, and past VID_VIEW_PANELS
+ * they are left out. */
+PF_API void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);
@@ -880,6 +928,7 @@ void vid_obs_upload_palette(VidObserver *ob, uint8_t first, PfData src, uint16_t
 void vid_obs_upload_oam(VidObserver *ob, PfData oam, const VidSpritePlace *places);
 void vid_obs_view(VidObserver *ob, VidView view, const int16_t layer_left[4], const int16_t layer_right[4],
                   int16_t back_left, int16_t back_right, const VidMarginEntry *margin, uint16_t margin_count);
+void vid_obs_framing(VidObserver *ob, VidAim aim, uint8_t panel_count, const VidViewPanel *panels);
 void vid_obs_layouts(VidObserver *ob, uint8_t count, const uint16_t map[VID_MAP_LAYOUTS], const VidMapLayout *layouts,
                      const VidWindowParting *parting);
 void vid_obs_fill_oam(VidObserver *ob, uint16_t word_addr, uint8_t value, uint32_t len);

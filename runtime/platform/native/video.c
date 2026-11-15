@@ -47,6 +47,7 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_frame_start(ob);
     vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->back_left, v->back_right, v->margin,
                  v->margin_count);
+    vid_obs_framing(ob, v->aim, v->panel_count, v->panels);
     vid_obs_layouts(ob, v->layout_count, v->layout_map, v->layouts, v->parted ? &v->parting : NULL);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
@@ -82,6 +83,7 @@ void vid_host_frame_begins(Platform *pf)
     v->layout_count = 0;
     v->parted = false;
     v->margin_count = 0;
+    v->panel_count = 0;
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -89,12 +91,38 @@ static VidObserver *ob(Platform *pf) { return pf->video.observer; }
 /* ---- The view ------------------------------------------------------------------------------ */
 
 /* A view the renderer draws: the original's height, and from its width up to
- * the widest; anything else leaves the original's. */
+ * the widest; or a smaller one, no wider or taller than the original's
+ * screen; anything else leaves the original's. A smaller view's camera starts
+ * in the screen's middle. */
 void vid_host_set_view(Platform *pf, VidView view)
 {
-    bool drawn = view.height == VID_ORIGINAL_VIEW_HEIGHT && view.width >= VID_ORIGINAL_VIEW_WIDTH &&
+    bool wider = view.height == VID_ORIGINAL_VIEW_HEIGHT && view.width >= VID_ORIGINAL_VIEW_WIDTH &&
                  view.width <= VID_MAX_VIEW_WIDTH;
-    pf->video.view = drawn ? view : (VidView){ 0, 0 };
+    bool smaller = view.width >= VID_MIN_VIEW_WIDTH && view.width <= VID_ORIGINAL_VIEW_WIDTH &&
+                   view.height >= VID_MIN_VIEW_HEIGHT && view.height <= VID_ORIGINAL_VIEW_HEIGHT;
+    pf->video.view = wider || smaller ? view : (VidView){ 0, 0 };
+    pf->video.aim = (VidAim){ (int16_t)((VID_ORIGINAL_VIEW_WIDTH - view.width) / 2),
+                              (int16_t)((VID_ORIGINAL_VIEW_HEIGHT - view.height) / 2) };
+    if (!smaller)
+        pf->video.aim = (VidAim){ 0, 0 };
+}
+
+void vid_aim_the_view(Platform *pf, VidAim aim)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_smaller(view))
+        return;
+    pf->video.aim = vid_aim_held_to_the_screen(view, aim);
+}
+
+VidAim vid_view_aim(const Platform *pf) { return pf->video.aim; }
+
+void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel)
+{
+    VidHost *v = &pf->video;
+    if (!vid_view_is_smaller(vid_view(pf)) || v->panel_count >= VID_VIEW_PANELS)
+        return;
+    v->panels[v->panel_count++] = *panel;
 }
 
 void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right)

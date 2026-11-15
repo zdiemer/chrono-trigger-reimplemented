@@ -8,12 +8,13 @@
 #include "presentation.h"
 #include <stdio.h>
 
-/* The picture's width in pixels (0: the original's 256; a wider view is the
- * driver's choice). Which of its rows show, and the shape of its pixels, are
- * the presentation's (PresentSettings.pixels). Geometry belongs to the window
- * driver. */
+/* The picture's width and height in pixels (0: the original's 256 and 224; a
+ * wider or a smaller view is the driver's choice). Which of its rows show,
+ * and the shape of its pixels, are the presentation's
+ * (PresentSettings.pixels), but for a smaller view's, which are a handheld's
+ * screen's: square, every row. Geometry belongs to the window driver. */
 typedef struct {
-    int width;
+    int width, height;
 } Display;
 
 /* `present` is how the picture is shown (frontend/presentation.h); the
@@ -46,7 +47,7 @@ typedef struct {
 int window_run(const WindowClient *client, WindowOptions *options);
 void window_print_controls(FILE *out);
 
-/* The picture `pixels` (VID_RENDER_HEIGHT rows of the display's width) as the
+/* The picture `pixels` (the display's height in rows of its width) as the
  * window would show it on an output of out_w x out_h under `present`, drawn
  * by SDL's software renderer into out (out_w * out_h pixels, 0x00RRGGBB):
  * for looking at a presentation without a window. Returns 0, or -1 after

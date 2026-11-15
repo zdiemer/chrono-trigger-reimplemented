@@ -19,6 +19,7 @@
  *
  * Everything goes through the video service's sends. */
 #include "charge.h"
+#include "battle/camera.h"
 #include "battle/frame.h"
 
 #include "battle/battle.h"
@@ -304,6 +305,7 @@ void battle_send_vblank_uploads(GameState *g, Platform *pf)
         send_described_transfer(g, pf);
     send_window_frames(g, pf);
     battle_lay_out_the_window_across(g, pf);
+    battle_frame_the_view(g, pf);
     vid_send_palette(pf, PF_AT(0xCFE3C5), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
     send_next_queued_upload(g, pf);
     send_built_graphics(g, pf);
