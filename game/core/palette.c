@@ -475,9 +475,9 @@ static bool every_slot_fits(const GameState *g)
  * the animation work. A zero count would overrun the palette. */
 bool palette_animated(GameState *g)
 {
-    vars_peek(true);
+    vars_peek(g, true);
     bool fits = every_slot_fits(g);
-    vars_peek(false);
+    vars_peek(g, false);
     if (!fits) {
         program_breaks_a_contract(g, 0xFDE39C, "palette animations in slots the game never makes");
         return false;

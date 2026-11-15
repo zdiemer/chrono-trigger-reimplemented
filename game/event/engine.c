@@ -505,9 +505,9 @@ static EventTurnEnd run_opening(GameState *g, Platform *pf, FieldObject object, 
  * in forgotten, the object at the least urgent level. */
 EventTurnEnd event_restart_the_running_object(GameState *g, Platform *pf, uint16_t *stopped_at)
 {
-    vars_peek(true);
+    vars_peek(g, true);
     bool valid = object_current_is_one(g);
-    vars_peek(false);
+    vars_peek(g, false);
     if (!valid) {
         *stopped_at = 0;
         return broken_turn(g, TURN_NOT_OURS_BEFORE);
@@ -598,9 +598,9 @@ static bool run_command(GameState *g, Platform *pf, uint16_t at, EventStep *step
     UndecodedCommand undecoded = undecoded_command_for(opcode);
     /* whether the port runs it is the program's question, not the game's
      * work: it takes none of the original's time (port/vars_ram.h) */
-    vars_peek(true);
+    vars_peek(g, true);
     bool runs_here = row && event_runs_here(g, row, at);
-    vars_peek(false);
+    vars_peek(g, false);
     if (row && !row->run && undecoded && runs_here) {
         bool goes_on = false;
         TIMED_AS(g, handler, goes_on = undecoded(g, pf, at, step));

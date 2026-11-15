@@ -7,9 +7,21 @@
 #include <stdint.h>
 #include "state.h"
 
-/* Validation can inspect state and resources without charging work. */
-void vars_peek(bool on);
+/* Validation can inspect state and resources without charging work: from
+ * vars_peek(g, true) to vars_peek(g, false), a guard's look, the game's
+ * accesses take none of its time (an uncounted stretch, state_host.c). Looks
+ * nest. */
+void vars_peek(const GameState *g, bool on);
+#ifdef CT_LEAN
+/* The lean build's looks are all the game's own, whose time the account
+ * drops, so no access asks whether one is open. */
+static inline bool vars_peeking(void) { return false; }
+#else
+/* Whether a look is open, which the accessors and cartridge reads ask:
+ * PORT_CHECK's, which has no state to hand, or the game's own. */
 bool vars_peeking(void);
+void vars_peek_flag(bool on);
+#endif
 
 /* A check of the port's own -- whether it handles what it meets -- read as a
  * guard's look: the check's value, and none of the game's time. The check is
