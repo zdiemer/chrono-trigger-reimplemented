@@ -136,17 +136,42 @@ static bool names_what_it_says(const GameState *g, const EventOpcode *row, const
     }
 }
 
+/* How the row decodes parameter `p`. */
+static const EventArg *row_arg(const EventOpcode *row, uint8_t p)
+{
+    switch (p) {
+#define ROW_ARG(type, name) case EVENT_PARAMETER_##name: return &row->name;
+    EVENT_PARAMETERS(ROW_ARG)
+#undef ROW_ARG
+    default: return NULL;
+    }
+}
+
+/* The parameters the row names (the rest read nothing), as a run of the
+ * named list: the one walk both the check and the decoding take. */
+typedef struct {
+    const uint8_t *first, *end;
+} NamedParameters;
+
+static NamedParameters named_parameters(const EventOpcode *row)
+{
+    return (NamedParameters){ &event_named_parameters[event_named_from[row->opcode]],
+                              &event_named_parameters[event_named_from[row->opcode + 1]] };
+}
+
 bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 {
     if (!object_current_is_one(g) || at > EVENT_SCRIPT_BYTES - bytes_read(row))
         return false;
-    /* A row names a handful of the language's parameters; the rest read nothing. */
-#define CHECK_PARAMETER(type, name)                                                  \
+    NamedParameters named = named_parameters(row);
+    for (const uint8_t *p = named.first; p != named.end; p++)
+        if (!names_what_it_says(g, row, row_arg(row, *p), at))
+            return false;
+#define CHECK_RECORD(type, name)                                                     \
     if (row->name.kind != ARG_NONE && !names_what_it_says(g, row, &row->name, at)) \
         return false;
-    EVENT_PARAMETERS(CHECK_PARAMETER)
-    EVENT_RECORD_PARAMETERS(CHECK_PARAMETER)
-#undef CHECK_PARAMETER
+    EVENT_RECORD_PARAMETERS(CHECK_RECORD)
+#undef CHECK_RECORD
     if (!row->accepts)
         return true;
     EventCommand command = event_decode(g, NULL, row, at);
@@ -324,17 +349,27 @@ static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg,
     return e;
 }
 
-EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
+static void decode_into(EventCommand *c, const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
-    EventCommand c = { .self = object_current(g), .at = at, .platform = pf };
+    *c = (EventCommand){ .self = object_current(g), .at = at, .platform = pf };
+    NamedParameters named = named_parameters(row);
+    for (const uint8_t *p = named.first; p != named.end; p++)
+        switch (*p) {
 #define DECODE_PARAMETER(type, name) \
-    if (row->name.kind != ARG_NONE)  \
-        c.name = (type)decode(g, &row->name, at);
-    EVENT_PARAMETERS(DECODE_PARAMETER)
+        case EVENT_PARAMETER_##name: c->name = (type)decode(g, &row->name, at); break;
+        EVENT_PARAMETERS(DECODE_PARAMETER)
 #undef DECODE_PARAMETER
-#define DECODE_RECORD(type, name) c.name = decode_##type(g, &row->name, at);
+        default: break;
+        }
+#define DECODE_RECORD(type, name) c->name = decode_##type(g, &row->name, at);
     EVENT_RECORD_PARAMETERS(DECODE_RECORD)
 #undef DECODE_RECORD
+}
+
+EventCommand event_decode(const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
+{
+    EventCommand c;
+    decode_into(&c, g, pf, row, at);
     return c;
 }
 
@@ -366,7 +401,8 @@ static uint8_t operand_copy_work(uint8_t opcode)
 
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
-    EventCommand c = event_decode(g, pf, row, at);
+    EventCommand c;
+    decode_into(&c, g, pf, row, at);
     charge_accesses(g, operand_copy_work(row->opcode));
     EventFlow flow = row->run(g, &c);
     if (flow.kind == FLOW_JUMP)

@@ -1080,7 +1080,20 @@ parameters. A row names a handful of them; the others are `ARG_NONE`, which
 read nothing and decode to 0. The decoders and the event engine's own check
 (`event_runs_here`) now pass those over instead of running each through its
 switch. Sampled, the interpreters' functions fall from 11-12% of the field's
-game frame to 4-5%, and from 14-15% of the menus' to 5-6%.
+game frame to 4-5%, and from 14-15% of the menus' to 5-6%. Passing them over
+still looked at each of the 110 and 55 in turn, twice a command in the event
+engine; now each opcode's row has the list of the parameters it names, in
+the language's order (`event_named_parameters`, `menu_named_parameters`, in
+game/event/ and game/menu/ `named_parameters.c`), and the check and the
+decoding walk only those. The lists are written from the rows by
+`tests/port/named_parameters_test --write .`, and the test, run with the
+others, fails where the built lists aren't what the rows name. In mGBA the
+game's frame falls from 0.98, 1.34 and 1.43 GBA frames to 0.90, 1.21 and
+1.36 (`new-game`, `gato-battle`, `events-jetbike-race`; `title-start` stays
+0.78), and the frame in all from 2.05, 2.90 and 3.27 to 1.96, 2.76 and 3.21
+(1.64 for `title-start` either way). The battle's two languages decode every
+parameter by its row with no switch to pass over and are a tenth of a
+percent of the samples; they are left as they are.
 
 The cartridge's reads find their resource among those read lately: the last
 resource found in each 4 KiB of the cartridge (`asset_containing`), and the

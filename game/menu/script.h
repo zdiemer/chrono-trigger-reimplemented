@@ -128,6 +128,22 @@ bool menu_script_call_routine(GameState *g, Platform *pf, uint32_t routine, bool
  * register of the picture's, as the command's handler sets it. */
 void menu_script_set_console_byte(GameState *g, Platform *pf, uint8_t opcode, uint16_t at, uint8_t v);
 
+/* Each of the language's parameters by its place in SCRIPT_PARAMETERS. */
+typedef enum {
+#define SCRIPT_PARAMETER_NUMBER(type, name) MENU_PARAMETER_##name,
+    SCRIPT_PARAMETERS(SCRIPT_PARAMETER_NUMBER)
+#undef SCRIPT_PARAMETER_NUMBER
+    MENU_PARAMETER_COUNT
+} MenuScriptParameter;
+
+/* The parameters each opcode's row names, in the language's order: opcode
+ * n's are menu_named_parameters[menu_named_from[n]] up to
+ * menu_named_from[n + 1], the only ones the decoding walks
+ * (menu/named_parameters.c, written from the rows by
+ * tests/port/named_parameters_test). */
+extern const uint8_t menu_named_parameters[];
+extern const uint16_t menu_named_from[256 + 1];
+
 /* A command, decoded by its row: the object whose script is running, where
  * the command is and its opcode, the platform the services reach, and every
  * parameter of the language, of which an operation takes the ones it names. */
