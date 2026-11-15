@@ -2136,6 +2136,24 @@ static uint8_t over_squares(Squares squares, const Shown *sp, bool mark)
     return over;
 }
 
+/* The band showing each SNES line a sprite's top or foot may be on (its
+ * top is 0-255, its foot up to 63 below), as band_showing finds it: its
+ * index plus one, or 0 where none. Made for each frame's sprites, which
+ * would otherwise look through the bands twice a sprite. */
+enum { SPRITE_ROWS = 256 + 64 };
+static uint8_t band_of_row[SPRITE_ROWS];
+
+static void note_band_rows(void)
+{
+    memset(band_of_row, 0, sizeof band_of_row);
+    for (unsigned k = band_count; k-- > 0;) {
+        const Band *b = &bands[k];
+        for (int row = b->row; !b->black && row < b->row + b->rows; row++)
+            if (row >= 0 && row < SPRITE_ROWS)
+                band_of_row[row] = (uint8_t)(k + 1);
+    }
+}
+
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
  * panel shows none. */
 static void present_sprites(void)
@@ -2145,24 +2163,35 @@ static void present_sprites(void)
     unsigned count = 0;
     memset(squares, 0, sizeof squares);
     sprites_mask = false;
+    note_band_rows();
+    /* the size setting's small and large sprites, as the GBA has them */
+    struct {
+        uint8_t w, h;
+        bool fits;
+        uint16_t shape, size;
+    } sized[2];
+    for (unsigned large = 0; large < 2; large++) {
+        sized[large].w = sprite_sizes[snes.obj.size_select & 7][large][0];
+        sized[large].h = sprite_sizes[snes.obj.size_select & 7][large][1];
+        sized[large].fits = gba_size(sized[large].w, sized[large].h, &sized[large].shape, &sized[large].size);
+    }
     for (unsigned n = SPRITES; n-- > 0;) {
         const uint8_t *e = &snes.oam[n * 4];
         uint8_t high = (uint8_t)(snes.oam[0x200 + n / 4] >> (2 * (n % 4)));
         int x = e[0] | (high & 1) << 8;
         if (x >= 256)
             x -= 512;
-        unsigned w = sprite_sizes[snes.obj.size_select & 7][(high >> 1) & 1][0];
-        unsigned h = sprite_sizes[snes.obj.size_select & 7][(high >> 1) & 1][1];
-        uint16_t shape, size;
+        unsigned large = (high >> 1) & 1;
+        unsigned w = sized[large].w, h = sized[large].h;
+        uint16_t shape = sized[large].shape, size = sized[large].size;
         volatile uint16_t *to = &OAM[n * 4];
         int top = (e[1] + 1) & 0xFF;
-        const Band *b = band_showing(top);
-        if (!b)
-            b = band_showing(top + (int)h - 1);
-        if (b && b->drawn)
-            b = NULL;
+        unsigned k = band_of_row[top];
+        if (!k)
+            k = band_of_row[top + (int)h - 1];
+        const Band *b = k && !bands[k - 1].drawn ? &bands[k - 1] : NULL;
         int gx = b ? band_x(b, x) : GBA_VIEW_WIDTH, gy = b ? ((e[1] - b->row + b->at) & 0xFF) : 0;
-        if (!b || !gba_size(w, h, &shape, &size) || gx <= -(int)w || gx >= GBA_VIEW_WIDTH) {
+        if (!b || !sized[large].fits || gx <= -(int)w || gx >= GBA_VIEW_WIDTH) {
             to[0] = 0x0200;   /* hidden */
             continue;
         }
