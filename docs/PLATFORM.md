@@ -1244,6 +1244,41 @@ mode 0's four tiled layers and its sprites:
   GBA's sprite VRAM (its two-dimensional layout, 32 tiles a row, so that a
   sprite's rows are 16 names apart on both), and the sprite table converted
   in a frame it changed (sizes, flips, palette, position).
+- **Priority**: each SNES tile stands in front of or behind the sprites by
+  its map entry's priority bit, where a GBA layer has one priority. A layer
+  whose map has tiles of both is split across two GBA layers, as many as
+  the four leave spare (mode 1's three layers leave one, mode 2's two leave
+  two): its map is converted twice, at the SNES's place with the tiles in
+  front left blank and into room the GBA has spare with the others blank,
+  each unit of 32 bytes as the game changes it, both halves at the
+  priorities that put them among the sprites as the mode does (per mode, a
+  table of each layer's halves and each sprite priority). The GBA's layers
+  are numbered front to back, since between two of one priority the GBA
+  shows the lower-numbered in front, and each line's registers are worked
+  out for them. Which units of each layer's map have tiles in front and
+  which have tiles behind is kept as they are converted; the first layer is
+  split before the second (the second's tiles in front alone would cover
+  the first's: the Fair's stalls hide their wares), the second before the
+  third (mode 1's third is the text and the panels), and those with more of
+  each before those with fewer. A split layer stays split while it still
+  has both, since splitting is a layout's work; one not split stands where
+  most of its tiles do, mode 1's third in front where the mode puts it in
+  front and it has any tiles there. A line effect's map on a split layer
+  has its copy of the tiles in front only where it has some (the next
+  layout gives it one when it gains them), and one that is another layer's
+  own map, its tiles from the same cache (the field's second layer shows
+  the first's), is shown from that layer's copy rather than a copy of its
+  own, which leaves the caches the room a split takes. A map a band shows
+  cut isn't split: all of it stands where its layer would not split (the
+  battle's windows' text in front).
+- **Sprite masks**: where sprites overlap, the SNES shows the one first in
+  its table and then sets that one's priority against the layers', where
+  the GBA shows the one of the higher priority. The game masks with that:
+  Crono's covers in his bed are sprites of the lowest priority before his,
+  which hide him and are hidden by the bed. A sprite with one of a higher
+  priority after it in the table overlapping it is the GBA's sprite window
+  instead, inside which a line shows no sprites; the overlaps are looked
+  for only where a 32-dot square of the screen has a sprite in front of it.
 - **Line by line**: the line effects' tables (HDMA) are read down the frame
   as the observer reads them (32 bytes at a time, a transfer's bytes at once
   where they lie in one 32, passing over a slot's lines between its
@@ -1321,9 +1356,14 @@ mode 0's four tiled layers and its sprites:
 
 Approximated, or not shown yet (each a follow-up of issue #367):
 
-- The SNES's per-tile priority: each layer takes one GBA priority (BG3 in
-  front where the mode puts it there, then BG1, BG2), and the sprites' four
-  map around them.
+- Per-tile priority where more layers have tiles of both priorities than
+  the GBA has layers to spare: the field, with three layers that have them,
+  splits one, and mode 0 none. Mode 1's third layer in front, where the mode
+  puts it in front of every sprite, is in front of every layer but the
+  sprites of the lowest priority show in front of its tiles behind too. A
+  split takes its copies' room from the tile caches.
+- A sprite mask hides every sprite inside it, not only those after it in
+  the table, and doesn't show itself where no layer covers it.
 - Colour math: the fixed colour added to or subtracted from the backdrop is
   kept, and the sub screen added to the main screen is the GBA's blending at
   full weight where the sub screen's layers are on the main screen too;
@@ -1407,14 +1447,14 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | What | On the GBA |
 |---|---|
 | The outcome, driven by `mgba_run` | `title-start` (1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`), `new-game` (7,200, 244, `9126C7F9`), `gato-battle` (21,600, `A2944878`) and `events-jetbike-race` (9,400, `68804B38`, its track read back from VRAM) and `menus-save-point` (end state `497AE9A0`, which saves the game: the SRAM afterwards `DE9ED421`): each the same as ct_native's |
-| Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above; the 240x160 view's dialog at the top and foot (a page set again included: `new-game` frames 6000 and 6500, `gato-battle` 9400 and 19000) and the battle window with its two columns cut (`gato-battle` 19400) as `ct_native --view 240x160` shows them |
+| Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above; the 240x160 view's dialog at the top and foot (a page set again included: `new-game` frames 6000 and 6500, `gato-battle` 9400 and 19000) and the battle window with its two columns cut (`gato-battle` 19400) as `ct_native --view 240x160` shows them; per-tile priority and the sprite masks: Crono under his covers (`new-game` 5900), the naming screen's instructions in front of the alphabet (2500), the Fair's stalls with their wares (`gato-battle` 12400 and 14800) and the battle (20000 and 20800) as `ct_native --view 240x160` shows them, but for the colour math |
 | Cartridge | the program 1.77 MiB (code 1.14, constants 0.63), the pack 3.73 MiB |
-| Work RAM (EWRAM, 256 KiB) | 224.2 KiB used, 31.8 KiB free (GCC 13.3; the link fails with under 28 KiB free). By owner: the game's work RAM 108 KiB (`$7E:0000`-`$7F:AFFF`; the rest is in the SRAM, below); the picture 81.5 KiB (the SNES's video memory 65.6 KiB, the line registers 5.6 KiB, the tile caches 6 KiB, its line and band state 1.5 KiB, `services/video.c`); GameState 12.9 KiB (work RAM's page table 128 bytes, the menus' panels 5.8 KiB, the panels' layout 4 KiB, the past sprites and objects 2 KiB; save RAM is the SRAM's); the sound 15.6 KiB (the driver about 13.6 KiB, `frontend/sound_native.c`; the ring 1 KiB, `services/direct_sound.c`; the mixer under 1 KiB); the game's own tables 4 KiB (the interpreters' opcode tables 2 KiB, the time model's recent rows 2 KiB); the driver 2.2 KiB (its report's histograms 1.6 KiB, the drive box 0.5 KiB); the C library 3.3 KiB (its state, stdio, and the heap's first take). Before (2026-11-14): 247.5 KiB, 0.2 KiB free, with work RAM's two banks 128 KiB and save RAM 8 KiB in GameState, and the drive box 4.3 KiB |
+| Work RAM (EWRAM, 256 KiB) | about 225.5 KiB used, 30.5 KiB free with the split layers' 1.3 KiB (GCC 13.3; the link fails with under 28 KiB free). By owner: the game's work RAM 108 KiB (`$7E:0000`-`$7F:AFFF`; the rest is in the SRAM, below); the picture 82.8 KiB (the SNES's video memory 65.6 KiB, the line registers 7.5 KiB, with the GBA's fourth layer's since per-tile priority, 1.3 KiB more in all, the tile caches 6 KiB, its line and band state 1.5 KiB, `services/video.c`); GameState 12.9 KiB (work RAM's page table 128 bytes, the menus' panels 5.8 KiB, the panels' layout 4 KiB, the past sprites and objects 2 KiB; save RAM is the SRAM's); the sound 15.6 KiB (the driver about 13.6 KiB, `frontend/sound_native.c`; the ring 1 KiB, `services/direct_sound.c`; the mixer under 1 KiB); the game's own tables 4 KiB (the interpreters' opcode tables 2 KiB, the time model's recent rows 2 KiB); the driver 2.2 KiB (its report's histograms 1.6 KiB, the drive box 0.5 KiB); the C library 3.3 KiB (its state, stdio, and the heap's first take). Before (2026-11-14): 247.5 KiB, 0.2 KiB free, with work RAM's two banks 128 KiB and save RAM 8 KiB in GameState, and the drive box 4.3 KiB |
 | Work RAM's top in the SRAM | `$7F:B000`-`$7F:FFFF`, 20 KiB, after the save and its mark (`VARS_FLAT_COLD_FROM`, `services/cartridge_save.c`), at the SRAM's 4 waits (5 cycles a byte; EWRAM's are 3), which the start now sets in place of the 8 a cartridge's flash chip would need (an SRAM takes 4, the GBA's own from its start): of the game's reads and writes of work RAM, none in `title-start` and `menus-save-point`, 0.3% in `new-game`, 0.4% in `gato-battle`, 0.2% in `events-jetbike-race` (counted a 4 KiB page at a time); the movies take 0.1-1.0% more GBA frames than before (`title-start` 2,828 against 2,799, `new-game` 13,337 against 13,304, `gato-battle` 52,417 against 52,346, `events-jetbike-race` 28,331 against 28,222). No value read or written in place runs across `$7F:B000` (`VARS_FLAT_CROSSED_STEPS`, which an assert checks) |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 15.3 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 1,792, which were 2,048 before the view's memory; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the view's framing, bands and drawn panel 0.3 KiB and its memory 0.6 KiB, the driver's stack the 7.4 KiB above them, a canary at its end checked each frame (deepest use 2,200 bytes, the dialog's panel drawn on it); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps, tile caches and, while a dialog is drawn, its panel's room of 12-23 KiB), sprites 16 KiB of 32 |
 | The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.26 and 0.75, `new-game` 0.24 and 0.5, `gato-battle` 0.26 and 0.5, `events-jetbike-race` 0.27 and 0.75; of it the mixing 0.15, 0.13, 0.15 and 0.15 (the heaviest 0.30-0.36), so the driver and its passes about 0.1. Before a quiet stretch of the driver's time passed at once: 0.35, 0.34, 0.36 and 0.36, the driver and its passes 0.2 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 0.78 and 1.0, sound 0.26 and 0.75, picture 0.12 and 1.25, in all 1.48; `new-game`: game 0.95 and 3.0, picture 0.26 and 1.25, in all 1.81; `gato-battle`: game 1.28 and 3.25, picture 0.54 and 2.75, in all 2.39; `events-jetbike-race`: game 1.41 and 3.75, picture 0.98 and 2.75, in all 2.97 ("in all" counts the vertical blanks waited for). The dialog's panel costs the game's column 0.04-0.07 (outside the game's time); the bands worked out a run of lines at a time give the picture back more than the panel and the cut take. Before the drawn panel and the cut: game 0.78, 0.90, 1.21 and 1.37, picture 0.21, 0.38, 0.64 and 1.07, in all 1.56, 1.85, 2.42 and 3.00; before a frame's lines were visited only where something happens (above), with the 240x160 view's camera and bands: picture 0.27, 0.53, 1.01 and 1.27, in all 1.64, 2.05, 2.90 and 3.27; before the camera and bands, picture 0.16, 0.35, 0.77 and 1.04, in all 1.49, 1.90, 2.66 and 3.02. Before the sound driver's quiet stretches passed at once: in all 1.61, 1.98, 2.75 and 3.13. Before reads by address reached work RAM in place (below): game 1.01, 1.13, 1.50 and 1.71, in all 1.80, 2.11, 2.91 and 3.40. Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 0.78 and 1.0, sound 0.26 and 0.75, picture 0.12 and 1.25, in all 1.48; `new-game`: game 0.95 and 3.0, picture 0.26 and 1.25, in all 1.81; `gato-battle`: game 1.28 and 3.25, picture 0.54 and 2.75, in all 2.39; `events-jetbike-race`: game 1.41 and 3.75, picture 0.98 and 2.75, in all 2.97 ("in all" counts the vertical blanks waited for). Per-tile priority and the sprite masks cost 64, 178, 675 and 612 GBA frames over the four movies (2,737 against 2,673, 13,198 against 13,020, 52,201 against 51,526, 28,582 against 27,970: 1.3-2.4%), most of it the lines' registers for four layers rather than three and the layouts a split asks for. The dialog's panel costs the game's column 0.04-0.07 (outside the game's time); the bands worked out a run of lines at a time give the picture back more than the panel and the cut take. Before the drawn panel and the cut: game 0.78, 0.90, 1.21 and 1.37, picture 0.21, 0.38, 0.64 and 1.07, in all 1.56, 1.85, 2.42 and 3.00; before a frame's lines were visited only where something happens (above), with the 240x160 view's camera and bands: picture 0.27, 0.53, 1.01 and 1.27, in all 1.64, 2.05, 2.90 and 3.27; before the camera and bands, picture 0.16, 0.35, 0.77 and 1.04, in all 1.49, 1.90, 2.66 and 3.02. Before the sound driver's quiet stretches passed at once: in all 1.61, 1.98, 2.75 and 3.13. Before reads by address reached work RAM in place (below): game 1.01, 1.13, 1.50 and 1.71, in all 1.80, 2.11, 2.91 and 3.40. Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
 Without the native mixer the game's own frame is most of the cost: 0.8-1.4
 GBA frames, from 7-13 before the flat accessors read in place, the sends
