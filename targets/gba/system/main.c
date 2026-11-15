@@ -10,7 +10,8 @@
  * save RAM (as ct_native --end-state writes them) and of save RAM alone, each
  * part's work a frame, and the memory it used. A frame of the game takes as
  * long as its work, which is what the run measures, and its picture is made
- * in the next vertical blank. */
+ * in the next vertical blank, or left out where the frame ran late
+ * (Pictures, below). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -175,11 +176,37 @@ static void count_mixing(Mixing *m, uint32_t cycles)
         m->most = cycles;
 }
 
+/* A frame's picture is due at the vertical blank a GBA frame after the last
+ * picture's. A frame whose game and sound end past it has its picture left
+ * out, and the next frame starts at once, so the game catches up on the
+ * GBA's time; never two in a row, so the picture is never more than a frame
+ * behind the game. What the game does doesn't depend on its picture: the
+ * picture is made from the video memory the game's frames leave, and a
+ * picture left out leaves its changes to the next. */
+typedef struct {
+    uint32_t due;           /* cycles_now() at the vertical blank the next picture is due at */
+    bool left_out;          /* the last frame's picture */
+    uint32_t pictures_left_out;
+} Pictures;
+
+static bool picture_left_out(Pictures *p, uint32_t now)
+{
+    p->left_out = !p->left_out && (int32_t)(now - p->due) > 0;
+    if (p->left_out) {
+        p->pictures_left_out++;
+        p->due += GBA_FRAME_CYCLES;
+    }
+    return p->left_out;
+}
+
+static void picture_shown(Pictures *p, uint32_t blank) { p->due = blank + GBA_FRAME_CYCLES; }
+
 /* What the report covers: the frames run and each part's cycles in them. */
 typedef struct {
     GameState *g;
     Platform *pf;
     uint32_t frames;
+    Pictures pictures;
     Cycles game, sounds, picture;
     Mixing mixing;
 } Run;
@@ -193,6 +220,8 @@ static void report(void *ctx)
         report_cycles(&run->game, run->frames);
         report_cycles(&run->sounds, run->frames);
         report_cycles(&run->picture, run->frames);
+        fprintf(stderr, "ct_gba: %u picture(s) left out, the game's frame running late\n",
+                (unsigned)run->pictures.pictures_left_out);
         char mean[16], most[16];
         gba_frames(mean, sizeof mean, run->mixing.total / run->frames);
         gba_frames(most, sizeof most, run->mixing.most);
@@ -256,6 +285,8 @@ int main(void)
     run.g = g, run.pf = &pf;
     static Keypad keypad;
     cycles_start();
+    gba_video_await_blank();
+    picture_shown(&run.pictures, cycles_now());
     for (;;) {
         uint32_t pads = driven ? drive_next_pads(g, report, &run) : keypad_buttons(&keypad, keypad_held());
         in_host_set(&pf, 0, (uint16_t)pads);
@@ -265,12 +296,17 @@ int main(void)
         uint32_t game_done = cycles_now();
         sound_native_frame(sound);
         uint32_t sound_done = cycles_now();
-        gba_video_await_blank();
-        uint32_t blank = cycles_now();
-        gba_video_present(&pf);
+        uint32_t picture = 0;
+        if (!picture_left_out(&run.pictures, sound_done)) {
+            gba_video_await_blank();
+            uint32_t blank = cycles_now();
+            picture_shown(&run.pictures, blank);
+            gba_video_present(&pf);
+            picture = cycles_now() - blank;
+        }
         count_cycles(&run.game, game_done - began);
         count_cycles(&run.sounds, sound_done - game_done);
-        count_cycles(&run.picture, cycles_now() - blank);
+        count_cycles(&run.picture, picture);
         count_mixing(&run.mixing, mixer_take_cycles());
         check_stacks();
         run.frames++;
