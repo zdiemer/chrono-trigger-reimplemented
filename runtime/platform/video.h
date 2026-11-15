@@ -249,13 +249,16 @@ typedef struct {
  * windows and colour math, spread over the panel's lines -- but draw the
  * layers in `layers` (VID_LAYER_BIT) from the panel's own memory as `bg`
  * places them, the scroll's 0,0 at the view's left on the panel's first
- * line; the screen's other layers and the sprites are left out. */
+ * line; the screen's other layers and the sprites are left out. The layers
+ * in `own_tiles` show tiles the panel sends (vid_send_panel_vram); a host
+ * that keeps no copy of the panel's memory may show their other tiles blank. */
 typedef struct {
     int16_t at;
     uint16_t lines;
     int16_t looks;
     uint16_t looks_lines;
     uint8_t layers;
+    uint8_t own_tiles;
     VidBg bg[4];
 } VidDrawnPanel;
 
@@ -750,16 +753,29 @@ PF_API VidAim vid_view_aim(const Platform *pf);
  * camera's picture; each frame starts with none, and past VID_VIEW_PANELS
  * they are left out. */
 PF_API void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel);
+/* Whether this view draws panels (a smaller view's, where the host can,
+ * which may change from frame to frame as it makes room for them); where it
+ * can't, a mode keeps a band of the screen's lines in view instead. */
+PF_API bool vid_view_draws_panels(const Platform *pf);
 /* A panel a smaller view draws (VidDrawnPanel, above) over the camera's
  * picture and the panels kept in view, this frame; one a frame. Its memory
- * is VRAM as the game's sends leave it, with what vid_send_panel_vram sent
- * this frame over it: the panel's own maps and tiles, which nothing else
- * shows and the game never reads back (vid_vram_word). */
-/* Whether this view draws them (a smaller view's, where the host can);
- * where it can't, a mode keeps a band of the screen's lines in view instead. */
-PF_API bool vid_view_draws_panels(const Platform *pf);
+ * is VRAM as the game's sends leave it, with what vid_send_panel_vram has
+ * sent over it: the panel's own maps and tiles, which nothing else shows
+ * and the game never reads back (vid_vram_word). What was sent stays from
+ * frame to frame until the host clears the view's memory (below), so a
+ * frame sends only what changed. A host may take the sends as they come, by
+ * the panel the frame stated, so a mode states the panel first, then sends
+ * its tiles (from its first since the view's memory was cleared, at most a
+ * 240x160 screen's 600 of them past it), then its maps. */
 PF_API void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel);
 PF_API void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len);
+/* The view's own memory, VID_VIEW_MEMORY bytes kept from frame to frame for
+ * a mode framing a smaller view: what it last sent a drawn panel, or what it
+ * last worked out of the screen. The host clears it (all zero) where a
+ * panel's memory may no longer hold what was sent, and the mode sends its
+ * panel afresh. Nothing the game decides reads it. */
+enum { VID_VIEW_MEMORY = 640 };
+PF_API uint8_t *vid_view_memory(Platform *pf);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);

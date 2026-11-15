@@ -55,7 +55,7 @@ platform services' backends. Nothing here is included from `game/`.
   - `interrupts.c`, `interrupts.h`: the one interrupt vector, each source to
     its own handler (the picture's lines, the sound's timer).
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, eight
-    slots in fast RAM (the game's main thread's 3 KiB, the tasks' 2 KiB), each
+    slots in fast RAM (the game's main thread's 3 KiB, the tasks' 1.75 KiB), each
     with a guard, and no snapshots.
 - `services/`: the platform services' backends, one per service.
   - `cartridge_save.c`, `cartridge_save.h`: the cartridge's SRAM. The

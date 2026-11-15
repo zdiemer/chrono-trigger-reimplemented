@@ -14,6 +14,8 @@
 #include "core/view_framing.h"
 #include "vars.h"
 
+#include <string.h>
+
 /* The window's lines on the screen, as its line tables lay it out: 48 lines
  * from line 160, above the screen's last 16. */
 enum { WINDOW_TOP = 160, WINDOW_LINES = 48 };
@@ -108,6 +110,44 @@ static int column_to_cut(const Platform *pf, uint16_t text_chars)
     return count ? found[count / 2] : -1;
 }
 
+/* The cut, kept in the view's memory (vid_view_memory) with the frames' rows
+ * it was found in: it is looked for again only where the frames changed (a
+ * window opened or shut) or text came into its columns, so it stays put
+ * while the window's text changes. */
+enum { CUT_KEPT = 0xC7 };
+typedef struct {
+    uint8_t kept;   /* CUT_KEPT where the rest holds */
+    int8_t cut;
+    uint32_t frames;
+} KeptCut;
+
+static uint32_t frames_seen(const Platform *pf)
+{
+    uint32_t h = 2166136261u;
+    for (unsigned row = FRAME_FIRST_ROW; row < FRAME_FIRST_ROW + FRAME_ROWS; row++) {
+        uint16_t entries[MAP_COLUMNS];
+        vid_read_vram(pf, (uint16_t)(WINDOW_MAP + row * MAP_COLUMNS), entries, MAP_COLUMNS);
+        for (unsigned column = 0; column < MAP_COLUMNS; column++)
+            h = (h ^ entries[column]) * 16777619u;
+    }
+    return h;
+}
+
+static int the_cut(Platform *pf, uint16_t text_chars)
+{
+    KeptCut kept;
+    memcpy(&kept, vid_view_memory(pf), sizeof kept);
+    uint32_t frames = frames_seen(pf);
+    bool holds = kept.kept == CUT_KEPT && kept.frames == frames;
+    for (int c = kept.cut; holds && kept.cut >= 0 && c < kept.cut + CUT_COLUMNS; c++)
+        holds = no_text(pf, text_chars, c);
+    if (!holds) {
+        kept = (KeptCut){ CUT_KEPT, (int8_t)column_to_cut(pf, text_chars), frames };
+        memcpy(vid_view_memory(pf), &kept, sizeof kept);
+    }
+    return kept.cut;
+}
+
 void battle_frame_the_view(GameState *g, Platform *pf)
 {
     VidView view = vid_view(pf);
@@ -118,7 +158,7 @@ void battle_frame_the_view(GameState *g, Platform *pf)
     VidBg text;
     int cut = -1, cut_dots = VID_ORIGINAL_VIEW_WIDTH - view.width;
     if (cut_dots == CUT_COLUMNS * COLUMN_DOTS && vid_layer_last_shown(pf, VID_BG3, WINDOW_TOP + 1, &text))
-        cut = column_to_cut(pf, text.char_base);
+        cut = the_cut(pf, text.char_base);
     if (cut >= 0)
         view_keep_lines_cut(pf, WINDOW_TOP, WINDOW_LINES, window_at, (int16_t)(cut * COLUMN_DOTS), (uint16_t)cut_dots);
     else
