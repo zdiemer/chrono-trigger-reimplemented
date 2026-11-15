@@ -117,6 +117,12 @@ typedef struct {
     VidAim aim;                  /* a smaller view's camera (vid_aim_the_view) */
     uint8_t panel_count;         /* vid_keep_a_panel_in_view's this frame */
     VidViewPanel panels[VID_VIEW_PANELS];
+    bool drawn;                  /* vid_draw_a_panel_in_view's this frame */
+    VidDrawnPanel drawn_panel;
+    bool drawn_sends;            /* vid_send_panel_vram sent this frame: its bytes, and which 32 they fill */
+    uint8_t drawn_sent[0x10000];
+    uint8_t drawn_marks[0x10000 / 32];
+    uint8_t drawn_vram[0x10000]; /* the drawn panel's memory, made as the picture is */
 #endif
 } VidHost;
 

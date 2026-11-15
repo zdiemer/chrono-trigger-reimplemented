@@ -335,6 +335,13 @@ VidAim vid_view_aim(const Platform *pf)
 
 void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel) { (void)pf, (void)panel; }
 
+void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel) { (void)pf, (void)panel; }
+
+void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len)
+{
+    (void)pf, (void)vram_addr, (void)src, (void)len;
+}
+
 void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture)
 {
     (void)pf, (void)s, (void)picture;

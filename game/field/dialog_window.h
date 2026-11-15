@@ -32,6 +32,11 @@ typedef enum {
 /* How far the window opens: the lines either side of its middle (dialog_window_state). */
 enum { DIALOG_WINDOW_FULL = 0x28 };
 
+/* The window's maps in VRAM (below, "The window's looks"): the text area's,
+ * eight rows of 32 naming the page's tiles, a line of text two rows, and the
+ * frame's, ten rows of 32; the page's lines of text. */
+enum { DIALOG_TEXT_AREA_MAP = 0x1C00, DIALOG_FRAME_MAP = 0x1D00, DIALOG_FRAME_ROWS = 10, DIALOG_TEXT_LINES = 4 };
+
 /* A dialog starts, for a script or for the field's own message (the window
  * opens, clears its text and sets the line). */
 void dialog_begin(GameState *g);

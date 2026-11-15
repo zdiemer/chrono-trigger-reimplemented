@@ -14,6 +14,8 @@
  * The data a call names is the game's, read through the reader the driver
  * gives (vid_host_start). A host makes every send at once: it has no picture
  * being drawn to wait for. */
+#include <string.h>
+
 #include <stdlib.h>
 
 #include "platform/native/host.h"
@@ -38,6 +40,19 @@ void vid_host_stop(Platform *pf)
  * Display and effect-enable changes retain their explicit raster boundaries.
  * Moving uploads below the line handler changes recorded native outcomes;
  * that timing-model change is tracked separately in issue #115. */
+/* The drawn panel's memory: VRAM as shown, with the panel's own sends over it. */
+enum { SEND_UNIT = 32 };
+
+static const uint8_t *drawn_memory(VidHost *v, const uint8_t *vram)
+{
+    memcpy(v->drawn_vram, vram, sizeof v->drawn_vram);
+    if (v->drawn_sends)
+        for (unsigned unit = 0; unit < sizeof v->drawn_marks; unit++)
+            if (v->drawn_marks[unit])
+                memcpy(v->drawn_vram + unit * SEND_UNIT, v->drawn_sent + unit * SEND_UNIT, SEND_UNIT);
+    return v->drawn_vram;
+}
+
 const VidFrame *vid_host_picture(Platform *pf)
 {
     VidHost *v = &pf->video;
@@ -47,7 +62,6 @@ const VidFrame *vid_host_picture(Platform *pf)
     vid_obs_frame_start(ob);
     vid_obs_view(ob, vid_view(pf), v->layer_left, v->layer_right, v->back_left, v->back_right, v->margin,
                  v->margin_count);
-    vid_obs_framing(ob, v->aim, v->panel_count, v->panels);
     vid_obs_layouts(ob, v->layout_count, v->layout_map, v->layouts, v->parted ? &v->parting : NULL);
     for (uint16_t line = 0; line <= VID_HOST_LAST_LINE; line++) {
         if (v->below_display && line == v->display_from)
@@ -56,6 +70,8 @@ const VidFrame *vid_host_picture(Platform *pf)
             vid_obs_enable_line_effects(ob, v->line_effects_below);
         vid_obs_line(ob, line);
     }
+    vid_obs_framing(ob, v->aim, v->panel_count, v->panels, v->drawn ? &v->drawn_panel : NULL,
+                    v->drawn ? drawn_memory(v, vid_obs_frame(ob)->vram) : NULL);
     return vid_obs_frame(ob);
 }
 
@@ -84,6 +100,12 @@ void vid_host_frame_begins(Platform *pf)
     v->parted = false;
     v->margin_count = 0;
     v->panel_count = 0;
+    v->drawn = false;
+    if (v->drawn_sends) {
+        /* what was sent stays (the next frame's sends start from it), but shows only where sent again */
+        memset(v->drawn_marks, 0, sizeof v->drawn_marks);
+        v->drawn_sends = false;
+    }
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -116,6 +138,32 @@ void vid_aim_the_view(Platform *pf, VidAim aim)
 }
 
 VidAim vid_view_aim(const Platform *pf) { return pf->video.aim; }
+
+void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel)
+{
+    if (!vid_view_is_smaller(vid_view(pf)))
+        return;
+    pf->video.drawn = true;
+    pf->video.drawn_panel = *panel;
+}
+
+/* A send fills the 32-byte units it covers; one left partly unsent shows VRAM's bytes past the send. */
+void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len)
+{
+    VidHost *v = &pf->video;
+    if (!vid_view_is_smaller(vid_view(pf)) || !src.ptr)
+        return;
+    uint32_t at = (uint32_t)(vram_addr & 0x7FFF) << 1;
+    const uint8_t *bytes = src.ptr;
+    for (uint32_t i = 0; i < len; i++, at = (at + 1) & 0xFFFF) {
+        if (!v->drawn_marks[at / SEND_UNIT]) {
+            memcpy(v->drawn_sent + at / SEND_UNIT * SEND_UNIT, (v->observer ? vid_obs_frame(v->observer)->vram : v->drawn_vram) + at / SEND_UNIT * SEND_UNIT, SEND_UNIT);
+            v->drawn_marks[at / SEND_UNIT] = 1;
+        }
+        v->drawn_sent[at] = bytes[i];
+    }
+    v->drawn_sends = true;
+}
 
 void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel)
 {

@@ -68,7 +68,7 @@ void dialog_forget(GameState *g) { set_state(g, DIALOG_IDLE); }
  * (field_window_staging), cleared to the blank tile for each new row, and the
  * vblank sends them to the row being set: every frame while the row fills,
  * once when the text stops. */
-enum { TEXT_ROWS = 4, LAST_TEXT_ROW = TEXT_ROWS - 1 };
+enum { TEXT_ROWS = DIALOG_TEXT_LINES, LAST_TEXT_ROW = TEXT_ROWS - 1 };
 enum { TEXT_TILES_VRAM = 0x5800, TEXT_ROW_WORDS = 0x0200, TEXT_ROW_BYTES = 0x0400, BLANK_TILE_BYTES = 0x20 };
 typedef enum { SEND_NOTHING = 0, SEND_EVERY_FRAME = 1, SEND_ONCE = 0x81 } TextSending;
 
@@ -522,7 +522,8 @@ void field_refresh_choice_pointer(GameState *g, Platform *pf)
  * staging buffer in work RAM and sent from there, one after the other, as a
  * map's screen is set up (field/screen_setup.c) or a frame at a time after a
  * battle (the vblank's screen transition, field/nmi.c). */
-enum { FRAME_MAP_VRAM = 0x1D00, FRAME_COLUMNS = 32, FRAME_ROWS = 10, TEXT_AREA_VRAM = 0x1C00, TEXT_AREA_ROWS = 8 };
+enum { FRAME_MAP_VRAM = DIALOG_FRAME_MAP, FRAME_COLUMNS = 32, FRAME_ROWS = DIALOG_FRAME_ROWS, TEXT_AREA_VRAM = DIALOG_TEXT_AREA_MAP,
+       TEXT_AREA_ROWS = 2 * DIALOG_TEXT_LINES };
 enum { ENTRY_PRIORITY = 0x2000, SECOND_PATTERN_TILES = 0x0300, TEXT_AREA_LOOK = 0x2900 };
 
 /* The frame's tiles: its corners, its edges (the top's and the bottom's
