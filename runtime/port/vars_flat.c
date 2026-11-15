@@ -42,17 +42,29 @@ bool vars_peek_leave(bool value)
 
 /* Each access the game's time, as the machine's bus counts it (state_host.c),
    but for a guard's look, which takes none of it (vars_peek). */
+enum { WORK_RAM = 0x7E0000u, WORK_RAM_BYTES = 0x20000u };
+
+/* A byte by its address: work RAM's two banks read and written where they
+   are kept (a byte no owner keeps holds 0 and takes no write, as
+   vars_flat_host.c has it), any other address through the state's view. */
 static uint8_t r8(const GameState *g, uint32_t a)
 {
     if (!peeking)
         state_host_game_access(g, 8);
+    uint32_t at = a - WORK_RAM;
+    if (at < WORK_RAM_BYTES)
+        return state_host_vars_const(g)->bank[at >> 16][at & 0xFFFFu];
     return state_host_read8(g, a);
 }
 static void w8(GameState *g, uint32_t a, uint8_t v)
 {
     if (!peeking)
         state_host_game_access(g, 8);
-    state_host_write8(g, a, v);
+    uint32_t at = a - WORK_RAM;
+    if (at >= WORK_RAM_BYTES)
+        state_host_write8(g, a, v);
+    else if (vars_flat_owned(a))
+        state_host_vars(g)->bank[at >> 16][at & 0xFFFFu] = v;
 }
 
 static uint16_t r16(const GameState *g, uint32_t a) { return (uint16_t)(r8(g, a) | r8(g, a + 1) << 8); }

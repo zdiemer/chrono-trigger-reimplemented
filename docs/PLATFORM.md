@@ -1150,7 +1150,12 @@ their address form, and `runtime/port/vars_flat_host.c` keeps the two banks
 in the arena. Owners the typed state keeps apart (re/ram.toml's `overlays`)
 share the one byte, as in the original, so there is no writer table and no
 claim: a small target's build of the state shares the overlaid owners'
-storage. A native lean, flat ct_native
+storage. What the game reaches by address rather than by a name is read
+and written in the two banks in place: a byte at `$7E`-`$7F` (the alias
+views, `game/wram.h`'s escape) with no look at where its address lies, and
+a send's source in work RAM, at its own addresses or in the first 8 KiB of
+a bank that maps the system area, in one read of the bank.
+A native lean, flat ct_native
 plays all 59 gate movies to the same work RAM and save RAM as the normal
 build (`tools/lean_check.py --lean build/flat/ct_native`, configured
 `-DCT_LEAN=ON -DCT_FLAT_STATE=ON`; CI builds and tests it as
@@ -1293,9 +1298,9 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 17 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 2,048; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the driver's stack the 6.4 KiB above them, a canary at its end checked each frame (deepest use 2,048 bytes); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps and tile caches), sprites 16 KiB of 32 |
 | The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.35 and 0.75, `new-game` 0.34 and 0.75, `gato-battle` 0.36 and 0.75, `events-jetbike-race` 0.36 and 0.75; of it the mixing 0.15, 0.14, 0.16 and 0.15 (the heaviest 0.31-0.38); with the silent mixer before it, the driver alone 0.2 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 1.0 and 1.25, sound 0.35 and 0.75, picture 0.16 and 1.0, in all 1.8; `new-game`: game 1.1 and 3.5, picture 0.36 and 1.25, in all 2.1; `gato-battle`: game 1.5 and 4.0, picture 0.79 and 4.25, in all 3.0; `events-jetbike-race`: game 1.7 and 4.5, picture 1.06 and 3.25, in all 3.4 ("in all" counts the vertical blanks waited for). Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 0.78 and 1.0, sound 0.35 and 0.75, picture 0.16 and 1.0, in all 1.61; `new-game`: game 0.97 and 3.5, picture 0.35 and 1.25, in all 1.98; `gato-battle`: game 1.33 and 3.5, picture 0.77 and 4.0, in all 2.75; `events-jetbike-race`: game 1.42 and 3.75, picture 1.04 and 3.25, in all 3.13 ("in all" counts the vertical blanks waited for). Before reads by address reached work RAM in place (below): game 1.01, 1.13, 1.50 and 1.71, in all 1.80, 2.11, 2.91 and 3.40. Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
-Without the native mixer the game's own frame is most of the cost: 1.0-1.7
+Without the native mixer the game's own frame is most of the cost: 0.8-1.4
 GBA frames, from 7-13 before the flat accessors read in place, the sends
 read spans, the time model was priced a stretch at a time and the interpreters decoded
 only what a row names; the picture is 0.1-1.2 more, made in the vertical blank after
@@ -1408,6 +1413,25 @@ apply to what remains: the tiles and maps converted are the ones the game
 unpacks into VRAM as it plays, and the copies DMA would take over (the
 palettes in a frame they change, the sprite table) are under a twentieth of
 the picture.
+
+**Reads by address.** With the runner noting the caller where the processor
+was in `state_host_read8` (the return address in place of the place), most
+of its 4-5% of the GBA's work was the video service reading its sends'
+sources a byte at a time: sources in work RAM's mirror in bank `$00`, which
+the span's one read took only at `$7E`-`$7F`. The flat build now reads such
+a span in one piece, and the alias views and `game/wram.h`'s escape read
+and write work RAM's banks in place (above, "The state as the original's
+work RAM"); a write by address to `$7E`-`$7F` no longer asks where it lies.
+A time scope's end restores the rate it kept rather than looking its row up
+again, and a scope at the rate already in force prices nothing, which adds
+the same thousandths. Over the four movies the game's frame went from 1.01,
+1.13, 1.50 and 1.71 GBA frames to 0.78, 0.97, 1.33 and 1.42, the whole
+from 1.80, 2.11, 2.91 and 3.40 to 1.61, 1.98, 2.75 and 3.13 (`field` 2.28 to
+2.13), each ending as ct_native does. The time model's scopes
+(`charge_time_as_begin`, `charge_time_as_end` and their row lookup) are
+6% of the battle's work and 5% of the field's: a scope that names its row at
+build time would leave out the lookup, 1.1-1.4%, at the cost of rows in
+place of routines in some 90 tables and 100 named routines (#426).
 
 ## Scene map fills
 
