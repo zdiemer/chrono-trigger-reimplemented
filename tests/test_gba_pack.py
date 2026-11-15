@@ -34,6 +34,21 @@ class PackTest(unittest.TestCase):
         self.assertEqual(image[0xA0:0xA9], pack.TITLE)
         self.assertEqual((sum(image[0xA0:0xBD]) + 0x19 + image[0xBD]) & 0xFF, 0)
 
+    def test_fast_rom(self):
+        # the options word after the header, which start.s reads for the cartridge's waits
+        saved = pack.resources, pack.sound_samples
+        pack.resources, pack.sound_samples = (lambda cartridge: []), (lambda cartridge: b"")
+        try:
+            plain, _ = pack.pack(bytes(0x1F0), b"")
+            fast, _ = pack.pack(bytes(0x1F0), b"", fast_rom=True)
+            with self.assertRaises(SystemExit):
+                pack.pack(b"\xff" * 0x1F0, b"")     # no options word where start.s keeps it
+        finally:
+            pack.resources, pack.sound_samples = saved
+        self.assertEqual(plain[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], bytes(4))
+        self.assertEqual(fast[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], pack.FAST_ROM.to_bytes(4, "little"))
+        self.assertEqual(plain[:pack.OPTIONS_AT], fast[:pack.OPTIONS_AT])
+
 
 def brr_block(header, nibbles):
     return bytes([header]) + bytes((nibbles[2 * i] & 15) << 4 | (nibbles[2 * i + 1] & 15) for i in range(8))

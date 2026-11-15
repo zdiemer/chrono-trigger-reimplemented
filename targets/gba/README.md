@@ -29,8 +29,8 @@ platform services' backends. Nothing here is included from `game/`.
     drop back to the cartridge unnoticed, and warns where this compiler
     inlined one away or didn't need a library's.
   - `start.s`: the cartridge's header and the processor's start: the
-    cartridge's waits (3 and 1, with the prefetch), the copies and zeroing,
-    then `main`.
+    cartridge's waits (3 and 1, with the prefetch, or 2 and 1 where the
+    packing step asked for them), the copies and zeroing, then `main`.
 - `system/`: the driver and what the C library and the runtime need.
   - `main.c`: the driver. One frame of the game a turn of its loop, as
     ct_native's: the pads, `tm_host_frame`, the sound player's frame, then
@@ -76,6 +76,8 @@ platform services' backends. Nothing here is included from `game/`.
     verifies the player's cartridge, cuts the catalogue's resources from it,
     and appends them to the program with a directory the driver indexes in
     place. The program is code only; the packed `.gba` is never committed.
+    `--fast-rom` asks for the cartridge's faster waits (Building and
+    running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
     the pack, their loops kept, each listed by its block's length and hash.
   - `mgba_run.c`: the runner, the GBA's `ct_native --drive`: `ct.gba` in
@@ -116,6 +118,15 @@ installed or only unpacked, or a build of mGBA) and a staged cartridge
     python3 targets/gba/host/pack.py --program build/gba/ct_gba.bin --out build/gba/ct.gba
 
 `ct.gba` is the game: open it in mGBA, or put it on a flash cart, and play.
+
+`pack.py --fast-rom` (and `run.py --fast-rom`) writes a flag into the word
+after the header that has the start set the cartridge's waits to 2 and 1
+with the prefetch, rather than 3 and 1, which every cartridge handles. Most
+flash carts (EZ-Flash, EverDrive) and the Analogue Pocket read the cartridge
+at 2 and 1; some cheap reproduction cartridges don't, and a ROM packed with
+it may crash or show garbage on them. It takes about 5% off the GBA's work a
+frame (docs/PLATFORM.md, "The GBA build, as built"); the game plays the
+same either way.
 Its save is the cartridge's 32 KiB SRAM (mGBA's `ct.sav`). A `.srm` from
 ct_native or a SNES emulator becomes a `.sav` with the mark after it: its
 8 KiB, `CTSV`, then `FF` to 32 KiB (`run.py`'s `gba_save`).

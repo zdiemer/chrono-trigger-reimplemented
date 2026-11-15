@@ -1292,8 +1292,25 @@ reach is in work RAM, whose waits fast RAM doesn't shorten, so it gives 5%.
 ARM rather than Thumb gives as much again for the state's files; for the
 event interpreter's file (`game/event/engine.c`), 1%, since its cold code
 then runs as ARM from the cartridge's 16-bit bus. The room comes from the
-tasks' smaller stacks. The cartridge's waits stay 3 and 1 with the
-prefetch, as commercial games set them.
+tasks' smaller stacks.
+
+The cartridge's waits are 3 and 1 with the prefetch by default, as
+commercial games set them and every cartridge handles. `host/pack.py
+--fast-rom` sets a flag in the word after the header (`toolchain/start.s`'s
+`options`), and the start sets 2 and 1 instead: most flash carts (EZ-Flash,
+EverDrive) and the Analogue Pocket take it, some cheap reproduction
+cartridges don't, so it is the player's choice and not the default. In
+mGBA, the game's, the sound's and the picture's GBA frames a game
+frame added up, with both settings ending in ct_native's work RAM and save RAM:
+
+| Waits | Field | Menus | Battle | Scenes |
+|---|---|---|---|---|
+| 3 and 1 | 1.96 | 1.72 | 2.62 | 3.23 |
+| 2 and 1 (`--fast-rom`) | 1.86 | 1.64 | 2.50 | 3.06 |
+
+About 5% everywhere: only the code and constants still read from the
+cartridge (the first access of a run, the prefetch's misses) gain, and the
+code that runs most is already in fast RAM.
 
 #### Where the GBA's frame goes
 
