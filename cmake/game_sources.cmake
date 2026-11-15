@@ -24,6 +24,7 @@ set(CT_GAME_SOURCES
   game/event/contact.c
   game/event/dialog.c
   game/event/engine.c
+  game/event/named_parameters.c
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
@@ -115,6 +116,7 @@ set(CT_GAME_SOURCES
   game/menu/saves.c
   game/menu/saving.c
   game/menu/script.c
+  game/menu/named_parameters.c
   game/menu/screen_objects.c
   game/menu/screens.c
   game/menu/settings_screen.c

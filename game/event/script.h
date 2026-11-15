@@ -173,6 +173,22 @@ typedef struct {
     X(FormationPlace, leader_place) X(FormationPlace, first_place) X(FormationPlace, second_place) \
     X(SearchlightMove, searchlight) X(ColourEffect, colour_effect)
 
+/* Each of the language's parameters by its place in EVENT_PARAMETERS. */
+typedef enum {
+#define EVENT_PARAMETER_NUMBER(type, name) EVENT_PARAMETER_##name,
+    EVENT_PARAMETERS(EVENT_PARAMETER_NUMBER)
+#undef EVENT_PARAMETER_NUMBER
+    EVENT_PARAMETER_COUNT
+} EventParameter;
+
+/* The parameters each opcode's row names, in the language's order: opcode
+ * n's are event_named_parameters[event_named_from[n]] up to
+ * event_named_from[n + 1]. A row names a handful of the language's hundred
+ * and more, so the engine walks only those (event/named_parameters.c,
+ * written from the rows by tests/port/named_parameters_test). */
+extern const uint8_t event_named_parameters[];
+extern const uint16_t event_named_from[256 + 1];
+
 /* A command, decoded by its row: the object whose script is running, where
  * the command is in the script, the host (for the commands that wait on the
  * sound driver), and every parameter of the language, of which an operation
@@ -335,6 +351,11 @@ typedef struct {
     bool back;             /* the jump goes back */
     bool member_may_be_absent;   /* a party member operand may name an empty place */
     EventCheck accepts;    /* NULL, or what else the port needs of the game's state */
+    /* A row outside the table names its parameters here (`named_count` of
+     * them, in the language's order); a table's row, by its opcode in
+     * event_named_parameters. */
+    const uint8_t *named;
+    uint8_t named_count;
 #if CT_SCRIPT_TEXT
     EventMeasure measure;  /* NULL where the command is always `length` bytes (MEASURED) */
 #endif
@@ -355,6 +376,10 @@ extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_ch
     event_facing_opcodes, event_flow_opcodes, event_input_opcodes, event_locations_opcodes, event_memory_opcodes,
     event_movement_opcodes, event_party_opcodes, event_properties_opcodes, event_screen_opcodes,
     event_sound_opcodes, event_story_opcodes, event_variables_opcodes;
+
+/* A row outside the table, which names its own parameters: a screen
+ * command's circle's place and width (event/screen.c). */
+extern const EventOpcode event_circle_opening;
 
 /* The row of an opcode, or NULL for one with no port (event/engine.c). */
 const EventOpcode *event_opcode(uint8_t opcode);

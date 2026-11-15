@@ -87,13 +87,12 @@ static ByteRef byte_ref(const CommandBytes *b, ScriptArg a)
     return (ByteRef){ false, 0 };
 }
 
-/* A row names a handful of the language's parameters; the rest read nothing. */
+/* A row names a handful of the language's parameters, which the decoding
+ * walks (menu_named_parameters); the rest read nothing. */
 #define SCRIPT_DECODE_BYTE_REF(name) \
-    if (row->name.kind != ARG_NONE)  \
-        c.name = byte_ref(&bytes, row->name);
-#define SCRIPT_DECODE(type, name)   \
-    if (row->name.kind != ARG_NONE) \
-        c.name = (type)argument(&bytes, row->name);
+    case MENU_PARAMETER_##name: c.name = byte_ref(&bytes, row->name); break;
+#define SCRIPT_DECODE(type, name) \
+    case MENU_PARAMETER_##name: c.name = (type)argument(&bytes, row->name); break;
 #define SCRIPT_DECODE_ONE(type, name) SCRIPT_DECODE_##type(type, name)
 #define SCRIPT_DECODE_ByteRef(type, name) SCRIPT_DECODE_BYTE_REF(name)
 #define SCRIPT_DECODE_ByteChange SCRIPT_DECODE
@@ -106,8 +105,7 @@ static ByteRef byte_ref(const CommandBytes *b, ScriptArg a)
 #define SCRIPT_DECODE_uint16_t SCRIPT_DECODE
 #define SCRIPT_DECODE_uint32_t SCRIPT_DECODE
 #define SCRIPT_DECODE_bool(type, name) \
-    if (row->name.kind != ARG_NONE)    \
-        c.name = argument(&bytes, row->name) != 0;
+    case MENU_PARAMETER_##name: c.name = argument(&bytes, row->name) != 0; break;
 
 ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at,
                                  Platform *pf)
@@ -118,7 +116,11 @@ ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, Me
     c.at = at;
     c.opcode = row->opcode;
     c.pf = pf;
-    SCRIPT_PARAMETERS(SCRIPT_DECODE_ONE)
+    for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++)
+        switch ((MenuScriptParameter)menu_named_parameters[p]) {
+            SCRIPT_PARAMETERS(SCRIPT_DECODE_ONE)
+        default: break;
+        }
     return c;
 }
 
