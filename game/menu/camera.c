@@ -121,6 +121,109 @@ static bool naming_bands(const GameState *g, Bands *b)
     return true;
 }
 
+/* ---- The items ------------------------------------------------------------------------------- *
+ *
+ * The items' screen fills 192 of the original's lines: the options and the
+ * item's description above the list's ten rows, 12 lines apart, each row's
+ * text 8 lines and the hand beside the cursor's 11. In a smaller view the
+ * options and the description keep their text and a few lines of each edge,
+ * and the list two of the four blank lines below each row but the cursor's.
+ * With a window beside the list (the members an item is used on, three
+ * windows of four rows 8 lines apart, or who can equip it), whose rows don't
+ * fall between the list's, the list keeps its lines but those blank in both
+ * columns: most of the gap between the first two members' windows, and a
+ * line under the last row. A row the list slides past its ends shows cut a
+ * frame or two as it moves. */
+enum {
+    ITEM_ROWS = 10, ITEM_FIRST_ROW = 88, ITEM_ROW_STEP = 12,
+    ITEM_ROW_KEPT = 8, ITEM_ROW_LEFT_OUT = 2,   /* from a row's top, its text, then the lines left out */
+    ITEM_LIST_TOP = 76, ITEM_LIST_END = 208,      /* the description's foot and the list's edges */
+};
+
+typedef struct {
+    uint8_t top, end;
+} LineSpan;
+
+/* the options' window and the description's (its foot goes with the list's top) */
+static const LineSpan ITEMS_ABOVE_THE_LIST[] = { { 16, 18 }, { 24, 40 }, { 44, 52 }, { 59, 68 } };
+static const LineSpan ITEMS_LIST_BESIDE_A_WINDOW[] = { { ITEM_LIST_TOP, 120 }, { 123, 167 }, { 168, 205 } };
+
+static int item_row_top(unsigned row) { return ITEM_FIRST_ROW + (int)row * ITEM_ROW_STEP; }
+
+/* The list's row the cursor points at, or ITEM_ROWS where it isn't on the list. */
+static unsigned items_cursor_row(const GameState *g)
+{
+    if (!menu_cursor_can_be_placed(g))
+        return ITEM_ROWS;
+    int pointed_at = menu_cursor_places_y(g, menu_cursor_index(g)) + POINTED_AT_BELOW;
+    int row = (pointed_at - ITEM_FIRST_ROW + ITEM_ROW_STEP / 2) / ITEM_ROW_STEP;
+    return pointed_at < ITEM_FIRST_ROW - ITEM_ROW_STEP / 2 || row >= ITEM_ROWS ? ITEM_ROWS : (unsigned)row;
+}
+
+static void spans(Bands *b, const LineSpan *s, unsigned count)
+{
+    for (unsigned k = 0; k < count; k++)
+        band(b, s[k].top, s[k].end);
+}
+
+static bool items_bands(const GameState *g, Bands *b)
+{
+    if ((MenuScreen)menu_screen(g) != MENU_SCREEN_ITEMS)
+        return false;
+    spans(b, ITEMS_ABOVE_THE_LIST, sizeof ITEMS_ABOVE_THE_LIST / sizeof ITEMS_ABOVE_THE_LIST[0]);
+    if (menu_items_window_beside_the_list(g)) {
+        spans(b, ITEMS_LIST_BESIDE_A_WINDOW, sizeof ITEMS_LIST_BESIDE_A_WINDOW / sizeof ITEMS_LIST_BESIDE_A_WINDOW[0]);
+        return true;
+    }
+    unsigned cursor = items_cursor_row(g);
+    int from = ITEM_LIST_TOP;
+    for (unsigned row = 0; row + 1 < ITEM_ROWS; row++) {
+        if (row == cursor)
+            continue;
+        band(b, from, item_row_top(row) + ITEM_ROW_KEPT);
+        from = item_row_top(row) + ITEM_ROW_KEPT + ITEM_ROW_LEFT_OUT;
+    }
+    band(b, from, ITEM_LIST_END);
+    return true;
+}
+
+/* ---- A shop ---------------------------------------------------------------------------------- *
+ *
+ * A shop's screen fills 200 of the original's lines: the description at the
+ * top; the list of wares, eight rows 12 lines apart, beside what is bought
+ * or sold, the party's money and how many it has of the ware; and the party
+ * at the foot, the member the ware suits jumping. In a smaller view the
+ * description keeps its text and a few lines of its foot, and the party its
+ * window with room for the jump. The list keeps its rows and the lines
+ * beside them, but for the blank lines under its first and third rows,
+ * where the column beside it is blank too whatever it shows (the price and
+ * power of a ware being bought stand under the fourth and sixth); the hand
+ * beside either of those rows shows its top nine lines of eleven. */
+enum {
+    SHOP_FIRST_ROW = 52, SHOP_ROW_STEP = 12,
+    SHOP_ROW_KEPT = 8, SHOP_ROW_LEFT_OUT = 4,   /* from a row's top: its text, then the lines left out */
+    SHOP_LIST_TOP = 48, SHOP_LIST_END = 146,
+};
+static const LineSpan SHOP_DESCRIPTION[] = { { 16, 28 }, { 42, 44 } };
+static const LineSpan SHOP_PARTY = { 152, 208 };
+static const uint8_t SHOP_ROWS_WITH_A_GAP[] = { 0, 2 };
+
+static bool shop_bands(const GameState *g, Bands *b)
+{
+    if ((MenuScreen)menu_screen(g) != MENU_SCREEN_SHOP)
+        return false;
+    spans(b, SHOP_DESCRIPTION, sizeof SHOP_DESCRIPTION / sizeof SHOP_DESCRIPTION[0]);
+    int from = SHOP_LIST_TOP;
+    for (unsigned k = 0; k < sizeof SHOP_ROWS_WITH_A_GAP; k++) {
+        int text_end = SHOP_FIRST_ROW + SHOP_ROWS_WITH_A_GAP[k] * SHOP_ROW_STEP + SHOP_ROW_KEPT;
+        band(b, from, text_end);
+        from = text_end + SHOP_ROW_LEFT_OUT;
+    }
+    band(b, from, SHOP_LIST_END);
+    band(b, SHOP_PARTY.top, SHOP_PARTY.end);
+    return true;
+}
+
 /* ---- The windowed screens ------------------------------------------------------------------------ *
  *
  * The other screens are stacks of windows, and most of them run past 160
@@ -151,20 +254,9 @@ typedef struct {
 #define LAYOUT(runs) { runs, (uint8_t)(sizeof runs / sizeof runs[0]), NULL, 0 }
 #define FOLLOWING(runs, cuts) { runs, (uint8_t)(sizeof runs / sizeof runs[0]), cuts, (uint8_t)sizeof cuts }
 
-/* The items: the options, the item's description, and the list beside the
- * party, which follows the cursor. */
 #define KEEP(top, end) { top, end, false }
 #define FOLLOW(top, end) { top, end, true }
 
-static const KeptLines ITEMS_RUNS[] = {
-    KEEP(16, 20), KEEP(23, 42), KEEP(43, 52), KEEP(55, 71), KEEP(75, 84), FOLLOW(84, 204), KEEP(204, 208),
-};
-/* Between the list's rows, 12 lines apart; while a window stands beside the
- * list (the members an item is used on, or who can equip it), only where
- * the list's rows and the window's (the members' 40 lines apart) are both
- * between rows. */
-static const uint8_t ITEMS_CUTS[] = { 84, 98, 110, 122, 134, 146, 158, 170, 182, 194, 204 };
-static const uint8_t ITEMS_BESIDE_MEMBERS_CUTS[] = { 84, 121, 204 };
 /* Under the main menu's window: the options and the list beside the party
  * whole, the description (which the panel leaves blank) left out. */
 static const KeptLines MAIN_MENU_ITEMS_RUNS[] = {
@@ -221,25 +313,15 @@ static const KeptLines EXCHANGE_AT_THE_GATE_RUNS[] = {
     MEMBER_WINDOW(16), MEMBER_WINDOW(64), MEMBER_WINDOW(112), MEMBER_WINDOW(160),
 };
 #undef MEMBER_WINDOW
-/* A shop: the description, the list beside what is bought or sold, which
- * follows the cursor, and the party with room for its jump. */
-static const KeptLines SHOP_RUNS[] = {
-    KEEP(8, 12), KEEP(16, 30), KEEP(35, 46), FOLLOW(46, 146), KEEP(146, 214),
-};
-/* between the list's rows where the windows beside it have a gap too */
-static const uint8_t SHOP_CUTS[] = { 46, 60, 72, 84, 96, 120, 144, 146 };
 #undef KEEP
 #undef FOLLOW
 
-static const WindowedLayout ITEMS_LAYOUT = FOLLOWING(ITEMS_RUNS, ITEMS_CUTS);
-static const WindowedLayout ITEMS_BESIDE_MEMBERS_LAYOUT = FOLLOWING(ITEMS_RUNS, ITEMS_BESIDE_MEMBERS_CUTS);
 static const WindowedLayout MAIN_MENU_ITEMS_LAYOUT = LAYOUT(MAIN_MENU_ITEMS_RUNS);
 static const WindowedLayout TECHS_LAYOUT = LAYOUT(TECHS_RUNS);
 static const WindowedLayout SETTINGS_LAYOUT = LAYOUT(SETTINGS_RUNS);
 static const WindowedLayout LOAD_LAYOUT = LAYOUT(LOAD_RUNS);
 static const WindowedLayout LOAD_ERASING_LAYOUT = FOLLOWING(LOAD_ERASING_RUNS, LOAD_ERASING_CUTS);
 static const WindowedLayout SAVE_LAYOUT = LAYOUT(SAVE_RUNS);
-static const WindowedLayout SHOP_LAYOUT = FOLLOWING(SHOP_RUNS, SHOP_CUTS);
 static const WindowedLayout EQUIPMENT_LAYOUT = FOLLOWING(EQUIPMENT_RUNS, EQUIPMENT_CUTS);
 static const WindowedLayout EXCHANGE_LAYOUT = LAYOUT(EXCHANGE_RUNS);
 static const WindowedLayout EXCHANGE_AT_THE_GATE_LAYOUT = LAYOUT(EXCHANGE_AT_THE_GATE_RUNS);
@@ -276,14 +358,11 @@ static const WindowedLayout *windowed_layout(const GameState *g, int *focus_top,
         *focus_end = MAIN_MENU_WINDOW_END;
         return layout_of_the_option(menu_cursor_index(g));
     case MENU_SCREEN_EQUIPMENT: return &EQUIPMENT_LAYOUT;
-    case MENU_SCREEN_ITEMS:
-        return menu_items_window_beside_the_list(g) ? &ITEMS_BESIDE_MEMBERS_LAYOUT : &ITEMS_LAYOUT;
     case MENU_SCREEN_TECHS: return &TECHS_LAYOUT;
     case MENU_SCREEN_SETTINGS: return &SETTINGS_LAYOUT;
     case MENU_SCREEN_SAVE:
     case MENU_SCREEN_SAVE_POINT: return &SAVE_LAYOUT;
     case MENU_SCREEN_LOAD: return menu_load_screen_asks_to_erase(g) ? &LOAD_ERASING_LAYOUT : &LOAD_LAYOUT;
-    case MENU_SCREEN_SHOP: return &SHOP_LAYOUT;
     case MENU_SCREEN_EXCHANGE: return &EXCHANGE_LAYOUT;
     case MENU_SCREEN_EXCHANGE_AT_THE_GATE: return &EXCHANGE_AT_THE_GATE_LAYOUT;
     default: return NULL;
@@ -424,7 +503,7 @@ void menu_frame_the_view(GameState *g, Platform *pf)
         return;
     uint32_t mark = charge_uncounted_begin(g);
     Bands bands = { 0 };
-    if (naming_bands(g, &bands) || windowed_bands(g, view.height, &bands))
+    if (naming_bands(g, &bands) || items_bands(g, &bands) || shop_bands(g, &bands) || windowed_bands(g, view.height, &bands))
         keep_the_bands_in_view(pf, view, &bands);
     else
         view_follow(pf, what_the_player_follows(g), view_all_lines(view));
