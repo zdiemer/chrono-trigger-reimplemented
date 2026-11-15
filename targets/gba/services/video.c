@@ -26,9 +26,10 @@
  *   are 16 names apart on both).
  * - The SNES's per-tile priority has no GBA counterpart: each layer takes
  *   one priority, and the sprites' four map onto the GBA's around them.
- * - The GBA's 240x160 screen shows the middle of the SNES's 256x224: 8 dots
- *   in from the left, 32 lines down. A camera that follows the action is
- *   issue #366.
+ * - The GBA's 240x160 screen is a smaller view (vid_view): the game frames
+ *   it, a camera on the SNES's 256x224 and bands of its lines kept in view
+ *   (core/view_framing.h), and each GBA line shows the SNES line its band
+ *   says, its layers scrolled and its sprites moved to match.
  *
  * The sends still take the time the native backend charges, which is the
  * game's play; the conversion is the GBA's own work, outside the game's
@@ -45,6 +46,8 @@
 /* ---- The GBA's registers and memory ------------------------------------------------------------- */
 
 #define REG16(at) (*(volatile uint16_t *)(at))
+/* State kept in fast RAM (IWRAM), which has the room work RAM hasn't. */
+#define IN_FAST_RAM __attribute__((section(".iwram_bss")))
 #define DISPCNT REG16(0x04000000)
 #define BGCNT(n) REG16(0x04000008 + 2 * (n))
 #define BGHOFS(n) REG16(0x04000010 + 4 * (n))
@@ -62,7 +65,6 @@ enum {
     DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
     BGCNT_4BPP = 0x0000,
     BLD_DARKEN = 0x00C0, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
-    CAMERA_X = 8, CAMERA_Y = 32,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
     UNIT_BYTES = 32, UNITS = VRAM_BYTES / UNIT_BYTES,
     TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
@@ -268,12 +270,23 @@ static void oam_put(uint8_t v)
 
 static void fill_spread(void);
 
+/* The view (below, "The view"): the GBA's screen, framed by the game. */
+enum { GBA_VIEW_WIDTH = 240, GBA_VIEW_HEIGHT = 160 };
+
+/* The camera, where it was last aimed (the screen's middle to start), and
+ * this frame's panels kept in view (vid_keep_a_panel_in_view). */
+static VidAim view_aim IN_FAST_RAM;   /* set as the service starts */
+static VidViewPanel view_panels[VID_VIEW_PANELS] IN_FAST_RAM;
+static uint8_t view_panel_count IN_FAST_RAM;
+
 void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
     (void)pf;
     snes.read = read;
     snes.ctx = ctx;
     snes.settings_changed = snes.palette_written = snes.sprites_changed = true;
+    view_aim = (VidAim){ (VID_ORIGINAL_VIEW_WIDTH - GBA_VIEW_WIDTH) / 2, (VID_ORIGINAL_VIEW_HEIGHT - GBA_VIEW_HEIGHT) / 2 };
+    view_panel_count = 0;
     fill_spread();
     DISPCNT = DISPCNT_FORCED_BLANK;
 }
@@ -295,6 +308,7 @@ void vid_host_frame_begins(Platform *pf)
         v->line_effects = v->line_effects_below;
     v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
+    view_panel_count = 0;
 }
 
 size_t vid_host_observer_bytes(const Platform *pf)
@@ -303,14 +317,14 @@ size_t vid_host_observer_bytes(const Platform *pf)
     return sizeof snes;
 }
 
-/* ---- The view: the original's screen ------------------------------------------------------- */
+/* ---- The view: the GBA's screen, framed by the game ---------------------------------------- */
 
 void vid_host_set_view(Platform *pf, VidView view) { (void)pf, (void)view; }
 
 VidView vid_view(const Platform *pf)
 {
     (void)pf;
-    return (VidView){ VID_ORIGINAL_VIEW_WIDTH, VID_ORIGINAL_VIEW_HEIGHT };
+    return (VidView){ GBA_VIEW_WIDTH, GBA_VIEW_HEIGHT };
 }
 
 void vid_show_a_layer_across(Platform *pf, VidLayer bg, int16_t left, int16_t right)
@@ -325,15 +339,35 @@ void vid_lay_out_a_map_across(Platform *pf, uint16_t map_base, const VidMapLayou
 
 void vid_part_the_windows(Platform *pf, const VidWindowParting *parting) { (void)pf, (void)parting; }
 
-void vid_aim_the_view(Platform *pf, VidAim aim) { (void)pf, (void)aim; }
+void vid_aim_the_view(Platform *pf, VidAim aim) { view_aim = vid_aim_held_to_the_screen(vid_view(pf), aim); }
 
 VidAim vid_view_aim(const Platform *pf)
 {
     (void)pf;
-    return (VidAim){ CAMERA_X, CAMERA_Y };
+    return view_aim;
 }
 
-void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel) { (void)pf, (void)panel; }
+/* A panel with dots cut from inside it shows its middle here, its sides
+ * cut: a GBA line has one scroll a layer (issue #470). */
+void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel)
+{
+    (void)pf;
+    if (view_panel_count >= VID_VIEW_PANELS)
+        return;
+    VidViewPanel p = *panel;
+    if (p.cut_dots) {
+        p.left = (int16_t)(p.left + p.cut_dots / 2);
+        p.cut_dots = 0;
+    }
+    view_panels[view_panel_count++] = p;
+}
+
+/* Not drawn here yet (issue #470): a mode asks vid_view_draws_panels first. */
+bool vid_view_draws_panels(const Platform *pf)
+{
+    (void)pf;
+    return false;
+}
 
 void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel) { (void)pf, (void)panel; }
 
@@ -1080,6 +1114,68 @@ static bool gba_size(unsigned w, unsigned h, uint16_t *shape, uint16_t *size)
     return false;
 }
 
+/* ---- The view's bands ---------------------------------------------------------------------------
+ *
+ * Down the GBA's 160 lines, runs of lines that each show a run of the SNES's
+ * from a dot across: the camera's, and the panels' over it, a later panel
+ * over an earlier one; or black, past the SNES's lines. Worked out from the
+ * framing once a frame. The lines are worked out down the SNES's picture
+ * (work_out_lines), so the bands must show its lines in their order; a
+ * framing that doesn't shows the camera's alone. */
+typedef struct {
+    uint8_t at, lines;
+    int16_t row, left;
+    bool black;
+} Band;
+enum { MOST_BANDS = 2 * VID_VIEW_PANELS + 1 };
+static Band bands[MOST_BANDS] IN_FAST_RAM;
+static uint8_t band_count IN_FAST_RAM;
+
+static Band line_band(unsigned y)
+{
+    Band b = { (uint8_t)y, 1, (int16_t)(view_aim.top + (int)y), view_aim.left, false };
+    for (unsigned n = 0; n < view_panel_count; n++) {
+        const VidViewPanel *p = &view_panels[n];
+        if ((int)y >= p->at && (int)y < p->at + (int)p->lines)
+            b.row = (int16_t)(p->top + ((int)y - p->at)), b.left = p->left;
+    }
+    b.black = b.row < 0 || b.row >= VID_ORIGINAL_VIEW_HEIGHT;
+    return b;
+}
+
+static void band_up_the_view(void)
+{
+    band_count = 0;
+    for (unsigned y = 0; y < GBA_VIEW_HEIGHT; y++) {
+        Band b = line_band(y);
+        Band *last = band_count ? &bands[band_count - 1] : NULL;
+        if (last && last->black == b.black && last->left == b.left && (b.black || b.row == last->row + last->lines))
+            last->lines++;
+        else if (band_count < MOST_BANDS)
+            bands[band_count++] = b;
+    }
+    int row = -1;
+    bool in_order = band_count < MOST_BANDS;
+    for (unsigned k = 0; k < band_count && in_order; k++)
+        if (!bands[k].black) {
+            in_order = bands[k].row > row;
+            row = bands[k].row + bands[k].lines - 1;
+        }
+    if (!in_order) {
+        bands[0] = (Band){ 0, GBA_VIEW_HEIGHT, view_aim.top, view_aim.left, false };
+        band_count = 1;
+    }
+}
+
+/* The band showing the SNES's line `row`, or NULL. */
+static const Band *band_showing(int row)
+{
+    for (unsigned k = 0; k < band_count; k++)
+        if (!bands[k].black && row >= bands[k].row && row < bands[k].row + bands[k].lines)
+            return &bands[k];
+    return NULL;
+}
+
 /* The SNES's sprite priorities among the layers, as the GBA's. */
 static const uint8_t sprite_priority[4] = { 3, 2, 2, 1 };
 
@@ -1095,8 +1191,13 @@ static void present_sprites(void)
         unsigned h = sprite_sizes[snes.obj.size_select & 7][(high >> 1) & 1][1];
         uint16_t shape, size;
         volatile uint16_t *to = &OAM[n * 4];
-        int gx = x - CAMERA_X, gy = (e[1] - CAMERA_Y) & 0xFF;
-        if (!gba_size(w, h, &shape, &size) || gx <= -(int)w || gx >= 240) {
+        /* a sprite shows in the band its top line is in, or its foot's */
+        int top = (e[1] + 1) & 0xFF;
+        const Band *b = band_showing(top);
+        if (!b)
+            b = band_showing(top + (int)h - 1);
+        int gx = b ? x - b->left : GBA_VIEW_WIDTH, gy = b ? ((e[1] - b->row + b->at) & 0xFF) : 0;
+        if (!b || !gba_size(w, h, &shape, &size) || gx <= -(int)w || gx >= GBA_VIEW_WIDTH) {
             to[0] = 0x0200;   /* hidden */
             continue;
         }
@@ -1189,7 +1290,6 @@ static ReadLine read_lines[READ_LINES];
  * fast RAM, which has the room work RAM hasn't, as the rest of what the next
  * frame keeps; a hash rather than the bytes, which it hasn't the room for
  * either. */
-#define IN_FAST_RAM __attribute__((section(".iwram_bss")))
 enum { LINES_READ_KEPT = 64 };
 static uint32_t lines_read[LINES_READ_KEPT] IN_FAST_RAM;
 static uint32_t lines_read_hash IN_FAST_RAM;
@@ -1380,11 +1480,11 @@ static bool masked(const VidWindows *w, unsigned layer, bool in1, bool in2)
 
 /* A window's edges (inclusive, the SNES's dots) as the GBA's (its last dot
  * exclusive, on its screen); nothing where the left edge is past the right. */
-static uint16_t gba_window(uint8_t left, uint8_t right)
+static uint16_t gba_window(uint8_t left, uint8_t right, int view_left)
 {
     if (left > right)
         return 0;
-    int x1 = left - CAMERA_X, x2 = right + 1 - CAMERA_X;
+    int x1 = left - view_left, x2 = right + 1 - view_left;
     x1 = x1 < 0 ? 0 : x1 > 240 ? 240 : x1;
     x2 = x2 < 0 ? 0 : x2 > 240 ? 240 : x2;
     return (uint16_t)(x1 << 8 | x2);
@@ -1469,9 +1569,15 @@ static uint16_t backdrop(const LineState *st)
     return out;
 }
 
-static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled)
+/* A line's registers, the SNES's line shown `down` lines further down the
+ * GBA's than the GBA's own and from its dot `left`. */
+static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled, int left, int down)
 {
     LineRegisters r = { 0 };
+    /* A line the SNES blanks is black: the GBA's forced blank shows white,
+     * so the line shows no layer over a black backdrop instead. */
+    if (st->blank)
+        return r;
     for (unsigned n = 0; n < 3; n++)
         if (layers_enabled & (1u << n)) {
             r.bgcnt[n] = layer_control(n, st->map[n]);
@@ -1486,14 +1592,14 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | layers | (st->blank ? DISPCNT_FORCED_BLANK : 0));
     if (st->windows.win_main & (VID_ALL_LAYERS)) {
         r.dispcnt |= DISPCNT_WIN0 | DISPCNT_WIN1;
-        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right);
-        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right);
+        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, left);
+        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, left);
         r.winin = (uint16_t)(region_layers(st, true, false) | region_layers(st, false, true) << 8);
         r.winout = region_layers(st, false, false);
     }
     for (unsigned n = 0; n < 3; n++) {
-        r.hofs[n] = (uint16_t)(st->hofs[n] + CAMERA_X);
-        r.vofs[n] = (uint16_t)(st->vofs[n] + CAMERA_Y);
+        r.hofs[n] = (uint16_t)(st->hofs[n] + left);
+        r.vofs[n] = (uint16_t)(st->vofs[n] + down);
     }
     r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
     r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
@@ -1579,6 +1685,7 @@ typedef struct {
     uint16_t display_from, effects_from, layers_enabled, backdrop_color;
     uint8_t line_effects, line_effects_below;
     bool below_display, below_line_effects, bg3_priority;
+    uint32_t bands;   /* the view's bands, hashed */
 } LinesFrom;
 
 static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
@@ -1602,9 +1709,26 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     f->backdrop_color = snes.cgram[0];
     f->line_effects = v->line_effects;
     f->line_effects_below = v->line_effects_below;
+    f->bands = hash_on(FNV_START, bands, sizeof bands[0] * band_count);
     f->below_display = v->below_display;
     f->below_line_effects = v->below_line_effects;
     f->bg3_priority = snes.mode.bg3_priority;
+}
+
+/* The black bands above GBA line `at` not yet set, set: the registers that
+ * show no layer and a black backdrop. */
+static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next)
+{
+    for (; *next < band_count && bands[*next].at < at; (*next)++) {
+        if (!bands[*next].black)
+            continue;
+        LineRegisters black = { 0 };
+        if (count == 0 || memcmp(&black, &change_registers[count - 1], sizeof black) != 0) {
+            change_registers[count] = black;
+            change_line[count++] = bands[*next].at;
+        }
+    }
+    return count;
 }
 
 /* The frame's lines: the line effects read down the picture from its top,
@@ -1626,7 +1750,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
         if (slots[i].active)
             slot_entry(&slots[i], &snes.slot[i]);
     }
-    uint8_t count = 0;
+    uint8_t count = 0, next_black = 0;
     bool touched = true;   /* whether what the lines' registers come from may have changed */
     uint16_t quiet_until = 0;   /* the next line any slot does anything at */
     for (unsigned line = 0; line < SNES_LINES; line++) {
@@ -1639,12 +1763,15 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
             enabled = v->line_effects_below, quiet_until = 0;
         /* A line's registers are worked out again only where what the
          * effects set has changed, and kept only where they differ. */
-        if (line > CAMERA_Y && line <= CAMERA_Y + GBA_LINES) {
-            unsigned at = line - CAMERA_Y - 1;
-            if (at == 0 || (touched && memcmp(&st, &shown, sizeof st) != 0)) {
-                LineRegisters r = line_registers(&st, layers_enabled);
+        const Band *b = line ? band_showing((int)line - 1) : NULL;
+        if (b) {
+            unsigned at = b->at + (line - 1 - (unsigned)b->row);
+            count = black_bands_above(at, count, &next_black);
+            bool band_starts = at == b->at;
+            if (count == 0 || band_starts || (touched && memcmp(&st, &shown, sizeof st) != 0)) {
+                LineRegisters r = line_registers(&st, layers_enabled, b->left, (int)(line - 1) - (int)at);
                 memcpy(&shown, &st, sizeof st);
-                if (at == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0) {
+                if (count == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0) {
                     change_registers[count] = r;
                     change_line[count++] = (uint8_t)at;
                 }
@@ -1689,6 +1816,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 quiet_until = next;
         }
     }
+    count = black_bands_above(GBA_VIEW_HEIGHT, count, &next_black);
     *st_out = st;
     return count;
 }
@@ -1788,6 +1916,13 @@ void gba_video_present(Platform *pf)
     if (snes.palette_written) {
         present_palettes();
         snes.palette_written = false;
+    }
+    static uint32_t last_bands IN_FAST_RAM;
+    band_up_the_view();
+    uint32_t banded = hash_on(FNV_START, bands, sizeof bands[0] * band_count);
+    if (banded != last_bands) {
+        last_bands = banded;
+        snes.sprites_changed = true;
     }
     if (snes.sprites_changed) {
         present_sprites();
