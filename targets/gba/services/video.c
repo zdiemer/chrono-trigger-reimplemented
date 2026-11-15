@@ -24,8 +24,13 @@
  *   VRAM, the two tables one under the other, 16 tiles of each row of the
  *   GBA's 32 (its two-dimensional layout, so that a sprite's rows of tiles
  *   are 16 names apart on both).
- * - The SNES's per-tile priority has no GBA counterpart: each layer takes
- *   one priority, and the sprites' four map onto the GBA's around them.
+ * - The SNES's per-tile priority (a tile in front of the sprites of a
+ *   priority or behind them) has no GBA counterpart, whose priority is a
+ *   layer's: a layer whose map has tiles of both is split in two, its tiles
+ *   behind the sprites on one of the GBA's layers and those in front on
+ *   another, as many as the GBA's four layers leave room for ("Priority",
+ *   below). A sprite the game masks with one before it in the SNES's table
+ *   is masked by the GBA's sprite window (present_sprites).
  * - The GBA's 240x160 screen is a smaller view (vid_view): the game frames
  *   it, a camera on the SNES's 256x224 and bands of its lines kept in view
  *   (core/view_framing.h), and each GBA line shows the SNES line its band
@@ -64,6 +69,7 @@
 
 enum {
     DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
+    DISPCNT_OBJ_WINDOW = 0x8000, OBJ_WINDOW = 0x0800,
     BGCNT_4BPP = 0x0000,
     BLD_DARKEN = 0x00C0, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
@@ -80,12 +86,16 @@ enum {
  * own, as the field's dialog's two layers do). A map a band of the view shows
  * with columns cut from inside it (VidViewPanel's cut) is kept so too, with
  * the columns left out: from its column `cut` on, each row shows the
- * columns `cut_columns` further on. */
+ * columns `cut_columns` further on. A map whole on a layer split by
+ * priority keeps its tiles in front apart (Priority, below); one that is
+ * another layer's own, converted the same, is shown from that layer's. */
 typedef struct {
     uint8_t layer;
     uint8_t cut;          /* the first column cut, and (<< 5) how many; NO_CUT: the map whole */
+    bool shared;          /* kept where another layer's own map is */
     uint16_t byte, bytes;
     uint16_t gba_byte;    /* NO_PLACE: no room for it */
+    uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
 } LineMap;
 enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5 };
 
@@ -896,12 +906,15 @@ typedef struct {
 } Cache;
 
 /* A layer as the GBA shows it: how deep its tiles are, where its map is,
- * and which cache its tiles are in. */
+ * and which cache its tiles are in; whether it is split by priority, with
+ * where its tiles in front are kept ("Priority", below). */
 typedef struct {
     bool shown;
     bool own_map;          /* whether its own map is converted (a layout may leave it out) */
+    bool split;
     uint8_t bpp, cache;
     uint16_t char_byte, map_byte, map_bytes;
+    uint16_t front_byte;   /* NO_PLACE: not split */
 } Layer;
 
 static Layer layers[4];
@@ -1019,6 +1032,217 @@ static int32_t room_from_the_top(uint32_t count, uint32_t step)
     return -1;
 }
 
+/* ---- Priority -----------------------------------------------------------------------------------
+ *
+ * Each of a SNES layer's tiles stands in front of the sprites of some
+ * priorities and behind the others, as its map entry's priority bit says;
+ * the GBA gives a whole layer one priority. A layer whose map has tiles of
+ * both is split in two where the GBA has a layer to spare (mode 1's three
+ * layers leave one, mode 2's two leave two): its map is converted twice, at
+ * the SNES's place with its tiles in front left blank, and in room the GBA
+ * has spare with its tiles behind left blank, each shown on a GBA layer of
+ * its own at its own priority. Where more layers have both than there are
+ * layers to spare, the first is split before the second, the second before
+ * the others, and among those the one with the most of each first; a split
+ * layer stays split while it still has both, since a split is made in a
+ * layout; and a layer not split stands where most of its tiles do. The GBA shows the
+ * lower-numbered of two layers of one priority in front, so its layers are
+ * numbered front to back. */
+
+/* Which of each layer's map's units, by their place in its map, have an
+ * entry in front of the sprites, and which have one behind. */
+enum { MAP_UNITS = 4 * SCREEN_BYTES / UNIT_BYTES, PRIORITY_BIT = 0x2000, NO_BLOCK = 0xFF };
+static uint32_t units_in_front[4][MAP_UNITS / 32], units_behind[4][MAP_UNITS / 32];
+static uint8_t split_wanted;   /* the layers the last layout was asked to split */
+static bool priorities_noted;  /* whether a unit's have changed since the GBA's layers were assigned */
+
+static void note_priorities(unsigned n, uint32_t first)
+{
+    uint32_t unit = ((first - layers[n].map_byte) & (VRAM_BYTES - 1)) / UNIT_BYTES, bit = 1u << (unit % 32);
+    bool front = false, behind = false;
+    for (uint32_t i = 1; i < UNIT_BYTES; i += 2) {
+        if (snes.vram[first + i] & (PRIORITY_BIT >> 8))
+            front = true;
+        else
+            behind = true;
+    }
+    uint32_t *in_front = &units_in_front[n][unit / 32], *in_behind = &units_behind[n][unit / 32];
+    uint32_t f = front ? *in_front | bit : *in_front & ~bit, b = behind ? *in_behind | bit : *in_behind & ~bit;
+    if (f != *in_front || b != *in_behind) {
+        *in_front = f;
+        *in_behind = b;
+        priorities_noted = true;
+    }
+}
+
+/* The units of a layer's map with an entry in front (`front`) and with one
+ * behind (`behind`), or with only those in front or only those behind. */
+static void count_priorities(unsigned n, bool only, unsigned *front, unsigned *behind)
+{
+    *front = *behind = 0;
+    for (unsigned w = 0; w < MAP_UNITS / 32; w++) {
+        uint32_t f = units_in_front[n][w], b = units_behind[n][w];
+        *front += (unsigned)__builtin_popcount(only ? f & ~b : f);
+        *behind += (unsigned)__builtin_popcount(only ? b & ~f : b);
+    }
+}
+
+/* The layers to split, as many as the GBA's four leave room for, among
+ * those with tiles both in front and behind: the first layer, then the
+ * second (the first not split stands behind the sprites, and the second's
+ * tiles in front alone would cover the first's in front: the stalls' wares
+ * at the Fair), then the others (the sprites stand among the first two's
+ * tiles; the third is the text and the panels, mostly); a layer of `split`
+ * before one not split yet; then those with the most of the fewer. */
+static uint8_t layers_to_split(uint8_t split)
+{
+    unsigned spare = 4, rank[4] = { 0 };
+    for (unsigned n = 0; n < 4; n++) {
+        if (!layers[n].shown)
+            continue;
+        spare--;
+        unsigned front, behind;
+        count_priorities(n, false, &front, &behind);
+        unsigned fewer = front < behind ? front : behind;
+        if (fewer)
+            rank[n] = fewer + (split >> n & 1 ? 0x1000u : 0) + (n == 0 ? 0x4000u : n == 1 ? 0x2000u : 0);
+    }
+    uint8_t wanted = 0;
+    for (; spare; spare--) {
+        unsigned best = NO_LAYER, most = 0;
+        for (unsigned n = 0; n < 4; n++)
+            if (!(wanted >> n & 1) && rank[n] > most)
+                most = rank[n], best = n;
+        if (best == NO_LAYER)
+            break;
+        wanted |= (uint8_t)(1u << best);
+    }
+    return wanted;
+}
+
+/* The SNES's order of its layers' tiles and its sprites, for a mode: each
+ * layer's tiles behind and in front ([layer][0] and [1]) by how far back
+ * they stand (`depth`) and the GBA priority that puts them among the
+ * sprites, and each SNES sprite priority's GBA priority. Mode 1 with its
+ * third layer's tiles in front puts those in front of every sprite, which
+ * the GBA can't: there they stand in front of every layer, and only the
+ * sprites of the lowest priority, which the SNES puts behind the third
+ * layer's tiles behind, show in front of them too. */
+typedef struct {
+    uint8_t depth[4][2], priority[4][2], sprite[4];
+} Order;
+static const Order layers_order = { { { 4, 1 }, { 5, 2 }, { 10, 7 }, { 11, 8 } },
+                                    { { 1, 0 }, { 1, 0 }, { 3, 2 }, { 3, 2 } }, { 3, 2, 1, 0 } };
+static const Order third_in_front_order = { { { 5, 2 }, { 6, 3 }, { 8, 0 }, { 9, 9 } },
+                                            { { 2, 1 }, { 2, 1 }, { 3, 0 }, { 3, 3 } }, { 3, 3, 2, 1 } };
+static const Order mode2_order = { { { 5, 1 }, { 7, 3 }, { 9, 9 }, { 9, 9 } },
+                                   { { 2, 0 }, { 3, 1 }, { 3, 3 }, { 3, 3 } }, { 3, 2, 1, 0 } };
+static const Order *order = &layers_order;
+
+/* Whether a layer not split stands in front of the sprites: where more of
+ * its map's units have only tiles in front than only tiles behind; mode 1's
+ * third layer put in front, where it has any tiles in front (its text and
+ * panels, which the mode puts in front of everything; what it has behind is
+ * mostly blank). */
+static bool stands_in_front(unsigned n)
+{
+    unsigned front, behind;
+    bool third_in_front = n == 2 && order == &third_in_front_order;
+    count_priorities(n, !third_in_front, &front, &behind);
+    return third_in_front ? front > 0 : front > behind;
+}
+
+/* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
+ * its tiles in front alone (`front`, a split layer's) or the rest, and at
+ * which priority; and for the map a split layer shows its tiles behind
+ * from, by its screen block, the screen block its tiles in front are shown
+ * from (NO_BLOCK: it has none). And the GBA's layers that show each set of
+ * the SNES's, as their bits. */
+typedef struct {
+    uint8_t source, priority;
+    bool front;
+} GbaLayer;
+static GbaLayer gba_layers[4];
+static uint8_t front_block[32];
+static uint8_t gba_bits_of[16];
+static uint8_t scroll_source[4];   /* each GBA layer's SNES layer, or the first where none */
+
+/* A SNES layer's tiles in front (or behind) put among the GBA's layers
+ * `count` so far, kept front to back by how far back they stand (`depth`);
+ * `front_copy`: from the split layer's copy of its tiles in front. */
+static unsigned shown_in_order(uint8_t depth[4], unsigned count, unsigned n, bool front, bool front_copy)
+{
+    if (count == 4)
+        return count;
+    uint8_t d = order->depth[n][front];
+    unsigned k = count;
+    for (; k && depth[k - 1] > d; k--) {
+        depth[k] = depth[k - 1];
+        gba_layers[k] = gba_layers[k - 1];
+    }
+    depth[k] = d;
+    gba_layers[k] = (GbaLayer){ (uint8_t)n, order->priority[n][front], front_copy };
+    return count + 1;
+}
+
+static const Order *order_of_mode(void)
+{
+    if (snes.mode.mode == 2)
+        return &mode2_order;
+    return snes.mode.mode == 1 && snes.mode.bg3_priority ? &third_in_front_order : &layers_order;
+}
+
+/* The GBA's layers: each SNES layer's, or its two halves, in the SNES's
+ * order front to back. */
+static void assign_layers(void)
+{
+    uint8_t depth[4];
+    unsigned count = 0;
+    for (unsigned n = 0; n < 4; n++) {
+        if (!layers[n].shown)
+            continue;
+        bool front = layers[n].split || stands_in_front(n);
+        if (layers[n].split)
+            count = shown_in_order(depth, count, n, false, false);
+        count = shown_in_order(depth, count, n, front, layers[n].split);
+    }
+    for (unsigned g = count; g < 4; g++)
+        gba_layers[g] = (GbaLayer){ NO_LAYER, 0, false };
+    for (unsigned g = 0; g < 4; g++)
+        scroll_source[g] = g < count ? gba_layers[g].source : 0;
+    for (unsigned snes_bits = 0; snes_bits < 16; snes_bits++) {
+        gba_bits_of[snes_bits] = 0;
+        for (unsigned g = 0; g < count; g++)
+            if (snes_bits >> gba_layers[g].source & 1)
+                gba_bits_of[snes_bits] |= (uint8_t)(1u << g);
+    }
+}
+
+/* SNES layer bits (with the sprites' and the backdrop's above them) as the GBA's. */
+static uint16_t gba_layer_bits(uint16_t snes_bits)
+{
+    return (uint16_t)((snes_bits & ~0xFu) | gba_bits_of[snes_bits & 0xF]);
+}
+
+/* Whether a map has an entry in front of the sprites. */
+static bool has_tiles_in_front(uint32_t byte, uint32_t bytes)
+{
+    for (uint32_t i = 1; i < bytes; i += 2)
+        if (snes.vram[(byte + i) & (VRAM_BYTES - 1)] & (PRIORITY_BIT >> 8))
+            return true;
+    return false;
+}
+
+/* Room for a copy of a map `bytes` long, from the top of the GBA's
+ * background VRAM down, taken; or NO_PLACE. */
+static uint16_t place_copy(uint32_t bytes)
+{
+    int32_t at = room_from_the_top(bytes / 32, SCREEN_BYTES / 32);
+    return at < 0 ? NO_PLACE : (uint16_t)(at * 32);
+}
+
+static const Layer *map_layer(uint32_t byte);
+
 /* Room for the drawn panel, made by a layout after a mode asks whether the
  * view draws one (vid_view_draws_panels): a screen block for each of its
  * layers' maps, and a run of places for the tiles it sends, a blank one and
@@ -1081,8 +1305,9 @@ enum { LINE_MAPS_SHOWN = 4 };
 static uint16_t maps_shown IN_FAST_RAM;
 
 /* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
- * places their maps take, and their tiles' caches, each with the window the
- * most places are free in. Where `pruned`, the maps the lines haven't shown
+ * places their maps take, the layers split by priority with their copies of
+ * tiles in front, and their tiles' caches, each with the window the most
+ * places are free in. Where `pruned`, the maps the lines haven't shown
  * since the last layout are left out, their places and the tiles they name
  * given to the rest; a map left out that a line shows again is noted, and
  * the next layout has it. */
@@ -1141,22 +1366,53 @@ static void lay_out(bool pruned)
             for (uint32_t place = byte / 32; place < (byte + BLOCK_BYTES) / 32; place++)
                 take(place);
     }
+    /* The layers to split by priority, from their maps as they stand. */
+    memset(units_in_front, 0, sizeof units_in_front);
+    memset(units_behind, 0, sizeof units_behind);
+    for (unsigned n = 0; n < 4; n++)
+        for (uint32_t at = 0; layers[n].shown && layers[n].own_map && at < layers[n].map_bytes; at += UNIT_BYTES)
+            note_priorities(n, (layers[n].map_byte + at) & (VRAM_BYTES - 1));
+    split_wanted = layers_to_split(split_wanted);
     /* The line effects' maps and the maps cut, each where the GBA has room
-     * for it, from the top of its background VRAM down; then the drawn
-     * panel's room. */
+     * for it, from the top of its background VRAM down, but another layer's
+     * own map converted the same, shown from that layer's copy (whole, or
+     * both halves where both layers are split); then the drawn panel's room;
+     * then the copies of the split layers' tiles in front, and of their
+     * line effects' maps' where they have any. */
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
-        lm->gba_byte = NO_PLACE;
+        lm->gba_byte = lm->front_byte = NO_PLACE;
+        lm->shared = false;
         if (!layers[lm->layer].shown)
             continue;
         for (unsigned k = 0; k < BLOCKS; k++)
             if (within((uint32_t)k * BLOCK_BYTES, lm->byte, lm->bytes))
                 roles[k] |= LINE_MAP;
-        int32_t at = room_from_the_top(lm->bytes / 32, SCREEN_BYTES / 32);
-        if (at >= 0)
-            lm->gba_byte = (uint16_t)(at * 32);
+        const Layer *owner = map_layer(lm->byte);
+        lm->shared = lm->cut == NO_CUT && owner && owner->map_byte == lm->byte && owner->map_bytes == lm->bytes &&
+                     owner->cache == layers[lm->layer].cache &&
+                     (!(split_wanted >> (owner - layers) & 1) || (split_wanted >> lm->layer & 1));
+        lm->gba_byte = lm->shared ? lm->byte : place_copy(lm->bytes);
     }
     make_room_for_the_panel(pruned);
+    memset(front_block, NO_BLOCK, sizeof front_block);
+    for (unsigned n = 0; n < 4; n++) {
+        Layer *l = &layers[n];
+        l->front_byte = split_wanted >> n & 1 && l->own_map ? place_copy(l->map_bytes) : NO_PLACE;
+        l->split = l->front_byte != NO_PLACE;
+        if (l->split)
+            front_block[l->map_byte / SCREEN_BYTES] = (uint8_t)(l->front_byte / SCREEN_BYTES);
+    }
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        LineMap *lm = &snes.line_maps[m];
+        if (lm->gba_byte == NO_PLACE || lm->cut != NO_CUT || !layers[lm->layer].split)
+            continue;
+        const Layer *owner = lm->shared ? map_layer(lm->byte) : NULL;
+        if (owner && owner->split)
+            lm->front_byte = owner->front_byte;
+        else if (has_tiles_in_front(lm->byte, lm->bytes) && (lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
+            front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+    }
     for (unsigned c = 0; c < CACHES; c++) {
         Cache *cache = &caches[c];
         if (!cache->used)
@@ -1196,13 +1452,35 @@ static const Layer *map_layer(uint32_t byte)
     return NULL;
 }
 
-/* A unit of a map, converted for a layer into the GBA's VRAM at `to`. */
-static void convert_map(uint32_t first, const Layer *l, uint32_t to)
+/* A unit of a map, converted for a layer into the GBA's VRAM at `to`; where
+ * `front_to` is a place, its tiles in front go there instead, each left
+ * blank in the other; where `to` is NO_PLACE, those alone. */
+static void convert_map(uint32_t first, const Layer *l, uint32_t to, uint32_t front_to)
 {
     volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + to / 2;
-    for (uint32_t i = 0; i < UNIT_BYTES; i += 2)
-        gba[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
+    if (to == NO_PLACE) {
+        volatile uint16_t *front = (volatile uint16_t *)BG_VRAM + front_to / 2;
+        for (uint32_t i = 0; i < UNIT_BYTES; i += 2) {
+            uint16_t e = (uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8);
+            front[i / 2] = e & PRIORITY_BIT ? map_entry(e, l) : caches[l->cache].blank;
+        }
+        return;
+    }
+    if (front_to == NO_PLACE) {
+        for (uint32_t i = 0; i < UNIT_BYTES; i += 2)
+            gba[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
+        return;
+    }
+    volatile uint16_t *front = (volatile uint16_t *)BG_VRAM + front_to / 2;
+    uint16_t blank = caches[l->cache].blank;
+    for (uint32_t i = 0; i < UNIT_BYTES; i += 2) {
+        uint16_t e = (uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), entry = map_entry(e, l);
+        bool in_front = (e & PRIORITY_BIT) != 0;
+        gba[i / 2] = in_front ? blank : entry;
+        front[i / 2] = in_front ? entry : blank;
+    }
 }
+
 
 /* A row of a map cut (LineMap): each of its 32 columns from the column
  * the cut puts there. */
@@ -1258,13 +1536,28 @@ static void convert_unit(unsigned u)
             if (lm->gba_byte == NO_PLACE || !layers[lm->layer].shown || !within(first, lm->byte, lm->bytes))
                 continue;
             uint32_t offset = (first - lm->byte) & (VRAM_BYTES - 1);
-            if (lm->cut == NO_CUT)
-                convert_map(first, &layers[lm->layer], lm->gba_byte + offset);
-            else
+            if (lm->cut != NO_CUT) {
                 convert_cut_row(lm, offset / 64);
+                continue;
+            }
+            /* a shared copy is its owner's, converted as its map */
+            bool front_shared = lm->shared && map_layer(first)->split;
+            if (!lm->shared || (lm->front_byte != NO_PLACE && !front_shared))
+                convert_map(first, &layers[lm->layer], lm->shared ? NO_PLACE : lm->gba_byte + offset,
+                            lm->front_byte != NO_PLACE && !front_shared ? lm->front_byte + offset : NO_PLACE);
+            /* tiles in front where its split layer had none: the next layout
+             * gives them their copy */
+            if (lm->front_byte == NO_PLACE && layers[lm->layer].split && has_tiles_in_front(first, UNIT_BYTES))
+                snes.settings_changed = true;
         }
-    if (role & MAP)
-        convert_map(first, map_layer(first), first);
+    if (role & MAP) {
+        for (unsigned n = 0; n < 4; n++)
+            if (layers[n].shown && layers[n].own_map && within(first, layers[n].map_byte, layers[n].map_bytes))
+                note_priorities(n, first);
+        const Layer *l = map_layer(first);
+        convert_map(first, l, first,
+                    l->split ? l->front_byte + ((first - l->map_byte) & (VRAM_BYTES - 1)) : NO_PLACE);
+    }
     if (role & TILES)
         for (unsigned c = 0; c < CACHES; c++) {
             const Cache *cache = &caches[c];
@@ -1315,15 +1608,14 @@ static Cache *cache_of(uint8_t bpp, uint16_t char_byte)
     return NULL;
 }
 
-/* The GBA's control of a panel layer: its priority as the screen's layer's,
- * its tiles where they are, its map's screen block. */
+/* The GBA's control of a panel layer: its tiles where they are, its map's
+ * screen block (its priority is its GBA layer's). */
 static uint16_t panel_layer_control(unsigned s)
 {
     unsigned n = panel.layer[s];
     Cache *c = cache_of(layers[n].bpp, panel.char_byte[s]);
     uint16_t char_block = panel.own_tiles & (1u << n) ? panel_room.run / 512 : c ? c->block : 0;
-    uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
-    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | panel_room.map_block[s] << 8);
+    return (uint16_t)(char_block << 2 | BGCNT_4BPP | panel_room.map_block[s] << 8);
 }
 
 /* `count` bytes sent into a panel layer's map, from its entry `first`, as
@@ -1610,14 +1902,60 @@ static int band_x(const Band *b, int x)
     return x;
 }
 
-/* The SNES's sprite priorities among the layers, as the GBA's. */
-static const uint8_t sprite_priority[4] = { 3, 2, 2, 1 };
+/* Where sprites overlap, the SNES shows the one first in its table and
+ * then sets that one's priority against the layers', where the GBA shows
+ * the one of the higher priority: on the SNES a sprite of a lower priority
+ * before one of a higher hides it, and shows the layers in front of it in
+ * its place.
+ * The game masks with that (Crono's covers in his bed are a sprite of the
+ * lowest priority before his, hidden by the bed in front of it). Such a
+ * sprite is the GBA's sprite window instead, inside which the line's
+ * registers show no sprites: the layers there, as on the SNES where they
+ * cover the mask, as they do where the game masks. */
+static bool sprites_mask;   /* whether a sprite is the sprite window */
+
+/* A sprite shown, as overlaps are told: where, and its GBA priority. */
+typedef struct {
+    int16_t x, y;
+    uint8_t w, h, priority;
+} Shown;
+
+static bool overlap(const Shown *a, const Shown *b)
+{
+    return a->x < b->x + b->w && b->x < a->x + a->w && a->y < b->y + b->h && b->y < a->y + a->h;
+}
+
+/* The GBA's screen in squares of 32 dots, each with the GBA priorities of
+ * the sprites shown over it (a bit each), so that a sprite is looked for
+ * among those before it in front of it only where one may be. */
+enum { SQUARE = 32, SQUARES_ACROSS = GBA_VIEW_WIDTH / SQUARE, SQUARES_DOWN = GBA_VIEW_HEIGHT / SQUARE };
+typedef uint8_t Squares[SQUARES_DOWN][SQUARES_ACROSS];
+
+/* The priorities over the squares a sprite covers (`mark`: adding its own). */
+static uint8_t over_squares(Squares squares, const Shown *sp, bool mark)
+{
+    int left = sp->x < 0 ? 0 : sp->x, right = sp->x + sp->w > GBA_VIEW_WIDTH ? GBA_VIEW_WIDTH : sp->x + sp->w;
+    int top = sp->y < 0 ? 0 : sp->y, bottom = sp->y + sp->h > GBA_VIEW_HEIGHT ? GBA_VIEW_HEIGHT : sp->y + sp->h;
+    uint8_t over = 0;
+    for (int y = top / SQUARE; top < bottom && y <= (bottom - 1) / SQUARE; y++)
+        for (int x = left / SQUARE; left < right && x <= (right - 1) / SQUARE; x++) {
+            over |= squares[y][x];
+            if (mark)
+                squares[y][x] |= (uint8_t)(1u << sp->priority);
+        }
+    return over;
+}
 
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
  * panel shows none. */
 static void present_sprites(void)
 {
-    for (unsigned n = 0; n < SPRITES; n++) {
+    Shown shown[SPRITES];   /* the sprites after this one in the table, shown */
+    Squares squares;
+    unsigned count = 0;
+    memset(squares, 0, sizeof squares);
+    sprites_mask = false;
+    for (unsigned n = SPRITES; n-- > 0;) {
         const uint8_t *e = &snes.oam[n * 4];
         uint8_t high = (uint8_t)(snes.oam[0x200 + n / 4] >> (2 * (n % 4)));
         int x = e[0] | (high & 1) << 8;
@@ -1638,11 +1976,19 @@ static void present_sprites(void)
             to[0] = 0x0200;   /* hidden */
             continue;
         }
+        uint8_t priority = order->sprite[(e[3] >> 4) & 3];
+        Shown here = { (int16_t)gx, (int16_t)(gy >= 192 ? gy - 256 : gy), (uint8_t)w, (uint8_t)h, priority };
+        bool mask = false;
+        if (over_squares(squares, &here, true) & ((1u << priority) - 1))
+            for (unsigned k = 0; k < count && !mask; k++)
+                mask = shown[k].priority < priority && overlap(&here, &shown[k]);
+        shown[count++] = here;
+        sprites_mask |= mask;
         uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
         uint16_t tile = (uint16_t)((name >> 4) * 32 + (name & 15));
-        to[0] = (uint16_t)(gy | shape << 14);
+        to[0] = (uint16_t)(gy | (mask ? OBJ_WINDOW : 0) | shape << 14);
         to[1] = (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14);
-        to[2] = (uint16_t)(tile | sprite_priority[(e[3] >> 4) & 3] << 10 | ((e[3] >> 1) & 7) << 12);
+        to[2] = (uint16_t)(tile | priority << 10 | ((e[3] >> 1) & 7) << 12);
     }
 }
 
@@ -1676,9 +2022,10 @@ enum {
     DISPCNT_WIN0 = 0x2000, DISPCNT_WIN1 = 0x4000, WIN_EFFECTS = 0x20,
 };
 
-/* A line's registers on the GBA. */
+/* A line's registers on the GBA, its four layers' as they show the SNES's
+ * (gba_layers). */
 typedef struct {
-    uint16_t dispcnt, bgcnt[3], hofs[3], vofs[3], win0h, win1h, winin, winout, bldcnt, bldy;
+    uint16_t dispcnt, bgcnt[4], hofs[4], vofs[4], win0h, win1h, winin, winout, bldcnt, bldy;
     uint16_t backdrop, bldalpha;
 } LineRegisters;
 
@@ -2037,13 +2384,14 @@ static void note_line_map(unsigned n, uint16_t byte, uint16_t bytes, uint8_t cut
     if (!layers[n].shown || line_map(n, byte, cut != NO_CUT) ||
         snes.line_map_count == sizeof snes.line_maps / sizeof snes.line_maps[0])
         return;
-    snes.line_maps[snes.line_map_count++] = (LineMap){ (uint8_t)n, cut, byte, bytes, NO_PLACE };
+    snes.line_maps[snes.line_map_count++] =
+        (LineMap){ .layer = (uint8_t)n, .cut = cut, .byte = byte, .bytes = bytes, .gba_byte = NO_PLACE, .front_byte = NO_PLACE };
     snes.settings_changed = true;
 }
 
 /* The GBA's control of a layer showing the map the SNES's byte names: its
- * priority and tiles as the layout set them, the map's screen block and
- * size: where a band cuts columns from inside it, the map cut where the
+ * tiles as the layout set them, the map's screen block and size (its
+ * priority is its GBA layer's): where a band cuts columns from inside it, the map cut where the
  * layer's scroll `hofs` puts the band's cut (a 32-column map's, and only
  * whole columns), which a layout keeps once noted. */
 static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_t hofs)
@@ -2053,7 +2401,6 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
     vid_bg_map_decode(&b, map);
     uint16_t char_block = caches[l->cache].block;
     uint16_t size = (uint16_t)((b.map_w == 64 ? 1 : 0) | (b.map_h == 64 ? 2 : 0));
-    uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
     uint16_t at = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
     bool own = at == l->map_byte && bytes == l->map_bytes;
     if (!own)
@@ -2081,7 +2428,7 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
     else if (own)
         maps_shown |= (uint16_t)(1u << n);
     uint32_t gba_byte = lm && lm->gba_byte != NO_PLACE ? lm->gba_byte : at;
-    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | (gba_byte / SCREEN_BYTES) << 8 | size << 14);
+    return (uint16_t)(char_block << 2 | BGCNT_4BPP | (gba_byte / SCREEN_BYTES) << 8 | size << 14);
 }
 
 static uint8_t map_byte_of(const VidBg *b)
@@ -2116,9 +2463,37 @@ static uint16_t backdrop(const LineState *st)
  * scroll, one further down than on the GBA. */
 static void line_scroll(LineRegisters *r, const LineState *st, const Band *b, int down)
 {
-    for (unsigned n = 0; n < 3; n++) {
-        r->hofs[n] = (uint16_t)(st->hofs[n] + b->left);
-        r->vofs[n] = (uint16_t)(st->vofs[n] + down + 1);
+    /* the fourth layer's, which no line effect changes, as it stands */
+    const uint16_t hofs[4] = { st->hofs[0], st->hofs[1], st->hofs[2], snes.bg[3].hofs };
+    const uint16_t vofs[4] = { st->vofs[0], st->vofs[1], st->vofs[2], snes.bg[3].vofs };
+    for (unsigned g = 0; g < 4; g++) {
+        r->hofs[g] = (uint16_t)(hofs[scroll_source[g]] + b->left);
+        r->vofs[g] = (uint16_t)(vofs[scroll_source[g]] + down + 1);
+    }
+}
+
+/* The GBA's layers' control, from the SNES's layers' (`controls`): a split
+ * layer's tiles in front from their copy, at each layer's priority. A map
+ * with no tiles in front, or a drawn panel's layer (`drawn`, a bit each),
+ * isn't shown by the layer that shows them: through the windows, since a
+ * layer enabled part of the way down shows only from three lines on. */
+static void gba_controls(LineRegisters *r, const uint16_t controls[4], uint8_t drawn)
+{
+    for (unsigned g = 0; g < 4; g++) {
+        const GbaLayer *l = &gba_layers[g];
+        if (l->source == NO_LAYER)
+            continue;
+        uint16_t control = controls[l->source];
+        if (l->front) {
+            uint8_t block = drawn >> l->source & 1 ? NO_BLOCK : front_block[control >> 8 & 31];
+            if (block == NO_BLOCK) {
+                r->winin &= (uint16_t)~(0x0101u << g);
+                r->winout &= (uint16_t)~(0x0101u << g);
+                continue;
+            }
+            control = (uint16_t)((control & ~0x1F00) | block << 8);
+        }
+        r->bgcnt[g] = control | l->priority;
     }
 }
 
@@ -2129,7 +2504,8 @@ static void line_scroll(LineRegisters *r, const LineState *st, const Band *b, in
 static LineRegisters nothing_shown(uint16_t layers_enabled)
 {
     LineRegisters r = { 0 };
-    r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | DISPCNT_OBJ | DISPCNT_WIN0 | DISPCNT_WIN1 | (layers_enabled & 15) * DISPCNT_BG0);
+    r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | DISPCNT_OBJ | DISPCNT_WIN0 | DISPCNT_WIN1 |
+                           gba_layer_bits(layers_enabled & 15) * DISPCNT_BG0);
     return r;
 }
 
@@ -2150,24 +2526,40 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
         drawn.sub_layers &= drawn.main_layers;
         st = &drawn;
     }
+    uint16_t controls[4] = { 0 };
     for (unsigned n = 0; n < 3; n++)
         if ((layers_enabled & (1u << n)) && !b->drawn)
-            r.bgcnt[n] = layer_control(n, st->map[n], b, st->hofs[n]);
+            controls[n] = layer_control(n, st->map[n], b, st->hofs[n]);
+    if ((layers_enabled & VID_BG4_BIT) && !b->drawn)
+        controls[3] = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
     if (st->windows.win_main & (VID_ALL_LAYERS)) {
         r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, b);
         r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, b);
-        r.winin = (uint16_t)(region_layers(st, true, false) | region_layers(st, false, true) << 8);
+        r.winin = (uint16_t)(gba_layer_bits(region_layers(st, true, false)) |
+                             gba_layer_bits(region_layers(st, false, true)) << 8);
     }
-    r.winout = region_layers(st, false, false);
+    r.winout = gba_layer_bits(region_layers(st, false, false));
+    /* Inside the sprite window, what the line shows outside the windows but
+     * the sprites. */
+    if (sprites_mask) {
+        r.dispcnt |= DISPCNT_OBJ_WINDOW;
+        r.winout = (uint16_t)(r.winout | (r.winout & 0x2F) << 8);
+    }
     line_scroll(&r, st, b, down);
+    uint8_t drawn_layers = 0;
     for (unsigned s = 0; b->drawn && s < PANEL_LAYERS; s++) {
         unsigned n = panel.layer[s];
         if (n == NO_LAYER || !(layers_enabled & (1u << n)))
             continue;
-        r.bgcnt[n] = panel.control[s];
-        r.hofs[n] = panel.hofs[s];
-        r.vofs[n] = (uint16_t)(panel.vofs[s] - panel.at);
+        controls[n] = panel.control[s];
+        drawn_layers |= (uint8_t)(1u << n);
+        for (unsigned g = 0; g < 4; g++)
+            if (gba_layers[g].source == n) {
+                r.hofs[g] = panel.hofs[s];
+                r.vofs[g] = (uint16_t)(panel.vofs[s] - panel.at);
+            }
     }
+    gba_controls(&r, controls, drawn_layers);
     r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
     r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
     r.backdrop = backdrop(st);
@@ -2179,7 +2571,7 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && m->sub_screen && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
         uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
-        r.bldcnt = (uint16_t)(BLD_ALPHA | first | second << 8);
+        r.bldcnt = (uint16_t)(BLD_ALPHA | gba_layer_bits(first) | gba_layer_bits(second) << 8);
         r.bldalpha = m->half ? 0x0808 : 0x1010;
     }
     return r;
@@ -2189,10 +2581,10 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
 __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static void set_line(const LineRegisters *r)
 {
     DISPCNT = r->dispcnt;
-    for (unsigned n = 0; n < 3; n++) {
-        BGCNT(n) = r->bgcnt[n];
-        BGHOFS(n) = r->hofs[n];
-        BGVOFS(n) = r->vofs[n];
+    for (unsigned g = 0; g < 4; g++) {
+        BGCNT(g) = r->bgcnt[g];
+        BGHOFS(g) = r->hofs[g];
+        BGVOFS(g) = r->vofs[g];
     }
     WIN0H = r->win0h;
     WIN1H = r->win1h;
@@ -2254,6 +2646,9 @@ typedef struct {
     bool below_display, below_line_effects, bg3_priority;
     uint32_t bands;   /* the view's bands, hashed */
     uint32_t drawn;   /* the drawn panel's lines and layers, hashed */
+    GbaLayer gba[4];  /* what the GBA's layers show */
+    bool sprites_mask;
+    uint16_t fourth[3];   /* the fourth layer's scroll and map */
 } LinesFrom;
 
 static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
@@ -2282,6 +2677,9 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     f->below_display = v->below_display;
     f->below_line_effects = v->below_line_effects;
     f->bg3_priority = snes.mode.bg3_priority;
+    memcpy(f->gba, gba_layers, sizeof f->gba);
+    f->sprites_mask = sprites_mask;
+    f->fourth[0] = snes.bg[3].hofs, f->fourth[1] = snes.bg[3].vofs, f->fourth[2] = map_byte_of(&snes.bg[3]);
 }
 
 enum { NO_LINE = 0xFFFF };
@@ -2557,6 +2955,19 @@ void gba_video_present(Platform *pf)
         present_palettes();
         snes.palette_written = false;
     }
+    /* The GBA's layers, where the mode, the layout or the maps' priorities
+     * changed; a layer to split, or a split one to join, makes the layout
+     * again in the next frame. */
+    if (priorities_noted && layers_to_split(split_wanted) != split_wanted)
+        snes.settings_changed = true;
+    const Order *was = order;
+    order = order_of_mode();
+    if (laid_out || priorities_noted || order != was) {
+        assign_layers();
+        priorities_noted = false;
+    }
+    if (order != was)
+        snes.sprites_changed = true;
     static uint32_t last_bands IN_FAST_RAM;
     band_up_the_view();
     uint32_t banded = hash_on(FNV_START, bands, sizeof bands[0] * band_count);
@@ -2570,14 +2981,9 @@ void gba_video_present(Platform *pf)
     }
 
     uint16_t layers_enabled = 0;
-    for (unsigned n = 0; n < 4; n++) {
-        const Layer *l = &layers[n];
-        if (!l->shown)
-            continue;
-        if (n == 3)
-            BGCNT(3) = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
-        layers_enabled |= (uint16_t)(1u << n);
-    }
+    for (unsigned n = 0; n < 4; n++)
+        if (layers[n].shown)
+            layers_enabled |= (uint16_t)(1u << n);
     for (unsigned s = 0; panel.drawn && panel_room.made && s < PANEL_LAYERS; s++)
         if (panel.layer[s] != NO_LAYER)
             panel.control[s] = panel_layer_control(s);

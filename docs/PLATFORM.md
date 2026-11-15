@@ -1244,6 +1244,40 @@ mode 0's four tiled layers and its sprites:
   GBA's sprite VRAM (its two-dimensional layout, 32 tiles a row, so that a
   sprite's rows are 16 names apart on both), and the sprite table converted
   in a frame it changed (sizes, flips, palette, position).
+- **Priority**: each SNES tile stands in front of or behind the sprites by
+  its map entry's priority bit, where a GBA layer has one priority. A layer
+  whose map has tiles of both is split across two GBA layers, as many as
+  the four leave spare (mode 1's three layers leave one, mode 2's two leave
+  two): its map is converted twice, at the SNES's place with the tiles in
+  front left blank and into room the GBA has spare with the others blank,
+  each unit of 32 bytes as the game changes it, both halves at the
+  priorities that put them among the sprites as the mode does (per mode, a
+  table of each layer's halves and each sprite priority). The GBA's layers
+  are numbered front to back, since between two of one priority the GBA
+  shows the lower-numbered in front, and each line's registers are worked
+  out for them. Which units of each layer's map have tiles in front and
+  which have tiles behind is kept as they are converted; the first layer is
+  split before the second (the second's tiles in front alone would cover
+  the first's: the Fair's stalls hide their wares), the second before the
+  third (mode 1's third is the text and the panels), and those with more of
+  each before those with fewer. A split layer stays split while it still
+  has both, since splitting is a layout's work; one not split stands where
+  most of its tiles do, mode 1's third in front where the mode puts it in
+  front and it has any tiles there. A line effect's map on a split layer
+  has its copy of the tiles in front only where it has some (the next
+  layout gives it one when it gains them), and one that is another layer's
+  own map, its tiles from the same cache (the field's second layer shows
+  the first's), is shown from that layer's copy rather than a copy of its
+  own, which leaves the caches the room a split takes. A map a band shows
+  cut isn't split: its tiles in front stand behind with the rest.
+- **Sprite masks**: where sprites overlap, the SNES shows the one first in
+  its table and then sets that one's priority against the layers', where
+  the GBA shows the one of the higher priority. The game masks with that:
+  Crono's covers in his bed are sprites of the lowest priority before his,
+  which hide him and are hidden by the bed. A sprite with one of a higher
+  priority after it in the table overlapping it is the GBA's sprite window
+  instead, inside which a line shows no sprites; the overlaps are looked
+  for only where a 32-dot square of the screen has a sprite in front of it.
 - **Line by line**: the line effects' tables (HDMA) are read down the frame
   as the observer reads them (32 bytes at a time, a transfer's bytes at once
   where they lie in one 32, passing over a slot's lines between its
@@ -1321,9 +1355,14 @@ mode 0's four tiled layers and its sprites:
 
 Approximated, or not shown yet (each a follow-up of issue #367):
 
-- The SNES's per-tile priority: each layer takes one GBA priority (BG3 in
-  front where the mode puts it there, then BG1, BG2), and the sprites' four
-  map around them.
+- Per-tile priority where more layers have tiles of both priorities than
+  the GBA has layers to spare: the field, with three layers that have them,
+  splits one, and mode 0 none. Mode 1's third layer in front, where the mode
+  puts it in front of every sprite, is in front of every layer but the
+  sprites of the lowest priority show in front of its tiles behind too. A
+  split takes its copies' room from the tile caches.
+- A sprite mask hides every sprite inside it, not only those after it in
+  the table, and doesn't show itself where no layer covers it.
 - Colour math: the fixed colour added to or subtracted from the backdrop is
   kept, and the sub screen added to the main screen is the GBA's blending at
   full weight where the sub screen's layers are on the main screen too;
