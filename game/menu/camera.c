@@ -4,6 +4,7 @@
 #include "charge.h"
 #include "core/view_framing.h"
 #include "menu/cursor.h"
+#include "menu/equipment.h"
 #include "menu/item_screen.h"
 #include "menu/load_screen.h"
 #include "menu/main_menu.h"
@@ -57,6 +58,8 @@ typedef struct {
     uint8_t count;
     int16_t top[VID_VIEW_PANELS - 2];   /* two left for the black above and below */
     uint8_t lines[VID_VIEW_PANELS - 2];
+    int16_t column_top[VID_VIEW_PANELS - 2];   /* with a column moved by its own lines, its line beside `top` */
+    int16_t column_end;                         /* the column's screen X past its last dot, or 0 */
 } Bands;
 
 static void band(Bands *b, int top, int end)
@@ -224,6 +227,87 @@ static bool shop_bands(const GameState *g, Bands *b)
     return true;
 }
 
+/* ---- The equipment --------------------------------------------------------------------------- *
+ *
+ * The equipment's screen is two columns of windows from line 16 to 208. On
+ * the right, the member's portrait, the four slots (rows 12 lines apart, the
+ * hand beside one), the figures and the experience; on the left, the
+ * members' windows (rows 8 apart) and the clock, or, once a member is
+ * chosen, that member's window, the slot's name and what fits it (rows 12
+ * apart). Choosing from what fits, the left's list is longer, and a window
+ * for the item's description takes the foot of both columns. The columns'
+ * rows don't line up, so they have almost no blank lines in common. In a
+ * smaller view each column leaves out its own: every window and every row
+ * stays, each column a few lines shorter at its windows' edges and between
+ * groups of rows, the figures' rows 8 or 9 lines apart, the slots' and the
+ * list's whole for the hand. The left column is moved by its own lines
+ * beside the right (the original moves it by columns already, by mode 2's
+ * offsets). Both columns keep 160 lines, the description's the same lines
+ * in both, and the view starts a band wherever either column's next run
+ * starts: 12 bands at most, of the 14 there are. */
+enum { EQUIPMENT_COLUMN_END = 112 };   /* the left column's windows end short of the screen's X 112 */
+
+static const LineSpan EQUIPMENT_RIGHT[] = {
+    { 16, 19 }, { 23, 72 }, { 79, 128 }, { 131, 140 }, { 144, 152 }, { 156, 164 }, { 168, 176 }, { 182, 208 },
+};
+static const LineSpan EQUIPMENT_MEMBERS[] = {
+    { 16, 19 }, { 23, 56 }, { 60, 104 }, { 108, 152 }, { 156, 165 }, { 175, 184 }, { 190, 208 },
+};
+static const LineSpan EQUIPMENT_SLOT[] = {
+    { 16, 19 }, { 23, 56 }, { 60, 68 }, { 79, 89 }, { 92, 94 }, { 98, 100 }, { 106, 208 },
+};
+static const LineSpan EQUIPMENT_RIGHT_OVER_THE_DESCRIPTION[] = {
+    { 16, 19 }, { 23, 72 }, { 79, 140 }, { 143, 152 }, { 155, 164 }, { 167, 178 }, { 184, 200 }, { 204, 206 },
+};
+static const LineSpan EQUIPMENT_WHAT_FITS[] = {
+    { 16, 19 }, { 23, 56 }, { 60, 61 }, { 66, 68 }, { 75, 178 }, { 184, 200 }, { 204, 206 },
+};
+
+typedef struct {
+    const LineSpan *spans;
+    uint8_t count;
+} Column;
+#define COLUMN(spans) { spans, (uint8_t)(sizeof spans / sizeof spans[0]) }
+
+/* The bands of two columns side by side: down the view, a band wherever
+ * either column's next run of lines starts; false where they need more than
+ * the bands there are. */
+static bool bands_of_two_columns(Column left, Column right, int16_t column_end, Bands *b)
+{
+    unsigned l = 0, r = 0;
+    int left_at = left.spans[0].top, right_at = right.spans[0].top;
+    b->column_end = column_end;
+    while (l < left.count && r < right.count) {
+        if (b->count == VID_VIEW_PANELS - 2)
+            return false;
+        int lines = left.spans[l].end - left_at;
+        if (right.spans[r].end - right_at < lines)
+            lines = right.spans[r].end - right_at;
+        b->column_top[b->count] = (int16_t)left_at;
+        band(b, right_at, right_at + lines);
+        left_at += lines, right_at += lines;
+        if (left_at == left.spans[l].end && ++l < left.count)
+            left_at = left.spans[l].top;
+        if (right_at == right.spans[r].end && ++r < right.count)
+            right_at = right.spans[r].top;
+    }
+    return true;
+}
+
+static bool equipment_bands(const GameState *g, Bands *b)
+{
+    if ((MenuScreen)menu_screen(g) != MENU_SCREEN_EQUIPMENT)
+        return false;
+    static const Column RIGHT = COLUMN(EQUIPMENT_RIGHT), MEMBERS = COLUMN(EQUIPMENT_MEMBERS),
+                        SLOT = COLUMN(EQUIPMENT_SLOT),
+                        RIGHT_OVER_THE_DESCRIPTION = COLUMN(EQUIPMENT_RIGHT_OVER_THE_DESCRIPTION),
+                        WHAT_FITS = COLUMN(EQUIPMENT_WHAT_FITS);
+    if (menu_equip_choosing_an_item(g))
+        return bands_of_two_columns(WHAT_FITS, RIGHT_OVER_THE_DESCRIPTION, EQUIPMENT_COLUMN_END, b);
+    return bands_of_two_columns(menu_equip_choosing_a_member(g) ? MEMBERS : SLOT, RIGHT, EQUIPMENT_COLUMN_END, b);
+}
+#undef COLUMN
+
 /* ---- The windowed screens ------------------------------------------------------------------------ *
  *
  * The other screens are stacks of windows, and most of them run past 160
@@ -295,11 +379,11 @@ static const KeptLines SAVE_RUNS[] = {
     KEEP(16, 106), KEEP(109, 112), KEEP(128, 131), KEEP(134, 152), KEEP(160, 201), KEEP(204, 208),
 };
 #undef SLOT
-/* The equipment: the members and the clock down the left beside the
- * member's portrait, equipment and figures, which follow the cursor. The
- * two columns' rows are 8 and 12 lines apart, so they are both between rows
- * only here and there: the window shows down to the figures' last row, the
- * clock and the experience below it out of view. */
+/* The equipment's panel under the main menu: the members and the clock down
+ * the left beside the member's portrait, equipment and figures, from the
+ * top. The two columns' rows are 8 and 12 lines apart, so they are both
+ * between rows only here and there: the panel shows down to the figures'
+ * last row, the clock and the experience below it out of view. */
 static const KeptLines EQUIPMENT_RUNS[] = { FOLLOW(16, 208) };
 static const uint8_t EQUIPMENT_CUTS[] = { 16, 72, 104, 112, 116, 152, 164, 176, 184, 200, 208 };
 /* Exchanging the party: three members' windows and the window to exchange
@@ -357,7 +441,6 @@ static const WindowedLayout *windowed_layout(const GameState *g, int *focus_top,
         *focus_top = MAIN_MENU_WINDOW_TOP;
         *focus_end = MAIN_MENU_WINDOW_END;
         return layout_of_the_option(menu_cursor_index(g));
-    case MENU_SCREEN_EQUIPMENT: return &EQUIPMENT_LAYOUT;
     case MENU_SCREEN_TECHS: return &TECHS_LAYOUT;
     case MENU_SCREEN_SETTINGS: return &SETTINGS_LAYOUT;
     case MENU_SCREEN_SAVE:
@@ -489,7 +572,10 @@ static void keep_the_bands_in_view(Platform *pf, VidView view, const Bands *b)
         at = 0;
     view_keep_nothing(pf, 0, (uint16_t)at);
     for (unsigned k = 0; k < b->count; k++) {
-        view_keep_lines(pf, b->top[k], b->lines[k], (int16_t)at);
+        if (b->column_end)
+            view_keep_lines_beside(pf, b->top[k], b->lines[k], (int16_t)at, b->column_top[k], b->column_end);
+        else
+            view_keep_lines(pf, b->top[k], b->lines[k], (int16_t)at);
         at += b->lines[k];
     }
     if (at < (int)view.height)
@@ -503,7 +589,8 @@ void menu_frame_the_view(GameState *g, Platform *pf)
         return;
     uint32_t mark = charge_uncounted_begin(g);
     Bands bands = { 0 };
-    if (naming_bands(g, &bands) || items_bands(g, &bands) || shop_bands(g, &bands) || windowed_bands(g, view.height, &bands))
+    if (naming_bands(g, &bands) || items_bands(g, &bands) || shop_bands(g, &bands) || equipment_bands(g, &bands) ||
+        windowed_bands(g, view.height, &bands))
         keep_the_bands_in_view(pf, view, &bands);
     else
         view_follow(pf, what_the_player_follows(g), view_all_lines(view));

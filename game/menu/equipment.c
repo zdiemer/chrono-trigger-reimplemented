@@ -57,6 +57,7 @@ static bool went_back(const GameState *g) { return menu_asked(g, MENU_GO_BACK); 
 /* The screen's steps. */
 enum { STEP_MEMBER = 1, STEP_SLOT = 2 };
 
+
 static void next_step(GameState *g) { set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1)); }
 
 /* The list of what fits is drawn for a slot and a member; forgetting which
@@ -542,6 +543,18 @@ void menu_equip_back_to_the_slots(GameState *g)
 /* The list's rows start at cursor place 4; a row slides in where the push
  * leaves a row of the list past the last shown or before the first. */
 enum { FIRST_LIST_PLACE = 4 };
+
+/* Which step the screen is at, by where its cursor is: the list's places
+ * after the slots', the members' left of the screen's middle, where the
+ * slots' are right of it. */
+enum { SCREEN_MIDDLE = 128 };
+
+bool menu_equip_choosing_an_item(const GameState *g) { return menu_cursor_index(g) >= FIRST_LIST_PLACE; }
+
+bool menu_equip_choosing_a_member(const GameState *g)
+{
+    return !menu_equip_choosing_an_item(g) && menu_cursor_places_x(g, menu_cursor_index(g)) < SCREEN_MIDDLE;
+}
 
 /* The scroll bar's thumb for the list's first row: four lines a row,
  * through the multiplier ($C2:8BA6), which it leaves with the product. */

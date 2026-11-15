@@ -55,6 +55,11 @@ void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open);
 /* The screen's lines from `top`, `lines` of them, kept in view from the
  * view's line `at`, the view's middle across on the original's. */
 void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at);
+/* The same, but for the screen's dots short of its X `column_end`, which
+ * show its lines from `column_top`: a column laid out by its own lines
+ * beside the rest of the screen. */
+void view_keep_lines_beside(Platform *pf, int16_t top, uint16_t lines, int16_t at, int16_t column_top,
+                            int16_t column_end);
 /* The same, the screen's lines whole from its left side, but for the dots
  * from `cut_from` across, `cut_dots` of them, cut from them: a panel the
  * original's screen's width shown narrower by a run of its insides. */

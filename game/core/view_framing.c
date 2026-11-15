@@ -69,7 +69,19 @@ void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at)
     VidView view = vid_view(pf);
     if (!vid_view_is_smaller(view) || lines == 0)
         return;
-    VidViewPanel panel = { top, lines, (int16_t)((VID_ORIGINAL_VIEW_WIDTH - view.width) / 2), at, 0, 0 };
+    VidViewPanel panel = { .top = top, .lines = lines, .left = vid_view_left(view), .at = at };
+    vid_keep_a_panel_in_view(pf, &panel);
+}
+
+void view_keep_lines_beside(Platform *pf, int16_t top, uint16_t lines, int16_t at, int16_t column_top,
+                            int16_t column_end)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_smaller(view) || lines == 0)
+        return;
+    int16_t left = vid_view_left(view);
+    VidViewPanel panel = { .top = top, .lines = lines, .left = left, .at = at, .column_top = column_top,
+                           .column_end = (int16_t)(column_end - left) };
     vid_keep_a_panel_in_view(pf, &panel);
 }
 
@@ -78,7 +90,7 @@ void view_keep_lines_cut(Platform *pf, int16_t top, uint16_t lines, int16_t at, 
     VidView view = vid_view(pf);
     if (!vid_view_is_smaller(view) || lines == 0)
         return;
-    VidViewPanel panel = { top, lines, 0, at, cut_from, cut_dots };
+    VidViewPanel panel = { .top = top, .lines = lines, .at = at, .cut_at = cut_from, .cut_dots = cut_dots };
     vid_keep_a_panel_in_view(pf, &panel);
 }
 

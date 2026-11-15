@@ -348,9 +348,23 @@ static void fill_spread(void);
 enum { GBA_VIEW_WIDTH = 240, GBA_VIEW_HEIGHT = 160 };
 
 /* The camera, where it was last aimed (the screen's middle to start), and
- * this frame's panels kept in view (vid_keep_a_panel_in_view). */
+ * this frame's panels kept in view (vid_keep_a_panel_in_view): their lines
+ * and cuts in fast RAM, which the bands read a run of lines at a time, and
+ * beside them the column each moves by its own lines (VidViewPanel's
+ * column), which only a band that moves one reads. */
+typedef struct {
+    int16_t top;
+    uint16_t lines;
+    int16_t left, at, cut_at;
+    uint16_t cut_dots;
+} KeptPanel;
+typedef struct {
+    int16_t rows;   /* the column's lines this many further down the SNES's than the band's */
+    int16_t end;    /* the view's dot short of which it is moved; 0: none */
+} MovedColumn;
 static VidAim view_aim IN_FAST_RAM;   /* set as the service starts */
-static VidViewPanel view_panels[VID_VIEW_PANELS] IN_FAST_RAM;
+static KeptPanel view_panels[VID_VIEW_PANELS] IN_FAST_RAM;
+static MovedColumn view_panel_columns[VID_VIEW_PANELS];
 static uint8_t view_panel_count IN_FAST_RAM;
 
 /* The panel the view draws this frame (vid_draw_a_panel_in_view), up to two
@@ -461,8 +475,11 @@ VidAim vid_view_aim(const Platform *pf)
 void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel)
 {
     (void)pf;
-    if (view_panel_count < VID_VIEW_PANELS)
-        view_panels[view_panel_count++] = *panel;
+    if (view_panel_count >= VID_VIEW_PANELS)
+        return;
+    view_panels[view_panel_count] = (KeptPanel){ panel->top, panel->lines, panel->left, panel->at, panel->cut_at, panel->cut_dots };
+    view_panel_columns[view_panel_count++] = panel->column_end > 0 ?
+        (MovedColumn){ (int16_t)(panel->column_top - panel->top), panel->column_end } : (MovedColumn){ 0, 0 };
 }
 
 /* A panel's layers as the GBA's: the first two of BG1-BG3. */
@@ -1977,6 +1994,12 @@ typedef struct {
 enum { MOST_BANDS = 2 * (VID_VIEW_PANELS + 1) + 1 };
 static Band bands[MOST_BANDS] IN_FAST_RAM;
 static uint8_t band_count IN_FAST_RAM;
+/* Each band's column moved by its own lines, its panel's, and whether any
+ * band has one (VidViewPanel's column): the mode 2 columns left of it that
+ * the offsets move, and the sprites that start there, are moved down as far
+ * as the column's lines are (show_moved_columns, present_sprites). */
+static MovedColumn band_columns[MOST_BANDS];
+static bool columns_moved;
 
 /* A drawn panel's line is drawn as the screen's middle across. */
 enum { DRAWN_LEFT = (VID_ORIGINAL_VIEW_WIDTH - GBA_VIEW_WIDTH) / 2 };
@@ -1994,9 +2017,10 @@ static int16_t panel_looks(unsigned y)
     return (int16_t)(row < 0 ? 0 : row >= VID_ORIGINAL_VIEW_HEIGHT ? VID_ORIGINAL_VIEW_HEIGHT - 1 : row);
 }
 
-static Band line_band(unsigned y)
+static Band line_band(unsigned y, MovedColumn *column)
 {
     Band b = { .row = (int16_t)(view_aim.top + (int)y), .left = view_aim.left, .at = (uint8_t)y, .lines = 1, .rows = 1 };
+    *column = (MovedColumn){ 0, 0 };
     if (panel_draws(y)) {
         b.drawn = true;
         b.row = panel_looks(y);
@@ -2004,10 +2028,11 @@ static Band line_band(unsigned y)
         return b;
     }
     for (unsigned n = 0; n < view_panel_count; n++) {
-        const VidViewPanel *p = &view_panels[n];
+        const KeptPanel *p = &view_panels[n];
         if ((int)y >= p->at && (int)y < p->at + (int)p->lines) {
             b.row = (int16_t)(p->top + ((int)y - p->at)), b.left = p->left;
             b.cut_at = p->cut_at, b.cut_dots = (uint8_t)p->cut_dots;
+            *column = view_panel_columns[n];
         }
     }
     b.black = b.row < 0 || b.row >= VID_ORIGINAL_VIEW_HEIGHT;
@@ -2053,16 +2078,21 @@ static unsigned next_change_of_band(unsigned y, const Band *b)
 static void band_up_the_view(void)
 {
     band_count = 0;
+    columns_moved = false;
     for (unsigned y = 0; y < GBA_VIEW_HEIGHT;) {
-        Band b = line_band(y);
+        MovedColumn column;
+        Band b = line_band(y, &column);
         unsigned past = next_change_of_band(y, &b);
         b.lines = (uint8_t)(past - y);
         b.rows = b.drawn ? (uint8_t)(panel_looks(past - 1) - b.row + 1) : b.lines;
         Band *last = band_count ? &bands[band_count - 1] : NULL;
-        if (last && goes_on(last, &b)) {
+        if (last && goes_on(last, &b) && band_columns[band_count - 1].rows == column.rows &&
+            band_columns[band_count - 1].end == column.end) {
             last->rows = (uint8_t)(b.drawn ? b.row + b.rows - last->row : last->rows + b.rows);
             last->lines = (uint8_t)(last->lines + b.lines);
         } else if (band_count < MOST_BANDS) {
+            band_columns[band_count] = column;
+            columns_moved |= column.end != 0;
             bands[band_count++] = b;
         }
         y = past;
@@ -2076,7 +2106,9 @@ static void band_up_the_view(void)
         }
     if (!in_order) {
         bands[0] = (Band){ .row = view_aim.top, .left = view_aim.left, .lines = GBA_VIEW_HEIGHT, .rows = GBA_VIEW_HEIGHT };
+        band_columns[0] = (MovedColumn){ 0, 0 };
         band_count = 1;
+        columns_moved = false;
     }
 }
 
@@ -2174,6 +2206,31 @@ static void note_band_rows(void)
     }
 }
 
+/* A sprite that starts short of a band's column moved by its own lines: in
+ * the band whose column shows its top line, or its foot's, `row` the SNES's
+ * line that band's column starts at; none where the columns leave both out.
+ * Any other sprite stays in the band it was found in. */
+static const Band *column_band_showing(int row, int x, int *from)
+{
+    for (unsigned k = 0; k < band_count; k++) {
+        MovedColumn c = band_columns[k];
+        int first = bands[k].row + c.rows;
+        if (c.end && x < c.end + bands[k].left && row >= first && row < first + bands[k].rows) {
+            *from = first;
+            return &bands[k];
+        }
+    }
+    return NULL;
+}
+
+static const Band *band_in_its_column(int x, int top, unsigned h, const Band *found, int *row)
+{
+    if (found && (!band_columns[found - bands].end || x >= band_columns[found - bands].end + found->left))
+        return found;
+    const Band *b = column_band_showing(top, x, row);
+    return b ? b : column_band_showing(top + (int)h - 1, x, row);
+}
+
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
  * panel shows none. */
 static void present_sprites(void)
@@ -2210,7 +2267,10 @@ static void present_sprites(void)
         if (!k)
             k = band_of_row[top + (int)h - 1];
         const Band *b = k && !bands[k - 1].drawn ? &bands[k - 1] : NULL;
-        int gx = b ? band_x(b, x) : GBA_VIEW_WIDTH, gy = b ? ((e[1] - b->row + b->at) & 0xFF) : 0;
+        int row = b ? b->row : 0;
+        if (columns_moved)
+            b = band_in_its_column(x, top, h, b, &row);
+        int gx = b ? band_x(b, x) : GBA_VIEW_WIDTH, gy = b ? ((e[1] - row + b->at) & 0xFF) : 0;
         if (!b || !sized[large].fits || gx <= -(int)w || gx >= GBA_VIEW_WIDTH) {
             to[0] = 0x0200;   /* hidden */
             continue;
@@ -3072,8 +3132,12 @@ static bool line_offsets(const LineState *st, LineOffsets *o)
     return names & (OFFSET_LAYER_BIT * 3);
 }
 
-/* The first MOST_RUNS runs of layer `n`'s moved columns on a line, as many as there are. */
-static unsigned moved_columns(const LineState *st, const LineOffsets *o, unsigned n, MovedColumns runs[MOST_RUNS])
+/* The first MOST_RUNS runs of layer `n`'s moved columns on a line, as many
+ * as there are; the columns the offsets move short of the SNES's dot
+ * `column_end` moved `column_rows` lines further down (a band's column moved
+ * by its own lines). */
+static unsigned moved_columns(const LineState *st, const LineOffsets *o, unsigned n, int column_end, int column_rows,
+                              MovedColumns runs[MOST_RUNS])
 {
     uint16_t names = (uint16_t)(OFFSET_LAYER_BIT << n), hofs = st->hofs[n], vofs = st->vofs[n];
     unsigned fine = hofs & 7, count = 0;
@@ -3085,6 +3149,8 @@ static unsigned moved_columns(const LineState *st, const LineOffsets *o, unsigne
         uint16_t across = o->across[j], down = o->down[j];
         uint16_t h = across & names ? (uint16_t)((across & OFFSET_COLUMN) | fine) : hofs;
         uint16_t v = down & names ? (uint16_t)(down & OFFSET_SCROLL) : vofs;
+        if (down & names && dot + 8 <= column_end)
+            v = (uint16_t)(v + column_rows);
         if (in_run && !(((h ^ runs[count - 1].hofs) | (v ^ runs[count - 1].vofs)) & GBA_SCROLL)) {
             runs[count - 1].last = dot + 7 > VID_WINDOW_LAST_DOT ? VID_WINDOW_LAST_DOT : dot + 7;
             continue;
@@ -3125,7 +3191,9 @@ static unsigned own_layer(unsigned n)
  * too, whose map holds the offsets there, and each run on a GBA layer free
  * (the layer's own spare, then the third layer's), shown as its layer is,
  * through a window free or the one an earlier run with the same edges took,
- * with the layer itself left out there. Kept out of the frame's lines'
+ * with the layer itself left out there. A band's column moved by its own
+ * lines moves the columns its offsets move further down with it, as runs
+ * even where the offsets match the layer's own scroll. Kept out of the frame's lines'
  * loop: inlined there, or with the third layer left out of the line's
  * state instead, the loop ran a percent slower (the jet bike race). */
 __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const LineState *st, const Band *b, int down)
@@ -3141,6 +3209,7 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
     LineOffsets offsets;
     if (b->drawn || !line_offsets(st, &offsets))
         return;
+    MovedColumn column = band_columns[b - bands];
     uint8_t free_layers = 0, taken = 0;   /* GBA layers, and the windows given to runs, a bit each */
     for (unsigned g = 0; g < 4; g++)
         if (gba_layers[g].source == 2)
@@ -3148,7 +3217,8 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
     for (unsigned n = 0; n < 2; n++) {
         unsigned own = own_layer(n);
         MovedColumns runs[MOST_RUNS];
-        unsigned count = own == NO_LAYER || !(st->main_layers >> n & 1) ? 0 : moved_columns(st, &offsets, n, runs);
+        unsigned count = own == NO_LAYER || !(st->main_layers >> n & 1) ? 0 :
+                         moved_columns(st, &offsets, n, column.end ? column.end + b->left : 0, column.rows, runs);
         uint8_t spare = columns_layer[n] != NO_LAYER ? (uint8_t)(1u << columns_layer[n]) : 0;
         uint8_t layers = free_layers | spare;
         for (unsigned k = 0; k < count && layers; k++) {
@@ -3364,6 +3434,8 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     f->line_effects = v->line_effects;
     f->line_effects_below = v->line_effects_below;
     f->bands = hash_on(FNV_START, bands, sizeof bands[0] * band_count);
+    if (columns_moved)
+        f->bands = hash_on(f->bands, band_columns, sizeof band_columns[0] * band_count);
     f->drawn = panel.drawn ? hash_on(FNV_START, &panel, offsetof(DrawnPanel, drawn)) : 0;
     f->below_display = v->below_display;
     f->below_line_effects = v->below_line_effects;

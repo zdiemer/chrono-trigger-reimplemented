@@ -843,7 +843,9 @@ made in `game/` as presentation and never as a rule:
   screen's lines shown at lines of the view's own over the camera's picture,
   whole as the original draws them (every layer, sprite, window and colour),
   stated each frame. A band may have a run of its dots cut from inside it
-  (`cut_at`, `cut_dots`), and lines past the screen's show black.
+  (`cut_at`, `cut_dots`), and a column moved by its own lines: its dots
+  short of `column_end` show the screen's lines from `column_top`
+  (`view_keep_lines_beside`). Lines past the screen's show black.
 - **A drawn panel** (`vid_draw_a_panel_in_view`, `VidDrawnPanel`): a window
   laid out again, which the screen has no room for. Its lines take the
   looks of a band of the screen's (colours, windows, colour math, spread
@@ -902,13 +904,18 @@ made in `game/` as presentation and never as a rule:
   all but the blank lines both columns share; a shop's list leaves out the
   blank lines under its first and third rows, where every window beside it
   is blank whatever it shows, the party's window kept with room for the
-  jump. The equipment's two columns have rows 8 and 12 lines apart with no
-  blank lines in common, about 165 lines of text and pictures in all, so
-  it still shows the most lines the view holds between two places where
-  both columns are between rows, round the cursor (issue #494): down to
-  its figures' last row, the clock and the
-  experience out of view. The main menu keeps its window whole over the
-  option's panel. The naming screen is laid out
+  jump. The equipment's two columns have rows 8 and 12 lines apart with
+  almost no blank lines in common, so each column leaves out its own
+  (`equipment_bands`): the left one, left of the screen's X 112, is moved
+  by its own lines beside the right, as the original moves it by mode 2's
+  offsets. Each keeps 160 of its 192 lines, every window and row with the
+  slots' and the lists' rows whole for the hand, a few lines less of the
+  windows' edges and blank lines and the figures' rows 8 apart; three
+  tables a column, by where the cursor is (the members, the slots, what
+  fits the slot, whose description window across the foot both columns
+  keep alike). A band starts wherever either column's next run does, 12
+  at most. The main menu keeps its window whole over the option's panel,
+  the equipment's panel from its top down to the figures. The naming screen is laid out
   again as bands of its lines: the
   name's window, every row of letters with most of the blank lines between
   them left out (the cursor's row with room for its hand), and the letters'
@@ -918,7 +925,7 @@ made in `game/` as presentation and never as a rule:
 `tools/wide_check.py --view 240x160` plays the gate movies at 256x224 and
 240x160 and compares the whole end state: all 59 end the same. The long
 batch runs it (`handheld`); `video_test` checks the camera's hold, the
-composed view, a panel's one frame and a cut panel.
+composed view, a panel's one frame, a cut panel and a moved column.
 The GBA follows the same camera and bands, and draws the same panel and cut
 ("The GBA build, as built"). A drawn panel's memory stays from frame to
 frame until the host clears the view's memory, and a host may take the
@@ -1427,6 +1434,16 @@ mode 0's four tiled layers and its sprites:
   over `gato-battle` and `events-jetbike-race`, all of it on the title and
   the menus, and 12% over `menus-sweep`, whose screens are mostly mode 2
   (2269, 11564, 46285, 26665 and 10896 GBA frames).
+  A band whose column is moved by its own lines (the 240x160 view's
+  equipment screen, `VidViewPanel.column_end`) moves the columns left of
+  the column's end that the offsets move, as runs even where they match
+  the layer's own scroll, and the sprites that start there with them; the
+  other columns there show the band's own line. The column's state beside
+  the panels and bands is in work RAM, so fast RAM is as it was. Over
+  `menus-sweep` it takes 2.3% more GBA frames, all of it on the equipment
+  screen's 12 bands (10,796 against 10,550); `title-start`, `new-game`,
+  `gato-battle` and `events-jetbike-race` take 2,194, 11,019, 43,234 and
+  23,704 against 2,196, 11,073, 43,276 and 23,674.
 - **Colour math with the fixed colour** (the sub screen added where it has
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at

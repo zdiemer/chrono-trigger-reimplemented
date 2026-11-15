@@ -233,7 +233,15 @@ static inline VidAim vid_aim_held_to_the_screen(VidView v, VidAim a)
  * from the view's line `at`, with the screen X `left` at the view's left
  * side. What the band holds -- every layer, sprite, window and colour of
  * those lines -- is shown as the original's screen shows it; lines past the
- * screen's show black. */
+ * screen's show black.
+ *
+ * A panel may move a column of the screen by its own lines: short of the
+ * view's dot `column_end`, its lines show the screen's from `column_top`
+ * rather than from `top`, so a screen of two columns whose rows don't line
+ * up (the menus' equipment) can leave out each column's own blank lines. A
+ * host that draws the screen's layers itself rather than taking its lines
+ * may move only what the screen already moves by columns (mode 2's offsets),
+ * and the sprites that start short of the column's end. */
 typedef struct {
     int16_t top;
     uint16_t lines;
@@ -241,6 +249,8 @@ typedef struct {
     int16_t at;
     int16_t cut_at;         /* from the view's dot `cut_at` on, the screen's dots `cut_dots` further on: */
     uint16_t cut_dots;      /* a panel narrower than it is drawn, the columns cut from inside it */
+    int16_t column_top;     /* short of the view's dot `column_end`, the screen's lines from `column_top` */
+    int16_t column_end;     /* (0: no column moved) */
 } VidViewPanel;
 /* A panel a smaller view draws afresh rather than takes from the screen: a
  * window laid out again for the view, which the screen has no room for

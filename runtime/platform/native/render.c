@@ -1381,18 +1381,19 @@ static void show_the_framing(const VidFrame *f, const uint32_t *screen, uint32_t
     int width = f->view.width, height = f->view.height;
     VidAim aim = vid_aim_held_to_the_screen(f->view, f->aim);
     for (int y = 0; y < height; y++) {
-        int line = aim.top + y, left = aim.left, cut_at = width, cut_dots = 0;
+        int line = aim.top + y, left = aim.left, cut_at = width, cut_dots = 0, column_line = line, column_end = 0;
         for (unsigned n = 0; n < f->panel_count; n++) {
             const VidViewPanel *p = &f->panels[n];
             if (y >= p->at && y < p->at + (int)p->lines) {
                 line = p->top + (y - p->at), left = p->left;
                 cut_at = p->cut_dots ? p->cut_at : width, cut_dots = p->cut_dots;
+                column_line = p->column_top + (y - p->at), column_end = p->column_end;
             }
         }
         uint32_t *row = out + (size_t)y * width;
         for (int x = 0; x < width; x++) {
-            int sx = left + x + (x >= cut_at ? cut_dots : 0);
-            row[x] = line >= 0 && line < H && sx >= 0 && sx < VID_RENDER_WIDTH ? screen[line * VID_RENDER_WIDTH + sx] : 0;
+            int sx = left + x + (x >= cut_at ? cut_dots : 0), sy = x < column_end ? column_line : line;
+            row[x] = sy >= 0 && sy < H && sx >= 0 && sx < VID_RENDER_WIDTH ? screen[sy * VID_RENDER_WIDTH + sx] : 0;
         }
     }
 }
