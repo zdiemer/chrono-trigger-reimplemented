@@ -2089,6 +2089,9 @@ def render_host_header(m):
             "/* `len` bytes of work RAM from `addr`, as vars_host_read8 reads each (0 where",
             " * no owner keeps one), in one call: what a send names by address. */",
             "void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_t len);",
+            "/* `len` bytes of work RAM from `addr` set to `value`, as vars_host_write8",
+            " * writes each (none where no owner keeps one), in one call: a fill by address. */",
+            "void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len);",
             "", "#endif", ""]
     return "\n".join(out)
 
@@ -2425,6 +2428,10 @@ def render_host_backing(m):
             "        vars_host_read8(h, addr + i, &value);",
             "        out[i] = value;",
             "    }",
+            "}", ""]
+    out += ["void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len)", "{",
+            "    for (uint32_t i = 0; i < len; i++)",
+            "        vars_host_write8(h, addr + i, value);",
             "}", ""]
     out += ["void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:
