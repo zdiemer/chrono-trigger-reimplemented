@@ -1267,12 +1267,15 @@ typedef struct {
 
 /* A slot's progress through its table, as HDMA's, and the line it next
  * does anything at (an entry's lines between its one transfer and the next
- * entry are passed over). */
+ * entry are passed over), with the unit it last applied. */
 typedef struct {
     bool active, transfer;
     uint8_t bank, count;
     uint8_t unit;       /* the bytes a transfer takes, by its target */
-    uint16_t cursor, indirect, wakes;
+    uint8_t changes;    /* what of a line's registers its transfers change (Changed) */
+    bool applied;       /* whether `last` holds the unit its last transfer applied */
+    uint8_t last[4];
+    uint16_t cursor, indirect, line;
 } Slot;
 
 /* The tables are read 32 bytes at a time, kept for the frame's reading of
@@ -1285,7 +1288,8 @@ typedef struct {
 static ReadLine read_lines[READ_LINES];
 
 /* Where each 32 bytes of the tables a frame's lines read came from, as they
- * read them, and a 32-bit FNV-1a hash of all their bytes in that order, so
+ * read them, and a 32-bit FNV-1a hash of all their bytes in that order (a
+ * word at a time), so
  * that the next frame can tell whether its tables are the same (below). In
  * fast RAM, which has the room work RAM hasn't, as the rest of what the next
  * frame keeps; a hash rather than the bytes, which it hasn't the room for
@@ -1307,10 +1311,17 @@ static void read_table_line(uint32_t line, uint8_t bytes[READ_LINE_BYTES])
 
 enum { FNV_START = 2166136261u, FNV_PRIME = 16777619u };
 
+/* FNV-1a a word at a time, then the bytes left over. */
 static uint32_t hash_on(uint32_t h, const void *bytes, size_t count)
 {
     const uint8_t *b = bytes;
-    for (size_t i = 0; i < count; i++)
+    size_t i = 0;
+    for (; i + 4 <= count; i += 4) {
+        uint32_t word;
+        memcpy(&word, b + i, sizeof word);
+        h = (h ^ word) * FNV_PRIME;
+    }
+    for (; i < count; i++)
         h = (h ^ b[i]) * FNV_PRIME;
     return h;
 }
@@ -1383,6 +1394,81 @@ static void slot_entry(Slot *sl, const VidLineEffect *e)
     if (sl->count == 0)
         sl->active = false;
     sl->transfer = true;
+}
+
+/* What of a line's registers a line effect's transfer may change: only
+ * its layers' scroll, which a line's other registers don't depend on (a
+ * battle's backgrounds wave a line at a time), or anything. */
+typedef enum { CHANGED_SCROLL = 1, CHANGED_OTHER = 2 } Changed;
+
+static uint8_t target_changes(VidLineTarget target)
+{
+    switch (target) {
+    case VID_LINE_SCROLL_BG1: case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3:
+    case VID_LINE_SCROLL_BG1_H: case VID_LINE_SCROLL_BG1_V: case VID_LINE_SCROLL_BG2_H: case VID_LINE_SCROLL_BG2_V:
+    case VID_LINE_SCROLL_BG3_H: case VID_LINE_SCROLL_BG3_V:
+        return CHANGED_SCROLL;
+    default:
+        return CHANGED_OTHER;
+    }
+}
+
+/* What of a line's state a line effect's target sets (line_apply), a bit
+ * a register: two slots whose targets share none can't undo each other's
+ * work, so a slot's transfer of the unit it last applied changes nothing. */
+enum {
+    SETS_WINDOW1 = 0x3, SETS_WINDOW2 = 0xC, SETS_WINDOWS = 0xF, SETS_WIN_MAIN = 0x10, SETS_MAIN = 0x20,
+    SETS_SUB = 0x40, SETS_SCROLL_H = 0x80, SETS_SCROLL_V = 0x400, SETS_MAPS = 0x2000, SETS_BRIGHTNESS = 0x10000,
+    SETS_FIXED = 0x20000, SETS_MATH_CONTROL = 0x40000, SETS_MATH_LAYERS = 0x80000,
+};
+
+static uint32_t target_sets(VidLineTarget target)
+{
+    switch (target) {
+    case VID_LINE_WINDOWS: return SETS_WINDOWS;
+    case VID_LINE_WINDOW1: return SETS_WINDOW1;
+    case VID_LINE_WINDOW2: return SETS_WINDOW2;
+    case VID_LINE_WINDOW1_LEFT: return SETS_WINDOW1 & 1;
+    case VID_LINE_WINDOW1_RIGHT: return SETS_WINDOW1 & 2;
+    case VID_LINE_WINDOW2_LEFT: return SETS_WINDOW2 & 4;
+    case VID_LINE_WINDOW2_RIGHT: return SETS_WINDOW2 & 8;
+    case VID_LINE_SCROLL_BG1: case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3:
+        return (uint32_t)(SETS_SCROLL_H | SETS_SCROLL_V) << (target - VID_LINE_SCROLL_BG1);
+    case VID_LINE_SCROLL_BG1_H: return SETS_SCROLL_H;
+    case VID_LINE_SCROLL_BG2_H: return SETS_SCROLL_H << 1;
+    case VID_LINE_SCROLL_BG3_H: return SETS_SCROLL_H << 2;
+    case VID_LINE_SCROLL_BG1_V: return SETS_SCROLL_V;
+    case VID_LINE_SCROLL_BG2_V: return SETS_SCROLL_V << 1;
+    case VID_LINE_SCROLL_BG3_V: return SETS_SCROLL_V << 2;
+    case VID_LINE_BRIGHTNESS: return SETS_BRIGHTNESS;
+    case VID_LINE_SCREENS: return SETS_MAIN | SETS_SUB | SETS_WIN_MAIN;
+    case VID_LINE_MAIN_SCREEN: return SETS_MAIN;
+    case VID_LINE_SUB_SCREEN: return SETS_SUB;
+    case VID_LINE_BG_MAPS: return SETS_MAPS * 7;
+    case VID_LINE_BG2_MAP: return SETS_MAPS * 2;
+    case VID_LINE_FIXED_COLOR: return SETS_FIXED;
+    case VID_LINE_COLOR_MATH: return SETS_MATH_CONTROL | SETS_MATH_LAYERS | SETS_FIXED;
+    case VID_LINE_MATH_LAYERS: return SETS_MATH_LAYERS | SETS_FIXED;
+    case VID_LINE_MATH_LAYERS_ONLY: return SETS_MATH_LAYERS;
+    case VID_LINE_MATH_CONTROL_AND_LAYERS: return SETS_MATH_CONTROL | SETS_MATH_LAYERS;
+    default: return 0;
+    }
+}
+
+/* Whether the slots `slots` may run have targets that set nothing in common,
+ * nor with the brightness the display takes below a line (`below_display`). */
+static bool targets_apart(uint8_t slots, bool below_display)
+{
+    uint32_t sets = below_display ? SETS_BRIGHTNESS : 0;
+    for (unsigned i = 0; i < 8; i++) {
+        if (!((slots >> i) & 1))
+            continue;
+        uint32_t these = target_sets(snes.slot[i].target);
+        if (sets & these)
+            return false;
+        sets |= these;
+    }
+    return true;
 }
 
 static uint8_t unit_bytes(VidLineTarget target)
@@ -1569,6 +1655,16 @@ static uint16_t backdrop(const LineState *st)
     return out;
 }
 
+/* The layers' scroll on the GBA's screen, the SNES's line shown `down`
+ * lines further down the GBA's than the GBA's own and from its dot `left`. */
+static void line_scroll(LineRegisters *r, const LineState *st, int left, int down)
+{
+    for (unsigned n = 0; n < 3; n++) {
+        r->hofs[n] = (uint16_t)(st->hofs[n] + left);
+        r->vofs[n] = (uint16_t)(st->vofs[n] + down);
+    }
+}
+
 /* A line's registers, the SNES's line shown `down` lines further down the
  * GBA's than the GBA's own and from its dot `left`. */
 static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled, int left, int down)
@@ -1597,10 +1693,7 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
         r.winin = (uint16_t)(region_layers(st, true, false) | region_layers(st, false, true) << 8);
         r.winout = region_layers(st, false, false);
     }
-    for (unsigned n = 0; n < 3; n++) {
-        r.hofs[n] = (uint16_t)(st->hofs[n] + left);
-        r.vofs[n] = (uint16_t)(st->vofs[n] + down);
-    }
+    line_scroll(&r, st, left, down);
     r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
     r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
     r.backdrop = backdrop(st);
@@ -1715,6 +1808,8 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     f->bg3_priority = snes.mode.bg3_priority;
 }
 
+enum { NO_LINE = 0xFFFF };
+
 /* The black bands above GBA line `at` not yet set, set: the registers that
  * show no layer and a black backdrop. */
 static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next)
@@ -1731,90 +1826,149 @@ static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next)
     return count;
 }
 
+/* The first line of the SNES's after `line` that a band starts showing (its
+ * row's, one down: a line shows the row above it), or NO_LINE. */
+static uint16_t next_band_start(uint16_t line)
+{
+    uint16_t soonest = NO_LINE;
+    for (unsigned k = 0; k < band_count; k++) {
+        int starts = bands[k].row + 1;
+        if (!bands[k].black && starts > line && starts < soonest)
+            soonest = (uint16_t)starts;
+    }
+    return soonest;
+}
+
+/* The slot's next transfer to apply, from its next line up to `stop`: its
+ * line, with its unit in `last`; NO_LINE where it has none left. Where the
+ * slots' targets are `apart`, a transfer of the unit the slot last applied
+ * changes nothing and is passed over. */
+static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, bool apart)
+{
+    while (sl->active && sl->line < stop) {
+        uint16_t line = sl->line;
+        bool applies = false;
+        if (sl->transfer) {
+            uint8_t unit[4] = { 0 };
+            if (e->indirect) {
+                table_unit(e->indirect_bank, sl->indirect, sl->unit, unit);
+                sl->indirect = (uint16_t)(sl->indirect + sl->unit);
+            } else {
+                table_unit(sl->bank, sl->cursor, sl->unit, unit);
+                sl->cursor = (uint16_t)(sl->cursor + sl->unit);
+            }
+            bool same = apart && sl->applied;
+            for (unsigned k = 0; same && k < sl->unit; k++)
+                same = unit[k] == sl->last[k];
+            applies = !same;
+            if (applies) {
+                memcpy(sl->last, unit, sizeof unit);
+                sl->applied = true;
+            }
+        }
+        sl->count--;
+        sl->transfer = (sl->count & 0x80) != 0;
+        sl->line = (uint16_t)(line + 1);
+        if (!(sl->count & 0x7F)) {
+            slot_entry(sl, e);
+        } else if (!sl->transfer && (sl->count & 0x7F) > 1) {
+            sl->line = (uint16_t)(line + (sl->count & 0x7F));
+            sl->count = 1;
+        }
+        if (applies)
+            return line;
+    }
+    return NO_LINE;
+}
+
 /* The frame's lines: the line effects read down the picture from its top,
  * the line handler's changes below its line, and the GBA's registers where
  * what a line shows changes, as changes from the first line on; `st` ends as
- * the effects leave the registers. */
+ * the effects leave the registers. Only the lines something happens at are
+ * visited: a slot's next transfer to apply, the display's change, a band's
+ * first line and a line shown after a change. */
 static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t layers_enabled)
 {
     LineState st = *st_out, shown;
     uint8_t enabled = v->line_effects;
+    uint8_t below = v->below_line_effects ? v->line_effects_below : enabled;
     memset(read_lines, 0, sizeof read_lines);
     lines_read_count = 0;
     lines_read_hash = FNV_START;
     lines_read_overflowed = false;
+    bool apart = targets_apart((uint8_t)(enabled | below), v->below_display);
+    /* A slot the effects below their line leave out stops there. */
+    uint16_t effects_from = v->below_line_effects && v->effects_from ? v->effects_from : SNES_LINES;
+    uint16_t display_at = v->below_display && v->display_from ? v->display_from : NO_LINE;
     Slot slots[8];
+    uint16_t stop[8], next[8];
     for (unsigned i = 0; i < 8; i++) {
         slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
-                           .unit = unit_bytes(snes.slot[i].target), .cursor = (uint16_t)snes.slot[i].table.addr };
+                           .unit = unit_bytes(snes.slot[i].target), .changes = target_changes(snes.slot[i].target),
+                           .cursor = (uint16_t)snes.slot[i].table.addr };
+        stop[i] = (below >> i) & 1 ? SNES_LINES : effects_from;
         if (slots[i].active)
             slot_entry(&slots[i], &snes.slot[i]);
+        next[i] = next_transfer(&slots[i], &snes.slot[i], stop[i], apart);
     }
     uint8_t count = 0, next_black = 0;
-    bool touched = true;   /* whether what the lines' registers come from may have changed */
-    uint16_t quiet_until = 0;   /* the next line any slot does anything at */
-    for (unsigned line = 0; line < SNES_LINES; line++) {
-        if (line && v->below_display && line == v->display_from) {
+    uint8_t touched = CHANGED_OTHER;   /* what of the lines' registers may have changed (Changed) */
+    for (uint16_t line = 0; line < SNES_LINES;) {
+        if (line == display_at) {
             st.brightness = (uint8_t)(v->display_below.brightness & 15);
             st.blank = v->display_below.blank;
-            touched = true;
+            touched |= CHANGED_OTHER;
         }
-        if (line && v->below_line_effects && line == v->effects_from)
-            enabled = v->line_effects_below, quiet_until = 0;
         /* A line's registers are worked out again only where what the
-         * effects set has changed, and kept only where they differ. */
+         * effects set has changed, and kept only where they differ: where
+         * only the scroll may have, the last change's with its scroll. The
+         * last change's registers are always those of what was `shown`. */
         const Band *b = line ? band_showing((int)line - 1) : NULL;
         if (b) {
             unsigned at = b->at + (line - 1 - (unsigned)b->row);
+            int down = (int)(line - 1) - (int)at;
             count = black_bands_above(at, count, &next_black);
-            bool band_starts = at == b->at;
-            if (count == 0 || band_starts || (touched && memcmp(&st, &shown, sizeof st) != 0)) {
-                LineRegisters r = line_registers(&st, layers_enabled, b->left, (int)(line - 1) - (int)at);
+            bool band_starts = at == b->at, again = false;
+            LineRegisters r;
+            if (count == 0 || band_starts || ((touched & CHANGED_OTHER) && memcmp(&st, &shown, sizeof st) != 0)) {
+                r = line_registers(&st, layers_enabled, b->left, down);
                 memcpy(&shown, &st, sizeof st);
-                if (count == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0) {
-                    change_registers[count] = r;
-                    change_line[count++] = (uint8_t)at;
-                }
+                again = true;
+            } else if (touched && (memcmp(st.hofs, shown.hofs, sizeof st.hofs) != 0 ||
+                                   memcmp(st.vofs, shown.vofs, sizeof st.vofs) != 0)) {
+                r = change_registers[count - 1];
+                line_scroll(&r, &st, b->left, down);
+                memcpy(shown.hofs, st.hofs, sizeof st.hofs);
+                memcpy(shown.vofs, st.vofs, sizeof st.vofs);
+                again = true;
             }
-            touched = false;
+            if (again && (count == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0)) {
+                change_registers[count] = r;
+                change_line[count++] = (uint8_t)at;
+            }
+            touched = 0;
         }
-        if (line < quiet_until)
-            continue;
-        quiet_until = SNES_LINES;
+        uint16_t soonest = NO_LINE;
         for (unsigned i = 0; i < 8; i++) {
-            Slot *sl = &slots[i];
-            const VidLineEffect *e = &snes.slot[i];
-            if (!sl->active || !((enabled >> i) & 1))
-                continue;
-            if (line < sl->wakes) {
-                quiet_until = sl->wakes < quiet_until ? sl->wakes : quiet_until;
-                continue;
-            }
-            touched |= sl->transfer;
-            if (sl->transfer) {
-                uint8_t unit[4];
-                if (e->indirect) {
-                    table_unit(e->indirect_bank, sl->indirect, sl->unit, unit);
-                    sl->indirect = (uint16_t)(sl->indirect + sl->unit);
-                } else {
-                    table_unit(sl->bank, sl->cursor, sl->unit, unit);
-                    sl->cursor = (uint16_t)(sl->cursor + sl->unit);
-                }
+            if (next[i] == line) {
+                Slot *sl = &slots[i];
+                const VidLineEffect *e = &snes.slot[i];
                 for (unsigned k = 0; k < sl->unit; k++)
-                    line_apply(&st, e->target, k, unit[k]);
+                    line_apply(&st, e->target, k, sl->last[k]);
+                touched |= sl->changes;
+                next[i] = next_transfer(sl, e, stop[i], apart);
             }
-            sl->count--;
-            sl->transfer = (sl->count & 0x80) != 0;
-            if (!(sl->count & 0x7F))
-                slot_entry(sl, e);
-            else if (!sl->transfer && (sl->count & 0x7F) > 1) {
-                sl->wakes = (uint16_t)(line + (sl->count & 0x7F));
-                sl->count = 1;
-            }
-            uint16_t next = sl->wakes > line ? sl->wakes : (uint16_t)(line + 1);
-            if (sl->active && next < quiet_until)
-                quiet_until = next;
+            if (next[i] < soonest)
+                soonest = next[i];
         }
+        if (display_at > line && display_at < soonest)
+            soonest = display_at;
+        uint16_t band_start = next_band_start(line);
+        if (band_start < soonest)
+            soonest = band_start;
+        if (touched && line + 1 < soonest && band_showing(line))
+            soonest = (uint16_t)(line + 1);
+        line = soonest;
     }
     count = black_bands_above(GBA_VIEW_HEIGHT, count, &next_black);
     *st_out = st;
