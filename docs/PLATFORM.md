@@ -1089,7 +1089,7 @@ decoding walk only those. The lists are written from the rows by
 `tests/port/named_parameters_test --write .`, and the test, run with the
 others, fails where the built lists aren't what the rows name. In mGBA the
 game's frame falls from 0.98, 1.34 and 1.43 GBA frames to 0.90, 1.21 and
-1.36 (`new-game`, `gato-battle`, `events-jetbike-race`; `title-start` stays
+1.37 (`new-game`, `gato-battle`, `events-jetbike-race`; `title-start` stays
 0.78), and the frame in all from 2.05, 2.90 and 3.27 to 1.96, 2.76 and 3.21
 (1.64 for `title-start` either way). The battle's two languages decode every
 parameter by its row with no switch to pass over and are a tenth of a
