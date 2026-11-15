@@ -15,7 +15,9 @@
  *
  * Eight voices are mixed 32 output samples at a time, at the GBA's own rate
  * (services/direct_sound.h), each voice at its pitch and envelope, scaled by
- * its volume on each side and the master volume. */
+ * its volume on each side and the master volume, as the playback asks for
+ * them: the driver's calls set what the voices play as the game's frames
+ * pass, and the mix plays them in the GBA's time. */
 #ifndef CT_GBA_MIXER_H
 #define CT_GBA_MIXER_H
 
@@ -108,17 +110,19 @@ typedef struct Mixer {
     uint16_t own_peak;
 
     uint32_t owed;                /* at the chunk's start, toward its first output sample: 448 a frame of the S-DSP's, 1,065 a sample */
-    uint16_t due;                 /* the S-DSP's frames until the chunk's last sample is owed */
-    uint16_t frames;              /* the S-DSP's frames since the last mix */
+    volatile uint8_t writing;     /* the driver's calls under way (mixer_fill waits them out) */
 } Mixer;
 
 void mixer_init(Mixer *m);
 AuVoices *mixer_voices(Mixer *m);
 /* The packed samples the voices play (main.c hands them over). */
 void mixer_use_samples(const MixerSamples *samples);
-/* `frames` of the S-DSP's 32,000 a second passed: the sound they make is mixed
- * and queued for the GBA to play. */
+/* `frames` of the S-DSP's 32,000 a second passed in the driver's time:
+ * nothing to do, the mix being made as the GBA plays it (mixer_fill). */
 void mixer_pass(Mixer *m, uint32_t frames);
+/* The ring filled from the mixer made last, a chunk at a time: the
+ * playback's fill (services/direct_sound.h), called from its interrupt. */
+void mixer_fill(void);
 uint8_t mixer_echo_delay(const Mixer *m);
 /* Cycles spent mixing since the last call (main.c's report). */
 uint32_t mixer_take_cycles(void);

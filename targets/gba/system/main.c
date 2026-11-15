@@ -31,6 +31,7 @@
 #include "system/debug_log.h"
 #include "system/drive.h"
 #include "system/fiber.h"
+#include "system/interrupts.h"
 #include "system/keypad.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
@@ -46,8 +47,8 @@ extern const uint8_t __rom_end[];
 extern const uint8_t __iwram_bss_end[], __stack_top[];   /* the driver's stack, zeroed at the start (start.s) */
 
 /* The driver's stack ends in a canary, which a frame that ran the stack
- * down past its room writes over: the sound's mixing and the game's frame
- * both run on it, and fast RAM leaves it little to spare. */
+ * down past its room writes over: the game's frame and the picture run on
+ * it, and fast RAM leaves it little to spare. */
 enum { CANARY = 0x5AFEC0DEu };
 static volatile uint32_t *canary(void) { return (volatile uint32_t *)(uintptr_t)__iwram_bss_end; }
 
@@ -155,9 +156,9 @@ static void report_cycles(const Cycles *c, uint32_t frames)
             mean, p99, most);
 }
 
-/* The mixing's cycles a frame, the total and the heaviest: where the
- * driver's time passed, which is in the game's frame as well as the
- * sound's, so no histogram of its own (work RAM has no room for one). */
+/* The mixing's cycles a frame, the total and the heaviest: made in the
+ * playback's interrupt, inside whichever part it came in, so no histogram
+ * of its own (work RAM has no room for one). */
 typedef struct {
     uint64_t total;
     uint32_t most;
@@ -193,8 +194,9 @@ static void report(void *ctx)
         gba_frames(most, sizeof most, run->mixing.most);
         fprintf(stderr, "ct_gba: mixing a frame, in GBA frames: mean %s, heaviest %s\n", mean, most);
     }
-    fprintf(stderr, "ct_gba: sound %u sample(s) queued, %u played, %u dropped\n", (unsigned)ct_gba_sound.queued,
-            (unsigned)ct_gba_sound.played, (unsigned)ct_gba_sound.dropped);
+    fprintf(stderr, "ct_gba: sound %u sample(s) queued, %u played, %u dropped, %u of silence with the ring dry\n",
+            (unsigned)ct_gba_sound.queued, (unsigned)ct_gba_sound.played, (unsigned)ct_gba_sound.dropped,
+            (unsigned)ct_gba_sound.silent);
     fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(run->g),
             (unsigned)ct_crc32(state_host_sram(run->g), STATE_HOST_SRAM_BYTES));
     fprintf(stderr, "ct_gba: arena %u bytes, the SNES's video memory %u\n", (unsigned)arena_used(),
@@ -205,6 +207,9 @@ static void report(void *ctx)
                     (unsigned)gba_fiber_slot_size(s));
     fprintf(stderr, "ct_gba: the driver's stack %u of %u bytes\n", (unsigned)driver_stack_used(),
             (unsigned)(__stack_top - __iwram_bss_end));
+    fprintf(stderr, "ct_gba: the interrupts' stack %u of %u bytes, the mixing's %u of %u\n",
+            (unsigned)gba_interrupts_stack_used(), (unsigned)gba_interrupts_stack_size(),
+            (unsigned)gba_nested_stack_used(), (unsigned)gba_nested_stack_size());
     fprintf(stderr, "ct_gba: reported\n");
 }
 
@@ -238,13 +243,12 @@ int main(void)
         abort();
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed, NULL }, 1);
-    direct_sound_start();
+    direct_sound_start(mixer_fill);
     bool driven = drive_open();
     fprintf(stderr, "ct_gba: playing, the pads from %s\n", driven ? "the runner" : "the keypad");
 
     /* Each frame's cycles: the game's, the sound driver's and the picture's,
-     * and the mixing's wherever the driver's time passed (the game's waits
-     * on the driver pass it too). */
+     * and the mixing's, in whichever of them the playback's interrupt came. */
     static Run run = { .game = { .name = "game" }, .sounds = { .name = "sound" }, .picture = { .name = "picture" } };
     run.g = g, run.pf = &pf;
     static Keypad keypad;

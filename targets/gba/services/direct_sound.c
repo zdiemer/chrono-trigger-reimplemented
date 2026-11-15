@@ -31,6 +31,8 @@ enum {
 
 DirectSound ct_gba_sound;
 static bool playing;
+static void (*filler)(void);
+static volatile bool filling;
 
 /* The next 16 samples of each side to its FIFO, or silence where the ring
  * holds fewer; once dry, it plays again from a frame's worth queued. In ARM,
@@ -45,21 +47,29 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void move_to_
     if (playing && queued - played < MOVE)
         playing = false;
     if (!playing) {
+        s->silent += MOVE;
         for (unsigned n = 0; n < MOVE / 4; n++)
             FIFO_A = 0, FIFO_B = 0;
-        return;
+    } else {
+        const uint32_t *left = (const uint32_t *)&s->left[played % DIRECT_SOUND_RING];
+        const uint32_t *right = (const uint32_t *)&s->right[played % DIRECT_SOUND_RING];
+        for (unsigned n = 0; n < MOVE / 4; n++)
+            FIFO_A = left[n], FIFO_B = right[n];
+        s->played = played + MOVE;
     }
-    const uint32_t *left = (const uint32_t *)&s->left[played % DIRECT_SOUND_RING];
-    const uint32_t *right = (const uint32_t *)&s->right[played % DIRECT_SOUND_RING];
-    for (unsigned n = 0; n < MOVE / 4; n++)
-        FIFO_A = left[n], FIFO_B = right[n];
-    s->played = played + MOVE;
+    /* the ring filled again, while the next 16 play and the lines' interrupts go on */
+    if (filler && !filling && direct_sound_room() >= DIRECT_SOUND_FILL) {
+        filling = true;
+        gba_interrupt_nested(filler);
+        filling = false;
+    }
 }
 
 /* The ring is named in the debug log for a runner that records it
  * (targets/gba/host/mgba_run.c --stream). */
-void direct_sound_start(void)
+void direct_sound_start(void (*fill)(void))
 {
+    filler = fill;
     fprintf(stderr, "ct_gba: sound ring at %08X\n", (unsigned)(uintptr_t)&ct_gba_sound);
     SOUNDCNT_X = SOUND_ON;
     SOUNDCNT_L = 0;
