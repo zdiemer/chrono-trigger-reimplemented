@@ -10,7 +10,10 @@ committed.
 The pack after the program (targets/gba/system/main.c, PackHead): "CTGB", the
 catalogue's version and its count, where the sound's samples are; then each
 resource's place and length, in the catalogue's order; then the resources,
-and the sound's samples converted to 8-bit PCM (samples.py). The game's save is the GBA's SRAM,
+and the sound's samples converted to 8-bit PCM (samples.py). With --fast-rom, the
+options word after the header (targets/gba/toolchain/start.s) asks for the
+cartridge's waits at 2 and 1 rather than 3 and 1, which flash carts and the
+Analogue Pocket take and some cheap reproduction cartridges don't. The game's save is the GBA's SRAM,
 which mGBA keeps in the .sav beside the .gba (targets/gba/services/cartridge_save.h).
 """
 import argparse
@@ -31,6 +34,8 @@ ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
 HEAD = struct.Struct("<4sIII")
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
+OPTIONS_AT = 0xC0    # start.s's options word, after the header
+FAST_ROM = 1         # its bit for the cartridge's waits at 2 and 1
 
 
 def catalogue_version():
@@ -58,7 +63,7 @@ def header_check(image):
     return (-(sum(image[0xA0:0xBD]) + 0x19)) & 0xFF
 
 
-def pack(program, cartridge):
+def pack(program, cartridge, fast_rom=False):
     parts = resources(cartridge)
     out = bytearray(program)
     out += bytes(-len(out) % ALIGN)
@@ -80,6 +85,10 @@ def pack(program, cartridge):
     out[0xA0:0xAC] = TITLE.ljust(12, b"\0")
     out[0xAC:0xB0] = CODE
     out[0xBD] = header_check(out)
+    options = struct.unpack_from("<I", out, OPTIONS_AT)[0]
+    if options & ~FAST_ROM:
+        raise SystemExit("pack: the program has no options word at $%02X (targets/gba/toolchain/start.s)" % OPTIONS_AT)
+    struct.pack_into("<I", out, OPTIONS_AT, FAST_ROM if fast_rom else 0)
     out += bytes(-len(out) % 4)
     return bytes(out), base
 
@@ -89,12 +98,14 @@ def main(argv=None):
     ap.add_argument("--program", type=pathlib.Path, required=True)
     ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms/ct-usa.sfc")
     ap.add_argument("--out", type=pathlib.Path, required=True)
+    ap.add_argument("--fast-rom", action="store_true",
+                    help="the cartridge's waits at 2 and 1, not 3 and 1: flash carts and the Analogue Pocket, not every cartridge")
     args = ap.parse_args(argv)
     cartridge = rom.load(args.rom)
     if zlib.crc32(cartridge) != rom.EXPECTED_CRC32:
         print("pack: %s is not the No-Intro Chrono Trigger (USA) image" % args.rom, file=sys.stderr)
         return 1
-    image, base = pack(args.program.read_bytes(), cartridge)
+    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(image)
     print("pack: %s, %d bytes: the program %d, the pack from %d" % (args.out, len(image), base, base))

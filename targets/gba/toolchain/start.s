@@ -1,7 +1,9 @@
 @ The cartridge's first bytes and the processor's start (targets/gba/toolchain/gba.ld).
 @
 @ The header's fields are left for the packing step (targets/gba/host/pack.py) to
-@ fill: the title, the game code and the complement check. The start puts the
+@ fill: the title, the game code and the complement check, and the options
+@ word after it, where `pack.py --fast-rom` asks for the cartridge's faster
+@ waits. The start sets the waits, puts the
 @ driver's stack at the top of fast RAM, copies the data's initial values out
 @ of the cartridge, zeroes the rest and calls main, in Thumb, which never
 @ returns.
@@ -21,6 +23,8 @@ _start:
     .byte   0x00               @ version
     .byte   0x00               @ complement check, the packing step's
     .fill   2, 1, 0
+options:
+    .word   0                  @ the packing step's: bit 0, the faster waits (pack.py's OPTIONS_AT, FAST_ROM)
 
 start:
     mov     r0, #0x1F          @ system mode, interrupts off
@@ -28,6 +32,9 @@ start:
     ldr     sp, =__stack_top
     ldr     r0, =0x04000204    @ the cartridge's waits: 3 then 1, with the prefetch, as commercial games set them
     ldr     r1, =0x4317
+    ldr     r2, options        @ or 2 then 1, which flash carts and the Analogue Pocket take and some others don't
+    tst     r2, #1
+    ldrne   r1, =0x431B
     strh    r1, [r0]
 
     ldr     r0, =__iwram_load  @ the fast RAM's code and data
