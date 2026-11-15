@@ -71,7 +71,7 @@ enum {
     DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
     DISPCNT_OBJ_WINDOW = 0x8000, OBJ_WINDOW = 0x0800,
     BGCNT_4BPP = 0x0000,
-    BLD_DARKEN = 0x00C0, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
+    BLD_DARKEN = 0x00C0, BLD_LIGHTEN = 0x0080, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
     UNIT_BYTES = 32, UNITS = VRAM_BYTES / UNIT_BYTES,
     TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
@@ -2442,13 +2442,14 @@ static uint8_t map_byte_of(const VidBg *b)
 }
 
 /* The backdrop with the fixed colour's math on it, where the math takes the
- * backdrop in: the one part of the SNES's colour math the GBA is given (its
- * blending can't add a colour), which the field's dialog's gradient is. */
+ * backdrop in (a sub screen with no layers on it is the fixed colour), worked
+ * out exactly, since the GBA's blending can't add a colour. */
 static uint16_t backdrop(const LineState *st)
 {
     uint16_t base = snes.cgram[0];
     const VidColorMath *m = &st->math;
-    if (!(m->layers & VID_BACK_BIT) || m->sub_screen || m->prevent_math == VID_REGION_ALWAYS)
+    if (!(m->layers & VID_BACK_BIT) || (m->sub_screen && (st->sub_layers & VID_ALL_LAYERS)) ||
+        m->prevent_math == VID_REGION_ALWAYS)
         return base;
     uint16_t out = 0;
     for (unsigned shift = 0; shift < 15; shift += 5) {
@@ -2460,6 +2461,35 @@ static uint16_t backdrop(const LineState *st)
         out |= (uint16_t)(c << shift);
     }
     return out;
+}
+
+/* The fixed colour added to or subtracted from layers, where it is a grey
+ * (the field's dialog window's shading, a few lines at each strength; a sub
+ * screen with no layers on it is the fixed colour too): the
+ * GBA's blending can't add a colour, but it can brighten its first targets
+ * toward white or darken them toward black by sixteenths. A grey of
+ * strength k added to a dark colour of strength c raises it by k, as
+ * brightening by 16k / (31 - c) does; subtracted, it lowers it by k, as
+ * darkening by 16k / c does. The windows' colours are dark (the dialog's
+ * about 7 of 31), so that is the strength taken. The backdrop's own math is
+ * exact (backdrop, above), so it isn't a target. */
+enum { SHADED_STRENGTH = 7, BLEND_STEPS = 16 };
+
+static void fixed_shading(LineRegisters *r, const LineState *st)
+{
+    const VidColorMath *m = &st->math;
+    uint8_t layers = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+    if (st->brightness < 15 || (m->sub_screen && (st->sub_layers & VID_ALL_LAYERS)) || !layers ||
+        m->prevent_math == VID_REGION_ALWAYS)
+        return;
+    unsigned red = st->fixed_color & 31, green = st->fixed_color >> 5 & 31, blue = st->fixed_color >> 10 & 31;
+    if (red != green || green != blue || red == 0)
+        return;
+    unsigned steps = m->subtract ? red * BLEND_STEPS / SHADED_STRENGTH : red * BLEND_STEPS / (31 - SHADED_STRENGTH);
+    if (m->half)
+        steps /= 2;
+    r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | gba_layer_bits(layers));
+    r->bldy = (uint16_t)(steps > BLEND_STEPS ? BLEND_STEPS : steps);
 }
 
 /* The layers' scroll on a band's line of the GBA's screen, the SNES's line
@@ -2574,10 +2604,13 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
      * SNES's subtraction has no GBA counterpart. */
     const VidColorMath *m = &st->math;
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
-    if (st->brightness == 15 && m->sub_screen && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
+    bool sub_screen_shown = m->sub_screen && (st->sub_layers & VID_ALL_LAYERS);
+    if (st->brightness == 15 && sub_screen_shown && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
         uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
         r.bldcnt = (uint16_t)(BLD_ALPHA | gba_layer_bits(first) | gba_layer_bits(second) << 8);
         r.bldalpha = m->half ? 0x0808 : 0x1010;
+    } else {
+        fixed_shading(&r, st);
     }
     return r;
 }
