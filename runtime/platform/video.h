@@ -759,14 +759,23 @@ PF_API void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel);
 PF_API bool vid_view_draws_panels(const Platform *pf);
 /* A panel a smaller view draws (VidDrawnPanel, above) over the camera's
  * picture and the panels kept in view, this frame; one a frame. Its memory
- * is VRAM as the game's sends leave it, with what vid_send_panel_vram sent
- * this frame over it: the panel's own maps and tiles, which nothing else
- * shows and the game never reads back (vid_vram_word). A host may take the
- * sends as they come, by the panel the frame stated, so a mode states the
- * panel first, then sends its tiles (from its first, at most a 240x160
- * screen's 600 of them past it), then its maps. */
+ * is VRAM as the game's sends leave it, with what vid_send_panel_vram has
+ * sent over it: the panel's own maps and tiles, which nothing else shows
+ * and the game never reads back (vid_vram_word). What was sent stays from
+ * frame to frame until the host clears the view's memory (below), so a
+ * frame sends only what changed. A host may take the sends as they come, by
+ * the panel the frame stated, so a mode states the panel first, then sends
+ * its tiles (from its first since the view's memory was cleared, at most a
+ * 240x160 screen's 600 of them past it), then its maps. */
 PF_API void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel);
 PF_API void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len);
+/* The view's own memory, VID_VIEW_MEMORY bytes kept from frame to frame for
+ * a mode framing a smaller view: what it last sent a drawn panel, or what it
+ * last worked out of the screen. The host clears it (all zero) where a
+ * panel's memory may no longer hold what was sent, and the mode sends its
+ * panel afresh. Nothing the game decides reads it. */
+enum { VID_VIEW_MEMORY = 640 };
+PF_API uint8_t *vid_view_memory(Platform *pf);
 
 /* Master brightness and forced blank. */
 PF_API void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d);

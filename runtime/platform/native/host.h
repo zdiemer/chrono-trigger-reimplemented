@@ -119,10 +119,11 @@ typedef struct {
     VidViewPanel panels[VID_VIEW_PANELS];
     bool drawn;                  /* vid_draw_a_panel_in_view's this frame */
     VidDrawnPanel drawn_panel;
-    bool drawn_sends;            /* vid_send_panel_vram sent this frame: its bytes, and which 32 they fill */
+    bool drawn_sends;            /* vid_send_panel_vram has sent: its bytes, and which 32 they fill */
     uint8_t drawn_sent[0x10000];
     uint8_t drawn_marks[0x10000 / 32];
     uint8_t drawn_vram[0x10000]; /* the drawn panel's memory, made as the picture is */
+    uint8_t view_memory[VID_VIEW_MEMORY];   /* vid_view_memory's */
 #endif
 } VidHost;
 

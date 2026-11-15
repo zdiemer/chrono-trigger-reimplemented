@@ -299,7 +299,7 @@ static uint8_t view_panel_count IN_FAST_RAM;
 /* The panel the view draws this frame (vid_draw_a_panel_in_view), up to two
  * of its layers (the GBA's 0-2): its lines and their looks, and each layer's
  * map, tiles and scroll (bytes of the SNES's VRAM); then, as the sends come,
- * the run of the tiles it sends, from the first sent. Its memory is the
+ * the run of the tiles it sends (PanelRoom). Its memory is the
  * GBA's own (below, "The drawn panel"), converted as it is sent. */
 enum { PANEL_LAYERS = 2, NO_LAYER = 0xFF };
 typedef struct {
@@ -311,11 +311,18 @@ typedef struct {
     uint16_t map_byte[PANEL_LAYERS], char_byte[PANEL_LAYERS], hofs[PANEL_LAYERS], vofs[PANEL_LAYERS];
     /* what the lines don't depend on, or the layout made: */
     bool drawn;
-    bool any_tile;                       /* whether a tile was sent: first_tile is the first */
     uint16_t control[PANEL_LAYERS];      /* each layer's BGCNT, made once a picture */
-    uint16_t first_tile;
 } DrawnPanel;
 static DrawnPanel panel IN_FAST_RAM;
+
+/* The view's own memory (vid_view_memory), cleared by each layout. */
+static uint8_t view_memory[VID_VIEW_MEMORY] IN_FAST_RAM;
+
+uint8_t *vid_view_memory(Platform *pf)
+{
+    (void)pf;
+    return view_memory;
+}
 
 /* What a frame's lines read of the picture they were worked out from (vid_layer_last_shown):
  * the lines a mode asked of, and what the main screen showed there. */
@@ -1030,6 +1037,8 @@ typedef struct {
     uint16_t run;                        /* the run's first place, its blank */
     uint16_t run_tiles;                  /* the tiles it holds past its blank */
     uint16_t sent;                       /* the most the panel sent since the layout */
+    bool any_tile;                       /* whether a tile was sent since: first_tile is the first */
+    uint16_t first_tile;
 } PanelRoom;
 static PanelRoom panel_room IN_FAST_RAM;
 
@@ -1080,6 +1089,7 @@ static uint16_t maps_shown IN_FAST_RAM;
 
 static void lay_out(bool pruned)
 {
+    memset(view_memory, 0, sizeof view_memory);   /* the panel's room and the caches' places are made afresh */
     if (pruned) {
         unsigned kept = 0;
         for (unsigned m = 0; m < snes.line_map_count; m++)
@@ -1281,10 +1291,12 @@ static void convert_unit(unsigned u)
  * RAM has no room), but each send converted as it comes into the panel's room
  * (PanelRoom), by the panel the frame stated first: a send into a layer's
  * map converted into that layer's screen block, a send of tiles of a layer
- * whose tiles it sends converted into the run, the first tile sent this
- * frame the run's first. Where a map names the screen's own tiles, they are
- * the cache's. Only what changes is written, so a picture shown as the game
- * sends shows at most a glyph it types a GBA frame early. */
+ * whose tiles it sends converted into the run, the first tile sent since the
+ * room was made the run's first. Where a map names the screen's own tiles,
+ * they are the cache's. What was sent stays until a layout, which clears
+ * the view's memory so the mode sends its panel afresh. A send is converted
+ * as it comes, so a picture shown as the game sends shows at most a glyph
+ * it types a GBA frame early. */
 
 bool vid_view_draws_panels(const Platform *pf)
 {
@@ -1323,13 +1335,13 @@ static void panel_map_taken(unsigned s, uint32_t first, const uint8_t *bytes, ui
     unsigned n = panel.layer[s];
     bool own = panel.own_tiles & (1u << n);
     Cache *c = own ? NULL : cache_of(layers[n].bpp, panel.char_byte[s]);
-    uint16_t base = (uint16_t)(panel_room.run % 512), tiles = panel.any_tile ? panel_room.run_tiles : 0;
+    uint16_t base = (uint16_t)(panel_room.run % 512), tiles = panel_room.any_tile ? panel_room.run_tiles : 0;
     uint16_t palettes = layers[n].bpp == 2 ? 8 : 0;
     volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + panel_room.map_block[s] * (SCREEN_BYTES / 2) + first;
     for (uint32_t i = 0; i + 1 < count && first + i / 2 < SCREEN_BYTES / 2; i += 2) {
         uint16_t e = (uint16_t)(bytes[i] | bytes[i + 1] << 8), tile = 0;
         if (own) {
-            uint16_t k = (uint16_t)(((e & 0x3FF) - panel.first_tile) & 0x3FF);
+            uint16_t k = (uint16_t)(((e & 0x3FF) - panel_room.first_tile) & 0x3FF);
             tile = (uint16_t)(base + (k < tiles ? 1 + k : 0));
         } else if (c) {
             tile = slot_for(c, e & 0x3FF);
@@ -1343,9 +1355,9 @@ static void panel_map_taken(unsigned s, uint32_t first, const uint8_t *bytes, ui
  * make the run longer. */
 static void panel_tile_taken(uint8_t bpp, uint16_t tile, const uint8_t *bytes)
 {
-    if (!panel.any_tile)
-        panel.first_tile = tile, panel.any_tile = true;
-    uint16_t k = (uint16_t)((tile - panel.first_tile) & 0x3FF);
+    if (!panel_room.any_tile)
+        panel_room.first_tile = tile, panel_room.any_tile = true;
+    uint16_t k = (uint16_t)((tile - panel_room.first_tile) & 0x3FF);
     if (k >= PANEL_TILES)
         return;
     if (k >= panel_room.sent)
@@ -1503,18 +1515,47 @@ static bool goes_on(const Band *last, const Band *b)
     return b->black || (b->drawn ? b->row >= last->row + last->rows - 1 : b->row == last->row + last->lines);
 }
 
+/* The first line after `y` where what a line shows may change: a panel's
+ * first line or the one past its last, or the camera's or a panel's line
+ * passing the SNES's first or last. */
+static unsigned next_change_of_band(unsigned y, const Band *b)
+{
+    int next = GBA_VIEW_HEIGHT;
+    for (unsigned n = 0; n < view_panel_count; n++) {
+        int at = view_panels[n].at, past = view_panels[n].at + (int)view_panels[n].lines;
+        next = at > (int)y && at < next ? at : next;
+        next = past > (int)y && past < next ? past : next;
+    }
+    if (panel.drawn) {
+        int at = panel.at, past = panel.at + (int)panel.lines;
+        next = at > (int)y && at < next ? at : next;
+        next = past > (int)y && past < next ? past : next;
+    }
+    if (!b->drawn) {
+        int to_first = (int)y - b->row, to_past = (int)y + VID_ORIGINAL_VIEW_HEIGHT - b->row;
+        next = to_first > (int)y && to_first < next ? to_first : next;
+        next = to_past > (int)y && to_past < next ? to_past : next;
+    }
+    return (unsigned)next;
+}
+
+/* The bands, a run of lines at a time between the lines where they may change. */
 static void band_up_the_view(void)
 {
     band_count = 0;
-    for (unsigned y = 0; y < GBA_VIEW_HEIGHT; y++) {
+    for (unsigned y = 0; y < GBA_VIEW_HEIGHT;) {
         Band b = line_band(y);
+        unsigned past = next_change_of_band(y, &b);
+        b.lines = (uint8_t)(past - y);
+        b.rows = b.drawn ? (uint8_t)(panel_looks(past - 1) - b.row + 1) : b.lines;
         Band *last = band_count ? &bands[band_count - 1] : NULL;
         if (last && goes_on(last, &b)) {
-            last->rows = (uint8_t)(b.drawn ? b.row - last->row + 1 : last->rows + 1);
-            last->lines++;
+            last->rows = (uint8_t)(b.drawn ? b.row + b.rows - last->row : last->rows + b.rows);
+            last->lines = (uint8_t)(last->lines + b.lines);
         } else if (band_count < MOST_BANDS) {
             bands[band_count++] = b;
         }
+        y = past;
     }
     int row = -1;
     bool in_order = band_count < MOST_BANDS;

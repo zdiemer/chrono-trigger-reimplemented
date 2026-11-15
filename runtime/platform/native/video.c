@@ -100,12 +100,7 @@ void vid_host_frame_begins(Platform *pf)
     v->parted = false;
     v->margin_count = 0;
     v->panel_count = 0;
-    v->drawn = false;
-    if (v->drawn_sends) {
-        /* what was sent stays (the next frame's sends start from it), but shows only where sent again */
-        memset(v->drawn_marks, 0, sizeof v->drawn_marks);
-        v->drawn_sends = false;
-    }
+    v->drawn = false;   /* what was sent stays, and shows wherever a panel is drawn again */
 }
 
 static VidObserver *ob(Platform *pf) { return pf->video.observer; }
@@ -140,6 +135,9 @@ void vid_aim_the_view(Platform *pf, VidAim aim)
 VidAim vid_view_aim(const Platform *pf) { return pf->video.aim; }
 
 bool vid_view_draws_panels(const Platform *pf) { return vid_view_is_smaller(vid_view(pf)); }
+
+/* Kept with the rest of the platform: a snapshot keeps it with the panel's memory. */
+uint8_t *vid_view_memory(Platform *pf) { return pf->video.view_memory; }
 
 void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel)
 {

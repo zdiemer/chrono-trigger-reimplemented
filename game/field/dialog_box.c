@@ -11,10 +11,13 @@
  *
  * Nothing of the game changes: it types the page into its own tiles in VRAM
  * as at the original's view, a glyph a frame, and waits for the same
- * buttons. Each frame this reads what the game drew -- the text area's map
- * and tiles, and the frame's map -- outside the game's time, and draws the
- * window afresh in the panel's own memory (vid_send_panel_vram), which only
- * the view shows (vid_draw_a_panel_in_view). It keeps nothing between frames.
+ * buttons. This reads what the game drew -- the text area's map and tiles,
+ * and the frame's map -- outside the game's time, and draws the window in
+ * the panel's own memory (vid_send_panel_vram), which only the view shows
+ * (vid_draw_a_panel_in_view). What it last read and sent it keeps in the
+ * view's memory (vid_view_memory), so a frame reads only the line the game
+ * changed and sends only what changed in the window (below, "What the
+ * window last sent").
  *
  * The lines are broken by what is drawn, not by the string: a word ends
  * where the line's ink leaves a gap a space's width or wider, so a name or
@@ -26,6 +29,8 @@
 #include "field/line_effects.h"
 #include "platform/video.h"
 #include "vars.h"
+
+#include <string.h>
 
 /* ---- The page as the game drew it -------------------------------------------------------------- */
 
@@ -106,17 +111,22 @@ static const uint8_t *text_tile(const Platform *pf, TileReader *t, unsigned row,
 }
 
 /* Which of a line's columns of tiles hold ink, a byte a column (bit 7 its
- * first dot), from both rows' tiles. */
-static void line_ink(const Platform *pf, TileReader *t, unsigned line, uint8_t ink[COLUMNS])
+ * first dot), from both rows' tiles; and a sum of each column's dots, which
+ * changes where they do. */
+static void line_ink(const Platform *pf, TileReader *t, unsigned line, uint8_t ink[COLUMNS], uint16_t sums[COLUMNS])
 {
     for (unsigned column = 0; column < COLUMNS; column++) {
         uint8_t any = 0;
+        uint16_t sum = 0;
         for (unsigned half = 0; half < 2; half++) {
             const uint8_t *bytes = text_tile(pf, t, 2 * line + half, column);
-            for (unsigned i = 0; i < TILE_BYTES_2BPP; i++)
+            for (unsigned i = 0; i < TILE_BYTES_2BPP; i++) {
                 any |= bytes[i];
+                sum = (uint16_t)((sum << 3 | sum >> 13) ^ bytes[i]);
+            }
         }
         ink[column] = any;
+        sums[column] = sum;
     }
 }
 
@@ -142,7 +152,7 @@ typedef struct {
 
 /* The game's lines as drawn: each one's ink, and where its ink starts and ends. */
 typedef struct {
-    uint8_t ink[DIALOG_TEXT_LINES][COLUMNS];
+    const uint8_t (*ink)[COLUMNS];   /* DIALOG_TEXT_LINES of them */
     int start[DIALOG_TEXT_LINES], end[DIALOG_TEXT_LINES];
     bool has[DIALOG_TEXT_LINES];
     int last;   /* the last with ink, -1 for none */
@@ -256,18 +266,18 @@ static void set_the_paragraph(Page *p, const Drawn *d, int first, int last)
     }
 }
 
-/* The page as the game has typed it so far, set again for the window: the
- * game's lines after the last with ink are not typed yet. A line indented
- * as far as the one starting its paragraph, or further, and at the indent,
- * goes on that paragraph (a speaker's later lines); where `may_join` is false
- * (a question's choices, each a line of its own) every line is a paragraph
- * of its own. */
-static void set_the_page(const Platform *pf, TileReader *t, bool may_join, Page *p)
+/* The page as the game has typed it so far (each line's ink), set again for
+ * the window: the game's lines after the last with ink are not typed yet. A
+ * line indented as far as the one starting its paragraph, or further, and
+ * at the indent, goes on that paragraph (a speaker's later lines); where
+ * `may_join` is false (a question's choices, each a line of its own) every
+ * line is a paragraph of its own. */
+static void set_the_page(const uint8_t ink[DIALOG_TEXT_LINES][COLUMNS], bool may_join, Page *p)
 {
     Drawn d;
+    d.ink = ink;
     d.last = -1;
     for (unsigned line = 0; line < DIALOG_TEXT_LINES; line++) {
-        line_ink(pf, t, line, d.ink[line]);
         d.has[line] = ink_span(d.ink[line], &d.start[line], &d.end[line]);
         if (d.has[line])
             d.last = (int)line;
@@ -357,19 +367,24 @@ static bool line_reaches(const WindowLine *l, unsigned column)
     return false;
 }
 
-/* A window line's tiles where its pieces reach, their dots where they go. */
+/* A window line's tiles at a column, its pieces' dots where they go. */
+static void send_the_tiles(Platform *pf, TileReader *t, const WindowLine *l, unsigned at, unsigned column, uint16_t chars)
+{
+    for (unsigned half = 0; half < 2; half++) {
+        uint8_t bytes[TILE_BYTES_2BPP] = { 0 };
+        for (unsigned k = 0; k < l->count; k++)
+            put_the_piece(pf, t, &l->piece[k], column, half, bytes);
+        uint16_t tile = line_tile(at, column, half);
+        vid_send_panel_vram(pf, (uint16_t)(chars + tile * TILE_WORDS_2BPP), (PfData){ .ptr = bytes }, sizeof bytes);
+    }
+}
+
+/* A window line's tiles where its pieces reach. */
 static void send_the_line(Platform *pf, TileReader *t, const WindowLine *l, unsigned at, uint16_t chars)
 {
-    for (unsigned half = 0; half < 2; half++)
-        for (unsigned column = 0; column < WINDOW_COLUMNS; column++) {
-            if (!line_reaches(l, column))
-                continue;
-            uint8_t bytes[TILE_BYTES_2BPP] = { 0 };
-            for (unsigned k = 0; k < l->count; k++)
-                put_the_piece(pf, t, &l->piece[k], column, half, bytes);
-            uint16_t tile = line_tile(at, column, half);
-            vid_send_panel_vram(pf, (uint16_t)(chars + tile * TILE_WORDS_2BPP), (PfData){ .ptr = bytes }, sizeof bytes);
-        }
+    for (unsigned column = 0; column < WINDOW_COLUMNS; column++)
+        if (line_reaches(l, column))
+            send_the_tiles(pf, t, l, at, column, chars);
 }
 
 static void send_the_blank_tile(Platform *pf, uint16_t chars)
@@ -378,26 +393,118 @@ static void send_the_blank_tile(Platform *pf, uint16_t chars)
     vid_send_panel_vram(pf, (uint16_t)(chars + BLANK_TILE * TILE_WORDS_2BPP), (PfData){ .ptr = blank }, sizeof blank);
 }
 
-/* The text's map for `lines` lines from the page's `first`, with the looks
- * (palette and priority) of the game's: each line's tiles where it reaches,
- * the blank tile elsewhere. Only the rows the window shows are sent: its
- * lines' and the two below them and the one above, which its borders show
- * over. */
+/* A row of the text's map, with the looks (palette and priority) of the
+ * game's: the window line's tiles where it reaches, the blank tile
+ * elsewhere (`l` NULL: everywhere). */
 enum { MAP_ROWS = 32 };
 
-static void send_the_text_map(Platform *pf, const Page *page, unsigned first, unsigned lines)
+static void send_the_map_row(Platform *pf, const WindowLine *l, unsigned row, uint16_t looks)
 {
-    uint16_t looks = (uint16_t)(map_entry(pf, 0, 0) & ENTRY_LOOKS);
-    for (unsigned row = 0; row < MAP_ROWS; row++) {
-        if (row > 2 * lines + 1 && row != MAP_ROWS - 1)
-            continue;
-        const WindowLine *l = row < 2 * lines && first + row / 2 < page->count ? &page->line[first + row / 2] : NULL;
-        uint16_t entries[COLUMNS];
-        for (unsigned column = 0; column < COLUMNS; column++)
-            entries[column] = (uint16_t)(looks | (column < WINDOW_COLUMNS && line_reaches(l, column)
-                                                      ? line_tile(row / 2, column, row % 2) : BLANK_TILE));
-        vid_send_panel_vram(pf, (uint16_t)(OWN_TEXT_MAP + row * COLUMNS), (PfData){ .ptr = (const uint8_t *)entries },
-                            sizeof entries);
+    uint16_t entries[COLUMNS];
+    for (unsigned column = 0; column < COLUMNS; column++)
+        entries[column] = (uint16_t)(looks | (column < WINDOW_COLUMNS && line_reaches(l, column)
+                                                  ? line_tile(row / 2, column, row % 2) : BLANK_TILE));
+    vid_send_panel_vram(pf, (uint16_t)(OWN_TEXT_MAP + row * COLUMNS), (PfData){ .ptr = (const uint8_t *)entries },
+                        sizeof entries);
+}
+
+static const WindowLine *window_line(const Page *page, unsigned first, unsigned k)
+{
+    return first + k < page->count ? &page->line[first + k] : NULL;
+}
+
+/* The text's map for `lines` lines from the page's `first`. Only the rows
+ * the window shows are sent: its lines' and the two below them and the one
+ * above, which its borders show over. */
+static void send_the_text_map(Platform *pf, const Page *page, unsigned first, unsigned lines, uint16_t looks)
+{
+    for (unsigned row = 0; row < MAP_ROWS; row++)
+        if (row <= 2 * lines + 1 || row == MAP_ROWS - 1)
+            send_the_map_row(pf, row < 2 * lines ? window_line(page, first, row / 2) : NULL, row, looks);
+}
+
+/* ---- What the window last sent ---------------------------------------------------------------- *
+ *
+ * The panel's memory stays from frame to frame, so a frame sends only what
+ * changed, against what the view's memory keeps (vid_view_memory): what the
+ * window was drawn from (the game's string and choice, its place, the
+ * layers' tiles), each of the game's lines' ink and sums, and the page as it
+ * was set. The game changes its text area a line at a time, as the vblank
+ * sends a text row (dialog_text_sending): only the line it sends this frame,
+ * and the one it sent the last (which it may have sent after the window was
+ * laid out), are read again. A column of a window line's tiles is sent
+ * again where the pieces in it, or the game's dots they show there, changed;
+ * its map rows where the columns it reaches did. */
+enum { SENT = 0x5A, NO_ROW = 0xFF };
+typedef struct {
+    uint8_t kept;            /* SENT where the rest says what the panel's memory holds */
+    uint8_t position, string, choice, lines, first, row_due;
+    uint16_t frame_chars, text_chars, looks;
+    uint32_t table;
+    uint8_t ink[DIALOG_TEXT_LINES][COLUMNS];
+    uint16_t sums[DIALOG_TEXT_LINES][COLUMNS];
+    Page page;
+} Sent;
+_Static_assert(sizeof(Sent) <= VID_VIEW_MEMORY, "what the window sent fits the view's memory");
+
+/* A piece's dots in a column of the window: from which game line, how far
+ * across from where they show, and which of the window's dots. */
+typedef struct {
+    uint8_t line, lo, hi;
+    int16_t across;
+} Cover;
+
+static unsigned cover_of(const WindowLine *l, unsigned column, Cover cover[PIECES])
+{
+    unsigned n = 0;
+    for (unsigned k = 0; l && k < l->count; k++) {
+        const Piece *p = &l->piece[k];
+        int lo = p->to > column * TILE_DOTS ? p->to : (int)(column * TILE_DOTS);
+        int hi = p->to + p->dots < (column + 1) * TILE_DOTS ? p->to + p->dots : (int)((column + 1) * TILE_DOTS);
+        if (lo < hi)
+            cover[n++] = (Cover){ p->line, (uint8_t)lo, (uint8_t)hi, (int16_t)(p->from - p->to) };
+    }
+    return n;
+}
+
+/* Whether a window line's column shows anything other than it did. */
+static bool column_changed(const WindowLine *was, const WindowLine *now, unsigned column,
+                           const uint32_t changed[DIALOG_TEXT_LINES])
+{
+    Cover a[PIECES], b[PIECES];
+    unsigned n = cover_of(was, column, a);
+    if (n != cover_of(now, column, b))
+        return true;
+    for (unsigned k = 0; k < n; k++) {
+        if (a[k].line != b[k].line || a[k].lo != b[k].lo || a[k].hi != b[k].hi || a[k].across != b[k].across)
+            return true;
+        unsigned first = (unsigned)(b[k].lo + b[k].across) / TILE_DOTS, last = (unsigned)(b[k].hi - 1 + b[k].across) / TILE_DOTS;
+        for (unsigned c = first; c <= last; c++)
+            if (changed[b[k].line] >> c & 1)
+                return true;
+    }
+    return false;
+}
+
+static uint32_t columns_reached(const WindowLine *l)
+{
+    uint32_t reached = 0;
+    for (unsigned column = 0; column < WINDOW_COLUMNS; column++)
+        if (line_reaches(l, column))
+            reached |= 1u << column;
+    return reached;
+}
+
+/* What of window line `at` changed since it was sent, sent. */
+static void send_the_changes(Platform *pf, TileReader *t, const WindowLine *was, const WindowLine *now, unsigned at,
+                             const uint32_t changed[DIALOG_TEXT_LINES], uint16_t chars, uint16_t looks)
+{
+    for (unsigned column = 0; now && column < WINDOW_COLUMNS; column++)
+        if (line_reaches(now, column) && column_changed(was, now, column, changed))
+            send_the_tiles(pf, t, now, at, column, chars);
+    if (columns_reached(was) != columns_reached(now)) {
+        send_the_map_row(pf, now, 2 * at, looks);
+        send_the_map_row(pf, now, 2 * at + 1, looks);
     }
 }
 
@@ -440,9 +547,35 @@ ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView
     uint16_t middle_line = (uint16_t)(band.middle + 1);
     vid_layer_last_shown(pf, VID_BG1, middle_line, &frame_layer);
     vid_layer_last_shown(pf, VID_BG3, middle_line, &text_layer);
+
+    Sent sent;
+    memcpy(&sent, vid_view_memory(pf), sizeof sent);
+    bool may_join = !field_choice_pointer_shown(g);
+    uint8_t choice = (uint8_t)(dialog_choice_pointer(g) | (may_join ? 0 : 0x80));
+    uint16_t looks = (uint16_t)(map_entry(pf, 0, 0) & ENTRY_LOOKS);
+    bool same = sent.kept == SENT && sent.position == (uint8_t)position && sent.string == dialog_string(g) &&
+                sent.table == dialog_string_table(g) && sent.choice == choice &&
+                sent.frame_chars == frame_layer.char_base && sent.text_chars == text_layer.char_base &&
+                sent.looks == looks;
+    bool sending = dialog_text_sending(g) != 0;
+    unsigned row = dialog_text_row(g) % DIALOG_TEXT_LINES;
+    unsigned read = !same ? 0xF : (sending ? 1u << row : 0) | (sent.row_due < DIALOG_TEXT_LINES ? 1u << sent.row_due : 0);
+    uint32_t changed[DIALOG_TEXT_LINES] = { 0 };   /* the columns whose dots changed, a bit each */
     TileReader t = { .chars = text_layer.char_base, .line = NO_LINE };
+    for (unsigned line = 0; line < DIALOG_TEXT_LINES; line++) {
+        if (!(read >> line & 1))
+            continue;
+        uint8_t ink[COLUMNS];
+        uint16_t sums[COLUMNS];
+        line_ink(pf, &t, line, ink, sums);
+        for (unsigned column = 0; column < COLUMNS; column++)
+            if (ink[column] != sent.ink[line][column] || sums[column] != sent.sums[line][column])
+                changed[line] |= 1u << column;
+        memcpy(sent.ink[line], ink, sizeof ink);
+        memcpy(sent.sums[line], sums, sizeof sums);
+    }
     Page page;
-    set_the_page(pf, &t, !field_choice_pointer_shown(g), &page);
+    set_the_page((const uint8_t(*)[COLUMNS])sent.ink, may_join, &page);
     unsigned first, lines = lines_shown(g, &page, view, &first);
 
     /* The window opens and shuts from its middle, as far as the screen's
@@ -458,12 +591,33 @@ ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView
     panel.bg[VID_BG3] = (VidBg){ OWN_TEXT_MAP, 32, 32, text_layer.char_base, 0, (uint16_t)(top - TEXT_DOWN), false, false };
     if (shown > 0) {
         vid_draw_a_panel_in_view(pf, &panel);
-        send_the_blank_tile(pf, text_layer.char_base);
-        for (unsigned k = 0; k < lines; k++)
-            send_the_line(pf, &t, first + k < page.count ? &page.line[first + k] : NULL, k, text_layer.char_base);
-        send_the_text_map(pf, &page, first, lines);
-        send_the_frame(pf, lines);
+        if (!same || lines != sent.lines) {
+            send_the_blank_tile(pf, text_layer.char_base);
+            for (unsigned k = 0; k < lines; k++)
+                send_the_line(pf, &t, window_line(&page, first, k), k, text_layer.char_base);
+            send_the_text_map(pf, &page, first, lines, looks);
+            send_the_frame(pf, lines);
+        } else {
+            for (unsigned k = 0; k < lines; k++)
+                send_the_changes(pf, &t, window_line(&sent.page, sent.first, k), window_line(&page, first, k), k,
+                                 changed, text_layer.char_base, looks);
+        }
+        sent.kept = SENT;
+        sent.position = (uint8_t)position;
+        sent.string = dialog_string(g);
+        sent.table = dialog_string_table(g);
+        sent.choice = choice;
+        sent.frame_chars = frame_layer.char_base;
+        sent.text_chars = text_layer.char_base;
+        sent.looks = looks;
+        sent.lines = (uint8_t)lines;
+        sent.first = (uint8_t)first;
+        sent.page = page;
+    } else {
+        sent.kept = 0;   /* nothing sent: the window opens afresh */
     }
+    sent.row_due = sending ? (uint8_t)row : NO_ROW;
+    memcpy(vid_view_memory(pf), &sent, sizeof sent);
     uint16_t open = (uint16_t)((int)view.height - height);
     int16_t clear_of = (int16_t)(band.middle - band.full), clear_to = (int16_t)(band.middle + band.full);
     return position == WINDOW_AT_TOP ? (ViewLines){ (int16_t)height, open, clear_of, clear_to }

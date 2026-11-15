@@ -868,9 +868,14 @@ made in `game/` as presentation and never as a rule:
   text and the font's widths), 856 pages are set again and 189 then need
   more than four lines: 150 need one more, 34 two and 3 three, and two
   staff-roll-like strings far more. The game types the page as it does at
-  256x224, a glyph a frame, into its own tiles. The window reads them back
-  each frame, finding words where the ink leaves a gap a space wide, so
-  names and items set into the text break as their glyphs do. While the
+  256x224, a glyph a frame, into its own tiles. The window reads them back,
+  finding words where the ink leaves a gap a space wide, so names and items
+  set into the text break as their glyphs do. It reads only the line the
+  game sends to VRAM that frame or the last (`dialog_text_sending`), and
+  keeps the rest in the view's memory (`vid_view_memory`) with the page as
+  it last set it; it sends again only the tiles whose pieces or dots
+  changed (a glyph's, while it types), and everything where the string,
+  the choice, the window's place or its lines change. While the
   page is being typed the window shows four lines, the newest at its foot.
   Once the page waits for the player, it grows to show every line. It opens
   and shuts from its middle as the screen's band does. The game's text,
@@ -878,7 +883,8 @@ made in `game/` as presentation and never as a rule:
 - **A battle** (`battle/camera.c`) keeps the battle window's 48 lines whole
   at the view's foot, with two of its columns cut from inside a window so
   both borders show. The two cut are the middle pair that holds no text and
-  sits in the frames' repeating pattern. The camera centres the box round
+  sits in the frames' repeating pattern, found again only where the frames'
+  rows change or text comes into them (the view's memory keeps them). The camera centres the box round
   the combatants in the fight in the 112 lines above.
 - **The menus** (`menu/camera.c`) follow the cursor up and down. Their
   screens keep within 224 dots across, which fit, and run up to 200 lines
@@ -894,10 +900,13 @@ made in `game/` as presentation and never as a rule:
 batch runs it (`handheld`); `video_test` checks the camera's hold, the
 composed view, a panel's one frame and a cut panel.
 The GBA follows the same camera and bands, and draws the same panel and cut
-("The GBA build, as built"). A host may take a drawn panel's sends as they
-come, so the dialog states its panel first, then sends its tiles (a blank
-one, then each line's where its pieces reach), then the rows of its maps the
-window shows; it sends nothing while the window is shut.
+("The GBA build, as built"). A drawn panel's memory stays from frame to
+frame until the host clears the view's memory, and a host may take the
+sends as they come, so the dialog states its panel first, then sends its
+tiles (a blank one, then each line's where its pieces reach), then the rows
+of its maps the window shows; it sends nothing while the window is shut.
+Played every 5 frames of `gato-battle` and every 3 of `new-game`, its
+pictures are the same as when it sent the whole window every frame.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
@@ -1276,19 +1285,27 @@ mode 0's four tiled layers and its sprites:
   each `vid_send_panel_vram` is converted as it comes, by the panel the
   frame stated first, a map's entries into a screen block of the panel's
   and the tiles it sends (2bpp widened) into a run of places, the first
-  sent the run's first; the frame's tiles are the screen's, from its cache.
-  A layout makes the room once a mode asks `vid_view_draws_panels` (until
-  then the answer is false and the dialog keeps the screen's band): two
-  screen blocks and a run as long as the panel has sent, 256 tiles at
-  first and 600 at most (a 240x160 screen's), within one char block's
-  reach, 12 to 23 KiB in all. Later layouts keep it until the settings
-  move. A layer whose tiles the panel sends draws only those. Only what is
-  written changes VRAM, so a glyph may show a GBA frame early.
+  sent since the room was made the run's first; the frame's tiles are the
+  screen's, from its cache. What was sent stays, and the dialog sends only
+  what changed (above, "The smaller view, as built"): the view's memory
+  (`vid_view_memory`, 640 bytes of fast RAM) is cleared by every layout,
+  which has it send the window afresh. A layout makes the room once a
+  mode asks `vid_view_draws_panels` (until then the answer is false and
+  the dialog keeps the screen's band): two screen blocks and a run as long
+  as the panel has sent, 256 tiles at first and 600 at most (a 240x160
+  screen's), within one char block's reach, 12 to 23 KiB in all. Later
+  layouts keep it until the settings move. A layer whose tiles the panel
+  sends draws only those. A send is converted as it comes, so a glyph may
+  show a GBA frame early.
 - **A cut** (the battle window, two columns cut from inside it): the maps
   its lines show are kept a second time with the columns left out (a
   32-column map's, whole columns where the layer's scroll puts the cut),
-  and its windows' edges and sprites move across as the cut moves the
-  dots.
+  converted again only as the game changes them or the cut moves, and its
+  windows' edges and sprites move across as the cut moves the dots.
+- **The bands** are worked out a run of lines at a time, between the lines
+  where a panel starts or ends or a band passes the SNES's first or last
+  line, rather than a line at a time: at the title that took the picture
+  from 0.21 GBA frames a frame to 0.12.
 - **Room.** The panel's room comes out of the tile caches' places. To give
   some back, a layout leaves out the maps no line showed since the last one
   (the field's layers' own maps, which its line effects replace on every
@@ -1390,10 +1407,10 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above; the 240x160 view's dialog at the top and foot (a page set again included: `new-game` frames 6000 and 6500, `gato-battle` 9400 and 19000) and the battle window with its two columns cut (`gato-battle` 19400) as `ct_native --view 240x160` shows them |
 | Cartridge | the program 1.77 MiB (code 1.14, constants 0.63), the pack 3.73 MiB |
 | Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the sound's ring 1 KiB and mixer 1 KiB, the drive box 4.3 KiB, the C library's heap; 0.2 KiB free (the next thing to take work RAM must give some back) |
-| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 17 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 2,048; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the view's framing, bands and drawn panel 0.3 KiB, the driver's stack the 6.3 KiB above them, a canary at its end checked each frame (deepest use 2,048 bytes); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
+| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 15.3 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 1,792, which were 2,048 before the view's memory; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the view's framing, bands and drawn panel 0.3 KiB and its memory 0.6 KiB, the driver's stack the 7.4 KiB above them, a canary at its end checked each frame (deepest use 2,200 bytes, the dialog's panel drawn on it); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps, tile caches and, while a dialog is drawn, its panel's room of 12-23 KiB), sprites 16 KiB of 32 |
 | The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.26 and 0.75, `new-game` 0.24 and 0.5, `gato-battle` 0.26 and 0.5, `events-jetbike-race` 0.27 and 0.75; of it the mixing 0.15, 0.13, 0.15 and 0.15 (the heaviest 0.30-0.36), so the driver and its passes about 0.1. Before a quiet stretch of the driver's time passed at once: 0.35, 0.34, 0.36 and 0.36, the driver and its passes 0.2 |
-| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 0.78 and 1.0, sound 0.26 and 0.75, picture 0.29 and 1.5, in all 1.70; `new-game`: game 1.13 and 3.75, picture 0.46 and 1.25, in all 2.15; `gato-battle`: game 1.61 and 4.25, picture 0.73 and 2.75, in all 2.91; `events-jetbike-race`: game 1.56 and 4.75, picture 1.17 and 3.0, in all 3.26 ("in all" counts the vertical blanks waited for). The dialog's panel is most of what that adds in the game's column (the window set again and its sends converted, outside the game's time: in `events-jetbike-race` 5% of the GBA's work, issue #475). Before the drawn panel and the cut: game 0.78, 0.90, 1.21 and 1.37, picture 0.21, 0.38, 0.64 and 1.07, in all 1.56, 1.85, 2.42 and 3.00; before a frame's lines were visited only where something happens (above), with the 240x160 view's camera and bands: picture 0.27, 0.53, 1.01 and 1.27, in all 1.64, 2.05, 2.90 and 3.27; before the camera and bands, picture 0.16, 0.35, 0.77 and 1.04, in all 1.49, 1.90, 2.66 and 3.02. Before the sound driver's quiet stretches passed at once: in all 1.61, 1.98, 2.75 and 3.13. Before reads by address reached work RAM in place (below): game 1.01, 1.13, 1.50 and 1.71, in all 1.80, 2.11, 2.91 and 3.40. Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
+| Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | `title-start`: game 0.78 and 1.0, sound 0.26 and 0.75, picture 0.12 and 1.25, in all 1.48; `new-game`: game 0.95 and 3.0, picture 0.26 and 1.25, in all 1.81; `gato-battle`: game 1.28 and 3.25, picture 0.54 and 2.75, in all 2.39; `events-jetbike-race`: game 1.41 and 3.75, picture 0.98 and 2.75, in all 2.97 ("in all" counts the vertical blanks waited for). The dialog's panel costs the game's column 0.04-0.07 (outside the game's time); the bands worked out a run of lines at a time give the picture back more than the panel and the cut take. Before the drawn panel and the cut: game 0.78, 0.90, 1.21 and 1.37, picture 0.21, 0.38, 0.64 and 1.07, in all 1.56, 1.85, 2.42 and 3.00; before a frame's lines were visited only where something happens (above), with the 240x160 view's camera and bands: picture 0.27, 0.53, 1.01 and 1.27, in all 1.64, 2.05, 2.90 and 3.27; before the camera and bands, picture 0.16, 0.35, 0.77 and 1.04, in all 1.49, 1.90, 2.66 and 3.02. Before the sound driver's quiet stretches passed at once: in all 1.61, 1.98, 2.75 and 3.13. Before reads by address reached work RAM in place (below): game 1.01, 1.13, 1.50 and 1.71, in all 1.80, 2.11, 2.91 and 3.40. Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
 Without the native mixer the game's own frame is most of the cost: 0.8-1.4
 GBA frames, from 7-13 before the flat accessors read in place, the sends
