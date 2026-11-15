@@ -51,14 +51,18 @@ SECTIONS
 
     .ARM.exidx : { *(.ARM.exidx* .gnu.linkonce.armexidx.*) } > rom
 
-    /* Zeroed fast RAM: the fibers' stacks (targets/gba/system/fiber.c). */
+    /* Zeroed fast RAM: the fibers' stacks (targets/gba/system/fiber.c), the
+     * interrupts' and the mixing's (targets/gba/system/interrupts.c). What is
+     * left is the driver's stack, at least 5 KiB: its deepest use over the
+     * whole movie library is 2,280 bytes, the dialog's panel drawn on it, and
+     * the mixing no longer runs on it. */
     .iwram_bss (NOLOAD) : {
         __iwram_bss_start = .;
         *(.iwram_bss .iwram_bss.*)
         . = ALIGN(8);
         __iwram_bss_end = .;
     } > iwram
-    ASSERT(__iwram_bss_end <= __stack_top - 0x1800, "fast RAM leaves the driver's stack under 6 KiB")
+    ASSERT(__iwram_bss_end <= __stack_top - 0x1400, "fast RAM leaves the driver's stack under 5 KiB")
 
     .data : {
         __data_start = .;

@@ -50,4 +50,3 @@
 *(.text.asset_containing .text.asset_containing.*)
 *(.text.fixed_byte .text.fixed_byte.*)
 *(.text.field_object_sprite_high .text.field_object_sprite_high.*)
-*(.text.tile_animations_send .text.tile_animations_send.*)

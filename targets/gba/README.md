@@ -52,8 +52,10 @@ platform services' backends. Nothing here is included from `game/`.
     chained timers.
   - `copies.s`: the C library's `memcpy` and `memset` in place of newlib's,
     ARM in fast RAM, eight words to a load and a store.
-  - `interrupts.c`, `interrupts.h`: the one interrupt vector, each source to
-    its own handler (the picture's lines, the sound's timer).
+  - `interrupts.c`, `interrupts.h`, `nested.s`: the one interrupt vector,
+    each source to its own handler (the picture's lines, the sound's timer),
+    on a stack of its own; a handler can hand longer work on to run with the
+    other interrupts on, on its own stack too (the sound's mixing).
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, nine
     slots in fast RAM (the game's main thread's 2.5 KiB, and 1 KiB for each of the
     menus' eight tasks, which can all run at once, sized from the movie
@@ -70,11 +72,12 @@ platform services' backends. Nothing here is included from `game/`.
   - `mixer.c`, `mixer.h`: the sound driver's voices played, in the native
     mixer's place (frontend/sound_native.c takes it through
     `SOUND_NATIVE_MIXER` and `SOUND_NATIVE_MIXER_PLAYS`): the packed samples
-    mixed at the GBA's rate, 32 samples at a time.
+    mixed at the GBA's rate, 32 samples at a time, as the playback asks.
   - `mix.s`: the mixer's loops, ARM in fast RAM: a voice's wave into the
     mix four samples a turn, and the mix to each side's 8 bits.
   - `direct_sound.c`, `direct_sound.h`: the mix played on Direct Sound A and
-    B from a ring, a timer's interrupt moving it to the FIFOs.
+    B from a ring by the sound DMA, a timer's interrupt every quarter of it
+    starting the DMA again and having the mixer fill what was played.
 - `host/`: tools that run on the host, not on the GBA.
   - `pack.py`: the packing step, the seed of the builder (issue #421). It
     verifies the player's cartridge, cuts the catalogue's resources from it,
