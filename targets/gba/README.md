@@ -58,9 +58,9 @@ platform services' backends. Nothing here is included from `game/`.
     on a stack of its own; a handler can hand longer work on to run with the
     other interrupts on, on its own stack too (the sound's mixing).
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, nine
-    slots in fast RAM (the game's main thread's 3 KiB, and 1.5 KiB for each of the
-    menus' eight tasks, which can all run at once), each
-    with a guard, and no snapshots.
+    slots in fast RAM (the game's main thread's 2.5 KiB, and 1 KiB for each of the
+    menus' eight tasks, which can all run at once, sized from the movie
+    library's deepest use), each with a guard, and no snapshots.
 - `services/`: the platform services' backends, one per service.
   - `cartridge_save.c`, `cartridge_save.h`: the cartridge's SRAM. The
     SNES's 8 KiB save at its start, as the .srm has it, is the game's save
