@@ -238,6 +238,12 @@ static bool erase_asked(const GameState *g) { return (uint8_t)(second_controller
 /* The erase question's two answers are cursor places 4 (yes) and 5 (no). */
 enum { ERASE_YES = 4, ERASE_NO = 5, QUESTION_LINE_EFFECTS = 0x7F, ANSWERED_LINE_EFFECTS = 0x5B };
 
+bool menu_load_screen_asks_to_erase(const GameState *g)
+{
+    uint8_t at = menu_cursor_index(g);
+    return at == ERASE_YES || at == ERASE_NO;
+}
+
 // $C2:E891
 /* Ask whether to erase the slot the cursor is on: the question's window over
  * the summary, the cursor on yes. */

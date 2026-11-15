@@ -55,6 +55,8 @@ bool menu_load_screen_can_draw(const GameState *g, Platform *pf);
 bool menu_load_screen_can_choose(const GameState *g);
 bool menu_load_screen_slot_can_show(const GameState *g);
 bool menu_erase_can_be_answered(const GameState *g);
+/* Whether the erase question is up, the cursor on its yes or its no. */
+bool menu_load_screen_asks_to_erase(const GameState *g);
 bool menu_slot_can_be_erased(const GameState *g);
 
 /* From the menus' main task: the four steps; false where the program
