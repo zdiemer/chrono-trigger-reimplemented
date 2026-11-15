@@ -32,7 +32,8 @@ struct GameState {
     MenuPanels menu_panels;
     FieldObjectsPast field_objects_past;
     MenuSpritesPast menu_sprites_past;
-    uint8_t sram[STATE_HOST_SRAM_BYTES];
+    /* save RAM: `kept_sram` below, or the host's own bytes (state_host_create_lasting_over) */
+    uint8_t *sram;
     /* the multiplier and divider: their operands, and the result the
      * product-or-remainder register shows */
     uint8_t multiplicand;
@@ -56,27 +57,41 @@ struct GameState {
     unsigned timed;           /* index in time_rates, or time_rate_count for untagged work */
     StateHostTime *time;      /* optional diagnostic totals; never used to schedule work */
     bool lasting;             /* in the arena, for the run's whole life (state_host_create_lasting) */
+    uint8_t kept_sram[];      /* save RAM where the state keeps it: STATE_HOST_SRAM_BYTES, or none */
 };
 
-static GameState *start(GameState *g, const uint8_t *sram)
+static GameState *start(GameState *g, uint8_t *save, const uint8_t *sram)
 {
     if (!g)
         return NULL;
     g->timed = time_rate_count;
     vars_host_init(&g->head.vars);
+    g->sram = save ? save : g->kept_sram;
     if (sram)
-        memcpy(g->sram, sram, sizeof g->sram);
+        memcpy(g->sram, sram, STATE_HOST_SRAM_BYTES);
     return g;
 }
 
-GameState *state_host_create(const uint8_t *sram) { return start(calloc(1, sizeof(GameState)), sram); }
-
-GameState *state_host_create_lasting(const uint8_t *sram)
+GameState *state_host_create(const uint8_t *sram)
 {
-    GameState *g = start(arena_take(sizeof(GameState)), sram);
+    return start(calloc(1, sizeof(GameState) + STATE_HOST_SRAM_BYTES), NULL, sram);
+}
+
+static GameState *lasting(GameState *g)
+{
     if (g)
         g->lasting = true;
     return g;
+}
+
+GameState *state_host_create_lasting(const uint8_t *sram)
+{
+    return lasting(start(arena_take(sizeof(GameState) + STATE_HOST_SRAM_BYTES), NULL, sram));
+}
+
+GameState *state_host_create_lasting_over(uint8_t *save)
+{
+    return lasting(start(arena_take(sizeof(GameState)), save, NULL));
 }
 
 void state_host_destroy(GameState *g)
@@ -90,20 +105,22 @@ void state_host_destroy(GameState *g)
 
 /* The whole record, but the diagnostic totals the run keeps for itself; and
  * where the state is work RAM as the original lays it out (CT_FLAT_STATE),
- * its two banks after the record, which keeps only where they are. */
+ * work RAM's 128 KiB after the record, which keeps only where they are. Save
+ * RAM comes between, since the record keeps only where it is too. */
 #ifdef CT_FLAT_STATE
-enum { FLAT_BANK_BYTES = 0x10000, FLAT_BANKS = 2 };
+enum { FLAT_WORK_RAM_BYTES = 0x20000 };
 #else
-enum { FLAT_BANK_BYTES = 0, FLAT_BANKS = 0 };
+enum { FLAT_WORK_RAM_BYTES = 0 };
 #endif
-size_t state_host_snapshot_bytes(void) { return sizeof(GameState) + (size_t)FLAT_BANK_BYTES * FLAT_BANKS; }
+enum { SNAPSHOT_WORK_RAM_AT = sizeof(GameState) + STATE_HOST_SRAM_BYTES };
+size_t state_host_snapshot_bytes(void) { return SNAPSHOT_WORK_RAM_AT + (size_t)FLAT_WORK_RAM_BYTES; }
 
 void state_host_snapshot(const GameState *g, uint8_t *out)
 {
     memcpy(out, g, sizeof *g);
+    memcpy(out + sizeof *g, g->sram, STATE_HOST_SRAM_BYTES);
 #ifdef CT_FLAT_STATE
-    for (unsigned b = 0; b < FLAT_BANKS; b++)
-        memcpy(out + sizeof *g + (size_t)b * FLAT_BANK_BYTES, g->head.vars.bank[b], FLAT_BANK_BYTES);
+    vars_host_read_span(&g->head.vars, 0x7E0000u, out + SNAPSHOT_WORK_RAM_AT, FLAT_WORK_RAM_BYTES);
 #endif
 }
 
@@ -111,16 +128,19 @@ void state_host_restore(GameState *g, const uint8_t *in)
 {
     StateHostTime *time = g->time;
     bool lasting = g->lasting;
+    uint8_t *sram = g->sram;
 #ifdef CT_FLAT_STATE
-    VarsHost banks = g->head.vars;
+    VarsHost pages = g->head.vars;
 #endif
     memcpy(g, in, sizeof *g);
     g->time = time;
     g->lasting = lasting;
+    g->sram = sram;
+    memcpy(g->sram, in + sizeof *g, STATE_HOST_SRAM_BYTES);
 #ifdef CT_FLAT_STATE
-    g->head.vars = banks;
-    for (unsigned b = 0; b < FLAT_BANKS; b++)
-        memcpy(g->head.vars.bank[b], in + sizeof *g + (size_t)b * FLAT_BANK_BYTES, FLAT_BANK_BYTES);
+    g->head.vars = pages;
+    for (uint32_t at = 0; at < FLAT_WORK_RAM_BYTES; at++)
+        *vars_flat_byte(&g->head.vars, at) = in[SNAPSHOT_WORK_RAM_AT + at];
 #endif
 }
 
@@ -765,5 +785,5 @@ void program_breaks_a_contract(GameState *g, uint32_t routine, const char *what)
     program_fail(g, routine, what);
 }
 
-size_t state_host_bytes(void) { return sizeof(GameState); }
+size_t state_host_bytes(void) { return sizeof(GameState) + STATE_HOST_SRAM_BYTES; }
 size_t state_host_vars_bytes(void) { return sizeof(VarsHost); }

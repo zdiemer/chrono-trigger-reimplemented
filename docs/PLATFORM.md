@@ -1177,10 +1177,12 @@ natively; the GBA's own mixer (`services/mixer.c`) plays its voices (below,
 the input service (`in_host_set`), as the desktop drivers give it their
 keys: the pad, A, B, L, R, Start and Select as the SNES's own, and X and Y as
 a shoulder held with A or B (`system/keypad.c`; a key keeps the button it
-was pressed as until let go, so the shift's order doesn't matter). The save
-service's 8 KiB start from the cartridge's SRAM and go back to it on a frame
-`sv_host_bytes` says the game wrote them, with a mark after them that says a
-save is there (`services/cartridge_save.c`); the image names its SRAM
+was pressed as until let go, so the shift's order doesn't matter). The
+game's 8 KiB of save RAM are the cartridge's SRAM, read and written where
+they are as the SNES's battery-backed RAM is (`state_host_create_lasting_over`),
+so nothing copies them out to keep a save; a mark after them says a save is
+there, and a cartridge without it starts erased (`services/cartridge_save.c`).
+After the mark the SRAM holds the top of work RAM (below, "Work RAM"). The image names its SRAM
 (`SRAM_V113`) for mGBA and flash carts. To be driven, the driver names a box
 in work RAM in its debug log as it starts; `host/mgba_run.c`, which reads
 the log through libmgba, arms it as the line is written, and from then on
@@ -1199,7 +1201,8 @@ the GBA's work RAM. `CT_FLAT_STATE` keeps the game's state as the original
 does instead, a byte at each of work RAM's 128 KiB of addresses:
 tools/ram_map.py generates `runtime/port/vars_flat.c`, the same accessors in
 their address form, and `runtime/port/vars_flat_host.c` keeps the two banks
-in the arena. Owners the typed state keeps apart (re/ram.toml's `overlays`)
+in the arena, but for the top a target keeps in memory of its own
+(`VARS_FLAT_COLD_FROM`, `vars_host_cold`: the GBA's, below, "Work RAM"). Owners the typed state keeps apart (re/ram.toml's `overlays`)
 share the one byte, as in the original, so there is no writer table and no
 claim: a small target's build of the state shares the overlaid owners'
 storage. What the game reaches by address rather than by a name is read
@@ -1406,7 +1409,8 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | The outcome, driven by `mgba_run` | `title-start` (1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`), `new-game` (7,200, 244, `9126C7F9`), `gato-battle` (21,600, `A2944878`) and `events-jetbike-race` (9,400, `68804B38`, its track read back from VRAM) and `menus-save-point` (end state `497AE9A0`, which saves the game: the SRAM afterwards `DE9ED421`): each the same as ct_native's |
 | Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above; the 240x160 view's dialog at the top and foot (a page set again included: `new-game` frames 6000 and 6500, `gato-battle` 9400 and 19000) and the battle window with its two columns cut (`gato-battle` 19400) as `ct_native --view 240x160` shows them |
 | Cartridge | the program 1.77 MiB (code 1.14, constants 0.63), the pack 3.73 MiB |
-| Work RAM (EWRAM, 256 KiB) | 247.5 KiB: work RAM's two banks 128 KiB, the SNES's video memory 65.6 KiB, GameState about 21 KiB, the sound driver 14 KiB, the picture's line registers 5.8 KiB and tile caches 6 KiB, the sound's ring 1 KiB and mixer 1 KiB, the drive box 4.3 KiB, the C library's heap; 0.2 KiB free (the next thing to take work RAM must give some back) |
+| Work RAM (EWRAM, 256 KiB) | 224.2 KiB used, 31.8 KiB free (GCC 13.3; the link fails with under 28 KiB free). By owner: the game's work RAM 108 KiB (`$7E:0000`-`$7F:AFFF`; the rest is in the SRAM, below); the picture 81.5 KiB (the SNES's video memory 65.6 KiB, the line registers 5.6 KiB, the tile caches 6 KiB, its line and band state 1.5 KiB, `services/video.c`); GameState 12.9 KiB (work RAM's page table 128 bytes, the menus' panels 5.8 KiB, the panels' layout 4 KiB, the past sprites and objects 2 KiB; save RAM is the SRAM's); the sound 15.6 KiB (the driver about 13.6 KiB, `frontend/sound_native.c`; the ring 1 KiB, `services/direct_sound.c`; the mixer under 1 KiB); the game's own tables 4 KiB (the interpreters' opcode tables 2 KiB, the time model's recent rows 2 KiB); the driver 2.2 KiB (its report's histograms 1.6 KiB, the drive box 0.5 KiB); the C library 3.3 KiB (its state, stdio, and the heap's first take). Before (2026-11-14): 247.5 KiB, 0.2 KiB free, with work RAM's two banks 128 KiB and save RAM 8 KiB in GameState, and the drive box 4.3 KiB |
+| Work RAM's top in the SRAM | `$7F:B000`-`$7F:FFFF`, 20 KiB, after the save and its mark (`VARS_FLAT_COLD_FROM`, `services/cartridge_save.c`), at the SRAM's 4 waits (5 cycles a byte; EWRAM's are 3), which the start now sets in place of the 8 a cartridge's flash chip would need (an SRAM takes 4, the GBA's own from its start): of the game's reads and writes of work RAM, none in `title-start` and `menus-save-point`, 0.3% in `new-game`, 0.4% in `gato-battle`, 0.2% in `events-jetbike-race` (counted a 4 KiB page at a time); the movies take 0.1-1.0% more GBA frames than before (`title-start` 2,828 against 2,799, `new-game` 13,337 against 13,304, `gato-battle` 52,417 against 52,346, `events-jetbike-race` 28,331 against 28,222). No value read or written in place runs across `$7F:B000` (`VARS_FLAT_CROSSED_STEPS`, which an assert checks) |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 15.3 KiB (deepest use 1,792 of the main thread's 3,072 bytes, 660 of a task's 1,792, which were 2,048 before the view's memory; five slots used), the code that runs most 7.3 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.7 KiB), the tiles' conversion table 1 KiB, the view's framing, bands and drawn panel 0.3 KiB and its memory 0.6 KiB, the driver's stack the 7.4 KiB above them, a canary at its end checked each frame (deepest use 2,200 bytes, the dialog's panel drawn on it); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps, tile caches and, while a dialog is drawn, its panel's room of 12-23 KiB), sprites 16 KiB of 32 |
 | The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.26 and 0.75, `new-game` 0.24 and 0.5, `gato-battle` 0.26 and 0.5, `events-jetbike-race` 0.27 and 0.75; of it the mixing 0.15, 0.13, 0.15 and 0.15 (the heaviest 0.30-0.36), so the driver and its passes about 0.1. Before a quiet stretch of the driver's time passed at once: 0.35, 0.34, 0.36 and 0.36, the driver and its passes 0.2 |

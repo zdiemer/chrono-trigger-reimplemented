@@ -30,11 +30,11 @@ start:
     mov     r0, #0x1F          @ system mode, interrupts off
     msr     cpsr_c, r0
     ldr     sp, =__stack_top
-    ldr     r0, =0x04000204    @ the cartridge's waits: 3 then 1, with the prefetch, as commercial games set them
-    ldr     r1, =0x4317
+    ldr     r0, =0x04000204    @ the cartridge's waits: 3 then 1, with the prefetch, as commercial games set them,
+    ldr     r1, =0x4314        @ and the SRAM's 4, the GBA's own from its start (work_ram.c keeps pages there)
     ldr     r2, options        @ or 2 then 1, which flash carts and the Analogue Pocket take and some others don't
     tst     r2, #1
-    ldrne   r1, =0x431B
+    ldrne   r1, =0x4318
     strh    r1, [r0]
 
     ldr     r0, =__iwram_load  @ the fast RAM's code and data
