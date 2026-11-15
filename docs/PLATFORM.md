@@ -1309,8 +1309,9 @@ mode 0's four tiled layers and its sprites:
 - **Priority**: each SNES tile stands in front of or behind the sprites by
   its map entry's priority bit, where a GBA layer has one priority. A layer
   whose map has tiles of both is split across two GBA layers, as many as
-  the four leave spare (mode 1's three layers leave one, mode 2's two leave
-  two): its map is converted twice, at the SNES's place with the tiles in
+  the four leave spare (mode 1's three layers leave one; mode 2's two, or
+  three with the third, less the one kept for the first layer's moved
+  columns, below): its map is converted twice, at the SNES's place with the tiles in
   front left blank and into room the GBA has spare with the others blank,
   each unit of 32 bytes as the game changes it, both halves at the
   priorities that put them among the sprites as the mode does (per mode, a
@@ -1365,8 +1366,33 @@ mode 0's four tiled layers and its sprites:
   tries again, since keeping each frame's reads costs more than it saves.
   A line effect that sets the mode down the picture (the jet bike race's
   scenery in mode 1 above its track in Mode 7) has the layout made for the
-  mode the lines other than Mode 7 show, not the mode set. The SNES's two
-  windows are the GBA's two; its brightness is the GBA's fade to black.
+  mode the lines other than Mode 7 show (mode 2 where any shows it), not the
+  mode set. The SNES's two windows are the GBA's two; its brightness is the
+  GBA's fade to black.
+- **Mode 2's moved columns**: in mode 2 the SNES scrolls each column of the
+  first two layers by its own offsets, from two rows of the third layer's
+  map, which the mode doesn't show. The menus use it to scroll a list a line
+  at a time beside a column that stays put: the techs' members beside their
+  list, the equipment's members beside the figures, a shop's count beside
+  its wares, the settings' two columns of icons. The GBA has no such thing.
+  On each changed line of a mode 2 frame (a line where only the scroll
+  changed is worked out whole, since the scroll moves the columns), the
+  runs of a layer's columns that the offsets move alike are found, up to
+  two a layer. Each run is shown on a GBA layer free on the line, with the
+  same map and control as the layer and scrolled as the run is: the layers
+  the layout leaves spare, and the third layer's, which a mode 2 line
+  doesn't show. The run is shown through a window that
+  the SNES's windows leave free (one covering nothing, or showing what the
+  line shows outside), with the layer itself left out inside it. Where a
+  line below that isn't mode 2 shows the third layer (the menus' lines below
+  their lists are mode 1, and show their descriptions on it), mode 2 is laid
+  out with it, in front as those lines put it. A frame whose offsets' map
+  changed works its lines out again. The title screen's logo is mode 2's
+  too, and shows as natively now. Finding and showing the runs takes 0.8%
+  more of the GBA's frames over `title-start`, 0.6% over `new-game`, 0.1%
+  over `gato-battle` and `events-jetbike-race`, all of it on the title and
+  the menus, and 12% over `menus-sweep`, whose screens are mostly mode 2
+  (2269, 11564, 46285, 26665 and 10896 GBA frames).
 - **Colour math with the fixed colour** (the sub screen added where it has
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at
@@ -1482,9 +1508,11 @@ Approximated, or not shown yet (issue #483):
 - Mode 7: tile 0 outside the plane shows as nothing; EXTBG's second layer,
   the plane's mosaic and direct colour aren't shown; a frame whose plane's
   room was not yet made (the first frame a line shows Mode 7) shows its
-  sprites alone on those lines. Mode 2's offset-per-column (the clouds
-  before the Ocean Palace in the attract sequence show black), mosaic, and
-  mode 0's fourth layer aren't shown.
+  sprites alone on those lines. Mosaic and mode 0's fourth layer aren't
+  shown. Mode 2's moved columns past what the GBA's two windows and its
+  free layers show (above), or where the SNES's windows use both of the
+  GBA's, show as their layer lies; the clouds before the Ocean Palace in
+  the attract sequence, mode 2 too, still show black.
 - Where both windows cover a dot, the GBA shows window 1's choice.
 - A sprite whose tiles run past a SNES tile table's row or table end takes
   the next row's on the GBA.
