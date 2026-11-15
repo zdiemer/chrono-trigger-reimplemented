@@ -894,15 +894,19 @@ made in `game/` as presentation and never as a rule:
   text, nor the blank lines both columns share. A run starts and ends only
   between rows of text in every column, so no row shows sliced. The load
   and save screens (with their erase question whole over the slots), the
-  techs, the settings and both party exchanges fit whole. The items, the
-  shops and the equipment still have more lines than the view, so one
-  window's insides (the list beside the party, the list beside what is
-  bought, the whole equipment screen) show the most lines the view holds
-  between two places where both columns are between rows (a table of them
-  a screen), round the cursor, the room over black. The items' list alone
-  cuts between any two rows (8 of its 10 in view); with the members' or
-  the users' window beside it, between the members (3 or 7 rows); the
-  equipment shows down to its figures' last row, the clock and the
+  techs, the settings and both party exchanges fit whole. The items and
+  the shops are laid out as bands of their own (`items_bands`,
+  `shop_bands`) with every window and every row in view: the items' list
+  keeps each row with two of the four blank lines under it (the cursor's
+  row its hand's), or, with the members' or the users' window beside it,
+  all but the blank lines both columns share; a shop's list leaves out the
+  blank lines under its first and third rows, where every window beside it
+  is blank whatever it shows, the party's window kept with room for the
+  jump. The equipment's two columns have rows 8 and 12 lines apart with no
+  blank lines in common, about 165 lines of text and pictures in all, so
+  it still shows the most lines the view holds between two places where
+  both columns are between rows, round the cursor (issue #494): down to
+  its figures' last row, the clock and the
   experience out of view. The main menu keeps its window whole over the
   option's panel. The naming screen is laid out
   again as bands of its lines: the
