@@ -223,6 +223,34 @@ static void vram_put(bool high, uint8_t v)
         snes.vram_addr = (uint16_t)(snes.vram_addr + snes.port.step);
 }
 
+/* `n` bytes through the VRAM port, as vram_put takes them: the `k`th to
+ * the words' high bytes where `half` is 1, low where 0, and where -1 (words)
+ * as its place `first + k` in the send is odd; each of `bytes`, or `fill`
+ * where `bytes` is NULL. Through a port that doesn't remap, each byte goes
+ * straight to its place, the address stepped as the port steps it. */
+static void vram_put_run(const uint8_t *bytes, uint8_t fill, uint32_t n, uint32_t first, int half)
+{
+    if (snes.port.remap) {
+        for (uint32_t k = 0; k < n; k++)
+            vram_put(half < 0 ? ((first + k) & 1) != 0 : half == 1, bytes ? bytes[k] : fill);
+        return;
+    }
+    uint16_t addr = snes.vram_addr, step = snes.port.step;
+    bool after_high = snes.port.after_high;
+    for (uint32_t k = 0; k < n; k++) {
+        bool high = half < 0 ? ((first + k) & 1) != 0 : half == 1;
+        uint32_t at = (uint32_t)(addr & 0x7FFF) << 1 | (high ? 1u : 0u);
+        uint8_t v = bytes ? bytes[k] : fill;
+        if (snes.vram[at] != v) {
+            snes.vram[at] = v;
+            unit_changed(at);
+        }
+        if (after_high == high)
+            addr = (uint16_t)(addr + step);
+    }
+    snes.vram_addr = addr;
+}
+
 typedef uint32_t __attribute__((may_alias)) Word;
 
 /* `n` bytes into VRAM from `at` (not past its end), marking the units they
@@ -275,8 +303,7 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
     while (i < len) {
         uint32_t n = len - i < PIECE ? len - i : PIECE;
         data_bytes(src, i, piece, n);
-        for (uint32_t k = 0; k < n; k++)
-            vram_put(half < 0 ? ((i + k) & 1) != 0 : half == 1, piece[k]);
+        vram_put_run(piece, 0, n, i, half);
         i += n;
     }
 }
@@ -289,9 +316,7 @@ static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill,
         return;
     snes.vram_addr = vram_addr;
     if (fill) {
-        uint8_t byte = data_byte(src, 0);
-        for (uint32_t i = 0; i < len; i++)
-            vram_put((i & 1) != 0, byte);
+        vram_put_run(NULL, data_byte(src, 0), len, 0, -1);
         return;
     }
     vram_put_bytes(src, len, -1);
@@ -828,9 +853,7 @@ void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, Vi
     charge_send(pf, len);
     if (len == 0)
         return;
-    uint8_t byte = data_byte(value, 0);
-    for (uint32_t i = 0; i < len; i++)
-        vram_put(half == VID_VRAM_HIGH_BYTES, byte);
+    vram_put_run(NULL, data_byte(value, 0), len, 0, half == VID_VRAM_HIGH_BYTES);
 }
 
 void vid_continue_vram(Platform *pf, PfOrigin o, PfData src, uint32_t len)
