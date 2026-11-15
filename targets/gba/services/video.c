@@ -978,9 +978,8 @@ typedef struct {
 
 static Layer layers[4];
 static Cache caches[CACHES];
-/* in fast RAM, which has the room work RAM hasn't beside Mode 7's table of lines */
-static uint8_t roles[BLOCKS] IN_FAST_RAM;
-static uint8_t taken[PLACES / 8] IN_FAST_RAM;   /* the 32-byte places of background VRAM a map or a tile has */
+static uint8_t roles[BLOCKS];
+static uint8_t taken[PLACES / 8];   /* the 32-byte places of background VRAM a map or a tile has */
 static uint32_t misses, layout_misses;
 static uint16_t frames_since_layout;
 
@@ -1377,13 +1376,18 @@ static void make_room_for_the_panel(bool kept)
  * 8). A layout made while a line shows Mode 7 (or the mode is 7) keeps
  * those 32 KiB for the plane, where no layer's map lies in them, and the
  * tiles' caches take their places past it; a layout made while none does
- * gives them back. The plane's 256 colours are the GBA's 256 background
+ * gives them back. The table of the plane's lines DMA reads (PlaneLine,
+ * below) takes room of background VRAM too, from its top, which work RAM
+ * hasn't to spare. The plane's 256 colours are the GBA's 256 background
  * colours, its upper 128 the SNES's own where no 2bpp layer needs them for
  * its copies. */
 enum { PLANE_BYTES = 0x8000, PLANE_MAP_BYTE = 0x4000, PLANE_MAP_BLOCK = PLANE_MAP_BYTE / SCREEN_BYTES };
 static bool plane_room;        /* the layout keeps the GBA's first 32 KiB for the plane */
 static bool plane_refused;     /* a layer's map lies where the plane would */
 static bool plane_on_lines;    /* a line of the last frame showed Mode 7 */
+static volatile void *plane_table;   /* the table of the plane's lines, in background VRAM; NULL: no room */
+/* the GBA's 160 lines and the blank after them, 16 bytes each (checked by PlaneLine's assert) */
+enum { PLANE_TABLE_BYTES = (160 + 1) * 16, PLANE_TABLE_PLACES = (PLANE_TABLE_BYTES + 31) / 32 };
 
 static bool plane_wanted(void) { return snes.mode.mode == 7 || plane_on_lines; }
 
@@ -1393,13 +1397,22 @@ static void make_room_for_the_plane(void)
     bool was = plane_room;
     plane_room = false;
     plane_refused = false;
+    plane_table = NULL;
     if (plane_wanted()) {
         for (unsigned k = 0; k < PLANE_BYTES / BLOCK_BYTES; k++)
             if (roles[k] & MAP)
                 plane_refused = true;
+        uint32_t table = PLACES - PLANE_TABLE_PLACES;
+        while (!plane_refused && table >= PLANE_BYTES / 32 && !room_at(table, PLANE_TABLE_PLACES))
+            table--;
+        plane_refused |= table < PLANE_BYTES / 32;
         plane_room = !plane_refused;
-        for (uint32_t place = 0; plane_room && place < PLANE_BYTES / 32; place++)
-            take(place);
+        if (plane_room) {
+            for (uint32_t place = 0; place < PLANE_BYTES / 32; place++)
+                take(place);
+            take_room(table, PLANE_TABLE_PLACES);
+            plane_table = (volatile uint8_t *)BG_VRAM + table * 32;
+        }
     }
     if (plane_room != was)
         snes.palette_written = true;
@@ -2176,12 +2189,14 @@ typedef struct {
  * horizontal blank above it, every line of a frame any line of which shows
  * Mode 7; a line no change sets has the one above's stepped by the matrix's
  * second column, as the GBA would step it. One more than the lines, for the
- * blank after the last. */
+ * blank after the last. The table is in background VRAM (plane_table),
+ * written a halfword or a word at a time, as VRAM takes them. */
 typedef struct {
     int16_t pa, pb, pc, pd;
     int32_t x, y;
 } PlaneLine;
-static PlaneLine plane_lines[GBA_LINES + 1];
+_Static_assert(sizeof(PlaneLine) * (GBA_LINES + 1) == PLANE_TABLE_BYTES, "the table is the lines' and the blank's, 16 bytes each");
+#define plane_lines ((volatile PlaneLine *)plane_table)
 static uint8_t plane_set[(GBA_LINES + 7) / 8];   /* the lines a change set, a bit each */
 static bool plane_shown;                         /* whether a line of the frame shows Mode 7 */
 
@@ -2190,7 +2205,7 @@ static bool plane_shown;                         /* whether a line of the frame 
  * fog) and nothing else changes: DMA copies each line's in the horizontal
  * blank above it, rather than a change (and an interrupt) each step. A line
  * no change or step sets has the one above's. */
-static uint16_t line_strength[GBA_LINES + 1] IN_FAST_RAM;
+static uint16_t line_strength[GBA_LINES + 1];
 static uint8_t strength_set[(GBA_LINES + 7) / 8];
 static bool strength_steps;   /* whether a line's strength isn't its change's */
 
@@ -2250,7 +2265,7 @@ typedef struct {
     uint32_t tag;    /* the line's address / READ_LINE_BYTES, plus one; 0: none */
     uint8_t bytes[READ_LINE_BYTES];
 } ReadLine;
-static ReadLine read_lines[READ_LINES] IN_FAST_RAM;
+static ReadLine read_lines[READ_LINES];
 
 /* Where each 32 bytes of the tables a frame's lines read came from, as they
  * read them, and a 32-bit FNV-1a hash of all their bytes in that order (a
@@ -2841,7 +2856,9 @@ static void plane_line(unsigned at, const VidMode7 *m, int left, int y)
     int32_t ox = ((m->a * hx) & ~63) + ((m->b * vy) & ~63) + ((m->b * y) & ~63) + m->cx * 256;
     int32_t oy = ((m->c * hx) & ~63) + ((m->d * vy) & ~63) + ((m->d * y) & ~63) + m->cy * 256;
     int first = m->hflip ? 255 - left : left, step = m->hflip ? -1 : 1, down = m->vflip ? -1 : 1;
-    PlaneLine *p = &plane_lines[at];
+    if (!plane_table)
+        return;
+    volatile PlaneLine *p = &plane_lines[at];
     p->x = ox + m->a * first;
     p->y = oy + m->c * first;
     p->pa = (int16_t)(m->a * step), p->pc = (int16_t)(m->c * step);
@@ -2861,11 +2878,11 @@ static void plane_layer(LineRegisters *r, const VidMode7 *m)
 /* The lines no change set: the one above's, stepped. */
 static void step_the_plane(void)
 {
-    for (unsigned at = 1; at <= GBA_LINES; at++) {
+    for (unsigned at = 1; plane_table && at <= GBA_LINES; at++) {
         if (at < GBA_LINES && (plane_set[at / 8] >> (at % 8) & 1))
             continue;
-        PlaneLine *p = &plane_lines[at];
-        const PlaneLine *above = p - 1;
+        volatile PlaneLine *p = &plane_lines[at];
+        const volatile PlaneLine *above = p - 1;
         p->pa = above->pa, p->pb = above->pb, p->pc = above->pc, p->pd = above->pd;
         p->x = above->x + above->pb;
         p->y = above->y + above->pd;
@@ -2956,7 +2973,7 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_
 {
     DMA0CNT = 0;
     DMA1CNT = 0;
-    if (plane_dma) {
+    if (plane_dma && plane_table) {
         const volatile uint32_t *first = (const volatile uint32_t *)&plane_lines[0];
         for (unsigned w = 0; w < sizeof(PlaneLine) / 4; w++)
             BG2_PLANE[w] = first[w];
