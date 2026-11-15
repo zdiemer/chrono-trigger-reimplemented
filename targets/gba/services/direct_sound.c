@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "system/interrupts.h"
 
@@ -80,18 +79,17 @@ void direct_sound_start(void)
 }
 
 /* The ring wraps on a multiple of MOVE, so the interrupt's 16 never do. */
-void direct_sound_queue(const int8_t *left, const int8_t *right, uint32_t count)
+bool direct_sound_space(uint32_t count, int8_t **left, int8_t **right)
 {
     DirectSound *s = &ct_gba_sound;
     uint32_t queued = s->queued;
     if (queued + count - s->played > DIRECT_SOUND_RING) {
         s->dropped += count;
-        return;
+        return false;
     }
-    uint32_t at = queued % DIRECT_SOUND_RING, first = DIRECT_SOUND_RING - at < count ? DIRECT_SOUND_RING - at : count;
-    memcpy(&s->left[at], left, first);
-    memcpy(&s->right[at], right, first);
-    memcpy(s->left, left + first, count - first);
-    memcpy(s->right, right + first, count - first);
-    s->queued = queued + count;
+    *left = &s->left[queued % DIRECT_SOUND_RING];
+    *right = &s->right[queued % DIRECT_SOUND_RING];
+    return true;
 }
+
+void direct_sound_queued(uint32_t count) { ct_gba_sound.queued += count; }

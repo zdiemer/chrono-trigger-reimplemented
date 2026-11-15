@@ -107,8 +107,8 @@ typedef struct Mixer {
     int8_t own_pcm[MIXER_OWN_SAMPLES];
     uint16_t own_peak;
 
-    uint32_t owed;                /* toward the next output sample: 448 a frame of the S-DSP's, 1,065 a sample */
-    uint16_t pending;             /* output samples owed */
+    uint32_t owed;                /* at the chunk's start, toward its first output sample: 448 a frame of the S-DSP's, 1,065 a sample */
+    uint16_t due;                 /* the S-DSP's frames until the chunk's last sample is owed */
     uint16_t frames;              /* the S-DSP's frames since the last mix */
 } Mixer;
 
