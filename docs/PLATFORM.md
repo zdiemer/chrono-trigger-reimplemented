@@ -893,8 +893,11 @@ made in `game/` as presentation and never as a rule:
 240x160 and compares the whole end state: all 59 end the same. The long
 batch runs it (`handheld`); `video_test` checks the camera's hold, the
 composed view, a panel's one frame and a cut panel.
-The GBA follows the same camera and bands ("The GBA build, as built"); its
-drawn panel and cut are issue #470.
+The GBA follows the same camera and bands, and draws the same panel and cut
+("The GBA build, as built"). A host may take a drawn panel's sends as they
+come, so the dialog states its panel first, then sends its tiles (a blank
+one, then each line's where its pieces reach), then the rows of its maps the
+window shows; it sends nothing while the window is shut.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
@@ -1260,10 +1263,37 @@ mode 0's four tiled layers and its sprites:
   given its band's scroll (the band's dot across, and how far its SNES line
   lies from the GBA's); a sprite takes the band its top line, or its foot's,
   is in; a line the SNES blanks shows black, not the GBA's white forced
-  blank. Its state is in fast RAM (IWRAM). A drawn panel and a cut aren't
-  drawn yet (issue #470): `vid_view_draws_panels` answers false, so the
-  dialog keeps the screen's band in view, 240 dots of it, and a cut band
-  shows its middle.
+  blank. A layer's row is its line's and its scroll, one further down than
+  the GBA's (the SNES's first line shown is its line 1). Every layer the
+  layout has is enabled on every line, and a line shows the ones it does
+  through the windows (empty where the SNES has none): the GBA shows a
+  layer enabled part of the way down only from three lines on, which cut
+  the top rows off the dialog's first line. Its state is in fast RAM
+  (IWRAM).
+- **The drawn panel** (the dialog laid out again): its lines take the looks
+  of the SNES lines they are spread over and draw its two layers from the
+  panel's own memory, no sprites. That memory is the GBA's VRAM alone:
+  each `vid_send_panel_vram` is converted as it comes, by the panel the
+  frame stated first, a map's entries into a screen block of the panel's
+  and the tiles it sends (2bpp widened) into a run of places, the first
+  sent the run's first; the frame's tiles are the screen's, from its cache.
+  A layout makes the room once a mode asks `vid_view_draws_panels`: two
+  screen blocks and a run as long as the panel has sent (256 tiles at
+  first, 600 at most), within one char block's reach; until then the
+  answer is false and the dialog keeps the screen's band. Only what is
+  written changes VRAM, so a glyph may show a GBA frame early.
+- **A cut** (the battle window, two columns cut from inside it): the maps
+  its lines show are kept a second time with the columns left out (a
+  32-column map's, whole columns where the layer's scroll puts the cut),
+  and its windows' edges and sprites move across as the cut moves the
+  dots.
+- **Room.** A layout leaves out the maps no line showed since the last one
+  (the field's layers' own maps, which its line effects replace on every
+  line, and the dialog's while the panel is drawn), and their tiles with
+  them; a map left out that a line shows again has the next layout bring
+  it back. In the field this takes the tile caches from out of room
+  (hundreds of tiles shown blank at the Millennial Fair) to some 470 places
+  spare with the dialog's room made.
 
 Approximated, or not shown yet (each a follow-up of issue #367):
 

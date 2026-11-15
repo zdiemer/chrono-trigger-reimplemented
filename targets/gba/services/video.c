@@ -34,6 +34,7 @@
  * The sends still take the time the native backend charges, which is the
  * game's play; the conversion is the GBA's own work, outside the game's
  * frame. */
+#include <stddef.h>
 #include <string.h>
 
 #include "platform/native/host.h"
@@ -76,13 +77,17 @@ enum {
 /* A map a layer shows part of the way down, from a line effect: its layer,
  * where it starts in VRAM and how long it is (bytes), and where the GBA keeps
  * it, converted for that layer (another layer may show the same map as its
- * own, as the field's dialog's two layers do). */
+ * own, as the field's dialog's two layers do). A map a band of the view shows
+ * with columns cut from inside it (VidViewPanel's cut) is kept so too, with
+ * the columns left out: from its column `cut` on, each row shows the
+ * columns `cut_columns` further on. */
 typedef struct {
     uint8_t layer;
+    uint8_t cut;          /* the first column cut, and (<< 5) how many; NO_CUT: the map whole */
     uint16_t byte, bytes;
     uint16_t gba_byte;    /* NO_PLACE: no room for it */
 } LineMap;
-enum { NO_PLACE = 0xFFFF };
+enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5 };
 
 typedef struct {
     uint8_t vram[VRAM_BYTES] __attribute__((aligned(4)));
@@ -110,6 +115,18 @@ typedef struct {
 } Snes;
 
 static Snes snes;
+
+/* Whether the maps the lines showed since the last layout are known
+ * (maps_shown, below): not where the settings changed what they show. */
+static bool usage_known __attribute__((section(".iwram_bss")));
+
+/* Settings that change what the picture is made from: the next picture lays
+ * it out afresh. */
+static void settings_moved(void)
+{
+    snes.settings_changed = true;
+    usage_known = false;
+}
 
 static void unit_changed(uint32_t byte) { snes.changed[byte / UNIT_BYTES / 32] |= 1u << (byte / UNIT_BYTES % 32); }
 
@@ -279,6 +296,34 @@ static VidAim view_aim IN_FAST_RAM;   /* set as the service starts */
 static VidViewPanel view_panels[VID_VIEW_PANELS] IN_FAST_RAM;
 static uint8_t view_panel_count IN_FAST_RAM;
 
+/* The panel the view draws this frame (vid_draw_a_panel_in_view), up to two
+ * of its layers (the GBA's 0-2): its lines and their looks, and each layer's
+ * map, tiles and scroll (bytes of the SNES's VRAM); then, as the sends come,
+ * the run of the tiles it sends, from the first sent. Its memory is the
+ * GBA's own (below, "The drawn panel"), converted as it is sent. */
+enum { PANEL_LAYERS = 2, NO_LAYER = 0xFF };
+typedef struct {
+    int16_t at, looks;
+    uint16_t lines, looks_lines;
+    uint8_t layers;                      /* the GBA's layers it draws, a bit each */
+    uint8_t own_tiles;                   /* the GBA's layers whose tiles it sends */
+    uint8_t layer[PANEL_LAYERS];         /* each layer it draws, or NO_LAYER */
+    uint16_t map_byte[PANEL_LAYERS], char_byte[PANEL_LAYERS], hofs[PANEL_LAYERS], vofs[PANEL_LAYERS];
+    /* what the lines don't depend on, or the layout made: */
+    bool drawn;
+    bool any_tile;                       /* whether a tile was sent: first_tile is the first */
+    uint16_t control[PANEL_LAYERS];      /* each layer's BGCNT, made once a picture */
+    uint16_t first_tile;
+} DrawnPanel;
+static DrawnPanel panel IN_FAST_RAM;
+
+/* What a frame's lines read of the picture they were worked out from (vid_layer_last_shown):
+ * the lines a mode asked of, and what the main screen showed there. */
+enum { ASKED_LINES = 4, ASKED_BLANK = 0x80 };
+static uint8_t asked_line[ASKED_LINES] IN_FAST_RAM;   /* 1-224; 0: none */
+static uint8_t asked_shown[ASKED_LINES] IN_FAST_RAM;
+static bool asked_anew IN_FAST_RAM;                   /* a line the last frame's lines didn't keep */
+
 void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
     (void)pf;
@@ -309,6 +354,7 @@ void vid_host_frame_begins(Platform *pf)
     v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
     view_panel_count = 0;
+    panel.drawn = false;
 }
 
 size_t vid_host_observer_bytes(const Platform *pf)
@@ -347,33 +393,34 @@ VidAim vid_view_aim(const Platform *pf)
     return view_aim;
 }
 
-/* A panel with dots cut from inside it shows its middle here, its sides
- * cut: a GBA line has one scroll a layer (issue #470). */
 void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel)
 {
     (void)pf;
-    if (view_panel_count >= VID_VIEW_PANELS)
-        return;
-    VidViewPanel p = *panel;
-    if (p.cut_dots) {
-        p.left = (int16_t)(p.left + p.cut_dots / 2);
-        p.cut_dots = 0;
-    }
-    view_panels[view_panel_count++] = p;
+    if (view_panel_count < VID_VIEW_PANELS)
+        view_panels[view_panel_count++] = *panel;
 }
 
-/* Not drawn here yet (issue #470): a mode asks vid_view_draws_panels first. */
-bool vid_view_draws_panels(const Platform *pf)
+/* A panel's layers as the GBA's: the first two of BG1-BG3. */
+void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *p)
 {
     (void)pf;
-    return false;
-}
-
-void vid_draw_a_panel_in_view(Platform *pf, const VidDrawnPanel *panel) { (void)pf, (void)panel; }
-
-void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len)
-{
-    (void)pf, (void)vram_addr, (void)src, (void)len;
+    panel = (DrawnPanel){ .at = p->at, .looks = p->looks, .lines = p->lines, .looks_lines = p->looks_lines,
+                          .layer = { NO_LAYER, NO_LAYER }, .drawn = true };
+    unsigned s = 0;
+    for (unsigned n = 0; n < 3 && s < PANEL_LAYERS; n++) {
+        if (!(p->layers & VID_LAYER_BIT(n)))
+            continue;
+        const VidBg *b = &p->bg[n];
+        panel.layer[s] = (uint8_t)n;
+        panel.map_byte[s] = (uint16_t)(b->map_base << 1);
+        panel.char_byte[s] = (uint16_t)(b->char_base << 1);
+        panel.hofs[s] = b->hofs;
+        panel.vofs[s] = b->vofs;
+        panel.layers |= (uint8_t)(1u << n);
+        if (p->own_tiles & VID_LAYER_BIT(n))
+            panel.own_tiles |= (uint8_t)(1u << n);
+        s++;
+    }
 }
 
 void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture)
@@ -390,11 +437,28 @@ void vid_read_vram(const Platform *pf, uint16_t vram, uint16_t *words, uint16_t 
     }
 }
 
-/* Only a wider view asks what the last picture showed of a layer. */
+/* What a mode framing a smaller view asks of the last picture: a layer's
+ * tiles, and whether the main screen showed it at a line, which the frame's
+ * lines keep for the lines asked of (its map and scroll are the frame's
+ * start's). A line not asked of before is kept from the next frame's lines
+ * on; until then the frame's start says. */
 bool vid_layer_last_shown(const Platform *pf, VidLayer bg, uint16_t line, VidBg *out)
 {
-    (void)pf, (void)bg, (void)line, (void)out;
-    return false;
+    (void)pf;
+    if (bg > VID_BG4 || line < 1 || line > VID_ORIGINAL_VIEW_HEIGHT)
+        return false;
+    *out = snes.bg[bg];
+    unsigned k = 0;
+    while (k < ASKED_LINES && asked_line[k] && asked_line[k] != line)
+        k++;
+    if (k == ASKED_LINES)
+        k = line % ASKED_LINES;
+    if (asked_line[k] != line) {
+        asked_line[k] = (uint8_t)line;
+        asked_shown[k] = snes.main_layers;
+        asked_anew = true;
+    }
+    return !(asked_shown[k] & ASKED_BLANK) && (asked_shown[k] & VID_LAYER_BIT(bg));
 }
 
 uint16_t vid_vram_word(Platform *pf, PfOrigin o, uint16_t vram_addr)
@@ -456,7 +520,7 @@ void vid_set_mode(Platform *pf, PfOrigin o, const VidMode *m)
 {
     (void)pf, (void)o;
     if (m->mode != snes.mode.mode)
-        snes.settings_changed = true;
+        settings_moved();
     snes.mode = *m;
 }
 
@@ -467,7 +531,7 @@ void vid_set_bg_map(Platform *pf, PfOrigin o, VidLayer bg, const VidBg *b)
         return;
     VidBg *s = &snes.bg[bg];
     if (s->map_base != b->map_base || s->map_w != b->map_w || s->map_h != b->map_h)
-        snes.settings_changed = true, snes.line_map_count = 0;
+        settings_moved(), snes.line_map_count = 0;
     s->map_base = b->map_base;
     s->map_w = b->map_w;
     s->map_h = b->map_h;
@@ -479,7 +543,7 @@ void vid_set_bg_chars(Platform *pf, PfOrigin o, VidLayer first, uint16_t base0, 
     if (first + 1 > VID_BG4)
         return;
     if (snes.bg[first].char_base != base0 || snes.bg[first + 1].char_base != base1)
-        snes.settings_changed = true;
+        settings_moved();
     snes.bg[first].char_base = base0;
     snes.bg[first + 1].char_base = base1;
 }
@@ -505,7 +569,7 @@ void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c)
 {
     (void)pf, (void)o;
     if (c->base != snes.obj.base || c->name_select != snes.obj.name_select)
-        snes.settings_changed = true;
+        settings_moved();
     if (c->size_select != snes.obj.size_select)
         snes.sprites_changed = true;
     snes.obj = *c;
@@ -828,6 +892,7 @@ typedef struct {
  * and which cache its tiles are in. */
 typedef struct {
     bool shown;
+    bool own_map;          /* whether its own map is converted (a layout may leave it out) */
     uint8_t bpp, cache;
     uint16_t char_byte, map_byte, map_bytes;
 } Layer;
@@ -921,11 +986,107 @@ static uint16_t slot_for(Cache *c, uint16_t tile)
     return *slot;
 }
 
+static bool room_at(uint32_t first, uint32_t count)
+{
+    for (uint32_t place = first; place < first + count; place++)
+        if (place >= PLACES || is_taken(place))
+            return false;
+    return true;
+}
+
+static void take_room(uint32_t first, uint32_t count)
+{
+    for (uint32_t place = first; place < first + count; place++)
+        take(place);
+}
+
+/* `count` free places taken, the highest run of them that starts on a
+ * multiple of `step`: its first, or -1. */
+static int32_t room_from_the_top(uint32_t count, uint32_t step)
+{
+    for (int32_t first = (int32_t)((PLACES - count) / step * step); first >= 0; first -= (int32_t)step)
+        if (room_at((uint32_t)first, count)) {
+            take_room((uint32_t)first, count);
+            return first;
+        }
+    return -1;
+}
+
+/* Room for the drawn panel, made by a layout after a mode asks whether the
+ * view draws one (vid_view_draws_panels): a screen block for each of its
+ * layers' maps, and a run of places for the tiles it sends, a blank one and
+ * then as many as the panel has sent, at most a 240x160 screen's 600, all
+ * within one char block's reach. A panel that sends more than the run holds
+ * has the next layout make it longer. The layouts after keep it, but one
+ * whose settings moved (`kept` false): a dialog that opens again finds it
+ * made, rather than showing the screen's band for a frame, whose maps would
+ * take room. While a dialog is up, its band of the screen is out of view,
+ * and with it the maps the screen's dialog shows. */
+enum { PANEL_TILES = 600, PANEL_TILES_AT_FIRST = 256, RUN_STEP = BLOCK_BYTES / 32 };
+typedef struct {
+    bool made, asked;
+    bool missed;                         /* the last layout was asked for it and found no room */
+    uint8_t map_block[PANEL_LAYERS];     /* the GBA's screen blocks */
+    uint16_t run;                        /* the run's first place, its blank */
+    uint16_t run_tiles;                  /* the tiles it holds past its blank */
+    uint16_t sent;                       /* the most the panel sent since the layout */
+} PanelRoom;
+static PanelRoom panel_room IN_FAST_RAM;
+
+static void make_room_for_the_panel(bool kept)
+{
+    bool asked = panel_room.asked || (kept && panel_room.made);
+    uint16_t tiles = panel_room.sent > PANEL_TILES_AT_FIRST ? panel_room.sent : PANEL_TILES_AT_FIRST;
+    panel_room = (PanelRoom){ 0 };
+    if (!asked)
+        return;
+    tiles = (uint16_t)((tiles + RUN_STEP - 1) / RUN_STEP * RUN_STEP);
+    tiles = tiles > PANEL_TILES ? PANEL_TILES : tiles;
+    int32_t run = -1;
+    for (int32_t first = (int32_t)((PLACES - tiles - 1) / RUN_STEP * RUN_STEP); first >= 0 && run < 0; first -= RUN_STEP)
+        if ((uint32_t)first % 512 + tiles + 1 <= CACHE_TILES && room_at((uint32_t)first, tiles + 1u))
+            run = first;
+    if (run < 0) {
+        panel_room.missed = true;
+        return;
+    }
+    take_room((uint32_t)run, tiles + 1u);
+    for (unsigned s = 0; s < PANEL_LAYERS; s++) {
+        int32_t block = room_from_the_top(SCREEN_BYTES / 32, SCREEN_BYTES / 32);
+        if (block < 0) {
+            panel_room.missed = true;
+            return;   /* what it took stays taken until the next layout */
+        }
+        panel_room.map_block[s] = (uint8_t)(block * 32 / SCREEN_BYTES);
+    }
+    panel_room.run = (uint16_t)run;
+    panel_room.run_tiles = tiles;
+    for (unsigned w = 0; w < 8; w++)
+        BG_VRAM[(uint32_t)run * 8u + w] = 0;
+    panel_room.made = true;
+}
+
+/* The maps the frame's lines showed since the layout (layer_control): each
+ * layer's own (bit n) and each line map (bit LINE_MAPS_SHOWN + m). */
+enum { LINE_MAPS_SHOWN = 4 };
+static uint16_t maps_shown IN_FAST_RAM;
+
 /* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
  * places their maps take, and their tiles' caches, each with the window the
- * most places are free in. */
-static void lay_out(void)
+ * most places are free in. Where `pruned`, the maps the lines haven't shown
+ * since the last layout are left out, their places and the tiles they name
+ * given to the rest; a map left out that a line shows again is noted, and
+ * the next layout has it. */
+
+static void lay_out(bool pruned)
 {
+    if (pruned) {
+        unsigned kept = 0;
+        for (unsigned m = 0; m < snes.line_map_count; m++)
+            if (maps_shown >> (LINE_MAPS_SHOWN + m) & 1)
+                snes.line_maps[kept++] = snes.line_maps[m];
+        snes.line_map_count = (uint8_t)kept;
+    }
     memset(layers, 0, sizeof layers);
     memset(caches, 0, sizeof caches);
     memset(roles, 0, sizeof roles);
@@ -940,6 +1101,7 @@ static void lay_out(void)
         l->char_byte = (uint16_t)(b->char_base << 1);
         l->map_byte = (uint16_t)(b->map_base << 1);
         l->map_bytes = map_bytes(b);
+        l->own_map = !pruned || (maps_shown >> n & 1);
         unsigned c = 0;
         while (c < CACHES && caches[c].used && !(caches[c].bpp == l->bpp && caches[c].char_byte == l->char_byte))
             c++;
@@ -951,6 +1113,7 @@ static void lay_out(void)
         l->cache = (uint8_t)c;
         l->shown = true;
     }
+    maps_shown = 0;
     for (unsigned k = 0; k < BLOCKS; k++) {
         uint32_t byte = (uint32_t)k * BLOCK_BYTES;
         for (unsigned n = 0; n < 4; n++) {
@@ -959,7 +1122,7 @@ static void lay_out(void)
                 continue;
             if (within(byte, l->char_byte, CACHE_TILES * tile_bytes(l->bpp)))
                 roles[k] |= TILES;
-            if (within(byte, l->map_byte, l->map_bytes))
+            if (l->own_map && within(byte, l->map_byte, l->map_bytes))
                 roles[k] |= MAP;
         }
         if (within(byte, sprite_table(0), OBJ_TABLE_BYTES) || within(byte, sprite_table(1), OBJ_TABLE_BYTES))
@@ -968,8 +1131,9 @@ static void lay_out(void)
             for (uint32_t place = byte / 32; place < (byte + BLOCK_BYTES) / 32; place++)
                 take(place);
     }
-    /* The line effects' maps, each where the GBA has room for it, from the top
-     * of its background VRAM down. */
+    /* The line effects' maps and the maps cut, each where the GBA has room
+     * for it, from the top of its background VRAM down; then the drawn
+     * panel's room. */
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
         lm->gba_byte = NO_PLACE;
@@ -978,17 +1142,11 @@ static void lay_out(void)
         for (unsigned k = 0; k < BLOCKS; k++)
             if (within((uint32_t)k * BLOCK_BYTES, lm->byte, lm->bytes))
                 roles[k] |= LINE_MAP;
-        for (int32_t at = VRAM_BYTES - lm->bytes; at >= 0 && lm->gba_byte == NO_PLACE; at -= SCREEN_BYTES) {
-            bool room = true;
-            for (uint32_t place = (uint32_t)at / 32; place < ((uint32_t)at + lm->bytes) / 32; place++)
-                room &= !is_taken(place);
-            if (!room)
-                continue;
-            lm->gba_byte = (uint16_t)at;
-            for (uint32_t place = (uint32_t)at / 32; place < ((uint32_t)at + lm->bytes) / 32; place++)
-                take(place);
-        }
+        int32_t at = room_from_the_top(lm->bytes / 32, SCREEN_BYTES / 32);
+        if (at >= 0)
+            lm->gba_byte = (uint16_t)(at * 32);
     }
+    make_room_for_the_panel(pruned);
     for (unsigned c = 0; c < CACHES; c++) {
         Cache *cache = &caches[c];
         if (!cache->used)
@@ -1023,7 +1181,7 @@ static uint16_t map_entry(uint16_t e, const Layer *l)
 static const Layer *map_layer(uint32_t byte)
 {
     for (unsigned n = 0; n < 4; n++)
-        if (layers[n].shown && within(byte, layers[n].map_byte, layers[n].map_bytes))
+        if (layers[n].shown && layers[n].own_map && within(byte, layers[n].map_byte, layers[n].map_bytes))
             return &layers[n];
     return NULL;
 }
@@ -1034,6 +1192,37 @@ static void convert_map(uint32_t first, const Layer *l, uint32_t to)
     volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + to / 2;
     for (uint32_t i = 0; i < UNIT_BYTES; i += 2)
         gba[i / 2] = map_entry((uint16_t)(snes.vram[first + i] | snes.vram[first + i + 1] << 8), l);
+}
+
+/* A row of a map cut (LineMap): each of its 32 columns from the column
+ * the cut puts there. */
+static void convert_cut_row(const LineMap *lm, uint32_t row)
+{
+    unsigned cut = lm->cut & CUT_COLUMN, columns = lm->cut >> CUT_COLUMNS_SHIFT;
+    const uint8_t *from = &snes.vram[(lm->byte + row * 64) & (VRAM_BYTES - 1)];
+    volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + (lm->gba_byte + row * 64) / 2;
+    for (unsigned column = 0; column < 32; column++) {
+        unsigned c = column < cut ? column : (column + columns) % 32;
+        gba[column] = map_entry((uint16_t)(from[2 * c] | from[2 * c + 1] << 8), &layers[lm->layer]);
+    }
+}
+
+/* A line effect's map, or a map cut (`cut`, NO_CUT for none), for a layer. */
+static LineMap *line_map(unsigned n, uint16_t byte, bool cut)
+{
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        LineMap *lm = &snes.line_maps[m];
+        if (lm->layer == n && lm->byte == byte && (lm->cut != NO_CUT) == cut)
+            return lm;
+    }
+    return NULL;
+}
+
+/* A map's units marked changed, so the next picture converts it again. */
+static void map_changed(const LineMap *lm)
+{
+    for (uint32_t i = 0; i < lm->bytes; i += UNIT_BYTES)
+        unit_changed((lm->byte + i) & (VRAM_BYTES - 1));
 }
 
 /* A sprite tile's place in the GBA's sprite VRAM: the SNES's two tables of
@@ -1056,8 +1245,13 @@ static void convert_unit(unsigned u)
     if (role & LINE_MAP)
         for (unsigned m = 0; m < snes.line_map_count; m++) {
             const LineMap *lm = &snes.line_maps[m];
-            if (lm->gba_byte != NO_PLACE && layers[lm->layer].shown && within(first, lm->byte, lm->bytes))
-                convert_map(first, &layers[lm->layer], lm->gba_byte + ((first - lm->byte) & (VRAM_BYTES - 1)));
+            if (lm->gba_byte == NO_PLACE || !layers[lm->layer].shown || !within(first, lm->byte, lm->bytes))
+                continue;
+            uint32_t offset = (first - lm->byte) & (VRAM_BYTES - 1);
+            if (lm->cut == NO_CUT)
+                convert_map(first, &layers[lm->layer], lm->gba_byte + offset);
+            else
+                convert_cut_row(lm, offset / 64);
         }
     if (role & MAP)
         convert_map(first, map_layer(first), first);
@@ -1078,6 +1272,128 @@ static void convert_unit(unsigned u)
         int slot = sprite_slot(first);
         if (slot >= 0)
             convert_4bpp(OBJ_VRAM + (uint32_t)slot * 8, &snes.vram[first]);
+    }
+}
+
+/* ---- The drawn panel ------------------------------------------------------------------------------
+ *
+ * The panel's memory is the GBA's own: no copy of what it sends is kept (work
+ * RAM has no room), but each send converted as it comes into the panel's room
+ * (PanelRoom), by the panel the frame stated first: a send into a layer's
+ * map converted into that layer's screen block, a send of tiles of a layer
+ * whose tiles it sends converted into the run, the first tile sent this
+ * frame the run's first. Where a map names the screen's own tiles, they are
+ * the cache's. Only what changes is written, so a picture shown as the game
+ * sends shows at most a glyph it types a GBA frame early. */
+
+bool vid_view_draws_panels(const Platform *pf)
+{
+    (void)pf;
+    if (!panel_room.made && !panel_room.missed && !panel_room.asked)
+        snes.settings_changed = true;   /* lay out again, with room for one */
+    panel_room.asked = true;
+    return panel_room.made;
+}
+
+static Cache *cache_of(uint8_t bpp, uint16_t char_byte)
+{
+    for (unsigned c = 0; c < CACHES; c++)
+        if (caches[c].used && caches[c].bpp == bpp && caches[c].char_byte == char_byte)
+            return &caches[c];
+    return NULL;
+}
+
+/* The GBA's control of a panel layer: its priority as the screen's layer's,
+ * its tiles where they are, its map's screen block. */
+static uint16_t panel_layer_control(unsigned s)
+{
+    unsigned n = panel.layer[s];
+    Cache *c = cache_of(layers[n].bpp, panel.char_byte[s]);
+    uint16_t char_block = panel.own_tiles & (1u << n) ? panel_room.run / 512 : c ? c->block : 0;
+    uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
+    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | panel_room.map_block[s] << 8);
+}
+
+/* `count` bytes sent into a panel layer's map, from its entry `first`, as
+ * the GBA's entries: a tile it sends at its place in the run (one not sent,
+ * the run's blank), the screen's at its place in its cache. Written whether
+ * or not they changed: writing what VRAM holds changes nothing shown. */
+static void panel_map_taken(unsigned s, uint32_t first, const uint8_t *bytes, uint32_t count)
+{
+    unsigned n = panel.layer[s];
+    bool own = panel.own_tiles & (1u << n);
+    Cache *c = own ? NULL : cache_of(layers[n].bpp, panel.char_byte[s]);
+    uint16_t base = (uint16_t)(panel_room.run % 512), tiles = panel.any_tile ? panel_room.run_tiles : 0;
+    uint16_t palettes = layers[n].bpp == 2 ? 8 : 0;
+    volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + panel_room.map_block[s] * (SCREEN_BYTES / 2) + first;
+    for (uint32_t i = 0; i + 1 < count && first + i / 2 < SCREEN_BYTES / 2; i += 2) {
+        uint16_t e = (uint16_t)(bytes[i] | bytes[i + 1] << 8), tile = 0;
+        if (own) {
+            uint16_t k = (uint16_t)(((e & 0x3FF) - panel.first_tile) & 0x3FF);
+            tile = (uint16_t)(base + (k < tiles ? 1 + k : 0));
+        } else if (c) {
+            tile = slot_for(c, e & 0x3FF);
+        }
+        gba[i / 2] = (uint16_t)(tile | (e & 0x4000 ? 0x0400 : 0) | (e & 0x8000 ? 0x0800 : 0) |
+                                ((e >> 10 & 7) + palettes) << 12);
+    }
+}
+
+/* A tile sent, converted into the run; one past it has the next layout
+ * make the run longer. */
+static void panel_tile_taken(uint8_t bpp, uint16_t tile, const uint8_t *bytes)
+{
+    if (!panel.any_tile)
+        panel.first_tile = tile, panel.any_tile = true;
+    uint16_t k = (uint16_t)((tile - panel.first_tile) & 0x3FF);
+    if (k >= PANEL_TILES)
+        return;
+    if (k >= panel_room.sent)
+        panel_room.sent = (uint16_t)(k + 1);
+    if (k >= panel_room.run_tiles) {
+        snes.settings_changed = true;
+        return;
+    }
+    volatile uint32_t *to = BG_VRAM + (uint32_t)(panel_room.run + 1 + k) * 8u;
+    for (unsigned y = 0; y < 8; y++) {
+        uint32_t row = bpp == 4 ? packed_row(bytes[2 * y], bytes[2 * y + 1], bytes[16 + 2 * y], bytes[17 + 2 * y])
+                                : packed_row(bytes[2 * y], bytes[2 * y + 1], 0, 0);
+        to[y] = row;
+    }
+}
+
+/* What a send to the panel's memory at `byte` is: a layer's map's entries,
+ * or whole tiles of a layer whose tiles it sends. */
+static void panel_bytes_taken(uint32_t byte, const uint8_t *bytes, uint32_t count)
+{
+    for (unsigned s = 0; s < PANEL_LAYERS; s++)
+        if (panel.layer[s] != NO_LAYER && layers[panel.layer[s]].shown && within(byte, panel.map_byte[s], SCREEN_BYTES)) {
+            panel_map_taken(s, ((byte - panel.map_byte[s]) & (VRAM_BYTES - 1)) / 2, bytes, count);
+            return;
+        }
+    for (unsigned s = 0; s < PANEL_LAYERS; s++) {
+        unsigned n = panel.layer[s];
+        if (n == NO_LAYER || !(panel.own_tiles & (1u << n)) || !layers[n].shown)
+            continue;
+        uint32_t size = tile_bytes(layers[n].bpp), offset = (byte - panel.char_byte[s]) & (VRAM_BYTES - 1);
+        if (offset >= CACHE_TILES * size || offset % size)
+            continue;
+        for (uint32_t i = 0; i + size <= count; i += size)
+            panel_tile_taken(layers[n].bpp, (uint16_t)((offset + i) / size), bytes + i);
+        return;
+    }
+}
+
+void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len)
+{
+    (void)pf;
+    if (!panel.drawn || !panel_room.made)
+        return;
+    uint32_t at = (uint32_t)(vram_addr & 0x7FFF) << 1;
+    for (uint32_t i = 0; i < len; i += PIECE) {
+        uint32_t n = len - i < PIECE ? len - i : PIECE;
+        data_bytes(src, i, piece, n);
+        panel_bytes_taken((at + i) & (VRAM_BYTES - 1), piece, n);
     }
 }
 
@@ -1118,29 +1434,69 @@ static bool gba_size(unsigned w, unsigned h, uint16_t *shape, uint16_t *size)
  *
  * Down the GBA's 160 lines, runs of lines that each show a run of the SNES's
  * from a dot across: the camera's, and the panels' over it, a later panel
- * over an earlier one; or black, past the SNES's lines. Worked out from the
+ * over an earlier one, each maybe with dots cut from inside it; the drawn
+ * panel's over them, its lines looking like the screen's lines their own
+ * are spread over; or black, past the SNES's lines. Worked out from the
  * framing once a frame. The lines are worked out down the SNES's picture
  * (work_out_lines), so the bands must show its lines in their order; a
  * framing that doesn't shows the camera's alone. */
 typedef struct {
     uint8_t at, lines;
+    uint8_t rows;           /* the SNES's lines it shows: its own lines' count, but the drawn panel's */
+    bool black, drawn;
     int16_t row, left;
-    bool black;
+    int16_t cut_at;         /* from its dot cut_at on, the SNES's dots cut_dots further on */
+    uint8_t cut_dots;
 } Band;
-enum { MOST_BANDS = 2 * VID_VIEW_PANELS + 1 };
+enum { MOST_BANDS = 2 * (VID_VIEW_PANELS + 1) + 1 };
 static Band bands[MOST_BANDS] IN_FAST_RAM;
 static uint8_t band_count IN_FAST_RAM;
 
+/* A drawn panel's line is drawn as the screen's middle across. */
+enum { DRAWN_LEFT = (VID_ORIGINAL_VIEW_WIDTH - GBA_VIEW_WIDTH) / 2 };
+
+static bool panel_draws(unsigned y)
+{
+    return panel.drawn && panel.layers && panel_room.made && panel.lines && (int)y >= panel.at &&
+           (int)y < panel.at + (int)panel.lines;
+}
+
+/* The SNES line a drawn panel's line looks like. */
+static int16_t panel_looks(unsigned y)
+{
+    int row = panel.looks + ((int)y - panel.at) * (int)panel.looks_lines / (int)panel.lines;
+    return (int16_t)(row < 0 ? 0 : row >= VID_ORIGINAL_VIEW_HEIGHT ? VID_ORIGINAL_VIEW_HEIGHT - 1 : row);
+}
+
 static Band line_band(unsigned y)
 {
-    Band b = { (uint8_t)y, 1, (int16_t)(view_aim.top + (int)y), view_aim.left, false };
+    Band b = { (uint8_t)y, 1, 1, false, false, (int16_t)(view_aim.top + (int)y), view_aim.left, 0, 0 };
+    if (panel_draws(y)) {
+        b.drawn = true;
+        b.row = panel_looks(y);
+        b.left = DRAWN_LEFT;
+        return b;
+    }
     for (unsigned n = 0; n < view_panel_count; n++) {
         const VidViewPanel *p = &view_panels[n];
-        if ((int)y >= p->at && (int)y < p->at + (int)p->lines)
+        if ((int)y >= p->at && (int)y < p->at + (int)p->lines) {
             b.row = (int16_t)(p->top + ((int)y - p->at)), b.left = p->left;
+            b.cut_at = p->cut_at, b.cut_dots = (uint8_t)p->cut_dots;
+        }
     }
     b.black = b.row < 0 || b.row >= VID_ORIGINAL_VIEW_HEIGHT;
     return b;
+}
+
+/* Whether line `b` goes on band `last`: the same kind of band, from the same
+ * dot, and the next of its lines (a drawn panel's: a line it looks like as
+ * far down or further). */
+static bool goes_on(const Band *last, const Band *b)
+{
+    if (last->black != b->black || last->drawn != b->drawn || last->left != b->left || last->cut_at != b->cut_at ||
+        last->cut_dots != b->cut_dots)
+        return false;
+    return b->black || (b->drawn ? b->row >= last->row + last->rows - 1 : b->row == last->row + last->lines);
 }
 
 static void band_up_the_view(void)
@@ -1149,20 +1505,22 @@ static void band_up_the_view(void)
     for (unsigned y = 0; y < GBA_VIEW_HEIGHT; y++) {
         Band b = line_band(y);
         Band *last = band_count ? &bands[band_count - 1] : NULL;
-        if (last && last->black == b.black && last->left == b.left && (b.black || b.row == last->row + last->lines))
+        if (last && goes_on(last, &b)) {
+            last->rows = (uint8_t)(b.drawn ? b.row - last->row + 1 : last->rows + 1);
             last->lines++;
-        else if (band_count < MOST_BANDS)
+        } else if (band_count < MOST_BANDS) {
             bands[band_count++] = b;
+        }
     }
     int row = -1;
     bool in_order = band_count < MOST_BANDS;
     for (unsigned k = 0; k < band_count && in_order; k++)
         if (!bands[k].black) {
             in_order = bands[k].row > row;
-            row = bands[k].row + bands[k].lines - 1;
+            row = bands[k].row + bands[k].rows - 1;
         }
     if (!in_order) {
-        bands[0] = (Band){ 0, GBA_VIEW_HEIGHT, view_aim.top, view_aim.left, false };
+        bands[0] = (Band){ 0, GBA_VIEW_HEIGHT, GBA_VIEW_HEIGHT, false, false, view_aim.top, view_aim.left, 0, 0 };
         band_count = 1;
     }
 }
@@ -1171,14 +1529,47 @@ static void band_up_the_view(void)
 static const Band *band_showing(int row)
 {
     for (unsigned k = 0; k < band_count; k++)
-        if (!bands[k].black && row >= bands[k].row && row < bands[k].row + bands[k].lines)
+        if (!bands[k].black && row >= bands[k].row && row < bands[k].row + bands[k].rows)
             return &bands[k];
     return NULL;
+}
+
+/* The first of a band's lines that shows the SNES's line `row` (of those it
+ * shows), or -1: a drawn panel's lines may pass over a line of the screen's
+ * they are spread over. */
+static int band_line(const Band *b, int row)
+{
+    if (!b->drawn)
+        return b->at + (row - b->row);
+    int r = row - panel.looks;
+    int i = (r * (int)panel.lines + (int)panel.looks_lines - 1) / (int)panel.looks_lines;
+    for (int y = panel.at + (i > 0 ? i : 0); y < b->at + b->lines; y++) {
+        if (y < b->at)
+            continue;
+        int looks = panel_looks((unsigned)y);
+        if (looks == row)
+            return y;
+        if (looks > row)
+            break;
+    }
+    return -1;
+}
+
+/* Where the view shows the SNES's dot `x` of a band's line: across from its
+ * left, past its cut less what was cut. */
+static int band_x(const Band *b, int x)
+{
+    x -= b->left;
+    if (b->cut_dots && x >= b->cut_at)
+        x = x >= b->cut_at + b->cut_dots ? x - b->cut_dots : b->cut_at;
+    return x;
 }
 
 /* The SNES's sprite priorities among the layers, as the GBA's. */
 static const uint8_t sprite_priority[4] = { 3, 2, 2, 1 };
 
+/* The sprites, each in the band its top line is in, or its foot's; the drawn
+ * panel shows none. */
 static void present_sprites(void)
 {
     for (unsigned n = 0; n < SPRITES; n++) {
@@ -1191,12 +1582,13 @@ static void present_sprites(void)
         unsigned h = sprite_sizes[snes.obj.size_select & 7][(high >> 1) & 1][1];
         uint16_t shape, size;
         volatile uint16_t *to = &OAM[n * 4];
-        /* a sprite shows in the band its top line is in, or its foot's */
         int top = (e[1] + 1) & 0xFF;
         const Band *b = band_showing(top);
         if (!b)
             b = band_showing(top + (int)h - 1);
-        int gx = b ? x - b->left : GBA_VIEW_WIDTH, gy = b ? ((e[1] - b->row + b->at) & 0xFF) : 0;
+        if (b && b->drawn)
+            b = NULL;
+        int gx = b ? band_x(b, x) : GBA_VIEW_WIDTH, gy = b ? ((e[1] - b->row + b->at) & 0xFF) : 0;
         if (!b || !gba_size(w, h, &shape, &size) || gx <= -(int)w || gx >= GBA_VIEW_WIDTH) {
             to[0] = 0x0200;   /* hidden */
             continue;
@@ -1564,15 +1956,16 @@ static bool masked(const VidWindows *w, unsigned layer, bool in1, bool in2)
     }
 }
 
-/* A window's edges (inclusive, the SNES's dots) as the GBA's (its last dot
- * exclusive, on its screen); nothing where the left edge is past the right. */
-static uint16_t gba_window(uint8_t left, uint8_t right, int view_left)
+/* A window's edges (inclusive, the SNES's dots) as the GBA's on a band's
+ * line (its last dot exclusive, on its screen); nothing where the left edge
+ * is past the right. */
+static uint16_t gba_window(uint8_t left, uint8_t right, const Band *b)
 {
     if (left > right)
         return 0;
-    int x1 = left - view_left, x2 = right + 1 - view_left;
-    x1 = x1 < 0 ? 0 : x1 > 240 ? 240 : x1;
-    x2 = x2 < 0 ? 0 : x2 > 240 ? 240 : x2;
+    int x1 = band_x(b, left), x2 = band_x(b, right + 1);
+    x1 = x1 < 0 ? 0 : x1 > GBA_VIEW_WIDTH ? GBA_VIEW_WIDTH : x1;
+    x2 = x2 < 0 ? 0 : x2 > GBA_VIEW_WIDTH ? GBA_VIEW_WIDTH : x2;
     return (uint16_t)(x1 << 8 | x2);
 }
 
@@ -1592,9 +1985,23 @@ static uint16_t region_layers(const LineState *st, bool in1, bool in2)
     return shown;
 }
 
+/* A map to keep for the next layout, which converts it: one a line effect
+ * shows that the layout hasn't, or one a band shows cut. */
+static void note_line_map(unsigned n, uint16_t byte, uint16_t bytes, uint8_t cut)
+{
+    if (!layers[n].shown || line_map(n, byte, cut != NO_CUT) ||
+        snes.line_map_count == sizeof snes.line_maps / sizeof snes.line_maps[0])
+        return;
+    snes.line_maps[snes.line_map_count++] = (LineMap){ (uint8_t)n, cut, byte, bytes, NO_PLACE };
+    snes.settings_changed = true;
+}
+
 /* The GBA's control of a layer showing the map the SNES's byte names: its
- * priority and tiles as the layout set them, the map's screen block and size. */
-static uint16_t layer_control(unsigned n, uint8_t map)
+ * priority and tiles as the layout set them, the map's screen block and
+ * size: where a band cuts columns from inside it, the map cut where the
+ * layer's scroll `hofs` puts the band's cut (a 32-column map's, and only
+ * whole columns), which a layout keeps once noted. */
+static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_t hofs)
 {
     const Layer *l = &layers[n];
     VidBg b = { 0 };
@@ -1602,36 +2009,39 @@ static uint16_t layer_control(unsigned n, uint8_t map)
     uint16_t char_block = caches[l->cache].block;
     uint16_t size = (uint16_t)((b.map_w == 64 ? 1 : 0) | (b.map_h == 64 ? 2 : 0));
     uint16_t priority = n == 2 ? (snes.mode.bg3_priority ? 0 : 3) : (uint16_t)(n + 2);
-    uint32_t at = (uint32_t)b.map_base << 1;
-    for (unsigned m = 0; m < snes.line_map_count; m++) {
-        const LineMap *lm = &snes.line_maps[m];
-        if (lm->layer == n && lm->byte == at && lm->gba_byte != NO_PLACE)
-            at = lm->gba_byte;
+    uint16_t at = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
+    bool own = at == l->map_byte && bytes == l->map_bytes;
+    if (!own)
+        note_line_map(n, at, bytes, NO_CUT);
+    else if (!l->own_map)
+        snes.settings_changed = true;   /* left out by the last layout: the next has it */
+    const LineMap *lm = line_map(n, at, false);
+    if (band->cut_dots && b.map_w == 32 && band->cut_dots % 8 == 0) {
+        uint8_t cut = (uint8_t)(((band->cut_at + band->left + hofs) / 8 % 32) | band->cut_dots / 8 << CUT_COLUMNS_SHIFT);
+        LineMap *cut_map = line_map(n, at, true);
+        if (!cut_map) {
+            note_line_map(n, at, bytes, cut);
+            if ((cut_map = line_map(n, at, true)) != NULL)
+                maps_shown |= (uint16_t)(1u << (LINE_MAPS_SHOWN + (cut_map - snes.line_maps)));
+        } else if (cut_map->gba_byte != NO_PLACE) {
+            if (cut_map->cut != cut) {
+                cut_map->cut = cut;   /* converted again for the next picture */
+                map_changed(cut_map);
+            }
+            lm = cut_map;
+        }
     }
-    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | (at / SCREEN_BYTES) << 8 | size << 14);
+    if (lm)
+        maps_shown |= (uint16_t)(1u << (LINE_MAPS_SHOWN + (lm - snes.line_maps)));
+    else if (own)
+        maps_shown |= (uint16_t)(1u << n);
+    uint32_t gba_byte = lm && lm->gba_byte != NO_PLACE ? lm->gba_byte : at;
+    return (uint16_t)(priority | char_block << 2 | BGCNT_4BPP | (gba_byte / SCREEN_BYTES) << 8 | size << 14);
 }
 
 static uint8_t map_byte_of(const VidBg *b)
 {
     return (uint8_t)((b->map_base >> 8 & 0xFC) | (b->map_w == 64 ? 1 : 0) | (b->map_h == 64 ? 2 : 0));
-}
-
-/* A map a line effect shows that the layout hasn't: kept for the next
- * layout, which converts it. */
-static void note_line_map(unsigned n, uint8_t map)
-{
-    VidBg b = { 0 };
-    vid_bg_map_decode(&b, map);
-    uint16_t byte = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
-    if (!layers[n].shown || (byte == layers[n].map_byte && bytes == layers[n].map_bytes))
-        return;
-    for (unsigned m = 0; m < snes.line_map_count; m++)
-        if (snes.line_maps[m].byte == byte && snes.line_maps[m].layer == n && snes.line_maps[m].bytes >= bytes)
-            return;
-    if (snes.line_map_count == sizeof snes.line_maps / sizeof snes.line_maps[0])
-        return;
-    snes.line_maps[snes.line_map_count++] = (LineMap){ (uint8_t)n, byte, bytes, NO_PLACE };
-    snes.settings_changed = true;
 }
 
 /* The backdrop with the fixed colour's math on it, where the math takes the
@@ -1655,45 +2065,64 @@ static uint16_t backdrop(const LineState *st)
     return out;
 }
 
-/* The layers' scroll on the GBA's screen, the SNES's line shown `down`
- * lines further down the GBA's than the GBA's own and from its dot `left`. */
-static void line_scroll(LineRegisters *r, const LineState *st, int left, int down)
+/* The layers' scroll on a band's line of the GBA's screen, the SNES's line
+ * shown `down` lines further down the GBA's than the GBA's own. A layer's
+ * row on the SNES is its line's (the first shown is its line 1) and its
+ * scroll, one further down than on the GBA. */
+static void line_scroll(LineRegisters *r, const LineState *st, const Band *b, int down)
 {
     for (unsigned n = 0; n < 3; n++) {
-        r->hofs[n] = (uint16_t)(st->hofs[n] + left);
-        r->vofs[n] = (uint16_t)(st->vofs[n] + down);
+        r->hofs[n] = (uint16_t)(st->hofs[n] + b->left);
+        r->vofs[n] = (uint16_t)(st->vofs[n] + down + 1);
     }
 }
 
-/* A line's registers, the SNES's line shown `down` lines further down the
- * GBA's than the GBA's own and from its dot `left`. */
-static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled, int left, int down)
+/* A line that shows nothing: black. The layers stay enabled, every line of
+ * the frame, and a line shows the ones it does through the windows: the
+ * GBA shows a layer enabled part of the way down only from three lines on,
+ * where a window's layers change at once. */
+static LineRegisters nothing_shown(uint16_t layers_enabled)
 {
     LineRegisters r = { 0 };
-    /* A line the SNES blanks is black: the GBA's forced blank shows white,
-     * so the line shows no layer over a black backdrop instead. */
+    r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | DISPCNT_OBJ | DISPCNT_WIN0 | DISPCNT_WIN1 | (layers_enabled & 15) * DISPCNT_BG0);
+    return r;
+}
+
+/* A line's registers: the SNES's line shown on a band's line `down` lines
+ * further down the GBA's than the GBA's own. A layer's row on the SNES is
+ * its line's (the first shown is its line 1) and its scroll, one further
+ * down than on the GBA. A drawn panel's line takes the SNES line's looks
+ * and draws the panel's own layers alone. */
+static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled, const Band *b, int down)
+{
+    LineRegisters r = nothing_shown(layers_enabled);
     if (st->blank)
         return r;
-    for (unsigned n = 0; n < 3; n++)
-        if (layers_enabled & (1u << n)) {
-            r.bgcnt[n] = layer_control(n, st->map[n]);
-            note_line_map(n, st->map[n]);
-        }
-    uint16_t layers = 0;
-    for (unsigned n = 0; n < 4; n++)
-        if ((layers_enabled & (1u << n)) && (st->main_layers & (1u << n)))
-            layers |= (uint16_t)(DISPCNT_BG0 << n);
-    if (st->main_layers & VID_OBJ_BIT)
-        layers |= DISPCNT_OBJ;
-    r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | layers | (st->blank ? DISPCNT_FORCED_BLANK : 0));
-    if (st->windows.win_main & (VID_ALL_LAYERS)) {
-        r.dispcnt |= DISPCNT_WIN0 | DISPCNT_WIN1;
-        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, left);
-        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, left);
-        r.winin = (uint16_t)(region_layers(st, true, false) | region_layers(st, false, true) << 8);
-        r.winout = region_layers(st, false, false);
+    LineState drawn;
+    if (b->drawn) {
+        drawn = *st;
+        drawn.main_layers = (uint8_t)(panel.layers & layers_enabled);
+        drawn.sub_layers &= drawn.main_layers;
+        st = &drawn;
     }
-    line_scroll(&r, st, left, down);
+    for (unsigned n = 0; n < 3; n++)
+        if ((layers_enabled & (1u << n)) && !b->drawn)
+            r.bgcnt[n] = layer_control(n, st->map[n], b, st->hofs[n]);
+    if (st->windows.win_main & (VID_ALL_LAYERS)) {
+        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, b);
+        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, b);
+        r.winin = (uint16_t)(region_layers(st, true, false) | region_layers(st, false, true) << 8);
+    }
+    r.winout = region_layers(st, false, false);
+    line_scroll(&r, st, b, down);
+    for (unsigned s = 0; b->drawn && s < PANEL_LAYERS; s++) {
+        unsigned n = panel.layer[s];
+        if (n == NO_LAYER || !(layers_enabled & (1u << n)))
+            continue;
+        r.bgcnt[n] = panel.control[s];
+        r.hofs[n] = panel.hofs[s];
+        r.vofs[n] = (uint16_t)(panel.vofs[s] - panel.at);
+    }
     r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
     r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
     r.backdrop = backdrop(st);
@@ -1779,6 +2208,7 @@ typedef struct {
     uint8_t line_effects, line_effects_below;
     bool below_display, below_line_effects, bg3_priority;
     uint32_t bands;   /* the view's bands, hashed */
+    uint32_t drawn;   /* the drawn panel's lines and layers, hashed */
 } LinesFrom;
 
 static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
@@ -1803,6 +2233,7 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     f->line_effects = v->line_effects;
     f->line_effects_below = v->line_effects_below;
     f->bands = hash_on(FNV_START, bands, sizeof bands[0] * band_count);
+    f->drawn = panel.drawn ? hash_on(FNV_START, &panel, offsetof(DrawnPanel, drawn)) : 0;
     f->below_display = v->below_display;
     f->below_line_effects = v->below_line_effects;
     f->bg3_priority = snes.mode.bg3_priority;
@@ -1810,14 +2241,13 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
 
 enum { NO_LINE = 0xFFFF };
 
-/* The black bands above GBA line `at` not yet set, set: the registers that
- * show no layer and a black backdrop. */
-static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next)
+/* The black bands above GBA line `at` not yet set, set. */
+static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next, uint16_t layers_enabled)
 {
     for (; *next < band_count && bands[*next].at < at; (*next)++) {
         if (!bands[*next].black)
             continue;
-        LineRegisters black = { 0 };
+        LineRegisters black = nothing_shown(layers_enabled);
         if (count == 0 || memcmp(&black, &change_registers[count - 1], sizeof black) != 0) {
             change_registers[count] = black;
             change_line[count++] = bands[*next].at;
@@ -1886,7 +2316,8 @@ static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, b
  * what a line shows changes, as changes from the first line on; `st` ends as
  * the effects leave the registers. Only the lines something happens at are
  * visited: a slot's next transfer to apply, the display's change, a band's
- * first line and a line shown after a change. */
+ * first line, a line shown after a change and a line a mode asked of
+ * (vid_layer_last_shown). */
 static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t layers_enabled)
 {
     LineState st = *st_out, shown;
@@ -1921,23 +2352,30 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
         }
         /* A line's registers are worked out again only where what the
          * effects set has changed, and kept only where they differ: where
-         * only the scroll may have, the last change's with its scroll. The
-         * last change's registers are always those of what was `shown`. */
+         * only the scroll may have, the last change's with its scroll (but
+         * on the drawn panel, whose layers' scroll is its own, and a band
+         * cut, whose maps the scroll moves the cut in). The last change's
+         * registers are always those of what was `shown`. */
+        for (unsigned k = 0; k < ASKED_LINES; k++)
+            if (asked_line[k] == line)   /* the lines asked of, which are visited */
+                asked_shown[k] = (uint8_t)(st.main_layers | (st.blank ? ASKED_BLANK : 0));
         const Band *b = line ? band_showing((int)line - 1) : NULL;
-        if (b) {
-            unsigned at = b->at + (line - 1 - (unsigned)b->row);
-            int down = (int)(line - 1) - (int)at;
-            count = black_bands_above(at, count, &next_black);
+        int at = !b ? -1 : b->drawn ? band_line(b, (int)line - 1) : b->at + ((int)line - 1 - b->row);
+        if (at >= 0) {
+            int down = (int)(line - 1) - at;
+            if (next_black < band_count && bands[next_black].at < at)
+                count = black_bands_above((unsigned)at, count, &next_black, layers_enabled);
             bool band_starts = at == b->at, again = false;
             LineRegisters r;
-            if (count == 0 || band_starts || ((touched & CHANGED_OTHER) && memcmp(&st, &shown, sizeof st) != 0)) {
-                r = line_registers(&st, layers_enabled, b->left, down);
+            if (count == 0 || band_starts || ((touched & CHANGED_OTHER) && memcmp(&st, &shown, sizeof st) != 0) ||
+                (touched && b->cut_dots && memcmp(&st, &shown, sizeof st) != 0)) {
+                r = line_registers(&st, layers_enabled, b, down);
                 memcpy(&shown, &st, sizeof st);
                 again = true;
-            } else if (touched && (memcmp(st.hofs, shown.hofs, sizeof st.hofs) != 0 ||
-                                   memcmp(st.vofs, shown.vofs, sizeof st.vofs) != 0)) {
+            } else if (touched && !b->drawn && (memcmp(st.hofs, shown.hofs, sizeof st.hofs) != 0 ||
+                                                memcmp(st.vofs, shown.vofs, sizeof st.vofs) != 0)) {
                 r = change_registers[count - 1];
-                line_scroll(&r, &st, b->left, down);
+                line_scroll(&r, &st, b, down);
                 memcpy(shown.hofs, st.hofs, sizeof st.hofs);
                 memcpy(shown.vofs, st.vofs, sizeof st.vofs);
                 again = true;
@@ -1966,11 +2404,14 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
         uint16_t band_start = next_band_start(line);
         if (band_start < soonest)
             soonest = band_start;
+        for (unsigned k = 0; k < ASKED_LINES; k++)
+            if (asked_line[k] > line && asked_line[k] < soonest)
+                soonest = asked_line[k];
         if (touched && line + 1 < soonest && band_showing(line))
             soonest = (uint16_t)(line + 1);
         line = soonest;
     }
-    count = black_bands_above(GBA_VIEW_HEIGHT, count, &next_black);
+    count = black_bands_above(GBA_VIEW_HEIGHT, count, &next_black, layers_enabled);
     *st_out = st;
     return count;
 }
@@ -1992,7 +2433,8 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     lines_from(&from, &pf->video, layers_enabled);
     LineState st;
     uint8_t count;
-    bool may_stand = last_stands && !laid_out;
+    bool may_stand = last_stands && !laid_out && !asked_anew;
+    asked_anew = false;
     if (!may_stand)
         lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
     /* the starting point's hash, where it is compared or kept */
@@ -2050,11 +2492,10 @@ void gba_video_present(Platform *pf)
      * on where a tile missed since the layout, eight where only the layout's
      * own misses stand (starting afresh from the same maps misses the same
      * tiles, and a layout is about ten GBA frames' work). */
-    if (misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480))
-        snes.settings_changed = true;
-    bool laid_out = snes.settings_changed;
+    bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
+    bool laid_out = snes.settings_changed || restart;
     if (laid_out) {
-        lay_out();
+        lay_out(usage_known);
         memset(snes.changed, 0xFF, sizeof snes.changed);
         snes.settings_changed = false;
     }
@@ -2089,10 +2530,14 @@ void gba_video_present(Platform *pf)
         if (!l->shown)
             continue;
         if (n == 3)
-            BGCNT(3) = layer_control(3, map_byte_of(&snes.bg[3]));
+            BGCNT(3) = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
         layers_enabled |= (uint16_t)(1u << n);
     }
+    for (unsigned s = 0; panel.drawn && panel_room.made && s < PANEL_LAYERS; s++)
+        if (panel.layer[s] != NO_LAYER)
+            panel.control[s] = panel_layer_control(s);
     present_lines(pf, layers_enabled, laid_out);
+    usage_known = true;
 }
 
 size_t gba_video_bytes(void) { return sizeof snes; }
