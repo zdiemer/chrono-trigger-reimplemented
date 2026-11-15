@@ -232,10 +232,17 @@ uint8_t state_host_read8(const GameState *g, uint32_t addr)
 
 void state_host_read_span(const GameState *g, uint32_t addr, uint8_t *out, uint32_t len)
 {
-    /* Work RAM's banks at their own addresses, in one read of the storage;
-     * anything else a byte at a time, as state_host_read8 has it. */
+    /* Work RAM's banks, at their own addresses or the first 8 KiB's in a bank
+     * that maps the system area, in one read of the storage; anything else a
+     * byte at a time, as state_host_read8 has it. */
     if (addr >= 0x7E0000u && addr < 0x800000u && len <= 0x800000u - addr) {
         vars_host_read_span(&g->head.vars, addr, out, len);
+        return;
+    }
+    uint32_t first, last;
+    if (len && (addr >> 16) == ((addr + len - 1u) >> 16) && place_of(addr & 0xFFFFFF, &first) == IN_WRAM &&
+        place_of((addr + len - 1u) & 0xFFFFFF, &last) == IN_WRAM) {
+        vars_host_read_span(&g->head.vars, 0x7E0000u + first, out, len);
         return;
     }
     for (uint32_t i = 0; i < len; i++)
