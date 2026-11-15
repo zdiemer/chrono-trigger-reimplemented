@@ -842,30 +842,57 @@ made in `game/` as presentation and never as a rule:
 - **Panels** (`vid_keep_a_panel_in_view`, `VidViewPanel`): bands of the
   screen's lines shown at lines of the view's own over the camera's picture,
   whole as the original draws them (every layer, sprite, window and colour),
-  stated each frame.
+  stated each frame. A band may have a run of its dots cut from inside it
+  (`cut_at`, `cut_dots`), and lines past the screen's show black.
+- **A drawn panel** (`vid_draw_a_panel_in_view`, `VidDrawnPanel`): a window
+  laid out again, which the screen has no room for. Its lines take the
+  looks of a band of the screen's (colours, windows, colour math, spread
+  over them) and draw their own layers from the panel's own memory: VRAM as
+  the game's sends left it, with that frame's `vid_send_panel_vram` sends
+  over it, which nothing else shows and the game never reads back.
 - **The renderer** draws the original's screen into its own buffer and
-  composes the view from it, a line at a time from the camera or a panel.
+  composes the view from it, a line at a time from the camera or a panel,
+  then draws the drawn panel's lines.
 - **The field** (`field/camera.c`) follows the party leader, where it can be
   seen on the screen, or the screen's middle (a scene the scripts pan to);
   the field's own screen already follows the leader and stops at the room's
-  edges. The dialog window is a panel at the view's top or bottom, opening
-  from its middle as on the screen (`field_dialog_window_band`), and the
-  camera frames the leader in the 80 lines it leaves. The window shows its
-  240 dots of text area and loses its side borders: its lines of text reach
-  240 dots (measured over six dialog-heavy movies), so a 240-dot window with
-  borders would cut them.
+  edges. The camera keeps its lines clear of the screen's own dialog band,
+  which the view shows elsewhere (`ViewLines.clear_of`).
+- **The dialog window** (`field/dialog_box.c`) is drawn afresh at the view's
+  top or foot, 240 dots across with both borders. Its lines of text reach
+  240 dots (measured over six dialog-heavy movies), so a line that passes
+  the narrower window's reach is set again: the paragraph it is in (a
+  speaker's lines, indented under the first) has its words set again
+  across its lines, a word going on to the next line where it would pass.
+  Measured over the 5,266 pages of the dialog's 4,411 strings (the pack's
+  text and the font's widths), 856 pages are set again and 189 then need
+  more than four lines: 150 need one more, 34 two and 3 three, and two
+  staff-roll-like strings far more. The game types the page as it does at
+  256x224, a glyph a frame, into its own tiles. The window reads them back
+  each frame, finding words where the ink leaves a gap a space wide, so
+  names and items set into the text break as their glyphs do. While the
+  page is being typed the window shows four lines, the newest at its foot.
+  Once the page waits for the player, it grows to show every line. It opens
+  and shuts from its middle as the screen's band does. The game's text,
+  timing and inputs are unchanged.
 - **A battle** (`battle/camera.c`) keeps the battle window's 48 lines whole
-  at the view's foot and centres the box round the combatants in the fight in
-  the 112 lines above.
-- **The menus** (`menu/camera.c`) follow the cursor: their screens are 224
-  dots across, which fit, and up to 200 lines down, of which the view shows
-  160, the rest coming into view as the cursor goes to it. The world map is
-  framed at its middle.
+  at the view's foot, with two of its columns cut from inside a window so
+  both borders show. The two cut are the middle pair that holds no text and
+  sits in the frames' repeating pattern. The camera centres the box round
+  the combatants in the fight in the 112 lines above.
+- **The menus** (`menu/camera.c`) follow the cursor up and down. Their
+  screens keep within 224 dots across, which fit, and run up to 200 lines
+  down, of which the view shows 160 (laying out the others again is issue
+  #468). The naming screen is laid out again as bands of its lines: the
+  name's window, every row of letters with most of the blank lines between
+  them left out (the cursor's row with room for its hand), and the letters'
+  window's foot. While the first naming's instructions are up, they are
+  kept whole in their place. The world map is framed at its middle.
 
 `tools/wide_check.py --view 240x160` plays the gate movies at 256x224 and
 240x160 and compares the whole end state: all 59 end the same. The long
 batch runs it (`handheld`); `video_test` checks the camera's hold, the
-composed view and a panel's one frame.
+composed view, a panel's one frame and a cut panel.
 The GBA build still shows the fixed middle of the screen ("The GBA build, as
 built"); following the same camera there is issue #366.
 

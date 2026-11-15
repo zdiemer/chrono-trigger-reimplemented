@@ -9,17 +9,19 @@
 #include "overworld/setup.h"
 #include "vars.h"
 
-/* The cursor's place is its hand's top left; the camera keeps what it
- * points at, a little right of it and below, in frame. */
-enum { POINTED_AT_RIGHT = 16, POINTED_AT_BELOW = 4 };
+/* The cursor's place is its hand's top left; the camera keeps the line it
+ * points at, a little below it, in frame. Across, the screens keep within
+ * 224 dots of the middle, which a view 240 across shows whole, so the camera
+ * stays in the middle. */
+enum { POINTED_AT_BELOW = 4 };
 
 static ViewFocus what_the_player_follows(const GameState *g)
 {
+    ViewFocus middle = view_screen_middle();
     if (overworld_on_a_world_map(g) || !menu_cursor_can_be_placed(g))
-        return view_screen_middle();
+        return middle;
     uint8_t at = menu_cursor_index(g);
-    return (ViewFocus){ (int16_t)(menu_cursor_places_x(g, at) + POINTED_AT_RIGHT),
-                        (int16_t)(menu_cursor_places_y(g, at) + POINTED_AT_BELOW) };
+    return (ViewFocus){ middle.x, (int16_t)(menu_cursor_places_y(g, at) + POINTED_AT_BELOW) };
 }
 
 /* ---- The naming ------------------------------------------------------------------------------ *

@@ -534,10 +534,10 @@ static void laid_out_panel(void)
 /* A smaller view: the camera starts in the screen's middle and is held to
  * the screen; the view shows the screen from where it is aimed, and a panel
  * kept in view shows its lines where the view says, over the camera's
- * picture, for that frame alone. */
+ * picture, for that frame alone, a run of its dots cut where it says. */
 static void smaller_view(void)
 {
-    enum { WIDTH = 240, HEIGHT = 160, X = 100, Y = 50 };
+    enum { WIDTH = 240, HEIGHT = 160, X = 100, Y = 50, CUT_ROW = 20 };
     Platform pf = {0};
     vid_host_start(&pf, NULL, NULL);
     vid_host_frame_begins(&pf);
@@ -564,7 +564,9 @@ static void smaller_view(void)
         oam[4 * n + 1] = VID_OAM_HIDDEN_Y;
     oam[0] = X, oam[1] = Y;
     vid_send_oam(&pf, PF_AT(0), (PfData){ .ptr = oam }, NULL);
-    vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ Y, 8, 8, HEIGHT - 8 });
+    vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ .top = Y, .lines = 8, .left = 8, .at = HEIGHT - 8 });
+    /* the same lines again, from the screen's left, 16 dots cut from 10 on */
+    vid_keep_a_panel_in_view(&pf, &(VidViewPanel){ .top = Y, .lines = 8, .at = CUT_ROW, .cut_at = 10, .cut_dots = 16 });
     const VidFrame *f = vid_host_picture(&pf);
     CHECK(vid_render_width(f) == WIDTH && vid_render_height(f) == HEIGHT);
 
@@ -577,6 +579,7 @@ static void smaller_view(void)
     CHECK(pixels[10 * WIDTH + X - 8] == backdrop);
     CHECK(pixels[9 * WIDTH + X - 16] == backdrop);
     CHECK(pixels[(HEIGHT - 8) * WIDTH + X - 8] == sprite && pixels[(HEIGHT - 9) * WIDTH + X - 8] == backdrop);
+    CHECK(pixels[CUT_ROW * WIDTH + X - 16] == sprite && pixels[CUT_ROW * WIDTH + X - 17] == backdrop);
 
     vid_host_frame_begins(&pf);
     f = vid_host_picture(&pf);
