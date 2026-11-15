@@ -978,8 +978,9 @@ typedef struct {
 
 static Layer layers[4];
 static Cache caches[CACHES];
-static uint8_t roles[BLOCKS];
-static uint8_t taken[PLACES / 8];   /* the 32-byte places of background VRAM a map or a tile has */
+/* in fast RAM, which has the room work RAM hasn't beside Mode 7's table of lines */
+static uint8_t roles[BLOCKS] IN_FAST_RAM;
+static uint8_t taken[PLACES / 8] IN_FAST_RAM;   /* the 32-byte places of background VRAM a map or a tile has */
 static uint32_t misses, layout_misses;
 static uint16_t frames_since_layout;
 
