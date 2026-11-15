@@ -4,6 +4,7 @@
 #include "charge.h"
 #include "core/view_framing.h"
 #include "menu/cursor.h"
+#include "menu/item_screen.h"
 #include "menu/load_screen.h"
 #include "menu/main_menu.h"
 #include "menu/menu.h"
@@ -128,11 +129,13 @@ static bool naming_bands(const GameState *g, Bands *b)
  * between a window's edge and its first or last line of text left out, and
  * the blank lines both columns share where a screen has two. Where that still
  * leaves more lines than the view has, one window's insides (the run marked
- * `follows`) show as many of their lines as are over, round the cursor's
- * place when it is in them and from their top when it isn't, the other
- * windows whole above and below them. The runs were measured on the screens
- * as the original draws them; the hand stands at most two lines above its
- * place and reaches 14 below it. */
+ * `follows`) show the most of their lines the view has room for, round the
+ * cursor's place when it is in them and from their top when it isn't, the
+ * other windows whole above and below them. Those lines start and end only
+ * where both columns are between rows of text (the layout's `cuts`), so no
+ * row is shown sliced; what room is over shows black. The runs were
+ * measured on the screens as the original draws them; the hand stands at
+ * most two lines above its place and reaches 14 below it. */
 typedef struct {
     uint8_t top, end;
     bool follows;
@@ -141,9 +144,12 @@ typedef struct {
 typedef struct {
     const KeptLines *runs;
     uint8_t count;
+    const uint8_t *cuts;   /* the lines its run that follows may start or end at, in order */
+    uint8_t cut_count;
 } WindowedLayout;
 
-#define LAYOUT(runs) { runs, (uint8_t)(sizeof runs / sizeof runs[0]) }
+#define LAYOUT(runs) { runs, (uint8_t)(sizeof runs / sizeof runs[0]), NULL, 0 }
+#define FOLLOWING(runs, cuts) { runs, (uint8_t)(sizeof runs / sizeof runs[0]), cuts, (uint8_t)sizeof cuts }
 
 /* The items: the options, the item's description, and the list beside the
  * party, which follows the cursor. */
@@ -153,16 +159,28 @@ typedef struct {
 static const KeptLines ITEMS_RUNS[] = {
     KEEP(16, 20), KEEP(23, 42), KEEP(43, 52), KEEP(55, 71), KEEP(75, 84), FOLLOW(84, 204), KEEP(204, 208),
 };
-/* The techs: the members down the left beside the tabs and the list, which
- * follow the cursor (the list scrolls a line at a time, so no line inside
- * it is always blank), and the tech's description. */
+/* Between the list's rows, 12 lines apart; while a window stands beside the
+ * list (the members an item is used on, or who can equip it), only where
+ * the list's rows and the window's (the members' 40 lines apart) are both
+ * between rows. */
+static const uint8_t ITEMS_CUTS[] = { 84, 98, 110, 122, 134, 146, 158, 170, 182, 194, 204 };
+static const uint8_t ITEMS_BESIDE_MEMBERS_CUTS[] = { 84, 121, 204 };
+/* Under the main menu's window: the options and the list beside the party
+ * whole, the description (which the panel leaves blank) left out. */
+static const KeptLines MAIN_MENU_ITEMS_RUNS[] = {
+    KEEP(16, 20), KEEP(23, 42), KEEP(43, 48), KEEP(80, 208),
+};
+/* The techs: the members down the left beside the tabs and the list, the
+ * blank lines at the top of their windows left out, and the tech's
+ * description. Nothing inside the list is left out: it scrolls a line at a
+ * time, so no line inside it is always blank. */
 static const KeptLines TECHS_RUNS[] = {
-    KEEP(16, 20), FOLLOW(20, 156), KEEP(156, 166), KEEP(176, 192), KEEP(203, 208),
+    KEEP(16, 19), KEEP(22, 156), KEEP(156, 163), KEEP(179, 190), KEEP(204, 208),
 };
 /* The settings: the icons down the left, the chosen setting's choices down
  * the right, and its name at the foot. */
 static const KeptLines SETTINGS_RUNS[] = {
-    KEEP(16, 19), KEEP(22, 48), KEEP(56, 72), KEEP(80, 108), KEEP(112, 144), KEEP(148, 170), KEEP(172, 180), KEEP(183, 201), KEEP(204, 208),
+    KEEP(16, 18), KEEP(22, 48), KEEP(56, 72), KEEP(80, 108), KEEP(112, 144), KEEP(148, 170), KEEP(172, 180), KEEP(183, 201), KEEP(204, 208),
 };
 /* The saves to load: New Game and the three slots, each its edges and its
  * line with the hand beside it, and the slot's summary, the place and time
@@ -176,6 +194,8 @@ static const KeptLines LOAD_RUNS[] = {
 static const KeptLines LOAD_ERASING_RUNS[] = {
     SLOT(8), KEEP(40, 118), KEEP(118, 125), KEEP(133, 136), FOLLOW(136, 214),
 };
+/* the summary's first row of each column, or all of it */
+static const uint8_t LOAD_ERASING_CUTS[] = { 136, 160, 214 };
 /* Saving: the three slots whole as far as the third's line and hand, where
  * the question whether to save over a game stands beside them, and the
  * summary. */
@@ -183,21 +203,46 @@ static const KeptLines SAVE_RUNS[] = {
     KEEP(16, 106), KEEP(109, 112), KEEP(128, 131), KEEP(134, 152), KEEP(160, 201), KEEP(204, 208),
 };
 #undef SLOT
+/* The equipment: the members and the clock down the left beside the
+ * member's portrait, equipment and figures, which follow the cursor. The
+ * two columns' rows are 8 and 12 lines apart, so they are both between rows
+ * only here and there: the window shows down to the figures' last row, the
+ * clock and the experience below it out of view. */
+static const KeptLines EQUIPMENT_RUNS[] = { FOLLOW(16, 208) };
+static const uint8_t EQUIPMENT_CUTS[] = { 16, 72, 104, 112, 116, 152, 164, 176, 184, 200, 208 };
+/* Exchanging the party: three members' windows and the window to exchange
+ * them, each its edges and its rows. At the gate, the members both sides
+ * and the question in the fourth window, a line less of each edge. */
+#define MEMBER_WINDOW(t) KEEP(t, (t) + 2), KEEP((t) + 7, (t) + 41), KEEP((t) + 46, (t) + 48)
+static const KeptLines EXCHANGE_RUNS[] = {
+    MEMBER_WINDOW(16), MEMBER_WINDOW(64), MEMBER_WINDOW(112), KEEP(160, 163), KEEP(172, 190), KEEP(204, 208),
+};
+static const KeptLines EXCHANGE_AT_THE_GATE_RUNS[] = {
+    MEMBER_WINDOW(16), MEMBER_WINDOW(64), MEMBER_WINDOW(112), MEMBER_WINDOW(160),
+};
+#undef MEMBER_WINDOW
 /* A shop: the description, the list beside what is bought or sold, which
  * follows the cursor, and the party with room for its jump. */
 static const KeptLines SHOP_RUNS[] = {
     KEEP(8, 12), KEEP(16, 30), KEEP(35, 46), FOLLOW(46, 146), KEEP(146, 214),
 };
+/* between the list's rows where the windows beside it have a gap too */
+static const uint8_t SHOP_CUTS[] = { 46, 60, 72, 84, 96, 120, 144, 146 };
 #undef KEEP
 #undef FOLLOW
 
-static const WindowedLayout ITEMS_LAYOUT = LAYOUT(ITEMS_RUNS);
+static const WindowedLayout ITEMS_LAYOUT = FOLLOWING(ITEMS_RUNS, ITEMS_CUTS);
+static const WindowedLayout ITEMS_BESIDE_MEMBERS_LAYOUT = FOLLOWING(ITEMS_RUNS, ITEMS_BESIDE_MEMBERS_CUTS);
+static const WindowedLayout MAIN_MENU_ITEMS_LAYOUT = LAYOUT(MAIN_MENU_ITEMS_RUNS);
 static const WindowedLayout TECHS_LAYOUT = LAYOUT(TECHS_RUNS);
 static const WindowedLayout SETTINGS_LAYOUT = LAYOUT(SETTINGS_RUNS);
 static const WindowedLayout LOAD_LAYOUT = LAYOUT(LOAD_RUNS);
-static const WindowedLayout LOAD_ERASING_LAYOUT = LAYOUT(LOAD_ERASING_RUNS);
+static const WindowedLayout LOAD_ERASING_LAYOUT = FOLLOWING(LOAD_ERASING_RUNS, LOAD_ERASING_CUTS);
 static const WindowedLayout SAVE_LAYOUT = LAYOUT(SAVE_RUNS);
-static const WindowedLayout SHOP_LAYOUT = LAYOUT(SHOP_RUNS);
+static const WindowedLayout SHOP_LAYOUT = FOLLOWING(SHOP_RUNS, SHOP_CUTS);
+static const WindowedLayout EQUIPMENT_LAYOUT = FOLLOWING(EQUIPMENT_RUNS, EQUIPMENT_CUTS);
+static const WindowedLayout EXCHANGE_LAYOUT = LAYOUT(EXCHANGE_RUNS);
+static const WindowedLayout EXCHANGE_AT_THE_GATE_LAYOUT = LAYOUT(EXCHANGE_AT_THE_GATE_RUNS);
 
 /* The main menu's window, its icons and their arrows, over the panel of the
  * option the cursor is on, which is that option's screen. */
@@ -207,9 +252,11 @@ enum { HAND_ABOVE = 2, HAND_BELOW = 14 };
 static const WindowedLayout *layout_of_the_option(uint8_t option)
 {
     switch ((MainMenuOption)option) {
-    case MAIN_MENU_ITEMS: return &ITEMS_LAYOUT;
+    case MAIN_MENU_EQUIPMENT: return &EQUIPMENT_LAYOUT;
+    case MAIN_MENU_ITEMS: return &MAIN_MENU_ITEMS_LAYOUT;
     case MAIN_MENU_TECHS: return &TECHS_LAYOUT;
     case MAIN_MENU_SETTINGS: return &SETTINGS_LAYOUT;
+    case MAIN_MENU_EXCHANGE: return &EXCHANGE_LAYOUT;
     default: return NULL;
     }
 }
@@ -228,35 +275,46 @@ static const WindowedLayout *windowed_layout(const GameState *g, int *focus_top,
         *focus_top = MAIN_MENU_WINDOW_TOP;
         *focus_end = MAIN_MENU_WINDOW_END;
         return layout_of_the_option(menu_cursor_index(g));
-    case MENU_SCREEN_ITEMS: return &ITEMS_LAYOUT;
+    case MENU_SCREEN_EQUIPMENT: return &EQUIPMENT_LAYOUT;
+    case MENU_SCREEN_ITEMS:
+        return menu_items_window_beside_the_list(g) ? &ITEMS_BESIDE_MEMBERS_LAYOUT : &ITEMS_LAYOUT;
     case MENU_SCREEN_TECHS: return &TECHS_LAYOUT;
     case MENU_SCREEN_SETTINGS: return &SETTINGS_LAYOUT;
     case MENU_SCREEN_SAVE:
     case MENU_SCREEN_SAVE_POINT: return &SAVE_LAYOUT;
     case MENU_SCREEN_LOAD: return menu_load_screen_asks_to_erase(g) ? &LOAD_ERASING_LAYOUT : &LOAD_LAYOUT;
     case MENU_SCREEN_SHOP: return &SHOP_LAYOUT;
+    case MENU_SCREEN_EXCHANGE: return &EXCHANGE_LAYOUT;
+    case MENU_SCREEN_EXCHANGE_AT_THE_GATE: return &EXCHANGE_AT_THE_GATE_LAYOUT;
     default: return NULL;
     }
 }
 
-/* The run that follows: `room` of its lines, round the focus where it lies
- * in them (the focus whole where it fits), else from its top. */
-static int first_line_shown(KeptLines run, int room, int focus_top, int focus_end)
+/* The run that follows: the most of its lines between two of the layout's
+ * cuts that `room` holds, holding the focus where it lies in the run (the
+ * whole of it, or failing that the line the cursor points at), else from
+ * the run's top; false where no two cuts are near enough. */
+static bool lines_between_cuts(const WindowedLayout *layout, int room, int from_at_least, int to_at_least,
+                               int *top, int *end)
 {
-    int top = run.top;
+    int most = 0;
+    for (unsigned i = 0; i < layout->cut_count; i++)
+        for (unsigned j = i + 1; j < layout->cut_count; j++) {
+            int from = layout->cuts[i], to = layout->cuts[j];
+            if (from <= from_at_least && to_at_least <= to && to - from <= room && to - from > most)
+                most = to - from, *top = from, *end = to;
+        }
+    return most > 0;
+}
+
+static bool lines_shown(const WindowedLayout *layout, KeptLines run, int room, int focus_top, int focus_end,
+                        int *top, int *end)
+{
     if (focus_end <= run.top || focus_top >= run.end)
-        return top;
-    int middle = (focus_top + focus_end) / 2;
-    top = middle - room / 2;
-    if (top > focus_top)
-        top = focus_top;
-    if (top + room < focus_end)
-        top = focus_end - room;
-    if (top + room > run.end)
-        top = run.end - room;
-    if (top < run.top)
-        top = run.top;
-    return top;
+        return lines_between_cuts(layout, room, run.top, run.top, top, end);
+    int pointed_at = focus_top + HAND_ABOVE + POINTED_AT_BELOW;
+    return lines_between_cuts(layout, room, focus_top, focus_end, top, end) ||
+           lines_between_cuts(layout, room, pointed_at, pointed_at + 1, top, end);
 }
 
 /* The layout's bands for a view `height` lines tall, false where they
@@ -324,8 +382,10 @@ static bool bands_of_the_windows(const WindowedLayout *layout, int height, int f
         if (lines <= room) {
             band(b, runs[k].top, runs[k].end);
         } else {
-            int top = first_line_shown(runs[k], room, focus_top, focus_end);
-            band(b, top, top + room);
+            int top, end;
+            if (!lines_shown(layout, runs[k], room, focus_top, focus_end, &top, &end))
+                return false;
+            band(b, top, end);
         }
     }
     return bands_lines(b) <= height;

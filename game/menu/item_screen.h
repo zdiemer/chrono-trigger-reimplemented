@@ -84,6 +84,9 @@ void menu_items_back_to_the_list_unchanged(GameState *g);
  * window over the list; any button closes it. */
 void menu_items_show_users(GameState *g, Platform *pf);
 bool menu_items_users_closed(const GameState *g);
+/* Whether a window stands beside the list: the members an item is used on,
+ * or who can equip it. */
+bool menu_items_window_beside_the_list(const GameState *g);
 void menu_items_close_users(GameState *g);
 
 /* The party's items sorted, the list drawn again and the cursor back on the
