@@ -8,14 +8,16 @@
  * fiber's stack starts as if it had been switched away from at the call into
  * fiber_body. Snapshots aren't kept on the GBA: fiber_snapshot answers 0.
  *
- * The slots' stacks are sized from the deepest use the native build measures
- * (docs/PLATFORM.md, "Memory, stacks and per-frame work against small
- * targets") and the GBA's own (ct_gba reports it at its end). The first
- * slot is the first fiber's, the game's main thread (made once, before any
- * task), which goes deepest; the tasks' slots are smaller, which leaves fast
- * RAM to the code that runs most. The lowest GUARD_BYTES of each stay zero
- * while no fiber goes that deep, and a switch away from a fiber that has
- * gone into them stops the program, saying so. */
+ * The slots' stacks are sized from the GBA's own deepest use (ct_gba reports
+ * it at its end) over the whole movie library, 84 movies played in mGBA:
+ * 1,844 bytes in the main thread's (`battle-rust-tyrano`) and 712 in a
+ * task's (`menus-sweep`, with all eight running). The first slot is the
+ * first fiber's, the game's main thread (made once, before any task), which
+ * goes deepest; the tasks' slots are smaller, which leaves fast RAM to the
+ * code that runs most. Each keeps a third or more of its room above the
+ * deepest use (652 and 248 bytes) for the paths no movie takes. The lowest
+ * GUARD_BYTES of each stay zero while no fiber goes that deep, and a switch
+ * away from a fiber that has gone into them stops the program, saying so. */
 #include "port/fiber.h"
 
 #include "system/fiber.h"
@@ -25,7 +27,7 @@
 #include <string.h>
 
 enum {
-    MAIN_STACK_SIZE = 3072, TASK_STACK_SIZE = 1536, FIBER_SLOTS = 9, GUARD_BYTES = 64,
+    MAIN_STACK_SIZE = 2560, TASK_STACK_SIZE = 1024, FIBER_SLOTS = 9, GUARD_BYTES = 64,
     STACKS_SIZE = MAIN_STACK_SIZE + (FIBER_SLOTS - 1) * TASK_STACK_SIZE,
 };
 
