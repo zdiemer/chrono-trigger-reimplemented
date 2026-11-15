@@ -893,8 +893,8 @@ made in `game/` as presentation and never as a rule:
 240x160 and compares the whole end state: all 59 end the same. The long
 batch runs it (`handheld`); `video_test` checks the camera's hold, the
 composed view, a panel's one frame and a cut panel.
-The GBA build still shows the fixed middle of the screen ("The GBA build, as
-built"); following the same camera there is issue #366.
+The GBA follows the same camera and bands ("The GBA build, as built"); its
+drawn panel and cut are issue #470.
 
 GPU backends must preserve line effects and color math. Smaller targets need measured
 memory and coroutine stack budgets; a callback-based frontend needs an appropriate
@@ -1233,9 +1233,18 @@ mode 0's four tiled layers and its sprites:
   change every frame (a battle's, the jet bike race's), one frame in sixteen
   tries again, since keeping each frame's reads costs more than it saves. The SNES's two windows are the GBA's two; its brightness is the
   GBA's fade to black.
-- **The view** is the middle of the SNES's 256x224 picture, fixed: 8 dots in
-  from the left, 32 lines down. A camera that follows the action, and the
-  windows laid out again for the smaller screen, are issue #366.
+- **The view** is a smaller view, 240x160 ("The smaller view, as built"):
+  the game aims the camera and keeps panels in view as it does natively, and
+  the GBA works the frame's bands out from them (`band_up_the_view`): runs
+  of its lines that each show a run of the SNES's lines from a dot across,
+  or black. The lines are worked out down the SNES's picture, each GBA line
+  given its band's scroll (the band's dot across, and how far its SNES line
+  lies from the GBA's); a sprite takes the band its top line, or its foot's,
+  is in; a line the SNES blanks shows black, not the GBA's white forced
+  blank. Its state is in fast RAM (IWRAM). A drawn panel and a cut aren't
+  drawn yet (issue #470): `vid_view_draws_panels` answers false, so the
+  dialog keeps the screen's band in view, 240 dots of it, and a cut band
+  shows its middle.
 
 Approximated, or not shown yet (each a follow-up of issue #367):
 
