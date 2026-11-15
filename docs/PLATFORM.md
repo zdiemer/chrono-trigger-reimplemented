@@ -1323,7 +1323,13 @@ mode 0's four tiled layers and its sprites:
 - **Sprites**: the SNES's two tables of tiles one under the other in the
   GBA's sprite VRAM (its two-dimensional layout, 32 tiles a row, so that a
   sprite's rows are 16 names apart on both), and the sprite table converted
-  in a frame it changed (sizes, flips, palette, position).
+  in a frame it changed (sizes, flips, palette, position). Each sprite finds
+  the band its top or foot is in from a table of the SNES's lines made once
+  for the frame's sprites, and the size setting's two sizes are the GBA's
+  shapes once a frame, not for each of the 128: over the five movies the
+  movies take 0.1-0.6% fewer GBA frames (`gato-battle` 45,696 against
+  45,951, `events-jetbike-race` 26,217 against 26,372, `menus-sweep`
+  10,856 against 11,045), each frame's sprites the same.
 - **Priority**: each SNES tile stands in front of or behind the sprites by
   its map entry's priority bit, where a GBA layer has one priority. A layer
   whose map has tiles of both is split across two GBA layers, as many as
