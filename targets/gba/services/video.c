@@ -1390,6 +1390,10 @@ void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t 
     if (!panel.drawn || !panel_room.made)
         return;
     uint32_t at = (uint32_t)(vram_addr & 0x7FFF) << 1;
+    if (src.ptr) {
+        panel_bytes_taken(at, src.ptr, len);
+        return;
+    }
     for (uint32_t i = 0; i < len; i += PIECE) {
         uint32_t n = len - i < PIECE ? len - i : PIECE;
         data_bytes(src, i, piece, n);
@@ -1441,13 +1445,13 @@ static bool gba_size(unsigned w, unsigned h, uint16_t *shape, uint16_t *size)
  * (work_out_lines), so the bands must show its lines in their order; a
  * framing that doesn't shows the camera's alone. */
 typedef struct {
-    uint8_t at, lines;
-    uint8_t rows;           /* the SNES's lines it shows: its own lines' count, but the drawn panel's */
-    bool black, drawn;
     int16_t row, left;
     int16_t cut_at;         /* from its dot cut_at on, the SNES's dots cut_dots further on */
+    uint8_t at, lines;
+    uint8_t rows;           /* the SNES's lines it shows: its own lines' count, but the drawn panel's */
     uint8_t cut_dots;
-} Band;
+    bool black, drawn;
+} Band;                     /* no padding: the bands are hashed */
 enum { MOST_BANDS = 2 * (VID_VIEW_PANELS + 1) + 1 };
 static Band bands[MOST_BANDS] IN_FAST_RAM;
 static uint8_t band_count IN_FAST_RAM;
@@ -1470,7 +1474,7 @@ static int16_t panel_looks(unsigned y)
 
 static Band line_band(unsigned y)
 {
-    Band b = { (uint8_t)y, 1, 1, false, false, (int16_t)(view_aim.top + (int)y), view_aim.left, 0, 0 };
+    Band b = { .row = (int16_t)(view_aim.top + (int)y), .left = view_aim.left, .at = (uint8_t)y, .lines = 1, .rows = 1 };
     if (panel_draws(y)) {
         b.drawn = true;
         b.row = panel_looks(y);
@@ -1520,7 +1524,7 @@ static void band_up_the_view(void)
             row = bands[k].row + bands[k].rows - 1;
         }
     if (!in_order) {
-        bands[0] = (Band){ 0, GBA_VIEW_HEIGHT, GBA_VIEW_HEIGHT, false, false, view_aim.top, view_aim.left, 0, 0 };
+        bands[0] = (Band){ .row = view_aim.top, .left = view_aim.left, .lines = GBA_VIEW_HEIGHT, .rows = GBA_VIEW_HEIGHT };
         band_count = 1;
     }
 }

@@ -45,18 +45,22 @@ enum { MARGIN = 8, INDENT = 0x14, NARROWER = 2 * TILE_DOTS, REACH = LINE_DOTS - 
  * space's 4 dots, where the glyphs' own gaps are narrower. */
 enum { WORD_GAP = 4 };
 
-/* The text area's tiles as the game left them, the last two read kept, each
- * as it shows: one the map turns round across is kept turned round, so a
- * row's first dot is always bit 7 of its two bitplanes' bytes. */
+/* The text area as the game left it: the map's two rows of the last line
+ * read, and the last two tiles read, each as it shows: one the map turns
+ * round across is kept turned round, so a row's first dot is always bit 7
+ * of its two bitplanes' bytes. */
 typedef struct {
     uint16_t entry;
     bool read;
     uint8_t bytes[TILE_BYTES_2BPP];   /* each row's two bitplanes, row after row */
 } TextTile;
+enum { NO_LINE = 0xFF };
 typedef struct {
     uint16_t chars;          /* BG3's tiles */
-    uint8_t older;           /* the one read over next */
+    uint8_t older;           /* the tile read over next */
+    uint8_t line;            /* the line whose map rows are kept, or NO_LINE */
     TextTile tile[2];
+    uint16_t entries[2][COLUMNS];
 } TileReader;
 
 static uint16_t map_entry(const Platform *pf, unsigned row, unsigned column)
@@ -77,7 +81,11 @@ static uint8_t turned_round(uint8_t dots)
 /* The tile at a column of one of the text area's map rows, as it shows. */
 static const uint8_t *text_tile(const Platform *pf, TileReader *t, unsigned row, unsigned column)
 {
-    uint16_t entry = map_entry(pf, row, column);
+    if (t->line != row / 2) {
+        t->line = (uint8_t)(row / 2);
+        vid_read_vram(pf, (uint16_t)(DIALOG_TEXT_AREA_MAP + t->line * 2 * COLUMNS), t->entries[0], 2 * COLUMNS);
+    }
+    uint16_t entry = t->entries[row % 2][column];
     for (unsigned k = 0; k < 2; k++)
         if (t->tile[k].read && t->tile[k].entry == entry) {
             t->older = (uint8_t)(1 - k);
@@ -432,7 +440,7 @@ ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView
     uint16_t middle_line = (uint16_t)(band.middle + 1);
     vid_layer_last_shown(pf, VID_BG1, middle_line, &frame_layer);
     vid_layer_last_shown(pf, VID_BG3, middle_line, &text_layer);
-    TileReader t = { text_layer.char_base, 0, { { 0, false, { 0 } }, { 0, false, { 0 } } } };
+    TileReader t = { .chars = text_layer.char_base, .line = NO_LINE };
     Page page;
     set_the_page(pf, &t, !field_choice_pointer_shown(g), &page);
     unsigned first, lines = lines_shown(g, &page, view, &first);
