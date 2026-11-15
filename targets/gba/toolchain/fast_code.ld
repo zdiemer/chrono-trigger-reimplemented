@@ -18,6 +18,4 @@
 *(.text.asset_read8 .text.asset_read8.*)
 *(.text.cartridge_address .text.cartridge_address.*)
 *libgcc.a:_udivsi3.o(.text)
-*libc.a:libc_a-memcpy-stub.o(.text)
-*libc.a:libc_a-memset.o(.text)
 *libc.a:libc_a-memcmp.o(.text)
