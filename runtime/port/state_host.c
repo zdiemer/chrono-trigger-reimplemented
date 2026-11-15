@@ -374,10 +374,30 @@ void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes)
     wram_fill8(g, at, bytes, 0);
 }
 
+/* Work RAM's own banks, $7E and $7F, which a fill reaches in runs of the
+ * storage rather than a write at a time. */
+enum { BANK_BYTES = 0x10000 };
+static bool in_work_ram_banks(uint32_t at)
+{
+    uint8_t bank = (uint8_t)(at >> 16);
+    return bank == 0x7E || bank == 0x7F;
+}
+
 void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 {
-    for (uint32_t i = 0; i < bytes; i++)
-        state_host_write8(g, in_bank(at, i), v);
+    if (!in_work_ram_banks(at)) {
+        for (uint32_t i = 0; i < bytes; i++)
+            state_host_write8(g, in_bank(at, i), v);
+        return;
+    }
+    /* to the bank's end, then round to its start */
+    at &= 0xFFFFFF;
+    while (bytes) {
+        uint32_t room = BANK_BYTES - (at & 0xFFFF), n = bytes < room ? bytes : room;
+        vars_host_fill_span(&g->head.vars, at, v, n);
+        bytes -= n;
+        at &= 0xFF0000;
+    }
 }
 
 void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v)
@@ -394,8 +414,14 @@ static uint32_t through_the_port(uint32_t at, uint32_t i) { return WORK_RAM + (a
 
 void wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 {
-    for (uint32_t i = 0; i < bytes; i++)
-        state_host_write8(g, through_the_port(at, i), v);
+    /* to $7F's end, then round to $7E's start */
+    at %= WORK_RAM_SPAN;
+    while (bytes) {
+        uint32_t room = WORK_RAM_SPAN - at, n = bytes < room ? bytes : room;
+        vars_host_fill_span(&g->head.vars, WORK_RAM + at, v, n);
+        bytes -= n;
+        at = 0;
+    }
 }
 
 void wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes)
