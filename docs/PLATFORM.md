@@ -1338,8 +1338,50 @@ mode 0's four tiled layers and its sprites:
   by a hash, kept in fast RAM) keeps the last frame's changes rather than working them
   out again; a frame the layout was made in works them out. Where the tables
   change every frame (a battle's, the jet bike race's), one frame in sixteen
-  tries again, since keeping each frame's reads costs more than it saves. The SNES's two windows are the GBA's two; its brightness is the
-  GBA's fade to black.
+  tries again, since keeping each frame's reads costs more than it saves.
+  A line effect that sets the mode down the picture (the jet bike race's
+  scenery in mode 1 above its track in Mode 7) has the layout made for the
+  mode the lines other than Mode 7 show, not the mode set. The SNES's two
+  windows are the GBA's two; its brightness is the GBA's fade to black.
+- **Colour math with the fixed colour** (the sub screen added where it has
+  no layer on it is the fixed colour too, which is how the game does most
+  of it: the dialog's and the battle window's shading, the race's fog at
+  its horizon, a scene's fall into darkness): on the backdrop it is worked
+  out exactly; on layers, where the colour is a grey, it is the GBA's
+  brightening or darkening of them by sixteenths, a grey of k added
+  brightening by 16k/24 (against a window's dark colours, 7 of 31) and
+  subtracted darkening by 16k/20 (against a scene's brighter ones). A line where only
+  the colour math changed takes the last change's registers with its
+  blending, and where only its strength (BLDY) changed it is no change at
+  all: DMA copies each line's strength in the horizontal blank above it
+  (a 320-byte table in fast RAM), so the shading's step every few lines
+  costs no interrupt. In a battle with Gato the window's shading took the
+  frame's changes from 19 to 8.
+- **Mode 7**: the GBA's affine layer (BG2 in its mode 2) reads a 128x128
+  map of bytes and 256 tiles of 8-bit pixels as the SNES's plane does, so a
+  layout made while a line shows Mode 7 keeps the GBA's first 32 KiB of
+  background VRAM for it, the SNES's first 32 KiB split into the tiles
+  (char block 0) and the map (screen block 8) as the units change, and the
+  tiles' caches take the rest. A layer no screen shows whose map lies there
+  is left out; one shown there leaves the plane unshown. The upper 128 of
+  the GBA's background colours are the SNES's own where no 2bpp layer needs
+  them for its copies. A Mode 7 line is the GBA's mode 2 with the plane on
+  its third layer; the plane's matrix and its point at each line's left end
+  are worked out as the native renderer does (`plane_line`) into a table of
+  the 160 lines, those no change sets stepped from the line above by the
+  matrix's second column as the GBA would, and DMA copies each line's into
+  the affine registers in the horizontal blank above it. The race's
+  perspective changes its matrix every line; as changes, two interrupts a
+  line, its picture took 1.67 GBA frames a frame, with the table 1.17. What
+  lies outside the plane is the plane again or nothing, at the priority
+  between the sprites of priority 1 and 0. A layout made while no line
+  shows Mode 7 gives the room back. The title's clock hands and the race's
+  track are Mode 7. The screen's whole state as a mode sets it up
+  (`vid_apply_screen`) includes Mode 7's, the windows and the colour math,
+  as natively (the GBA's had left them as they stood).
+- **A frame's changes stop at its 160 lines**: a change a line on every
+  band line with the black bands' changes beside them can ask for more,
+  and past the list they would write over what follows it in work RAM.
 - **The view** is a smaller view, 240x160 ("The smaller view, as built"):
   the game aims the camera and keeps panels in view as it does natively, and
   the GBA works the frame's bands out from them (`band_up_the_view`): runs
@@ -1392,7 +1434,7 @@ mode 0's four tiled layers and its sprites:
   spare; in the busier screens at the Millennial Fair they are still full
   during a dialog, as they were before it.
 
-Approximated, or not shown yet (each a follow-up of issue #367):
+Approximated, or not shown yet (issue #483):
 
 - Per-tile priority where more layers have tiles of both priorities than
   the GBA has layers to spare: the field, with three layers that have them,
@@ -1402,14 +1444,22 @@ Approximated, or not shown yet (each a follow-up of issue #367):
   split takes its copies' room from the tile caches.
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it.
-- Colour math: the fixed colour added to or subtracted from the backdrop is
-  kept, and the sub screen added to the main screen is the GBA's blending at
-  full weight where the sub screen's layers are on the main screen too;
-  subtraction from layers, a sub screen of its own and the colour window
-  aren't. The field's dialog box shows black where the SNES has its blue
-  gradient.
-- Mode 7 (the opening's scenes, the jet bike race), the hands of the title's clock, mode
-  2's offset-per-column, mosaic, and mode 0's fourth layer aren't shown.
+- Colour math: the fixed colour on layers is a grey's brightening or
+  darkening (above), so a colour that isn't a grey isn't added to layers,
+  and the shading is near the SNES's rather than its own: the dialog's
+  window a few steps lighter or darker at its edges than natively, the
+  race's fog a little deeper. The sub
+  screen added to the main screen is the GBA's blending at full weight
+  where the sub screen's layers are on the main screen too; a sub screen's
+  layers subtracted, a sub screen of its own and the colour window aren't
+  (colour math the colour window limits isn't done: the time warp shows its
+  waves without the glow).
+- Mode 7: tile 0 outside the plane shows as nothing; EXTBG's second layer,
+  the plane's mosaic and direct colour aren't shown; a frame whose plane's
+  room was not yet made (the first frame a line shows Mode 7) shows its
+  sprites alone on those lines. Mode 2's offset-per-column (the clouds
+  before the Ocean Palace in the attract sequence show black), mosaic, and
+  mode 0's fourth layer aren't shown.
 - Where both windows cover a dot, the GBA shows window 1's choice.
 - A sprite whose tiles run past a SNES tile table's row or table end takes
   the next row's on the GBA.

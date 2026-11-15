@@ -38,7 +38,7 @@ frames of work a frame, and plays the sound on its own mixer (the mixing
    (#424), its sends' span reads going a byte at a time through the address
    view (#425, the host's only). Hot code goes into fast RAM where it
    pays.
-2. **The rest of the video (issue #367),** the effects "The GBA build, as
+2. **The rest of the video (issue #483),** the effects "The GBA build, as
    built" lists as approximated, then **the 240x160 view (issue #366):**
    decided, a camera crops the original's picture and the windows are laid
    out again for the smaller screen; nothing is scaled.
