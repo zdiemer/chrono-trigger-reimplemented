@@ -1327,7 +1327,7 @@ mode 0's four tiled layers and its sprites:
   the band its top or foot is in from a table of the SNES's lines made once
   for the frame's sprites, and the size setting's two sizes are the GBA's
   shapes once a frame, not for each of the 128: over the five movies the
-  movies take 0.1-0.6% fewer GBA frames (`gato-battle` 45,696 against
+  movies take 0.1-1.7% fewer GBA frames (`gato-battle` 45,696 against
   45,951, `events-jetbike-race` 26,217 against 26,372, `menus-sweep`
   10,856 against 11,045), each frame's sprites the same.
 - **Priority**: each SNES tile stands in front of or behind the sprites by
