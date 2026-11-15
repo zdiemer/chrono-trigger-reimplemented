@@ -1354,7 +1354,20 @@ mode 0's four tiled layers and its sprites:
   transfer of the unit a slot last applied changes nothing), the display's
   change below a line, and the line shown after a change; where only a
   layer's scroll changed, a line's registers are the last change's with
-  its scroll. The line counter's interrupt fires a line above each such line and the
+  its scroll. The walk is kept cheap a line: once a slot's transfer has
+  changed nothing, the rest of a repeating entry's run of the same unit is
+  passed over in one go (a battle's windows and scroll stand still down
+  most of their lines), units are compared a word at a time and applied a
+  transfer at a time, only the slots with transfers left are looked at,
+  and the lines visited whatever the slots do (the display's change, the
+  bands' first lines, the lines a mode asked of) and the band each line
+  is in are found in order rather than searched for at every line. Over
+  `events-jetbike-race` that took the picture from 1.20 GBA frames a frame
+  to 0.94 and the movie from 26,376 GBA frames to 23,926; `gato-battle`
+  0.57 to 0.49 (45,911 to 43,771), `menus-sweep` 0.50 to 0.47 (10,829 to
+  10,643), `new-game` 0.32 to 0.30 (11,238 to 11,144), `title-start` 0.21
+  to 0.20 (2,228 to 2,225), each frame's registers, sprites, palettes and
+  video memory the same. The line counter's interrupt fires a line above each such line and the
   horizontal blank's at its end sets the registers, two interrupts a change
   rather than one a line. A frame whose lines start from what the last
   frame's did (the registers, the slots, the changes below a line, the
