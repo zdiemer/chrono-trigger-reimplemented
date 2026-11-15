@@ -446,36 +446,60 @@ static unsigned rate_search(uint32_t routine)
     return lo < time_rate_count && time_rates[lo].routine == routine ? lo : time_rate_count;
 }
 
-/* The rows the scopes named lately, with their rates as whole clocks and
- * thousandths, so a scope finds its row with one comparison rather than a
- * search of the whole table, and its rate with no division. */
-enum { RECENT = 128 };
+/* A rate as the account keeps it (StateHostAccount.rate): its cost_milli
+ * split into whole clocks and thousandths, so a pricing needs no division. */
+static uint32_t split_rate(uint32_t cost_milli)
+{
+    return cost_milli / 1000u << STATE_HOST_RATE_MILLI_BITS | cost_milli % 1000u;
+}
+static uint32_t rate_clocks(uint32_t rate) { return rate >> STATE_HOST_RATE_MILLI_BITS; }
+static uint32_t rate_milli(uint32_t rate) { return rate & ((1u << STATE_HOST_RATE_MILLI_BITS) - 1u); }
+
+/* The rows the scopes named lately, each with its rate split, so a scope
+ * finds its rate with one comparison rather than a search of the whole
+ * table, and with no division. A row the rates name is marked so (NAMED),
+ * since a named rate may be 0. Outside the lean build each keeps its index
+ * in the table too, for the totals. */
+enum { RECENT = 256, ROW_KEPT = 1u << 24, NAMED = 1u << 31 };
 typedef struct {
-    uint32_t routine, rate;
-    uint16_t index, rate_milli, rate_clocks;
-    bool known;
+    uint32_t key;    /* the routine with ROW_KEPT; 0, none yet */
+    uint32_t rate;   /* its rate split, with NAMED where the rates name it */
+#ifndef CT_LEAN
+    unsigned index;  /* its row in time_rates, or time_rate_count */
+#endif
 } RecentRow;
 static RecentRow recent[RECENT];
 
-static const RecentRow *row_of(uint32_t routine)
+static RecentRow *row_looked_up(RecentRow *r, uint32_t routine)
 {
-    routine &= 0xFFFFFF;
-    RecentRow *r = &recent[(routine ^ routine >> 7 ^ routine >> 14) & (RECENT - 1u)];
-    if (!r->known || r->routine != routine) {
-        unsigned index = rate_search(routine);
-        uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
-        *r = (RecentRow){ routine, rate, (uint16_t)index, (uint16_t)(rate % 1000u), (uint16_t)(rate / 1000u), true };
-    }
+    unsigned index = rate_search(routine);
+    r->key = routine | ROW_KEPT;
+    r->rate = index < time_rate_count ? split_rate(time_rates[index].cost_milli) | NAMED : 0;
+#ifndef CT_LEAN
+    r->index = index;
+#endif
     return r;
 }
 
-static unsigned rate_index(uint32_t routine) { return row_of(routine)->index; }
-
-static void set_rate(GameState *g, const RecentRow *row)
+static inline const RecentRow *row_of(uint32_t routine)
 {
-    g->head.account.rate = row ? row->rate : 0;
-    g->head.account.rate_clocks = row ? row->rate_clocks : 0;
-    g->head.account.rate_milli = row ? row->rate_milli : 0;
+    routine &= 0xFFFFFF;
+    RecentRow *r = &recent[(routine ^ routine >> 7 ^ routine >> 14) & (RECENT - 1u)];
+    return r->key == (routine | ROW_KEPT) ? r : row_looked_up(r, routine);
+}
+
+/* A row's rate split, without its mark; 0 for a routine the rates don't name. */
+static uint32_t row_rate(const RecentRow *r) { return r->rate & ~NAMED; }
+static bool row_named(const RecentRow *r) { return (r->rate & NAMED) != 0; }
+
+static unsigned row_index(const RecentRow *r)
+{
+#ifdef CT_LEAN
+    (void)r;
+    return time_rate_count;
+#else
+    return r->index;
+#endif
 }
 
 /* The work's thousandths of a clock made whole, short of the last clock. */
@@ -507,14 +531,10 @@ static void add_work(GameState *g, uint32_t clocks, uint32_t whole, uint32_t mil
     }
 }
 
+/* `clocks` at a split rate. */
 static void add_work_at(GameState *g, uint32_t clocks, uint32_t rate)
 {
-    add_work(g, clocks, rate / 1000u, rate % 1000u);
-}
-
-static void add_work_as(GameState *g, uint32_t clocks, const RecentRow *row)
-{
-    add_work(g, clocks, row->rate_clocks, row->rate_milli);
+    add_work(g, clocks, rate_clocks(rate), rate_milli(rate));
 }
 
 /* Whether the run keeps the totals; the lean build (CT_LEAN) keeps none. */
@@ -551,6 +571,7 @@ const StateHostTime *state_host_time(const GameState *g, unsigned *count)
     return g->time;
 }
 
+/* `rate` split, as the account keeps it. */
 static void record_work(GameState *g, unsigned index, uint32_t bus, uint32_t charged, uint32_t rate)
 {
 #ifdef CT_LEAN
@@ -560,7 +581,7 @@ static void record_work(GameState *g, unsigned index, uint32_t bus, uint32_t cha
         StateHostTime *t = &g->time[index];
         t->bus_clocks += bus;
         t->charged_clocks += charged;
-        t->milli_clocks += ((uint64_t)bus + charged) * rate;
+        t->milli_clocks += ((uint64_t)bus + charged) * (rate_clocks(rate) * 1000u + rate_milli(rate));
     }
 #endif
 }
@@ -582,7 +603,7 @@ static void price_accesses(GameState *g)
     a->priced = a->raw_bus;
     if (!clocks || a->uncounted)
         return;
-    add_work(g, clocks, a->rate_clocks, a->rate_milli);
+    add_work_at(g, clocks, a->rate);
     record_work(g, g->timed, clocks, 0, a->rate);
 }
 
@@ -594,11 +615,12 @@ void charge_as(GameState *g, uint32_t routine, uint32_t accesses)
 {
     const RecentRow *row = row_of(routine);
     uint32_t clocks = accesses * ACCESS_CLOCKS;
-    if (row->rate) {
-        add_work_as(g, clocks, row);
-        record_work(g, row->index, 0, clocks, row->rate);
+    uint32_t rate = row_rate(row);
+    if (rate) {
+        add_work_at(g, clocks, rate);
+        record_work(g, row_index(row), 0, clocks, rate);
     } else {
-        add_work(g, clocks, g->head.account.rate_clocks, g->head.account.rate_milli);
+        add_work_at(g, clocks, g->head.account.rate);
         record_work(g, g->timed, 0, clocks, g->head.account.rate);
     }
 }
@@ -643,8 +665,9 @@ void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t 
     uint32_t bus = g->head.account.raw_bus - mark;
     g->head.account.raw_bus = g->head.account.priced = mark;
     g->head.account.uncounted--;
-    unsigned index = rate_index(routine);
-    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : g->head.account.rate;
+    const RecentRow *row = row_of(routine);
+    unsigned index = row_index(row);
+    uint32_t rate = row_named(row) ? row_rate(row) : g->head.account.rate;
     uint32_t charged = accesses * ACCESS_CLOCKS;
     add_work_at(g, bus, rate);
     add_work_at(g, charged, rate);
@@ -689,23 +712,49 @@ void vars_peek(const GameState *g, bool on)
     }
 }
 
+/* A tag the rates don't name leaves the work at the rate it was at, as the
+ * machine leaves an attribution to no hand port with the port's own. The
+ * scope's end times the work as the routine before it: at the rate the
+ * scope's start found, which is that routine's row's, or none. The lean
+ * build keeps no totals, so a scope keeps only that rate, split; the others
+ * keep the row, whose totals the work goes to. */
+#ifdef CT_LEAN
+int charge_time_as_begin(GameState *g, uint32_t routine)
+{
+    uint32_t was = g->head.account.rate;
+    uint32_t rate = row_rate(row_of(routine));
+    if (rate && rate != was) {   /* an unchanged rate prices the same later */
+        price_accesses(g);
+        g->head.account.rate = rate;
+    }
+    return (int)was;
+}
+
+void charge_time_as_end(GameState *g, int was)
+{
+    uint32_t rate = (uint32_t)was;
+    if (rate != g->head.account.rate) {
+        price_accesses(g);
+        g->head.account.rate = rate;
+    }
+}
+#else
 /* Whether the accesses counted so far must be priced before the work is
  * timed at `rate`: where the rate stays the same, pricing them now or with
  * the rest of the stretch adds the same thousandths, so only a run that
  * keeps each routine's totals (REPORTING) prices at every scope. */
 static bool reprices(const GameState *g, uint32_t rate) { return rate != g->head.account.rate || REPORTING(g); }
 
-/* A tag the rates don't name leaves the work at the rate it was at, as the
- * machine leaves an attribution to no hand port with the port's own. */
 int charge_time_as_begin(GameState *g, uint32_t routine)
 {
     int was = (int)g->timed;
     const RecentRow *row = row_of(routine);
-    unsigned index = row->index;
-    if (row->rate) {
-        if (reprices(g, row->rate)) {
+    unsigned index = row_index(row);
+    uint32_t rate = row_rate(row);
+    if (rate) {
+        if (reprices(g, rate)) {
             price_accesses(g);
-            set_rate(g, row);
+            g->head.account.rate = rate;
         }
         g->timed = index;
     }
@@ -714,20 +763,17 @@ int charge_time_as_begin(GameState *g, uint32_t routine)
     return was;
 }
 
-/* The scope's end times the work as the routine before it, whose row the
- * scope's start kept: a row the rates name, or none. */
 void charge_time_as_end(GameState *g, int was)
 {
     unsigned index = (unsigned)was;
-    uint32_t rate = index < time_rate_count ? time_rates[index].cost_milli : 0;
+    uint32_t rate = index < time_rate_count ? split_rate(time_rates[index].cost_milli) : 0;
     if (reprices(g, rate)) {
         price_accesses(g);
         g->head.account.rate = rate;
-        g->head.account.rate_clocks = rate / 1000u;
-        g->head.account.rate_milli = rate % 1000u;
     }
     g->timed = index;
 }
+#endif
 
 /* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
 
