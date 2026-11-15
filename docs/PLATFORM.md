@@ -1577,9 +1577,9 @@ rather than a call for each of the S-DSP's 32,000 frames a second). The
 driver's time passes in its timer's steps, but a stretch of them with no
 command on the ports, no echo to wait out and no tick due passes at once
 (`quiet_cycles`): a handful of steps a frame rather than 134, the same ticks
-at the same steps, natively too. The mixer takes however many frames a pass
-brings up to the one each chunk's last sample falls due at, and mixes the
-chunk there. What the
+at the same steps, natively too. The driver's time only sets what the voices
+play; the mix is made in the GBA's time, as the playback asks for it (below,
+"Out"). What the
 driver reads back of the voices and the mix (their settings) is what it set,
 masked as natively, so the game's state is the same; the four movies measured below
 end as ct_native's with the sound playing.
@@ -1604,21 +1604,38 @@ end as ct_native's with the sound playing.
   one word with one multiply a sample. The loops are ARM in fast RAM
   (`services/mix.s`): `mix_wave` adds four samples a turn with the mix's four
   words loaded and stored together, and `to_8_bits` writes each side's
-  bytes four to a word straight into the ring. A game frame's 532.5 S-DSP
-  frames make 224 samples, so a game frame a GBA frame plays its sound in
-  time with it; the chunk falls due by a count of the frames it still needs,
-  so a pass of the driver's time that brings fewer is a subtraction (it was
-  three divisions a pass, which Thumb makes in software).
-- **Out** (`services/direct_sound.c`): a ring of 512 samples a side;
-  timer 0 plays Direct Sound A on the left and B on the right, and timer 1,
-  counting it, interrupts every 16 samples to move the next 16 of each into
-  its FIFO, so the ring wraps anywhere and no DMA restarts. The game's frame
-  takes more than a GBA frame, so the ring runs dry: the FIFOs then get
-  silence until a frame's worth is queued again, and what is heard is the
-  game's sound gapped where it is late. `host/run.py --wav` records what
-  mGBA plays, gaps and all; `--stream` records every sample the program
-  queued, the sound as it plays once the game keeps its time. Neither plays
-  anything aloud.
+  bytes four to a word straight into the ring. A chunk's envelopes step by
+  the S-DSP frames its 32 samples last at 448 samples every 1,065 frames, so
+  a GBA frame's 224 samples are a game frame's 532.5 S-DSP frames.
+- **Out** (`services/direct_sound.c`): the GBA plays the sound by itself.
+  Timer 0 plays Direct Sound A on the left and B on the right from their
+  FIFOs, and DMA 1 and 2 feed the FIFOs from a ring of 448 samples a side
+  (two GBA frames) as they run low, as the hardware's sound DMA does, with
+  no work a sample. Timer 1, counting timer 0, interrupts every quarter of
+  the ring (112 samples): after the last quarter it gives the DMA the ring's
+  start again, with the FIFOs emptied of what it read past the end, and each
+  time it has the mixer fill what was played (`mixer_fill`). The fill runs
+  from the interrupt with the other interrupts on (`gba_interrupt_nested`,
+  `system/nested.s`), on a stack of its own, so the lines' interrupts don't
+  wait behind it, and so the sound is made as fast as it plays whatever the
+  game's frame takes. The driver's calls (`begin_write`) keep the mix from
+  voices half set: an interrupt that comes in one leaves the ring to the
+  next, a quarter on, with three quarters still queued; a song's load writes
+  its bytes unguarded and keeps only the block it then knows from the mix.
+  A quarter about to play that wasn't filled is silence, never the ring's
+  last turn again. So the sound no longer gaps or drops where the game's
+  frame runs long (issue #488): before, the mix was made as the driver's
+  time passed, 224 samples a game frame and bursts in the game's waits on
+  the driver, and a slow game's ring ran dry (21-60% of the time silent in
+  the movies below) and overflowed in the bursts (1.4-5% of the mix
+  dropped). Where the game's frames take longer than the GBA's, the music's
+  steps come as the game's frames do while the notes sound on; at full speed
+  the two are the same. The mixing costs its share of every GBA frame
+  rather than of every game frame: the movies take 0.5-6.1% more GBA frames
+  where the game runs slow, and nothing more once it keeps its time.
+  `host/run.py --wav` records what mGBA plays; `--stream` records every
+  sample the program queued, from the ring the program names in its log
+  with its length and sides. Neither plays anything aloud.
 
 Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #457):
 
@@ -1630,9 +1647,11 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
   are heard dry, the mix a little quieter where a song leans on it.
 - Pitch modulation isn't heard. Noise is the generator's sequence played at
   its clock.
-- Timing within 2.4 ms: key ons and offs take effect at the next mix, in
-  the order the driver asked, without the S-DSP's five frames to start a
-  note; envelopes step at the mix, their steps not on the S-DSP's shared
+- Timing within 2.4 ms of the mix: key ons and offs take effect at the next
+  chunk mixed, in the order the driver asked, without the S-DSP's five
+  frames to start a note, and the ring keeps up to two GBA frames mixed
+  ahead of what plays, so a note is heard up to 33 ms after the driver starts
+  it; envelopes step at the mix, their steps not on the S-DSP's shared
   clock. The driver's own sample is decoded again when a voice starts it.
 - A mix louder than twice what 8 bits holds wraps rather than clips.
 - The meter's output (command `$FF` `$01`, docs/SOUND.md) is a voice's
@@ -1648,9 +1667,9 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 | Cartridge | the program 1.81 MiB (code 1.17, constants 0.63; 2.01 MiB, code 1.37, before the accesses stopped asking whether a guard looks), the pack 4.12 MiB after it |
 | Work RAM (EWRAM, 256 KiB) | about 227.9 KiB used, 28.1 KiB free (GCC 13.3, 2026-11-15, with the tiles' conversion table moved here from fast RAM and the equipment screen's column state; the link fails with under 28 KiB free). By owner: the game's work RAM 108 KiB (`$7E:0000`-`$7F:AFFF`; the rest is in the SRAM, below); the picture 83.8 KiB (the SNES's video memory 65.6 KiB, the line registers 7.5 KiB, with the GBA's fourth layer's since per-tile priority, 1.3 KiB more in all, the tile caches 6 KiB, its line and band state 1.5 KiB, the tiles' conversion table 1 KiB, `services/video.c`); GameState 12.9 KiB (work RAM's page table 128 bytes, the menus' panels 5.8 KiB, the panels' layout 4 KiB, the past sprites and objects 2 KiB; save RAM is the SRAM's); the sound 15.6 KiB (the driver about 13.6 KiB, `frontend/sound_native.c`; the ring 1 KiB, `services/direct_sound.c`; the mixer under 1 KiB); the game's own tables 4 KiB (the interpreters' opcode tables 2 KiB, the time model's recent rows 2 KiB); the driver 2.2 KiB (its report's histograms 1.6 KiB, the drive box 0.5 KiB); the C library 3.3 KiB (its state, stdio, and the heap's first take). Before (2026-11-14): 247.5 KiB, 0.2 KiB free, with work RAM's two banks 128 KiB and save RAM 8 KiB in GameState, and the drive box 4.3 KiB |
 | Work RAM's top in the SRAM | `$7F:B000`-`$7F:FFFF`, 20 KiB, after the save and its mark (`VARS_FLAT_COLD_FROM`, `services/cartridge_save.c`), at the SRAM's 4 waits (5 cycles a byte; EWRAM's are 3), which the start now sets in place of the 8 a cartridge's flash chip would need (an SRAM takes 4, the GBA's own from its start): of the game's reads and writes of work RAM, none in `title-start` and `menus-save-point`, 0.3% in `new-game`, 0.4% in `gato-battle`, 0.2% in `events-jetbike-race` (counted a 4 KiB page at a time); the movies take 0.1-1.0% more GBA frames than before (`title-start` 2,828 against 2,799, `new-game` 13,337 against 13,304, `gato-battle` 52,417 against 52,346, `events-jetbike-race` 28,331 against 28,222). No value read or written in place runs across `$7F:B000` (`VARS_FLAT_CROSSED_STEPS`, which an assert checks) |
-| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 15 KiB, nine slots: the main thread's and one for each of the menus' eight tasks, which `menus-sweep` has all running at once (deepest use 1,792 of the main thread's 3,072 bytes, 700 of a task's 1,536, which were 1,792 when eight slots stopped `menus-sweep` at frame 3,838, and 2,048 before the view's memory), the code that runs most 8.8 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.2 KiB, the line effects' transfers 2.5 KiB, in ARM), the line effects' reads of their tables 0.3 KiB, the view's framing, bands and drawn panel 0.3 KiB and its memory 0.6 KiB, the driver's stack the 6.2 KiB above them (the link fails with under 6 KiB), a canary at its end checked each frame (deepest use 2,200 bytes, the dialog's panel drawn on it); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
+| Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 15 KiB, nine slots: the main thread's and one for each of the menus' eight tasks, which `menus-sweep` has all running at once (deepest use 1,792 of the main thread's 3,072 bytes, 700 of a task's 1,536, which were 1,792 when eight slots stopped `menus-sweep` at frame 3,838, and 2,048 before the view's memory), the code that runs most 8.8 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.2 KiB, the line effects' transfers 2.5 KiB, in ARM), the line effects' reads of their tables 0.3 KiB, the view's framing, bands and drawn panel 0.3 KiB and its memory 0.6 KiB, the interrupts' stack 192 bytes (deepest use 136, a line's interrupt taken inside the sound's) and the mixing's 448 (deepest use 368), the driver's stack the 5 KiB above them (the link fails with under 5 KiB; it was 6 KiB with the mixing on it), a canary at its end checked each frame (deepest use 2,280 bytes over the whole movie library, the dialog's panel drawn on it); measured over `title-start`, `new-game`, `gato-battle`, `events-jetbike-race`, `attract-demo`, `menu` and `field` |
 | Video RAM (96 KiB) | background 64 KiB (maps, tile caches and, while a dialog is drawn, its panel's room of 12-23 KiB), sprites 16 KiB of 32 |
-| The sound, GBA frames a frame, mean and 99th percentile | the driver and its mix: `title-start` 0.20 and 0.5, `new-game` 0.18 and 0.5, `gato-battle` 0.20 and 0.5, `events-jetbike-race` 0.21 and 0.5; of it the mixing 0.12, 0.11, 0.12 and 0.12 (the heaviest 0.25-0.31), so the driver and its passes about 0.08. Before the mixer's loops in `services/mix.s` and the chunks counted down: 0.26, 0.24, 0.26 and 0.27, the mixing 0.15, 0.13, 0.15 and 0.15. Before a quiet stretch of the driver's time passed at once: 0.35, 0.34, 0.36 and 0.36, the driver and its passes 0.2 |
+| The sound, GBA frames a frame, mean and 99th percentile | Mixed as the playback asks (2026-11-15, "Out" above): the driver 0.07, 0.07, 0.07 and 0.09 (99th percentile 0.25-0.5), and the mixing, in the playback's interrupt, 0.12 of every GBA frame: 0.13, 0.18, 0.24 and 0.32 a game frame where the game's frame takes 1.2-2.6 GBA frames; the GBA frames over the movie 2,206, 11,193, 43,776 and 24,255 (`menus-sweep` 11,229) against 2,194, 10,907, 41,923 and 22,867 (10,713), with no sample dropped and 224 of silence, the ring's first two quarters, against 15,232-117,248 dropped and 21-60% of the time silent. Before, the driver and its mix: `title-start` 0.20 and 0.5, `new-game` 0.18 and 0.5, `gato-battle` 0.20 and 0.5, `events-jetbike-race` 0.21 and 0.5; of it the mixing 0.12, 0.11, 0.12 and 0.12 (the heaviest 0.25-0.31), so the driver and its passes about 0.08. Before the mixer's loops in `services/mix.s` and the chunks counted down: 0.26, 0.24, 0.26 and 0.27, the mixing 0.15, 0.13, 0.15 and 0.15. Before a quiet stretch of the driver's time passed at once: 0.35, 0.34, 0.36 and 0.36, the driver and its passes 0.2 |
 | Work a frame, GBA frames (280,896 cycles), mean and 99th percentile | With the line effects' transfers in fast RAM as ARM ("Code placement", below): `title-start` 2,198 (picture 0.20), `new-game` 11,155 (0.28), `gato-battle` 42,168 (0.42), `events-jetbike-race` 22,845 (0.83), `menus-sweep` 10,487 (0.45), against 2,196, 11,073, 43,276 (0.48), 23,674 (0.93) and 10,550 (0.46); each frame's registers, sprites, palettes and video memory the same (hashed after every frame's picture). With the lines' walk kept cheap ("Line by line", above), the sprites' bands found by row ("Sprites") and VRAM's byte sends put straight in place ("Maps"): `title-start` 2,196 (picture 0.20), `new-game` 11,073 (0.29), `gato-battle` 43,276 (0.48, game 1.02), `events-jetbike-race` 23,674 (0.93), `menus-sweep` 10,550 (0.46), against 2,230 (0.21), 11,279 (0.32), 45,951 (0.57, game 1.05), 26,372 (1.20) and 11,045 (0.53); each frame's registers, sprites, palettes and video memory the same (hashed after every frame's picture). With work RAM's fills a span at a time (above): `title-start` 2,216 (game 0.54), `new-game` 11,459 (0.77), `gato-battle` 46,191 (1.06), `events-jetbike-race` 26,365 (1.11), against 2,251 (0.64), 11,496 (0.79), 46,241 (1.07) and 26,640 (1.16). With the menus' commands decoded in place and their routines found among those found lately (the interpreters, above): `title-start` 2,251, `new-game` 11,219 (game 0.75), `gato-battle` 45,880 (game 1.06), `events-jetbike-race` 26,629, against 2,251, 11,496 (0.79), 46,241 (1.07) and 26,640 (measured before the fills). With the dialog's and the battle window's shading and Mode 7 shown (the title's clock hands, the race's track; 2026-11-15), GBA frames over the whole movie, against before them: `title-start` 2,251 against 2,222, `new-game` 11,493 against 11,433, `gato-battle` 46,238 against 46,179, `events-jetbike-race` 26,640 against 25,712 (picture 1.19 against 1.07, where it showed no track), `attract-demo` 57,334 against 57,383. Before them: `title-start`: game 0.64 and 0.75, sound 0.20 and 0.5, picture 0.15 and 1.25, in all 1.23; `new-game`: game 0.79 and 2.5, picture 0.30 and 1.25, in all 1.59; `gato-battle`: game 1.07 and 2.5, picture 0.58 and 2.75, in all 2.14; `events-jetbike-race`: game 1.15 and 3.0, picture 1.07 and 3.25, in all 2.74 ("in all" counts the vertical blanks waited for: 2,222, 11,438, 46,175 and 25,716 GBA frames). Before the mixer's loops in `services/mix.s` and the chunks counted down (the sound, above): in all 1.27, 1.66, 2.21 and 2.79 (2,291, 11,943, 47,720 and 26,252 GBA frames). Before a read by address kept the resource it found (the cartridge's reads, above): game 0.65, 0.82, 1.11 and 1.20, in all 1.29, 1.69, 2.25 and 2.84 (2,317, 12,177, 48,552 and 26,716 GBA frames). Before a scope's start handed its end the rate (the time model, above): game 0.66, 0.86, 1.17 and 1.25, in all 1.30, 1.73, 2.31 and 2.88 (2,346, 12,432, 50,000 and 27,102 GBA frames). Before the accesses stopped asking whether a guard looks (the lean build, above): game 0.78, 0.94, 1.27 and 1.42, in all 1.52, 1.83, 2.42 and 3.04 (2,736, 13,197, 52,199 and 28,582 GBA frames), the sound and the picture the same; before per-tile priority, the sprite masks and that, picture 0.12, 0.26, 0.54 and 0.98, in all 1.48, 1.81, 2.39 and 2.97. Per-tile priority and the sprite masks cost 64, 178, 675 and 612 GBA frames over the four movies (2,737 against 2,673, 13,198 against 13,020, 52,201 against 51,526, 28,582 against 27,970: 1.3-2.4%), most of it the lines' registers for four layers rather than three and the layouts a split asks for. The dialog's panel costs the game's column 0.04-0.07 (outside the game's time); the bands worked out a run of lines at a time give the picture back more than the panel and the cut take. Before the drawn panel and the cut: game 0.78, 0.90, 1.21 and 1.37, picture 0.21, 0.38, 0.64 and 1.07, in all 1.56, 1.85, 2.42 and 3.00; before a frame's lines were visited only where something happens (above), with the 240x160 view's camera and bands: picture 0.27, 0.53, 1.01 and 1.27, in all 1.64, 2.05, 2.90 and 3.27; before the camera and bands, picture 0.16, 0.35, 0.77 and 1.04, in all 1.49, 1.90, 2.66 and 3.02. Before the sound driver's quiet stretches passed at once: in all 1.61, 1.98, 2.75 and 3.13. Before reads by address reached work RAM in place (below): game 1.01, 1.13, 1.50 and 1.71, in all 1.80, 2.11, 2.91 and 3.40. Before the time model was priced a stretch at a time and a frame's lines could keep the last frame's (below): game 1.45, 1.8, 2.45 and 2.8, picture 0.21, 0.49, 0.88 and 1.14, in all 2.4, 3.0, 4.0 and 4.6. Before the code's placement and settings (below): in all 3.0, 3.4 and 4.7 (`events-jetbike-race` 6.0 before the interpreters decoded only what a row names, #429); before the picture was made where it changes (below): picture 1.6, 2.9, 4.5 and 4.8; before the flat accessors read in place (issue #424), the sends read a span at a time (#425), the time model charged in 32 bits (#426) and the interpreters decoded only what a row names (#429): game 6.7, 9.5 and 13.4, in all 8.9, 12.9 and 18.5 |
 
 Without the native mixer the game's own frame is most of the cost: 0.8-1.4

@@ -72,6 +72,7 @@ static struct mCore *core;
 static FILE *log_out;
 static uint32_t box;                       /* the drive box's address; 0 until named */
 static uint32_t ring;                      /* the sound's ring's address; 0 until named */
+static uint32_t ring_samples = 1, ring_left, ring_right;   /* its length, and where each side starts in it */
 static int reported, sampling;
 static char end_crcs[40];                  /* the report's "END SAVE" */
 static unsigned width, height;
@@ -181,8 +182,10 @@ static void log_line(struct mLogger *logger, int category, enum mLogLevel level,
     fprintf(log_out, "%s\n", text);
     fflush(log_out);
     unsigned at, end, sram;
-    if (sscanf(text, "ct_gba: sound ring at %8X", &at) == 1)
-        ring = at;
+    unsigned samples, left, right;
+    if (sscanf(text, "ct_gba: sound ring at %8X, %u samples, left at +%u, right at +%u", &at, &samples, &left,
+               &right) == 4)
+        ring = at, ring_samples = samples, ring_left = left, ring_right = right;
     if (sscanf(text, "ct_gba: drive box at %8X", &at) == 1) {
         /* armed before the program looks, as it logs the line */
         box = at;
@@ -243,8 +246,8 @@ static int wav_close(Wav *w)
     return fclose(w->f) ? -1 : 0;
 }
 
-/* The ring as services/direct_sound.h lays it out, and its rate. */
-enum { RING = 512, RING_LEFT = 12, RING_RIGHT = RING_LEFT + RING, STREAM_RATE = 13379, WAV_RATE = 32768 };
+/* The ring's rate (services/direct_sound.h). */
+enum { STREAM_RATE = 13379, WAV_RATE = 32768 };
 
 static Wav heard, streamed;
 static int recording;
@@ -265,8 +268,8 @@ static void record_frame(void)
     if (streamed.f && ring) {
         uint32_t queued = core->busRead32(core, ring);
         for (; stream_taken != queued; stream_taken++) {
-            int8_t l = (int8_t)core->busRead8(core, ring + RING_LEFT + stream_taken % RING);
-            int8_t r = (int8_t)core->busRead8(core, ring + RING_RIGHT + stream_taken % RING);
+            int8_t l = (int8_t)core->busRead8(core, ring + ring_left + stream_taken % ring_samples);
+            int8_t r = (int8_t)core->busRead8(core, ring + ring_right + stream_taken % ring_samples);
             if (recording)
                 wav_put(&streamed, (int16_t)(l * 256), (int16_t)(r * 256));
         }

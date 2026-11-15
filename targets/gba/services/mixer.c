@@ -220,9 +220,11 @@ static void forget_overlapping(Mixer *m, uint16_t at, uint16_t length)
 static void know_block(Mixer *m, uint16_t at, uint16_t block)
 {
     uint16_t length = (uint16_t)packed_block(block)->length;
+    m->writing++;   /* the regions a voice's start looks in (mixer_fill) */
     forget_overlapping(m, at, length);
     if (m->regions < MIXER_REGIONS)
         m->region[m->regions++] = (MixerRegion){ at, length, (uint8_t)block };
+    m->writing--;
 }
 
 static void start_run(Mixer *m, uint32_t at)
@@ -383,10 +385,9 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
     int8_t *left, *right;
     if (m->silenced)
         memset(mix, 0, sizeof mix[0] * count);
-    if (direct_sound_space(count, &left, &right)) {
-        to_8_bits(mix, left, right, count);
-        direct_sound_queued(count);
-    }
+    direct_sound_next(&left, &right);
+    to_8_bits(mix, left, right, count);
+    direct_sound_queued();
     mixing_cycles += cycles_now() - began;
 }
 
@@ -628,12 +629,12 @@ static void sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte)
     end_write(w);
 }
 
+/* A song's load is thousands of these, which the mix reads nothing of until
+ * a block is known (know_block): only that is kept from the mix. */
 static void sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte)
 {
-    Mixer *w = begin_write(v);
     put(mixer(v), at);
     written(mixer(v), at, byte);
-    end_write(w);
 }
 
 /* The known blocks moved go where they are moved to, and what was there is

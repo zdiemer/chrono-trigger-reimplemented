@@ -194,9 +194,8 @@ static void report(void *ctx)
         gba_frames(most, sizeof most, run->mixing.most);
         fprintf(stderr, "ct_gba: mixing a frame, in GBA frames: mean %s, heaviest %s\n", mean, most);
     }
-    fprintf(stderr, "ct_gba: sound %u sample(s) queued, %u played, %u dropped, %u of silence with the ring dry\n",
-            (unsigned)ct_gba_sound.queued, (unsigned)ct_gba_sound.played, (unsigned)ct_gba_sound.dropped,
-            (unsigned)ct_gba_sound.silent);
+    fprintf(stderr, "ct_gba: sound %u sample(s) queued, %u played, %u of silence where the ring wasn't filled\n",
+            (unsigned)ct_gba_sound.queued, (unsigned)ct_gba_sound.played, (unsigned)ct_gba_sound.silent);
     fprintf(stderr, "ct_gba: end state crc32 %08X, save RAM crc32 %08X\n", (unsigned)end_state_crc(run->g),
             (unsigned)ct_crc32(state_host_sram(run->g), STATE_HOST_SRAM_BYTES));
     fprintf(stderr, "ct_gba: arena %u bytes, the SNES's video memory %u\n", (unsigned)arena_used(),

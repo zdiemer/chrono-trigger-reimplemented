@@ -75,9 +75,9 @@
 #define DMA0SAD (*(volatile uint32_t *)0x040000B0)
 #define DMA0DAD (*(volatile uint32_t *)0x040000B4)
 #define DMA0CNT (*(volatile uint32_t *)0x040000B8)
-#define DMA1SAD (*(volatile uint32_t *)0x040000BC)
-#define DMA1DAD (*(volatile uint32_t *)0x040000C0)
-#define DMA1CNT (*(volatile uint32_t *)0x040000C4)
+#define DMA3SAD (*(volatile uint32_t *)0x040000D4)
+#define DMA3DAD (*(volatile uint32_t *)0x040000D8)
+#define DMA3CNT (*(volatile uint32_t *)0x040000DC)
 #define BLDCNT REG16(0x04000050)
 #define BLDALPHA REG16(0x04000052)
 #define BLDY REG16(0x04000054)
@@ -3328,7 +3328,8 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
 
 /* The first line's plane and strength, and DMA armed to copy each next
  * line's in the horizontal blank above it, where the frame has them; DMA
- * stopped where it hasn't. In the vertical blank. DMA's control: on, at each
+ * stopped where it hasn't. In the vertical blank. DMA 0 and 3: DMA 1 and 2
+ * are the sound's, the only two that feed its FIFOs. DMA's control: on, at each
  * horizontal blank, again, to the registers again; words, or a halfword. */
 static const uint32_t DMA_PLANE = 0xA6600000u | sizeof(PlaneLine) / 4;
 static const uint32_t DMA_STRENGTH = 0xA2400000u | 1;
@@ -3336,7 +3337,7 @@ static volatile bool plane_dma, strength_dma;
 __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_lines(void)
 {
     DMA0CNT = 0;
-    DMA1CNT = 0;
+    DMA3CNT = 0;
     if (plane_dma && plane_table) {
         const volatile uint32_t *first = (const volatile uint32_t *)&plane_lines[0];
         for (unsigned w = 0; w < sizeof(PlaneLine) / 4; w++)
@@ -3347,9 +3348,9 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_
     }
     if (strength_dma) {
         BLDY = line_strength[0];
-        DMA1SAD = (uint32_t)&line_strength[1];
-        DMA1DAD = (uint32_t)&BLDY;
-        DMA1CNT = DMA_STRENGTH;
+        DMA3SAD = (uint32_t)&line_strength[1];
+        DMA3DAD = (uint32_t)&BLDY;
+        DMA3CNT = DMA_STRENGTH;
     }
 }
 
