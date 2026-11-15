@@ -80,9 +80,9 @@ static void address_view(void)
 #endif
     set_location_id(other, 0x1234);
     CHECK(location_id(other) == 0x1234);
-    vars_peek(true);
+    vars_peek(other, true);
     CHECK(location_id(other) == 0x1234);
-    vars_peek(false);
+    vars_peek(other, false);
     CHECK(state_host_read8(other, 0x0100) == 0x34);
 #ifndef CT_LEAN   /* the lean build keeps no timing report */
     unsigned row_count;
@@ -281,9 +281,9 @@ static void records_and_composed_views(void)
      * answered with that owner's value. */
     vars_host_crossings_reset(h);
     set_menu_tasks_state(g, 0, 0x44);
-    vars_peek(true);
+    vars_peek(g, true);
     CHECK(battle_product(g) == 0x33EF);
-    vars_peek(false);
+    vars_peek(g, false);
     CHECK(vars_host_crossings(h, NULL, NULL) == 0); /* a guard's look counts no crossing */
     CHECK(battle_product(g) == 0x33EF);
 #ifdef CT_LEAN

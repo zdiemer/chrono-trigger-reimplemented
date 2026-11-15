@@ -15,9 +15,16 @@
 #include "port/vars_ram.h"
 #include "wram.h"
 
-/* Reads while a guard looks (vars_peek): they take none of the machine's time. */
+/* Reads while a guard looks: they take none of the machine's time. The game's
+ * own looks (vars_peek) are stretches whose accesses the account drops
+ * (state_host.c); the port's checks (PORT_CHECK), which have no state to hand,
+ * look by this flag. The lean build makes no such checks, so it has no flag
+ * and an access never asks. */
+#ifdef CT_LEAN
+static const bool peeking = false;
+#else
 static bool peeking;
-void vars_peek(bool on) { peeking = on; }
+void vars_peek_flag(bool on) { peeking = on; }
 bool vars_peeking(void) { return peeking; }
 
 static unsigned looks;   /* PORT_CHECK's nesting, over a peek begun outside it */
@@ -36,6 +43,7 @@ bool vars_peek_leave(bool value)
         peeking = before_the_looks;
     return value;
 }
+#endif
 
 #include "port/state_host.h"
 #include "port/vars_host.h"

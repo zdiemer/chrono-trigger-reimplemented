@@ -774,10 +774,10 @@ bool menu_load_screen_slot_can_show(const GameState *g)
  * take, and the drawing's counts. */
 bool menu_slot_under_the_cursor_shows(const GameState *g)
 {
-    vars_peek(true);
+    vars_peek(g, true);
     uint8_t slot = menu_cursor_index(g);
     bool ok = slot < SLOT_ROWS && menu_after_slot_shown(g) == 0 && slot_is_drawable(g, slot) && drawing_counts(g);
-    vars_peek(false);
+    vars_peek(g, false);
     return ok;
 }
 

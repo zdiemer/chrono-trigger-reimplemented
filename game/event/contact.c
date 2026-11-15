@@ -254,9 +254,9 @@ static bool confirm_fits(const GameState *g);
 
 void field_confirm_pressed(GameState *g)
 {
-    vars_peek(true);
+    vars_peek(g, true);
     bool fits = confirm_fits(g);
-    vars_peek(false);
+    vars_peek(g, false);
     if (!fits) {
         program_breaks_a_contract(g, 0xC01AAC, "the confirm button names an invalid contact or chest");
         return;

@@ -578,9 +578,9 @@ void member_back_to_the_leader(GameState *g, FieldObject member)
  * where it stands sends nobody. */
 void party_back_together(GameState *g)
 {
-    vars_peek(true);
+    vars_peek(g, true);
     bool fits = party_can_come_back_together(g);
-    vars_peek(false);
+    vars_peek(g, false);
     if (!fits) {
         program_breaks_a_contract(g, 0xC0034B, "the returning party names invalid objects or script levels");
         return;

@@ -59,12 +59,14 @@ void state_host_restore(GameState *g, const uint8_t *in);
  * whole master clocks and thousandths, kept under MILLI_LIMIT and made whole
  * as they pass it: the same sum as each access's product in thousandths, in
  * 32 bits. */
+enum { STATE_HOST_RATE_MILLI_BITS = 10 };
 typedef struct {
     uint32_t raw_bus;         /* every access's bus clocks, the uncounted ones too */
     uint32_t priced;          /* raw_bus when the clocks before it were priced */
     unsigned uncounted;       /* nested stretches whose accesses aren't the game's own time */
-    uint32_t rate;            /* the cost_milli the game's accesses are timed at now; 0, none */
-    uint32_t rate_clocks, rate_milli;
+    uint32_t rate;            /* the rate the game's accesses are timed at now, its cost_milli split
+                                 into whole clocks above STATE_HOST_RATE_MILLI_BITS and thousandths
+                                 below them; 0, none */
     uint32_t work_clocks, work_milli;
 } StateHostAccount;
 /* A state's first member, its head: the time account, then the storage. The

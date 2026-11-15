@@ -110,9 +110,12 @@ static struct {
 } held[HELD];
 static bool holding;
 
+static void forget_found(void);
+
 void assets_use(const AssetSource *s)
 {
     source = s;
+    forget_found();
     for (unsigned i = 0; i < HELD; i++)
         held[i].id = ASSET_NONE;
     holding = true;
@@ -135,9 +138,27 @@ static const uint8_t *resource_bytes(AssetId id)
     return held[id % HELD].bytes;
 }
 
-/* The store's copy of the cartridge byte at `at`, or NULL: the address is in
- * no resource (counted), there is no store, or it hasn't the resource. */
-static const uint8_t *served(uint32_t at)
+/* The resource a read by address found last in each 4 KiB of the cartridge,
+ * with where it lies and the store's bytes for it, so that the next read in
+ * it finds its byte with one comparison: what asset_containing and
+ * resource_bytes would answer, kept together until a new source. */
+static struct {
+    uint32_t at, length;    /* length 0: none yet */
+    const uint8_t *bytes;
+    AssetId id;
+    bool untyped;
+} found[NEARBY];
+
+static void forget_found(void)
+{
+    for (unsigned i = 0; i < NEARBY; i++)
+        found[i].length = 0;
+}
+
+/* The store's copy of the cartridge byte at `at` (its cartridge address
+ * `a`), found afresh: the resource it lies in, kept as the one found last in
+ * its 4 KiB. */
+static const uint8_t *find_served(uint32_t at, uint32_t a)
 {
     AssetId id = asset_containing(at);
     if (id == ASSET_NONE) {
@@ -146,7 +167,26 @@ static const uint8_t *served(uint32_t at)
     }
     note_if_unread(id, at);
     const uint8_t *bytes = resource_bytes(id);
-    return bytes ? bytes + (cartridge_address(at) - asset_catalogue[id].at) : NULL;
+    const uint32_t i = (a >> NEAR_SHIFT) & (NEARBY - 1);
+    found[i].at = asset_catalogue[id].at;
+    found[i].length = asset_catalogue[id].length;
+    found[i].bytes = bytes;
+    found[i].id = id;
+    found[i].untyped = left_untyped(id);
+    return bytes ? bytes + (a - asset_catalogue[id].at) : NULL;
+}
+
+/* The store's copy of the cartridge byte at `at`, or NULL: the address is in
+ * no resource (counted), there is no store, or it hasn't the resource. */
+static const uint8_t *served(uint32_t at)
+{
+    uint32_t a = cartridge_address(at);
+    const uint32_t i = (a >> NEAR_SHIFT) & (NEARBY - 1);
+    if (a == NOT_ROM || a - found[i].at >= found[i].length)
+        return find_served(at, a);
+    if (found[i].untyped)
+        note_if_unread(found[i].id, at);
+    return found[i].bytes ? found[i].bytes + (a - found[i].at) : NULL;
 }
 
 /* Where a pointer in the data names RAM, the byte is the game's RAM's
