@@ -37,6 +37,9 @@
  *   (the map's bytes and the tiles' bytes interleave on the SNES) in the
  *   GBA's first 32 KiB, and each line of the plane is given the matrix and
  *   the point of the plane at its left end ("Mode 7", below).
+ * - Mode 2's columns, each of the first two layers' scrolled by its own
+ *   offsets, are runs of them each shown on a GBA layer free on the line,
+ *   through a window ("Mode 2's columns", below).
  * - The GBA's 240x160 screen is a smaller view (vid_view): the game frames
  *   it, a camera on the SNES's 256x224 and bands of its lines kept in view
  *   (core/view_framing.h), and each GBA line shows the SNES line its band
@@ -355,6 +358,7 @@ enum { ASKED_LINES = 4, ASKED_BLANK = 0x80 };
 static uint8_t asked_line[ASKED_LINES] IN_FAST_RAM;   /* 1-224; 0: none */
 static uint8_t asked_shown[ASKED_LINES] IN_FAST_RAM;
 static bool asked_anew IN_FAST_RAM;                   /* a line the last frame's lines didn't keep */
+static bool offsets_written;                          /* mode 2's columns' offsets (Mode 2's columns, below) */
 
 void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
@@ -1091,6 +1095,22 @@ static int32_t room_from_the_top(uint32_t count, uint32_t step)
     return -1;
 }
 
+/* The mode the layers' tiles and maps are laid out for: the one the
+ * frame's lines show other than Mode 7 (a line effect may set the mode down
+ * the picture, the jet bike race's from its top), mode 2 where a line shows
+ * it (whose moved columns take a layer of their own), or the mode set. */
+enum { NO_MODE = 0xFF };
+static uint8_t lines_text_mode = NO_MODE;   /* the last frame's lines' */
+static uint8_t laid_out_mode;               /* the layout's */
+/* Whether a line other than mode 2's (or Mode 7's) has shown the third
+ * layer, which mode 2's lines don't show, since the layout was made for
+ * mode 2, and whether the layout has it: once a line shows it, it is kept
+ * as long as mode 2 is, rather than laid out again as a menu's description
+ * comes and goes. */
+static bool third_on_lines, laid_out_third;
+
+static uint8_t text_mode(void) { return lines_text_mode != NO_MODE ? lines_text_mode : snes.mode.mode; }
+
 /* ---- Priority -----------------------------------------------------------------------------------
  *
  * Each of a SNES layer's tiles stands in front of the sprites of some
@@ -1166,6 +1186,8 @@ static uint8_t layers_to_split(uint8_t split)
         if (fewer)
             rank[n] = fewer + (split >> n & 1 ? 0x1000u : 0) + (n == 0 ? 0x4000u : n == 1 ? 0x2000u : 0);
     }
+    if (laid_out_mode == 2 && layers[0].shown && spare)
+        spare--;   /* kept for the first layer's moved columns (Mode 2's columns) */
     uint8_t wanted = 0;
     for (; spare; spare--) {
         unsigned best = NO_LAYER, most = 0;
@@ -1194,18 +1216,9 @@ static const Order layers_order = { { { 4, 1 }, { 5, 2 }, { 10, 7 }, { 11, 8 } }
                                     { { 1, 0 }, { 1, 0 }, { 3, 2 }, { 3, 2 } }, { 3, 2, 1, 0 } };
 static const Order third_in_front_order = { { { 5, 2 }, { 6, 3 }, { 8, 0 }, { 9, 9 } },
                                             { { 2, 1 }, { 2, 1 }, { 3, 0 }, { 3, 3 } }, { 3, 3, 2, 1 } };
-static const Order mode2_order = { { { 5, 1 }, { 7, 3 }, { 9, 9 }, { 9, 9 } },
-                                   { { 2, 0 }, { 3, 1 }, { 3, 3 }, { 3, 3 } }, { 3, 2, 1, 0 } };
+static const Order mode2_order = { { { 5, 1 }, { 7, 3 }, { 8, 0 }, { 9, 9 } },
+                                   { { 2, 0 }, { 3, 1 }, { 3, 0 }, { 3, 3 } }, { 3, 2, 1, 0 } };
 static const Order *order = &layers_order;   /* the mode's, as the GBA's layers were assigned */
-
-/* The mode the layers' tiles and maps are laid out for: the one the
- * frame's lines show other than Mode 7 (a line effect may set the mode down
- * the picture, the jet bike race's from its top), or the mode set. */
-enum { NO_MODE = 0xFF };
-static uint8_t lines_text_mode = NO_MODE;   /* the last frame's lines' */
-static uint8_t laid_out_mode;               /* the layout's */
-
-static uint8_t text_mode(void) { return lines_text_mode != NO_MODE ? lines_text_mode : snes.mode.mode; }
 
 static const Order *order_of_mode(void)
 {
@@ -1218,34 +1231,41 @@ static const Order *order_of_mode(void)
  * its map's units have only tiles in front than only tiles behind; mode 1's
  * third layer put in front, where it has any tiles in front or its own map
  * isn't shown (its text and panels, which the mode puts in front of
- * everything; what it has behind is mostly blank). */
+ * everything; what it has behind is mostly blank). Mode 2 shows no third
+ * layer; where a mode 1 line below shows it, it is the menus' text, put in
+ * front so (their description of a tech or an item). */
 static bool stands_in_front(unsigned n)
 {
     unsigned front, behind;
-    bool third_in_front = n == 2 && order_of_mode() == &third_in_front_order;
+    bool third_in_front = n == 2 && (order_of_mode() == &third_in_front_order || order_of_mode() == &mode2_order);
     count_priorities(n, !third_in_front, &front, &behind);
     return third_in_front ? front > 0 || !layers[n].own_map : front > behind;
 }
 
 /* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
- * its tiles in front alone (`front`, a split layer's) or the rest, and at
- * which priority; and for the map a split layer shows its tiles behind
- * from, by its screen block, the screen block its tiles in front are shown
- * from (NO_BLOCK: it has none). And the GBA's layers that show each set of
- * the SNES's, as their bits. */
+ * its tiles in front alone (`front`, a split layer's) or the rest, or in
+ * mode 2 the columns its offsets move (`columns`, Mode 2's columns below),
+ * and at which priority; and for the map a split layer shows its tiles
+ * behind from, by its screen block, the screen block its tiles in front are
+ * shown from (NO_BLOCK: it has none). And the GBA's layers that show each
+ * set of the SNES's, as their bits, and the layers that show the first two's
+ * columns moved, by the SNES's layer, and as bits. */
 typedef struct {
     uint8_t source, priority;
-    bool front;
+    bool front, columns;
 } GbaLayer;
 static GbaLayer gba_layers[4];
 static uint8_t front_block[32];
 static uint8_t gba_bits_of[16];
 static uint8_t scroll_source[4];   /* each GBA layer's SNES layer, or the first where none */
+static uint8_t columns_layer[2];   /* NO_LAYER: none */
+static uint8_t columns_bits;
 
 /* A SNES layer's tiles in front (or behind) put among the GBA's layers
  * `count` so far, kept front to back by how far back they stand (`depth`);
  * `front_copy`: from the split layer's copy of its tiles in front. */
-static unsigned shown_in_order(uint8_t depth[4], unsigned count, unsigned n, bool front, bool front_copy)
+static unsigned shown_in_order(uint8_t depth[4], unsigned count, unsigned n, bool front, bool front_copy,
+                               bool columns)
 {
     if (count == 4)
         return count;
@@ -1256,12 +1276,14 @@ static unsigned shown_in_order(uint8_t depth[4], unsigned count, unsigned n, boo
         gba_layers[k] = gba_layers[k - 1];
     }
     depth[k] = d;
-    gba_layers[k] = (GbaLayer){ (uint8_t)n, order->priority[n][front], front_copy };
+    gba_layers[k] = (GbaLayer){ (uint8_t)n, order->priority[n][front], front_copy, columns };
     return count + 1;
 }
 
 /* The GBA's layers: each SNES layer's, or its two halves, in the SNES's
- * order front to back. */
+ * order front to back; in mode 2, then, a layer the first two not split
+ * show their moved columns on, as many as there are layers spare, each
+ * beside its own. */
 static void assign_layers(void)
 {
     uint8_t depth[4];
@@ -1271,11 +1293,21 @@ static void assign_layers(void)
             continue;
         bool front = layers[n].split || stands_in_front(n);
         if (layers[n].split)
-            count = shown_in_order(depth, count, n, false, false);
-        count = shown_in_order(depth, count, n, front, layers[n].split);
+            count = shown_in_order(depth, count, n, false, false, false);
+        count = shown_in_order(depth, count, n, front, layers[n].split, false);
     }
+    for (unsigned n = 0; laid_out_mode == 2 && n < 2; n++)
+        if (layers[n].shown && !layers[n].split)
+            count = shown_in_order(depth, count, n, stands_in_front(n), false, true);
     for (unsigned g = count; g < 4; g++)
-        gba_layers[g] = (GbaLayer){ NO_LAYER, 0, false };
+        gba_layers[g] = (GbaLayer){ NO_LAYER, 0, false, false };
+    columns_layer[0] = columns_layer[1] = NO_LAYER;
+    columns_bits = 0;
+    for (unsigned g = 0; g < count; g++)
+        if (gba_layers[g].columns) {
+            columns_layer[gba_layers[g].source] = (uint8_t)g;
+            columns_bits |= (uint8_t)(1u << g);
+        }
     for (unsigned g = 0; g < 4; g++)
         scroll_source[g] = g < count ? gba_layers[g].source : 0;
     for (unsigned snes_bits = 0; snes_bits < 16; snes_bits++) {
@@ -1458,9 +1490,14 @@ static void lay_out(bool pruned)
     memset(roles, 0, sizeof roles);
     memset(taken, 0, sizeof taken);
     misses = frames_since_layout = 0;
-    /* mode 2 is mode 1 without BG3, whose map there holds the offsets a column (not kept yet) */
+    /* mode 2's lines don't show the third layer, whose map holds their
+     * columns' offsets, but a mode 1 line below them may (the menus'
+     * descriptions): mode 2 is laid out with it then, as mode 1 */
     uint8_t mode = laid_out_mode = text_mode();
-    unsigned count = mode == 0 ? 4 : mode == 1 ? 3 : mode == 2 ? 2 : 0;
+    if (mode != 2)
+        third_on_lines = false;
+    laid_out_third = mode == 2 && third_on_lines;
+    unsigned count = mode == 0 ? 4 : mode == 1 || laid_out_third ? 3 : mode == 2 ? 2 : 0;
     for (unsigned n = 0; n < count; n++) {
         Layer *l = &layers[n];
         const VidBg *b = &snes.bg[n];
@@ -1670,6 +1707,8 @@ static int sprite_slot(uint32_t byte)
 static void convert_unit(unsigned u)
 {
     uint32_t first = (uint32_t)u * UNIT_BYTES;
+    if (laid_out_mode == 2 && within(first, (uint32_t)snes.bg[2].map_base << 1, map_bytes(&snes.bg[2])))
+        offsets_written = true;
     if (plane_room && first < PLANE_BYTES)
         convert_plane_unit(first);
     uint8_t role = roles[first / BLOCK_BYTES];
@@ -2889,6 +2928,184 @@ static void step_the_plane(void)
     }
 }
 
+/* ---- Mode 2's columns ------------------------------------------------------------------------------
+ *
+ * In mode 2 the SNES scrolls each column of the first two layers by its own
+ * offsets, read from two rows of the third layer's map (which the mode
+ * doesn't show), where an offset's entry names the layer: the menus show a
+ * list scrolled a line at a time beside a column that stays (the techs, the
+ * equipment, the shops), and their settings two columns of icons each
+ * scrolled its own way. The GBA has no such thing. A run of a layer's
+ * columns moved alike is shown again on a GBA layer of its own, the same
+ * map scrolled as the run is, through a window the SNES's windows leave
+ * free on the line, where the layer itself isn't shown. The layers it is
+ * shown on are those spare (assign_layers) and, a mode 2 line showing no
+ * third layer, the third layer's; the windows are the GBA's two. Runs
+ * past those show as the layer lies. */
+
+/* A run of a layer's columns its offsets move alike on a line: its first
+ * and last dots (the SNES's) and the scroll it shows. A column takes the
+ * offsets in the third layer's column a column to its left, the screen's
+ * first column none (render.c's draw_bg). */
+typedef struct {
+    int first, last;
+    uint16_t hofs, vofs;
+} MovedColumns;
+
+enum {
+    OFFSET_LAYER_BIT = 0x2000, OFFSET_SCROLL = 0x3FF, OFFSET_COLUMN = 0x3F8, GBA_SCROLL = 0x1FF, MOST_RUNS = 2,
+    OFFSET_COLUMNS = 34,   /* the third layer's columns a line's 33 columns take their offsets from, and one */
+};
+
+/* A line's offsets: the third layer's two rows of them, across and down,
+ * from the column the screen's second column takes its offsets from (or the
+ * one left of it, where a layer's fine scroll is past the third layer's). */
+typedef struct {
+    uint16_t across[OFFSET_COLUMNS], down[OFFSET_COLUMNS];
+    uint16_t hofs;   /* the third layer's scroll across, less one */
+} LineOffsets;
+
+typedef uint16_t __attribute__((may_alias)) Halfword;
+
+/* A row of a map's entries from column `first_col` on, wrapping round the
+ * map; a screen's row never runs past VRAM's end, and its entries are
+ * halfwords as the GBA reads them. */
+static void offset_row(const VidBg *b, uint32_t row, uint32_t first_col, uint16_t *out)
+{
+    uint32_t down = (row & 0x20) && b->map_h == 64 ? (b->map_w == 64 ? 2048 : 1024) : 0;
+    uint32_t start = (uint32_t)b->map_base * 2 + (down + ((row & 0x1F) << 5)) * 2;
+    const Halfword *screens[2] = { (const Halfword *)&snes.vram[start & (VRAM_BYTES - 1)],
+                                   (const Halfword *)&snes.vram[(start + (b->map_w == 64 ? 2048 : 0)) & (VRAM_BYTES - 1)] };
+    for (unsigned j = 0; j < OFFSET_COLUMNS; j++) {
+        uint32_t col = (first_col + j) & 0x3F;
+        out[j] = screens[col >> 5][col & 0x1F];
+    }
+}
+
+/* The line's offsets, false where none names the first two layers. */
+static bool line_offsets(const LineState *st, LineOffsets *o)
+{
+    VidBg third = { 0 };
+    vid_bg_map_decode(&third, st->map[2]);
+    o->hofs = (uint16_t)((st->hofs[2] - 1) & 0x1FF);
+    uint32_t first_col = o->hofs >> 3;
+    offset_row(&third, st->vofs[2] >> 3, first_col, o->across);
+    offset_row(&third, (st->vofs[2] + 8u) >> 3, first_col, o->down);
+    uint16_t names = 0;
+    for (unsigned j = 0; j < OFFSET_COLUMNS; j++)
+        names |= o->across[j] | o->down[j];
+    return names & (OFFSET_LAYER_BIT * 3);
+}
+
+/* The first MOST_RUNS runs of layer `n`'s moved columns on a line, as many as there are. */
+static unsigned moved_columns(const LineState *st, const LineOffsets *o, unsigned n, MovedColumns runs[MOST_RUNS])
+{
+    uint16_t names = (uint16_t)(OFFSET_LAYER_BIT << n), hofs = st->hofs[n], vofs = st->vofs[n];
+    unsigned fine = hofs & 7, count = 0;
+    /* the screen's column from `dot` takes the offsets of the third layer's
+     * column its dot left of it is in */
+    unsigned j = (o->hofs & 7) >= fine ? 1 : 0;
+    bool in_run = false;
+    for (int dot = 8 - (int)fine; dot <= VID_WINDOW_LAST_DOT; dot += 8, j++) {
+        uint16_t across = o->across[j], down = o->down[j];
+        uint16_t h = across & names ? (uint16_t)((across & OFFSET_COLUMN) | fine) : hofs;
+        uint16_t v = down & names ? (uint16_t)(down & OFFSET_SCROLL) : vofs;
+        if (in_run && !(((h ^ runs[count - 1].hofs) | (v ^ runs[count - 1].vofs)) & GBA_SCROLL)) {
+            runs[count - 1].last = dot + 7 > VID_WINDOW_LAST_DOT ? VID_WINDOW_LAST_DOT : dot + 7;
+            continue;
+        }
+        in_run = ((h ^ hofs) | (v ^ vofs)) & GBA_SCROLL;
+        if (!in_run)
+            continue;
+        if (count == MOST_RUNS)
+            break;
+        runs[count++] = (MovedColumns){ .first = dot, .last = dot + 7, .hofs = h, .vofs = v };
+    }
+    return count;
+}
+
+static uint16_t *window_edges(LineRegisters *r, unsigned w) { return w ? &r->win1h : &r->win0h; }
+
+static bool covers_nothing(uint16_t edges) { return (edges >> 8) >= (edges & 0xFF); }
+
+/* Whether the GBA's window `w` (0 or 1) is free on a line: it covers
+ * nothing, or shows what the line shows outside the windows. */
+static bool window_free(LineRegisters *r, unsigned w)
+{
+    return covers_nothing(*window_edges(r, w)) || (r->winin >> (8 * w) & 0xFF) == (r->winout & 0xFF);
+}
+
+/* The GBA's layer that shows a SNES layer not split, or NO_LAYER. */
+static unsigned own_layer(unsigned n)
+{
+    for (unsigned g = 0; g < 4; g++)
+        if (gba_layers[g].source == n && !gba_layers[g].columns && !gba_layers[g].front)
+            return g;
+    return NO_LAYER;
+}
+
+/* The first two layers' moved columns on a band's line of a frame laid out
+ * for mode 2, after its layers' control and blending are set: the layers
+ * spare for them left out; then on a mode 2 line the third layer left out
+ * too, whose map holds the offsets there, and each run on a GBA layer free
+ * (the layer's own spare, then the third layer's), shown as its layer is,
+ * through a window free or the one an earlier run with the same edges took,
+ * with the layer itself left out there. Kept out of the frame's lines'
+ * loop: inlined there, or with the third layer left out of the line's
+ * state instead, the loop ran a percent slower (the jet bike race). */
+__attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const LineState *st, const Band *b, int down)
+{
+    uint16_t hidden = columns_bits;
+    if (st->mode == 2)
+        hidden |= gba_bits_of[VID_BG3_BIT];
+    r->winin &= (uint16_t)~(hidden | hidden << 8);
+    r->winout &= (uint16_t)~(hidden | hidden << 8);
+    if (st->mode != 2)
+        return;
+    r->bldcnt &= (uint16_t)~(gba_bits_of[VID_BG3_BIT] | gba_bits_of[VID_BG3_BIT] << 8);
+    LineOffsets offsets;
+    if (b->drawn || !line_offsets(st, &offsets))
+        return;
+    uint8_t free_layers = 0, taken = 0;   /* GBA layers, and the windows given to runs, a bit each */
+    for (unsigned g = 0; g < 4; g++)
+        if (gba_layers[g].source == 2)
+            free_layers |= (uint8_t)(1u << g);
+    for (unsigned n = 0; n < 2; n++) {
+        unsigned own = own_layer(n);
+        MovedColumns runs[MOST_RUNS];
+        unsigned count = own == NO_LAYER || !(st->main_layers >> n & 1) ? 0 : moved_columns(st, &offsets, n, runs);
+        uint8_t spare = columns_layer[n] != NO_LAYER ? (uint8_t)(1u << columns_layer[n]) : 0;
+        uint8_t layers = free_layers | spare;
+        for (unsigned k = 0; k < count && layers; k++) {
+            uint16_t edges = gba_window((uint8_t)runs[k].first, (uint8_t)runs[k].last, b);
+            if (covers_nothing(edges))
+                continue;   /* out of view */
+            unsigned w = 0;
+            for (; w < 2; w++)
+                if (taken >> w & 1 ? *window_edges(r, w) == edges : window_free(r, w))
+                    break;
+            if (w == 2)
+                continue;
+            if (!(taken >> w & 1)) {
+                *window_edges(r, w) = edges;
+                r->winin = (uint16_t)((r->winin & (0xFF00u >> 8 * w)) | (r->winout & 0xFF) << 8 * w);
+                taken |= (uint8_t)(1u << w);
+            }
+            unsigned g = (unsigned)__builtin_ctz(layers & spare ? spare : layers);
+            layers &= (uint8_t)~(1u << g);
+            free_layers &= (uint8_t)~(1u << g);
+            r->winin = (uint16_t)((r->winin & ~(gba_bits_of[1u << n] << 8 * w)) | 1u << (g + 8 * w));
+            r->bgcnt[g] = r->bgcnt[own];
+            r->hofs[g] = (uint16_t)(runs[k].hofs + b->left);
+            r->vofs[g] = (uint16_t)(runs[k].vofs + down + 1);
+            if (r->bldcnt & 1u << own)
+                r->bldcnt |= (uint16_t)(1u << g);
+            if (r->bldcnt & 0x100u << own)
+                r->bldcnt |= (uint16_t)(0x100u << g);
+        }
+    }
+}
+
 /* A line's registers: the SNES's line shown on a band's line `down` lines
  * further down the GBA's than the GBA's own. A layer's row on the SNES is
  * its line's (the first shown is its line 1) and its scroll, one further
@@ -2940,6 +3157,8 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     else
         gba_controls(&r, controls, drawn_layers);
     line_blending(&r, st);
+    if (laid_out_mode == 2 && !mode7)
+        show_moved_columns(&r, st, b, down);
     return r;
 }
 
@@ -3218,13 +3437,14 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
             bool band_starts = at == b->at, again = false;
             /* Where only the scroll, the plane or the colour math may have
              * changed (but not a band cut's scroll, which moves the cut in
-             * its maps, nor between Mode 7 and another mode), the last
+             * its maps, nor mode 2's, which moves its columns, nor between
+             * Mode 7 and another mode), the last
              * change's registers with those: a line's scroll (but on the
              * drawn panel, whose layers' scroll is its own); on a Mode 7
              * line, its plane (the first layer's scroll is the plane's); the
              * blending, a step of its strength alone no change at all. */
             bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
-                         !(b->cut_dots && (touched & CHANGED_SCROLL)) &&
+                         !((b->cut_dots || st.mode == 2) && (touched & CHANGED_SCROLL)) &&
                          (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn);
             LineRegisters r;
             /* a Mode 7 line's plane is its own table's, no change's */
@@ -3266,6 +3486,11 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                     }
                 }
             } else if (count == 0 || band_starts || (touched && memcmp(&st, &shown, sizeof st) != 0)) {
+                /* the mode and the layers shown change only on lines worked out whole */
+                if (st.mode == 2)
+                    lines_text_mode = 2;
+                else if (laid_out_mode == 2 && st.mode != 7 && ((st.main_layers | st.sub_layers) & VID_BG3_BIT))
+                    third_on_lines = true;
                 r = line_registers(&st, layers_enabled, b, down, at);
                 memcpy(&shown, &st, sizeof st);
                 again = true;
@@ -3324,8 +3549,8 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     lines_from(&from, &pf->video, layers_enabled);
     LineState st;
     uint8_t count;
-    bool may_stand = last_stands && !laid_out && !asked_anew;
-    asked_anew = false;
+    bool may_stand = last_stands && !laid_out && !asked_anew && !offsets_written;
+    asked_anew = offsets_written = false;
     if (!may_stand)
         lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
     /* the starting point's hash, where it is compared or kept */
@@ -3395,7 +3620,8 @@ void gba_video_present(Platform *pf)
     bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
     /* the plane's room made where a line shows Mode 7, and given back where none does */
     bool plane_moved = plane_wanted() ? !plane_room && !plane_refused : plane_room;
-    bool laid_out = snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode;
+    bool laid_out = snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode ||
+                    (laid_out_mode == 2 && third_on_lines && !laid_out_third);
     if (laid_out) {
         lay_out(usage_known);
         memset(snes.changed, 0xFF, sizeof snes.changed);
