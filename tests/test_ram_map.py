@@ -372,7 +372,15 @@ host_alias = "items"''', "menu"))
         getter = flat[flat.index("uint16_t items(const GameState *g"):]
         getter = getter[:getter.index("\n")]
         self.assertIn("if (slot >= 4u) { return r16(g, 0x7E1000u + (uint32_t)slot * 0x02u); }", getter)
-        self.assertIn("return get16(g, 0x7E1000u + (uint32_t)slot * 0x02u);", getter)
+        # with the accessor's last byte, so that it needn't look for a target's cold top
+        self.assertIn("return get16(g, 0x7E1000u + (uint32_t)slot * 0x02u, 0x7E1007u);", getter)
+
+    def test_the_flat_state_names_the_pages_a_value_runs_across(self):
+        """A target may keep work RAM's top apart only at a 4 KiB page that no
+        value read in place runs across into: those pages have a bit set."""
+        m = ram_map.RamMap(text=var("word", 'addr = "7F:0FFF"\nsize = 2\nhost_module = "items"'))
+        self.assertEqual(ram_map.flat_crossed_steps(m), 1 << 0x11)
+        self.assertIn("#define VARS_FLAT_CROSSED_STEPS 0x00020000u", ram_map.render_host_header(m))
 
     def test_an_overlay_keeps_its_own_typed_storage(self):
         """A mode whose bytes the original reuses for another's variables gets a
