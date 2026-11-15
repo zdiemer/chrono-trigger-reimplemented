@@ -1269,7 +1269,8 @@ mode 0's four tiled layers and its sprites:
   own map, its tiles from the same cache (the field's second layer shows
   the first's), is shown from that layer's copy rather than a copy of its
   own, which leaves the caches the room a split takes. A map a band shows
-  cut isn't split: its tiles in front stand behind with the rest.
+  cut isn't split: all of it stands where its layer would not split (the
+  battle's windows' text in front).
 - **Sprite masks**: where sprites overlap, the SNES shows the one first in
   its table and then sets that one's priority against the layers', where
   the GBA shows the one of the higher priority. The game masks with that:

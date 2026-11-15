@@ -1137,19 +1137,26 @@ static const Order third_in_front_order = { { { 5, 2 }, { 6, 3 }, { 8, 0 }, { 9,
                                             { { 2, 1 }, { 2, 1 }, { 3, 0 }, { 3, 3 } }, { 3, 3, 2, 1 } };
 static const Order mode2_order = { { { 5, 1 }, { 7, 3 }, { 9, 9 }, { 9, 9 } },
                                    { { 2, 0 }, { 3, 1 }, { 3, 3 }, { 3, 3 } }, { 3, 2, 1, 0 } };
-static const Order *order = &layers_order;
+static const Order *order = &layers_order;   /* the mode's, as the GBA's layers were assigned */
+
+static const Order *order_of_mode(void)
+{
+    if (snes.mode.mode == 2)
+        return &mode2_order;
+    return snes.mode.mode == 1 && snes.mode.bg3_priority ? &third_in_front_order : &layers_order;
+}
 
 /* Whether a layer not split stands in front of the sprites: where more of
  * its map's units have only tiles in front than only tiles behind; mode 1's
- * third layer put in front, where it has any tiles in front (its text and
- * panels, which the mode puts in front of everything; what it has behind is
- * mostly blank). */
+ * third layer put in front, where it has any tiles in front or its own map
+ * isn't shown (its text and panels, which the mode puts in front of
+ * everything; what it has behind is mostly blank). */
 static bool stands_in_front(unsigned n)
 {
     unsigned front, behind;
-    bool third_in_front = n == 2 && order == &third_in_front_order;
+    bool third_in_front = n == 2 && order_of_mode() == &third_in_front_order;
     count_priorities(n, !third_in_front, &front, &behind);
-    return third_in_front ? front > 0 : front > behind;
+    return third_in_front ? front > 0 || !layers[n].own_map : front > behind;
 }
 
 /* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
@@ -1183,13 +1190,6 @@ static unsigned shown_in_order(uint8_t depth[4], unsigned count, unsigned n, boo
     depth[k] = d;
     gba_layers[k] = (GbaLayer){ (uint8_t)n, order->priority[n][front], front_copy };
     return count + 1;
-}
-
-static const Order *order_of_mode(void)
-{
-    if (snes.mode.mode == 2)
-        return &mode2_order;
-    return snes.mode.mode == 1 && snes.mode.bg3_priority ? &third_in_front_order : &layers_order;
 }
 
 /* The GBA's layers: each SNES layer's, or its two halves, in the SNES's
@@ -1405,10 +1405,15 @@ static void lay_out(bool pruned)
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
-        if (lm->gba_byte == NO_PLACE || lm->cut != NO_CUT || !layers[lm->layer].split)
+        if (lm->gba_byte == NO_PLACE || !layers[lm->layer].split)
             continue;
         const Layer *owner = lm->shared ? map_layer(lm->byte) : NULL;
-        if (owner && owner->split)
+        if (lm->cut != NO_CUT) {
+            /* a map cut has no copy of its tiles in front: all of it stands
+             * where the layer would stand not split */
+            if (stands_in_front(lm->layer))
+                front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->gba_byte / SCREEN_BYTES);
+        } else if (owner && owner->split)
             lm->front_byte = owner->front_byte;
         else if (has_tiles_in_front(lm->byte, lm->bytes) && (lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
             front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
