@@ -76,4 +76,23 @@ void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_
         out += n, addr += n, len -= n;
     }
 }
+
+/* A fill keeps to the owned bytes, as vars_host_write8 does: the rest hold
+ * the 0 they started with. */
+void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len)
+{
+    while (len) {
+        uint32_t at = addr - WORK_RAM;
+        if (at >= WORK_RAM_BYTES)
+            return;
+        uint32_t end = at < VARS_FLAT_COLD_FROM ? VARS_FLAT_COLD_FROM : (at | PAGE_MASK) + 1;
+        uint32_t n = len < end - at ? len : end - at;
+        /* a byte at a time, as the cold top's memory takes it */
+        volatile uint8_t *to = vars_flat_byte(h, at);
+        for (uint32_t i = 0; i < n; i++)
+            if (vars_flat_owned(addr + i))
+                to[i] = value;
+        addr += n, len -= n;
+    }
+}
 #endif
