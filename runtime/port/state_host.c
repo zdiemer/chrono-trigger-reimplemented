@@ -244,7 +244,12 @@ void state_host_read_span(const GameState *g, uint32_t addr, uint8_t *out, uint3
 
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v)
 {
-    uint32_t offset;
+    uint32_t offset = (addr & 0xFFFFFF) - 0x7E0000u;
+    if (offset < 0x20000u) {
+        /* work RAM's own banks, where most writes by address are */
+        vars_host_write8(&g->head.vars, 0x7E0000u + offset, v);
+        return;
+    }
     switch (place_of(addr & 0xFFFFFF, &offset)) {
     case IN_WRAM:
         /* Bulk clears may cross retired cells and padding. They have no
