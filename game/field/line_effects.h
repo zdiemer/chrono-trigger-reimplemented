@@ -26,4 +26,14 @@ void field_line_effects_ready(GameState *g, Platform *pf);
 void field_line_effects_build(GameState *g);
 
 /* The builders for each window position and table set ($FD:C2EB-$FD:D27E). */
+
+/* The screen's lines the dialog window's band takes as it stands: `half`
+ * lines either side of its middle line (counted from 0, the screen's top),
+ * and `full`, the most it opens to. A smaller view keeps it in view
+ * (field/handheld_view.c). */
+typedef struct {
+    int16_t middle;
+    uint8_t half, full;
+} FieldWindowBand;
+FieldWindowBand field_dialog_window_band(const GameState *g, uint8_t position);
 #endif

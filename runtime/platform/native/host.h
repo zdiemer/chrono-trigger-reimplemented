@@ -101,6 +101,9 @@ typedef struct {
     uint8_t line_effects_below;
     uint32_t screens_applied;
     VidView view;                /* vid_host_set_view's; zero: the original's screen */
+    VidAim aim;                  /* a smaller view's camera (vid_aim_the_view) */
+    uint8_t panel_count;         /* vid_keep_a_panel_in_view's this frame */
+    VidViewPanel panels[VID_VIEW_PANELS];
     /* What a wider view shows past the original's screen, 38 KiB, which a
      * build that never draws wider (VID_HOST_NO_WIDER_VIEW) leaves out. */
 #ifndef VID_HOST_NO_WIDER_VIEW

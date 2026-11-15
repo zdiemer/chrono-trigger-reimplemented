@@ -211,7 +211,7 @@ static void set_a_glyph(GameState *g)
 
 /* The window is a band of the screen its height in lines either side of its
  * middle (field/line_effects.c), opening and closing a few lines a frame. */
-enum { WINDOW_FULL = 0x28, WINDOW_LINES_A_FRAME = 4 };
+enum { WINDOW_FULL = DIALOG_WINDOW_FULL, WINDOW_LINES_A_FRAME = 4 };
 
 /* Where the window opens: where the script said, or else away from the
  * speaker: at the bottom of the screen for a speaker in its upper half. The

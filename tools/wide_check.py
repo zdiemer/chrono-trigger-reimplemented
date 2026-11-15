@@ -1,8 +1,10 @@
-"""The wider view changes only the picture: play each movie at the original's
-256x224 and at a wider view, and fail where the two end in different work RAM
-or save RAM (docs/PLATFORM.md, "The wider view, as built"). Then look at the
-margins of moments where they once showed what the original's screen never
-does (MARGINS), and fail where they hold more colours than they should."""
+"""A wider or a smaller view changes only the picture: play each movie at the
+original's 256x224 and at another view (480x224 unless --view says, the GBA's
+240x160 among them), and fail where the two end in different work RAM or save
+RAM (docs/PLATFORM.md, "The wider view, as built" and "The smaller view, as
+built"). Then, for a wider view, look at the margins of moments where they once
+showed what the original's screen never does (MARGINS), and fail where they
+hold more colours than they should."""
 import argparse
 import concurrent.futures
 import pathlib
@@ -67,6 +69,11 @@ def margin_colours(path, region=BOTH_SIDES):
         for x in xs:
             seen.add(line[x * 3:x * 3 + 3])
     return seen
+
+
+def wider(view):
+    """Whether a view (WIDTHxHEIGHT) is wider than the original's screen, with margins to look at."""
+    return int(view.split('x')[0]) > ORIGINAL_WIDTH
 
 
 def differences(narrow, wide, shown=4):
@@ -148,7 +155,7 @@ def main(argv=None):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(args.jobs, 2))) as pool:
                 results = list(pool.map(one, rows))
-                pictures = list(pool.map(margins, MARGINS))
+                pictures = list(pool.map(margins, MARGINS if wider(args.view) else []))
         for name, ok, detail in results:
             print('%s: %s%s' % (name, detail, '' if ok else ' <-- DIFFERS'))
         for name, ok, detail in pictures:

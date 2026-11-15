@@ -25,6 +25,7 @@
 #include "field/dialog_window.h"
 #include "field/display.h"
 #include "field/line_effects.h"
+#include "field/camera.h"
 #include "field/margin_objects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -281,6 +282,7 @@ void field_vblank(GameState *g, Platform *pf)
     }
     field_show_the_layers_across(g, pf);
     field_show_the_objects_past_the_window(g, pf);
+    field_frame_the_view(g, pf);
     bool read = false;
     TIMED_AS(g, MENUS_FRAME, read = input_take_frame(g, pf));
     if (!read) {

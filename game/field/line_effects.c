@@ -39,6 +39,7 @@
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field.h"
+#include "field/dialog_window.h"
 #include "field/field_data.h"
 #include "platform/video.h"
 #include "port/vars_ram.h"
@@ -453,6 +454,14 @@ static void window1_table(GameState *g, uint8_t set, WindowPosition position, co
         lines = (uint16_t)(lines + 2 * n);
     }
     end_table(g, t);
+}
+
+/* The band's middle: below the top window's first parts, or the bottom
+ * one's, and the half line its tables add above the band. */
+FieldWindowBand field_dialog_window_band(const GameState *g, uint8_t position)
+{
+    int16_t middle = position == WINDOW_AT_TOP ? TOP_START + TOP_ABOVE : BOTTOM_START + BOTTOM_NEXT + BOTTOM_EDGE + 1;
+    return (FieldWindowBand){ middle, dialog_window_state(g), DIALOG_WINDOW_FULL };
 }
 
 // $FD:C995 (set 0), $FD:CD0C (set 1): the top window

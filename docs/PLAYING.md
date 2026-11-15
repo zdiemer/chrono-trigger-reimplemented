@@ -92,7 +92,10 @@ supplies bindings (`Scaling`, `Filter` and `Quit` are actions like the rest);
 `--keys FILE` and `--bind INPUT=ACTION` override them. `--scale` and `--mute`
 control the window. `--view WIDTHx224` shows a wider picture (up to 480 across,
 the original's screen in its middle; docs/PLATFORM.md, "The wider view, as
-built"), in the window and in screenshots; the game plays the same at any view.
+built"), in the window and in screenshots; `--view 240x160` (any smaller
+size from 160x144) shows the GBA's screen, part of the original's that a
+camera frames ("The smaller view, as built"), with square pixels and every
+row, for this launch alone; the game plays the same at any view.
 
 F5 saves a snapshot of the completed frame; F7 loads it at once.
 `--save-state` and `--load-state` do the same headlessly. Snapshots belong to

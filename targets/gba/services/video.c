@@ -325,6 +325,16 @@ void vid_lay_out_a_map_across(Platform *pf, uint16_t map_base, const VidMapLayou
 
 void vid_part_the_windows(Platform *pf, const VidWindowParting *parting) { (void)pf, (void)parting; }
 
+void vid_aim_the_view(Platform *pf, VidAim aim) { (void)pf, (void)aim; }
+
+VidAim vid_view_aim(const Platform *pf)
+{
+    (void)pf;
+    return (VidAim){ CAMERA_X, CAMERA_Y };
+}
+
+void vid_keep_a_panel_in_view(Platform *pf, const VidViewPanel *panel) { (void)pf, (void)panel; }
+
 void vid_show_a_sprite_in_the_margins(Platform *pf, const VidMarginSprite *s, const VidSpritePicture *picture)
 {
     (void)pf, (void)s, (void)picture;

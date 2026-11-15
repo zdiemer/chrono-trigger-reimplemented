@@ -10,6 +10,8 @@ import threading
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# The GBA's screen, the smaller view the long batch plays the gate movies at (tools/wide_check.py).
+HANDHELD_VIEW = '240x160'
 BUDGET = 600
 
 if __package__ in (None, ""):
@@ -55,6 +57,8 @@ def long_batch(args, binary):
         ('routes', [py, '-m', 'tools.movies.route_check', '--drive', str(binary), '--rom', str(args.rom),
                     '--scratch', str(args.out / 'routes'), '--protocol-log', '-j', str(args.jobs), *all_routes()]),
         ('wide', [py, 'tools/wide_check.py', '--ct-native', str(binary), '--rom', str(args.rom), '-j', str(args.jobs)]),
+        ('handheld', [py, 'tools/wide_check.py', '--ct-native', str(binary), '--rom', str(args.rom),
+                      '--view', HANDHELD_VIEW, '-j', str(args.jobs)]),
     ]
     started = time.monotonic()
     findings = []
