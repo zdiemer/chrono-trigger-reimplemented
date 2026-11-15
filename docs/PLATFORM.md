@@ -1260,10 +1260,14 @@ wherever the program is, and with the count published first, a frame of
 mGBA's that ended between the two let it put the pads of the frame 64 on
 into the slot the driver had yet to read. Which frame that hit depended on
 nothing but how long the GBA took over its frames, so a change to the
-picture's or the mixing's speed could change a movie's end
-(`events-jetbike-race` took twelve more lag frames with the window widened);
-now an idle loop in `gba_video_present` or the mixer leaves every movie's
-end state as it was (issue #492).
+picture's or the mixing's speed could change a movie's end: an idle loop of
+10,000 turns in `gba_video_present` put the ends of the picture's work near
+mGBA's frame ends and `events-jetbike-race` ended with 220 lag frames for
+ct_native's 1,732. Read first, the pads are the movie's whatever the GBA's
+speed: with idle loops of 60, 300 and 10,000 turns in `gba_video_present`,
+or 300 and 3,000 in the mixer's chunk, `title-start`, `new-game`,
+`gato-battle`, `events-jetbike-race` and `attract-demo` each end with
+ct_native's end state and lag frames (issue #492).
 A movie's starting save goes in as the `.sav` (`mgba_run --sav`). Before,
 the packing step put a movie's pads and its save in each image, one `.gba` a
 movie.
