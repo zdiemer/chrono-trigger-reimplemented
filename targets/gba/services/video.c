@@ -1,4 +1,4 @@
-/* The video service on the GBA's own picture (issue #367), in place of
+/* The video service on the GBA's own picture, in place of
  * runtime/platform/native/video.c (docs/PLATFORM.md, "The GBA build, as
  * built").
  *
@@ -31,6 +31,12 @@
  *   another, as many as the GBA's four layers leave room for ("Priority",
  *   below). A sprite the game masks with one before it in the SNES's table
  *   is masked by the GBA's sprite window (present_sprites).
+ * - Mode 7's plane is the GBA's own: the GBA's affine layer (BG2 in its
+ *   mode 2) reads a 128x128 map of bytes and 256 tiles of 8-bit pixels,
+ *   as the SNES's does, so the plane's half of VRAM is split into the two
+ *   (the map's bytes and the tiles' bytes interleave on the SNES) in the
+ *   GBA's first 32 KiB, and each line of the plane is given the matrix and
+ *   the point of the plane at its left end ("Mode 7", below).
  * - The GBA's 240x160 screen is a smaller view (vid_view): the game frames
  *   it, a camera on the SNES's 256x224 and bands of its lines kept in view
  *   (core/view_framing.h), and each GBA line shows the SNES line its band
@@ -58,6 +64,13 @@
 #define BGCNT(n) REG16(0x04000008 + 2 * (n))
 #define BGHOFS(n) REG16(0x04000010 + 4 * (n))
 #define BGVOFS(n) REG16(0x04000012 + 4 * (n))
+#define BG2_PLANE ((volatile uint32_t *)0x04000020)   /* PA-PD, X and Y: four words */
+#define DMA0SAD (*(volatile uint32_t *)0x040000B0)
+#define DMA0DAD (*(volatile uint32_t *)0x040000B4)
+#define DMA0CNT (*(volatile uint32_t *)0x040000B8)
+#define DMA1SAD (*(volatile uint32_t *)0x040000BC)
+#define DMA1DAD (*(volatile uint32_t *)0x040000C0)
+#define DMA1CNT (*(volatile uint32_t *)0x040000C4)
 #define BLDCNT REG16(0x04000050)
 #define BLDALPHA REG16(0x04000052)
 #define BLDY REG16(0x04000054)
@@ -71,7 +84,7 @@ enum {
     DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
     DISPCNT_OBJ_WINDOW = 0x8000, OBJ_WINDOW = 0x0800,
     BGCNT_4BPP = 0x0000,
-    BLD_DARKEN = 0x00C0, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
+    BLD_DARKEN = 0x00C0, BLD_LIGHTEN = 0x0080, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
     UNIT_BYTES = 32, UNITS = VRAM_BYTES / UNIT_BYTES,
     TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
@@ -109,6 +122,8 @@ typedef struct {
     uint8_t oam_latch;
     VidMode mode;
     VidBg bg[4];
+    VidMode7 m7;
+    uint8_t m7_latch;              /* the byte the Mode 7 registers' writes share */
     VidObjConfig obj;
     uint8_t main_layers, sub_layers;
     VidWindows windows;
@@ -574,12 +589,50 @@ void vid_set_scroll(Platform *pf, PfOrigin o, VidLayer bg, uint16_t hofs, uint16
         snes.bg[bg].hofs = hofs & 0x3FF;
     if (fields & VID_SCROLL_V)
         snes.bg[bg].vofs = vofs & 0x3FF;
+    /* the first layer's scroll is Mode 7's too, its 13 bits */
+    if (bg == VID_BG1 && (fields & VID_SCROLL_H))
+        snes.m7.hofs = vid_mode7_13bit(hofs);
+    if (bg == VID_BG1 && (fields & VID_SCROLL_V))
+        snes.m7.vofs = vid_mode7_13bit(vofs);
 }
 
 void vid_set_mosaic(Platform *pf, PfOrigin o, uint8_t bgs, uint8_t size) { (void)pf, (void)o, (void)bgs, (void)size; }
+/* As the native observer takes them (runtime/platform/observe.c): the
+ * registers' writes share a latch, so a value written a byte at a time
+ * takes the byte written before it. */
 void vid_set_mode7(Platform *pf, PfOrigin o, const VidMode7 *m7, uint32_t fields)
 {
-    (void)pf, (void)o, (void)m7, (void)fields;
+    (void)pf, (void)o;
+    VidMode7 *d = &snes.m7;
+    if (fields & VID_M7_SELECT)
+        d->hflip = m7->hflip, d->vflip = m7->vflip, d->outside = m7->outside;
+    if (fields & VID_M7_MATRIX) {
+        d->a = m7->a, d->b = m7->b, d->c = m7->c, d->d = m7->d;
+        snes.m7_latch = (uint8_t)((uint16_t)m7->d >> 8);
+    }
+    if (fields & VID_M7_MATRIX_AB) {
+        d->a = m7->a, d->b = m7->b;
+        snes.m7_latch = (uint8_t)((uint16_t)m7->b >> 8);
+    }
+    if (fields & VID_M7_MATRIX_A) {
+        d->a = m7->a;
+        snes.m7_latch = (uint8_t)((uint16_t)m7->a >> 8);
+    }
+    if (fields & VID_M7_MATRIX_B_HIGH) {
+        uint8_t high = (uint8_t)((uint16_t)m7->b >> 8);
+        d->b = (int16_t)((uint16_t)(high << 8) | snes.m7_latch);
+        snes.m7_latch = high;
+    }
+    if (fields & VID_M7_MATRIX_B) {
+        d->b = m7->b;
+        snes.m7_latch = (uint8_t)((uint16_t)m7->b >> 8);
+    }
+    if (fields & VID_M7_CENTER) {
+        d->cx = vid_mode7_13bit((uint16_t)m7->cx), d->cy = vid_mode7_13bit((uint16_t)m7->cy);
+        snes.m7_latch = (uint8_t)((uint16_t)m7->cy >> 8);
+    }
+    if (fields & VID_M7_SCROLL)
+        d->hofs = vid_mode7_13bit((uint16_t)m7->hofs), d->vofs = vid_mode7_13bit((uint16_t)m7->vofs);
 }
 
 void vid_set_obj_config(Platform *pf, PfOrigin o, const VidObjConfig *c)
@@ -842,7 +895,13 @@ void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *sc)
     vid_set_bg_chars(pf, o, VID_BG3, sc->bg[VID_BG3].char_base, sc->bg[VID_BG4].char_base);
     vid_start_vram_uploads(pf, o, &sc->vram_port);
     vid_set_vram_address(pf, o, 0x0000);
+    vid_set_mode7(pf, o, &sc->mode7, VID_M7_SELECT | VID_M7_MATRIX | VID_M7_CENTER | VID_M7_SCROLL);
+    vid_set_windows(pf, o, &sc->windows, VID_WINDOWS_SUB * 2 - 1);   /* all of them */
     vid_set_screens(pf, o, sc->main_layers, sc->sub_layers, VID_SCREEN_MAIN | VID_SCREEN_SUB);
+    vid_set_color_math(pf, o, &sc->math, VID_MATH_CONTROL | VID_MATH_LAYERS);
+    vid_set_fixed_color(pf, o, VID_RED, (uint8_t)(sc->fixed_color & 0x1F));
+    vid_set_fixed_color(pf, o, VID_GREEN, (uint8_t)(sc->fixed_color >> 5 & 0x1F));
+    vid_set_fixed_color(pf, o, VID_BLUE, (uint8_t)(sc->fixed_color >> 10 & 0x1F));
     pf->video.screens_applied++;
 }
 
@@ -1139,11 +1198,20 @@ static const Order mode2_order = { { { 5, 1 }, { 7, 3 }, { 9, 9 }, { 9, 9 } },
                                    { { 2, 0 }, { 3, 1 }, { 3, 3 }, { 3, 3 } }, { 3, 2, 1, 0 } };
 static const Order *order = &layers_order;   /* the mode's, as the GBA's layers were assigned */
 
+/* The mode the layers' tiles and maps are laid out for: the one the
+ * frame's lines show other than Mode 7 (a line effect may set the mode down
+ * the picture, the jet bike race's from its top), or the mode set. */
+enum { NO_MODE = 0xFF };
+static uint8_t lines_text_mode = NO_MODE;   /* the last frame's lines' */
+static uint8_t laid_out_mode;               /* the layout's */
+
+static uint8_t text_mode(void) { return lines_text_mode != NO_MODE ? lines_text_mode : snes.mode.mode; }
+
 static const Order *order_of_mode(void)
 {
-    if (snes.mode.mode == 2)
+    if (text_mode() == 2)
         return &mode2_order;
-    return snes.mode.mode == 1 && snes.mode.bg3_priority ? &third_in_front_order : &layers_order;
+    return text_mode() == 1 && snes.mode.bg3_priority ? &third_in_front_order : &layers_order;
 }
 
 /* Whether a layer not split stands in front of the sprites: where more of
@@ -1299,6 +1367,69 @@ static void make_room_for_the_panel(bool kept)
     panel_room.made = true;
 }
 
+/* ---- Mode 7 ----------------------------------------------------------------------------------------
+ *
+ * The plane is the SNES's VRAM's first 32 KiB, each word a byte of its
+ * 128x128 map (low) and a byte of its 256 tiles' 8-bit pixels (high). The
+ * GBA's affine layer reads the same two, apart: the tiles at the start of
+ * its background VRAM (char block 0) and the map after them (screen block
+ * 8). A layout made while a line shows Mode 7 (or the mode is 7) keeps
+ * those 32 KiB for the plane, where no layer's map lies in them, and the
+ * tiles' caches take their places past it; a layout made while none does
+ * gives them back. The table of the plane's lines DMA reads (PlaneLine,
+ * below) takes room of background VRAM too, from its top, which work RAM
+ * hasn't to spare. The plane's 256 colours are the GBA's 256 background
+ * colours, its upper 128 the SNES's own where no 2bpp layer needs them for
+ * its copies. */
+enum { PLANE_BYTES = 0x8000, PLANE_MAP_BYTE = 0x4000, PLANE_MAP_BLOCK = PLANE_MAP_BYTE / SCREEN_BYTES };
+static bool plane_room;        /* the layout keeps the GBA's first 32 KiB for the plane */
+static bool plane_refused;     /* a layer's map lies where the plane would */
+static bool plane_on_lines;    /* a line of the last frame showed Mode 7 */
+static volatile void *plane_table;   /* the table of the plane's lines, in background VRAM; NULL: no room */
+/* the GBA's 160 lines and the blank after them, 16 bytes each (checked by PlaneLine's assert) */
+enum { PLANE_TABLE_BYTES = (160 + 1) * 16, PLANE_TABLE_PLACES = (PLANE_TABLE_BYTES + 31) / 32 };
+
+static bool plane_wanted(void) { return snes.mode.mode == 7 || plane_on_lines; }
+
+/* The plane's room, where it is wanted and free: its places taken. */
+static void make_room_for_the_plane(void)
+{
+    bool was = plane_room;
+    plane_room = false;
+    plane_refused = false;
+    plane_table = NULL;
+    if (plane_wanted()) {
+        for (unsigned k = 0; k < PLANE_BYTES / BLOCK_BYTES; k++)
+            if (roles[k] & MAP)
+                plane_refused = true;
+        uint32_t table = PLACES - PLANE_TABLE_PLACES;
+        while (!plane_refused && table >= PLANE_BYTES / 32 && !room_at(table, PLANE_TABLE_PLACES))
+            table--;
+        plane_refused |= table < PLANE_BYTES / 32;
+        plane_room = !plane_refused;
+        if (plane_room) {
+            for (uint32_t place = 0; place < PLANE_BYTES / 32; place++)
+                take(place);
+            take_room(table, PLANE_TABLE_PLACES);
+            plane_table = (volatile uint8_t *)BG_VRAM + table * 32;
+        }
+    }
+    if (plane_room != was)
+        snes.palette_written = true;
+}
+
+/* A unit of the plane's VRAM: its 16 map bytes and 16 pixels, apart. */
+static void convert_plane_unit(uint32_t first)
+{
+    volatile uint16_t *vram = (volatile uint16_t *)BG_VRAM;
+    const uint8_t *bytes = &snes.vram[first];
+    uint32_t at = first / 2;   /* the first's byte of the map and of the tiles */
+    for (unsigned k = 0; k < UNIT_BYTES / 4; k++) {
+        vram[(PLANE_MAP_BYTE + at) / 2 + k] = (uint16_t)(bytes[4 * k] | bytes[4 * k + 2] << 8);
+        vram[at / 2 + k] = (uint16_t)(bytes[4 * k + 1] | bytes[4 * k + 3] << 8);
+    }
+}
+
 /* The maps the frame's lines showed since the layout (layer_control): each
  * layer's own (bit n) and each line map (bit LINE_MAPS_SHOWN + m). */
 enum { LINE_MAPS_SHOWN = 4 };
@@ -1328,15 +1459,19 @@ static void lay_out(bool pruned)
     memset(taken, 0, sizeof taken);
     misses = frames_since_layout = 0;
     /* mode 2 is mode 1 without BG3, whose map there holds the offsets a column (not kept yet) */
-    unsigned count = snes.mode.mode == 0 ? 4 : snes.mode.mode == 1 ? 3 : snes.mode.mode == 2 ? 2 : 0;
+    uint8_t mode = laid_out_mode = text_mode();
+    unsigned count = mode == 0 ? 4 : mode == 1 ? 3 : mode == 2 ? 2 : 0;
     for (unsigned n = 0; n < count; n++) {
         Layer *l = &layers[n];
         const VidBg *b = &snes.bg[n];
-        l->bpp = snes.mode.mode != 0 && n < 2 ? 4 : 2;
+        l->bpp = mode != 0 && n < 2 ? 4 : 2;
         l->char_byte = (uint16_t)(b->char_base << 1);
         l->map_byte = (uint16_t)(b->map_base << 1);
         l->map_bytes = map_bytes(b);
         l->own_map = !pruned || (maps_shown >> n & 1);
+        /* a layer no screen shows, its map where the plane is, left out for it */
+        if (plane_wanted() && l->map_byte < PLANE_BYTES && !((snes.main_layers | snes.sub_layers) >> n & 1))
+            continue;
         unsigned c = 0;
         while (c < CACHES && caches[c].used && !(caches[c].bpp == l->bpp && caches[c].char_byte == l->char_byte))
             c++;
@@ -1366,6 +1501,7 @@ static void lay_out(bool pruned)
             for (uint32_t place = byte / 32; place < (byte + BLOCK_BYTES) / 32; place++)
                 take(place);
     }
+    make_room_for_the_plane();
     /* The layers to split by priority, from their maps as they stand. */
     memset(units_in_front, 0, sizeof units_in_front);
     memset(units_behind, 0, sizeof units_behind);
@@ -1534,6 +1670,8 @@ static int sprite_slot(uint32_t byte)
 static void convert_unit(unsigned u)
 {
     uint32_t first = (uint32_t)u * UNIT_BYTES;
+    if (plane_room && first < PLANE_BYTES)
+        convert_plane_unit(first);
     uint8_t role = roles[first / BLOCK_BYTES];
     if (role & LINE_MAP)
         for (unsigned m = 0; m < snes.line_map_count; m++) {
@@ -1712,9 +1850,17 @@ void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t 
 
 static void present_palettes(void)
 {
+    /* the upper 128 are the 2bpp palettes' copies, but where the plane has
+     * them and no 2bpp layer is shown */
+    bool copies = !plane_room;
+    for (unsigned c = 0; c < CACHES; c++)
+        copies |= caches[c].used && caches[c].bpp == 2;
     for (unsigned i = 0; i < 128; i++)
         BG_PALETTE[i] = snes.cgram[i];
-    for (unsigned p = 0; p < 8; p++)
+    if (plane_room && !copies)
+        for (unsigned i = 128; i < 256; i++)
+            BG_PALETTE[i] = snes.cgram[i];
+    for (unsigned p = 0; copies && p < 8; p++)
         for (unsigned c = 0; c < 4; c++)
             BG_PALETTE[(8 + p) * 16 + c] = snes.cgram[p * 4 + c];
     for (unsigned i = 0; i < 128; i++)
@@ -2025,6 +2171,8 @@ enum {
     GBA_LINES = 160, SNES_LINES = 224, IRQ_HBLANK = 2, IRQ_VCOUNT = 4,
     DISPSTAT_HBLANK_IRQ = 0x10, DISPSTAT_VCOUNT_IRQ = 0x20,
     DISPCNT_WIN0 = 0x2000, DISPCNT_WIN1 = 0x4000, WIN_EFFECTS = 0x20,
+    DISPCNT_MODES = 7, DISPCNT_AFFINE_MODE = 2, DISPCNT_BG2 = 0x0400,
+    BGCNT_WRAP = 0x2000, BGCNT_1024_DOTS = 0xC000, PLANE_PRIORITY = 2,
 };
 
 /* A line's registers on the GBA, its four layers' as they show the SNES's
@@ -2033,6 +2181,46 @@ typedef struct {
     uint16_t dispcnt, bgcnt[4], hofs[4], vofs[4], win0h, win1h, winin, winout, bldcnt, bldy;
     uint16_t backdrop, bldalpha;
 } LineRegisters;
+
+/* Mode 7's plane on each of the GBA's lines: its matrix and the point at
+ * the line's left end, the affine layer's registers in their order. The
+ * race's perspective changes them every line, so rather than a change (and
+ * an interrupt) a line, DMA copies a line's into the registers in the
+ * horizontal blank above it, every line of a frame any line of which shows
+ * Mode 7; a line no change sets has the one above's stepped by the matrix's
+ * second column, as the GBA would step it. One more than the lines, for the
+ * blank after the last. The table is in background VRAM (plane_table),
+ * written a halfword or a word at a time, as VRAM takes them. */
+typedef struct {
+    int16_t pa, pb, pc, pd;
+    int32_t x, y;
+} PlaneLine;
+_Static_assert(sizeof(PlaneLine) * (GBA_LINES + 1) == PLANE_TABLE_BYTES, "the table is the lines' and the blank's, 16 bytes each");
+#define plane_lines ((volatile PlaneLine *)plane_table)
+static uint8_t plane_set[(GBA_LINES + 7) / 8];   /* the lines a change set, a bit each */
+static bool plane_shown;                         /* whether a line of the frame shows Mode 7 */
+
+/* The blending's strength (BLDY) on each line, where the colour math's
+ * fixed colour changes it every few lines (the dialog's shading, the race's
+ * fog) and nothing else changes: DMA copies each line's in the horizontal
+ * blank above it, rather than a change (and an interrupt) each step. A line
+ * no change or step sets has the one above's. */
+static uint16_t line_strength[GBA_LINES + 1];
+static uint8_t strength_set[(GBA_LINES + 7) / 8];
+static bool strength_steps;   /* whether a line's strength isn't its change's */
+
+static void set_strength(unsigned at, uint16_t bldy)
+{
+    line_strength[at] = bldy;
+    strength_set[at / 8] |= (uint8_t)(1u << (at % 8));
+}
+
+static void fill_the_strengths(void)
+{
+    for (unsigned at = 1; at <= GBA_LINES; at++)
+        if (at == GBA_LINES || !(strength_set[at / 8] >> (at % 8) & 1))
+            line_strength[at] = line_strength[at - 1];
+}
 
 /* The frame's changes down the picture: the first line's registers, then
  * each line whose registers differ from the line above's. */
@@ -2052,6 +2240,9 @@ typedef struct {
     uint16_t fixed_color;
     uint8_t brightness;
     bool blank;
+    uint8_t mode;         /* the SNES's BG mode */
+    uint8_t m7_latch;
+    VidMode7 m7;
 } LineState;
 
 /* A slot's progress through its table, as HDMA's, and the line it next
@@ -2187,8 +2378,10 @@ static void slot_entry(Slot *sl, const VidLineEffect *e)
 
 /* What of a line's registers a line effect's transfer may change: only
  * its layers' scroll, which a line's other registers don't depend on (a
- * battle's backgrounds wave a line at a time), or anything. */
-typedef enum { CHANGED_SCROLL = 1, CHANGED_OTHER = 2 } Changed;
+ * battle's backgrounds wave a line at a time), only Mode 7's plane (the
+ * race's perspective, a line at a time), only the colour math (the dialog's
+ * shading, the race's fog), or anything. */
+typedef enum { CHANGED_SCROLL = 1, CHANGED_OTHER = 2, CHANGED_PLANE = 4, CHANGED_MATH = 8 } Changed;
 
 static uint8_t target_changes(VidLineTarget target)
 {
@@ -2197,6 +2390,12 @@ static uint8_t target_changes(VidLineTarget target)
     case VID_LINE_SCROLL_BG1_H: case VID_LINE_SCROLL_BG1_V: case VID_LINE_SCROLL_BG2_H: case VID_LINE_SCROLL_BG2_V:
     case VID_LINE_SCROLL_BG3_H: case VID_LINE_SCROLL_BG3_V:
         return CHANGED_SCROLL;
+    case VID_LINE_MODE7_AB: case VID_LINE_MODE7_CD: case VID_LINE_MODE7_CENTER:
+    case VID_LINE_MODE7_A: case VID_LINE_MODE7_B: case VID_LINE_MODE7_C: case VID_LINE_MODE7_D:
+        return CHANGED_PLANE;
+    case VID_LINE_FIXED_COLOR: case VID_LINE_COLOR_MATH: case VID_LINE_MATH_LAYERS: case VID_LINE_MATH_LAYERS_ONLY:
+    case VID_LINE_MATH_CONTROL_AND_LAYERS:
+        return CHANGED_MATH;
     default:
         return CHANGED_OTHER;
     }
@@ -2209,6 +2408,8 @@ enum {
     SETS_WINDOW1 = 0x3, SETS_WINDOW2 = 0xC, SETS_WINDOWS = 0xF, SETS_WIN_MAIN = 0x10, SETS_MAIN = 0x20,
     SETS_SUB = 0x40, SETS_SCROLL_H = 0x80, SETS_SCROLL_V = 0x400, SETS_MAPS = 0x2000, SETS_BRIGHTNESS = 0x10000,
     SETS_FIXED = 0x20000, SETS_MATH_CONTROL = 0x40000, SETS_MATH_LAYERS = 0x80000,
+    SETS_MODE = 0x100000, SETS_M7_A = 0x200000, SETS_M7_B = 0x400000, SETS_M7_C = 0x800000,
+    SETS_M7_D = 0x1000000, SETS_M7_CENTER = 0x2000000,
 };
 
 static uint32_t target_sets(VidLineTarget target)
@@ -2240,6 +2441,14 @@ static uint32_t target_sets(VidLineTarget target)
     case VID_LINE_MATH_LAYERS: return SETS_MATH_LAYERS | SETS_FIXED;
     case VID_LINE_MATH_LAYERS_ONLY: return SETS_MATH_LAYERS;
     case VID_LINE_MATH_CONTROL_AND_LAYERS: return SETS_MATH_CONTROL | SETS_MATH_LAYERS;
+    case VID_LINE_MODE: case VID_LINE_BG_MODE: return SETS_MODE;
+    case VID_LINE_MODE7_AB: return SETS_M7_A | SETS_M7_B;
+    case VID_LINE_MODE7_CD: return SETS_M7_C | SETS_M7_D;
+    case VID_LINE_MODE7_A: return SETS_M7_A;
+    case VID_LINE_MODE7_B: return SETS_M7_B;
+    case VID_LINE_MODE7_C: return SETS_M7_C;
+    case VID_LINE_MODE7_D: return SETS_M7_D;
+    case VID_LINE_MODE7_CENTER: return SETS_M7_CENTER;
     default: return 0;
     }
 }
@@ -2283,8 +2492,22 @@ static void scroll_byte(uint16_t *value, unsigned k, uint8_t v)
     *value = k & 1 ? (uint16_t)((*value & 0xFF) | (v & 3) << 8) : (uint16_t)((*value & 0x300) | v);
 }
 
-/* What one byte of a line effect changes of what the GBA shows; the effects
- * on colour math, the mode and Mode 7 aren't shown yet. */
+/* A Mode 7 register's byte: they take a value a byte at a time through
+ * their shared latch, as the native observer does. */
+static void plane_byte(LineState *st, int16_t *value, uint8_t v)
+{
+    *value = (int16_t)((uint16_t)v << 8 | st->m7_latch);
+    st->m7_latch = v;
+}
+
+/* The first layer's scroll is Mode 7's too, its 13 bits through the latch. */
+static void plane_scroll_byte(LineState *st, int16_t *value, uint8_t v)
+{
+    plane_byte(st, value, v);
+    *value = vid_mode7_13bit((uint16_t)*value);
+}
+
+/* What one byte of a line effect changes of what the GBA shows. */
 static void line_apply(LineState *st, VidLineTarget target, unsigned k, uint8_t v)
 {
     VidWindows *w = &st->windows;
@@ -2301,10 +2524,12 @@ static void line_apply(LineState *st, VidLineTarget target, unsigned k, uint8_t 
     case VID_LINE_SCROLL_BG1: case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3: {
         unsigned bg = (unsigned)(target - VID_LINE_SCROLL_BG1);
         scroll_byte(k < 2 ? &st->hofs[bg] : &st->vofs[bg], k, v);
+        if (bg == 0)
+            plane_scroll_byte(st, k < 2 ? &st->m7.hofs : &st->m7.vofs, v);
         break;
     }
-    case VID_LINE_SCROLL_BG1_H: scroll_byte(&st->hofs[0], k, v); break;
-    case VID_LINE_SCROLL_BG1_V: scroll_byte(&st->vofs[0], k, v); break;
+    case VID_LINE_SCROLL_BG1_H: scroll_byte(&st->hofs[0], k, v); plane_scroll_byte(st, &st->m7.hofs, v); break;
+    case VID_LINE_SCROLL_BG1_V: scroll_byte(&st->vofs[0], k, v); plane_scroll_byte(st, &st->m7.vofs, v); break;
     case VID_LINE_SCROLL_BG2_H: scroll_byte(&st->hofs[1], k, v); break;
     case VID_LINE_SCROLL_BG2_V: scroll_byte(&st->vofs[1], k, v); break;
     case VID_LINE_SCROLL_BG3_H: scroll_byte(&st->hofs[2], k, v); break;
@@ -2331,6 +2556,15 @@ static void line_apply(LineState *st, VidLineTarget target, unsigned k, uint8_t 
         vid_color_math_decode(&st->math, k == 0 ? VID_MATH_CONTROL : VID_MATH_LAYERS, v);
         break;
     case VID_LINE_BG2_MAP: st->map[1] = v; break;
+    case VID_LINE_MODE: if (k == 0) st->mode = v & 7; break;
+    case VID_LINE_BG_MODE: st->mode = v & 7; break;
+    case VID_LINE_MODE7_AB: plane_byte(st, k < 2 ? &st->m7.a : &st->m7.b, v); break;
+    case VID_LINE_MODE7_CD: plane_byte(st, k < 2 ? &st->m7.c : &st->m7.d, v); break;
+    case VID_LINE_MODE7_A: plane_byte(st, &st->m7.a, v); break;
+    case VID_LINE_MODE7_B: plane_byte(st, &st->m7.b, v); break;
+    case VID_LINE_MODE7_C: plane_byte(st, &st->m7.c, v); break;
+    case VID_LINE_MODE7_D: plane_byte(st, &st->m7.d, v); break;
+    case VID_LINE_MODE7_CENTER: plane_scroll_byte(st, k < 2 ? &st->m7.cx : &st->m7.cy, v); break;
     default: break;
     }
 }
@@ -2441,14 +2675,23 @@ static uint8_t map_byte_of(const VidBg *b)
     return (uint8_t)((b->map_base >> 8 & 0xFC) | (b->map_w == 64 ? 1 : 0) | (b->map_h == 64 ? 2 : 0));
 }
 
+/* Whether the sub screen shows a layer on a line: one of those the line's
+ * mode has (Mode 7's plane alone); where it shows none, it is the fixed
+ * colour. */
+static bool sub_screen_shows_a_layer(const LineState *st)
+{
+    uint8_t layers = st->mode == 7 ? VID_BG1_BIT | VID_OBJ_BIT : VID_ALL_LAYERS;
+    return st->math.sub_screen && (st->sub_layers & layers);
+}
+
 /* The backdrop with the fixed colour's math on it, where the math takes the
- * backdrop in: the one part of the SNES's colour math the GBA is given (its
- * blending can't add a colour), which the field's dialog's gradient is. */
+ * backdrop in (a sub screen with no layers on it is the fixed colour), worked
+ * out exactly, since the GBA's blending can't add a colour. */
 static uint16_t backdrop(const LineState *st)
 {
     uint16_t base = snes.cgram[0];
     const VidColorMath *m = &st->math;
-    if (!(m->layers & VID_BACK_BIT) || m->sub_screen || m->prevent_math == VID_REGION_ALWAYS)
+    if (!(m->layers & VID_BACK_BIT) || sub_screen_shows_a_layer(st) || m->prevent_math == VID_REGION_ALWAYS)
         return base;
     uint16_t out = 0;
     for (unsigned shift = 0; shift < 15; shift += 5) {
@@ -2460,6 +2703,39 @@ static uint16_t backdrop(const LineState *st)
         out |= (uint16_t)(c << shift);
     }
     return out;
+}
+
+/* The fixed colour added to or subtracted from layers, where it is a grey
+ * (the dialog's and the battle window's shading, a few lines at each
+ * strength; the darkness a scene falls into; a sub screen with no layers on
+ * it is the fixed colour too): the GBA's blending can't add a colour, but
+ * it can brighten its first targets toward white or darken them toward
+ * black by sixteenths. A grey of strength k added to a colour of strength c
+ * raises it by k, as brightening by 16k / (31 - c) does; subtracted, it
+ * lowers it by k, as darkening by 16k / c does. The strengths taken are a
+ * window's dark colours (7 of 31) brightened, and a scene's brighter ones (20)
+ * darkened, which keeps a scene darkened in sight as natively. Math the
+ * colour window limits (the time warp's glow) isn't done, which leaves the
+ * layers as they are outside it. The backdrop's own math is exact
+ * (backdrop, above), so it isn't a target. */
+enum { BRIGHTENED_STRENGTH = 7, DARKENED_STRENGTH = 20, BLEND_STEPS = 16 };
+
+static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits);
+
+static void fixed_shading(LineRegisters *r, const LineState *st)
+{
+    const VidColorMath *m = &st->math;
+    uint8_t layers = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+    if (st->brightness < 15 || sub_screen_shows_a_layer(st) || !layers || m->prevent_math != VID_REGION_NEVER)
+        return;
+    unsigned red = st->fixed_color & 31, green = st->fixed_color >> 5 & 31, blue = st->fixed_color >> 10 & 31;
+    if (red != green || green != blue || red == 0)
+        return;
+    unsigned steps = m->subtract ? red * BLEND_STEPS / DARKENED_STRENGTH : red * BLEND_STEPS / (31 - BRIGHTENED_STRENGTH);
+    if (m->half)
+        steps /= 2;
+    r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
+    r->bldy = (uint16_t)(steps > BLEND_STEPS ? BLEND_STEPS : steps);
 }
 
 /* The layers' scroll on a band's line of the GBA's screen, the SNES's line
@@ -2502,6 +2778,40 @@ static void gba_controls(LineRegisters *r, const uint16_t controls[4], uint8_t d
     }
 }
 
+/* The state a band's line shows: a drawn panel's line takes the SNES line's
+ * looks with the panel's own layers alone (`drawn` holds it). */
+static const LineState *line_looks(const LineState *st, const Band *b, uint16_t layers_enabled, LineState *drawn)
+{
+    if (!b->drawn)
+        return st;
+    *drawn = *st;
+    drawn->main_layers = (uint8_t)(panel.layers & layers_enabled);
+    drawn->sub_layers &= drawn->main_layers;
+    return drawn;
+}
+
+/* A line's blending: the SNES's brightness as the GBA's fade to black, and
+ * its colour math. Adding the sub screen to the layers colour math takes
+ * in is the GBA's blending of two targets at full weight (half at half): of
+ * the sub screen, only what the main screen shows too, and the backdrop.
+ * The SNES's subtraction of a sub screen has no GBA counterpart. */
+static void line_blending(LineRegisters *r, const LineState *st)
+{
+    r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
+    r->bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
+    r->bldalpha = 0;
+    r->backdrop = backdrop(st);
+    const VidColorMath *m = &st->math;
+    uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
+    if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
+        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
+        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
+        r->bldalpha = m->half ? 0x0808 : 0x1010;
+    } else {
+        fixed_shading(r, st);
+    }
+}
+
 /* A line that shows nothing: black. The layers stay enabled, every line of
  * the frame, and a line shows the ones it does through the windows: the
  * GBA shows a layer enabled part of the way down only from three lines on,
@@ -2510,8 +2820,73 @@ static LineRegisters nothing_shown(uint16_t layers_enabled)
 {
     LineRegisters r = { 0 };
     r.dispcnt = (uint16_t)(DISPCNT_OBJ_2D | DISPCNT_OBJ | DISPCNT_WIN0 | DISPCNT_WIN1 |
-                           gba_layer_bits(layers_enabled & 15) * DISPCNT_BG0);
+                           gba_layer_bits(layers_enabled & 15) * DISPCNT_BG0 | (plane_room ? DISPCNT_BG2 : 0));
     return r;
+}
+
+/* Whether a line shows Mode 7: the plane where the layout has made its room
+ * (a line of a frame whose layout hasn't shows its sprites alone). */
+static bool shows_mode7(const LineState *st) { return st->mode == 7; }
+
+/* SNES layer bits as the GBA's on a line: on a Mode 7 line the plane (the
+ * SNES's first layer) is the GBA's third, and the rest show nothing. */
+static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits)
+{
+    if (!shows_mode7(st))
+        return gba_layer_bits(snes_bits);
+    uint16_t bits = (uint16_t)(snes_bits & ~0xFu);
+    return plane_room && (snes_bits & VID_BG1_BIT) ? (uint16_t)(bits | DISPCNT_BG2 / DISPCNT_BG0) : bits;
+}
+
+/* The native renderer's wrap of the plane's offsets (runtime/platform/native/render.c). */
+static int plane_wrap(int n) { return (n & 0x2000) ? (n | ~1023) : (n & 1023); }
+
+/* A Mode 7 line's plane on the GBA's affine layer: the matrix, and the
+ * point of the plane at the GBA line's left end (the band's dot `left`) on
+ * the SNES's line `y` (its first is line 1), worked out as the native
+ * renderer does; the GBA steps it by the matrix's second column a line, as
+ * the SNES does, until the next change sets it again. What lies outside the
+ * plane is the plane again, or nothing (where the SNES shows tile 0 there
+ * too). It stands between the sprites of priority 1 and 0, as on the SNES. */
+static void plane_line(unsigned at, const VidMode7 *m, int left, int y)
+{
+    if (m->vflip)
+        y = 255 - y;
+    int hx = plane_wrap(m->hofs - m->cx), vy = plane_wrap(m->vofs - m->cy);
+    int32_t ox = ((m->a * hx) & ~63) + ((m->b * vy) & ~63) + ((m->b * y) & ~63) + m->cx * 256;
+    int32_t oy = ((m->c * hx) & ~63) + ((m->d * vy) & ~63) + ((m->d * y) & ~63) + m->cy * 256;
+    int first = m->hflip ? 255 - left : left, step = m->hflip ? -1 : 1, down = m->vflip ? -1 : 1;
+    if (!plane_table)
+        return;
+    volatile PlaneLine *p = &plane_lines[at];
+    p->x = ox + m->a * first;
+    p->y = oy + m->c * first;
+    p->pa = (int16_t)(m->a * step), p->pc = (int16_t)(m->c * step);
+    p->pb = (int16_t)(m->b * down), p->pd = (int16_t)(m->d * down);
+    plane_set[at / 8] |= (uint8_t)(1u << (at % 8));
+    plane_shown = true;
+}
+
+/* A Mode 7 line's affine layer: the GBA's mode 2, its third layer the plane. */
+static void plane_layer(LineRegisters *r, const VidMode7 *m)
+{
+    r->dispcnt = (uint16_t)((r->dispcnt & ~DISPCNT_MODES) | DISPCNT_AFFINE_MODE | DISPCNT_BG2);
+    r->bgcnt[2] = (uint16_t)(PLANE_PRIORITY | PLANE_MAP_BLOCK << 8 | BGCNT_1024_DOTS |
+                             (m->outside == VID_M7_WRAP || m->outside == VID_M7_WRAP_UNUSED ? BGCNT_WRAP : 0));
+}
+
+/* The lines no change set: the one above's, stepped. */
+static void step_the_plane(void)
+{
+    for (unsigned at = 1; plane_table && at <= GBA_LINES; at++) {
+        if (at < GBA_LINES && (plane_set[at / 8] >> (at % 8) & 1))
+            continue;
+        volatile PlaneLine *p = &plane_lines[at];
+        const volatile PlaneLine *above = p - 1;
+        p->pa = above->pa, p->pb = above->pb, p->pc = above->pc, p->pd = above->pd;
+        p->x = above->x + above->pb;
+        p->y = above->y + above->pd;
+    }
 }
 
 /* A line's registers: the SNES's line shown on a band's line `down` lines
@@ -2519,31 +2894,27 @@ static LineRegisters nothing_shown(uint16_t layers_enabled)
  * its line's (the first shown is its line 1) and its scroll, one further
  * down than on the GBA. A drawn panel's line takes the SNES line's looks
  * and draws the panel's own layers alone. */
-static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled, const Band *b, int down)
+static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled, const Band *b, int down, int at)
 {
     LineRegisters r = nothing_shown(layers_enabled);
     if (st->blank)
         return r;
+    bool mode7 = shows_mode7(st);
     LineState drawn;
-    if (b->drawn) {
-        drawn = *st;
-        drawn.main_layers = (uint8_t)(panel.layers & layers_enabled);
-        drawn.sub_layers &= drawn.main_layers;
-        st = &drawn;
-    }
+    st = line_looks(st, b, layers_enabled, &drawn);
     uint16_t controls[4] = { 0 };
     for (unsigned n = 0; n < 3; n++)
-        if ((layers_enabled & (1u << n)) && !b->drawn)
+        if ((layers_enabled & (1u << n)) && !b->drawn && !mode7)
             controls[n] = layer_control(n, st->map[n], b, st->hofs[n]);
-    if ((layers_enabled & VID_BG4_BIT) && !b->drawn)
+    if ((layers_enabled & VID_BG4_BIT) && !b->drawn && !mode7)
         controls[3] = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
     if (st->windows.win_main & (VID_ALL_LAYERS)) {
         r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, b);
         r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, b);
-        r.winin = (uint16_t)(gba_layer_bits(region_layers(st, true, false)) |
-                             gba_layer_bits(region_layers(st, false, true)) << 8);
+        r.winin = (uint16_t)(line_layer_bits(st, region_layers(st, true, false)) |
+                             line_layer_bits(st, region_layers(st, false, true)) << 8);
     }
-    r.winout = gba_layer_bits(region_layers(st, false, false));
+    r.winout = line_layer_bits(st, region_layers(st, false, false));
     /* Inside the sprite window, what the line shows outside the windows but
      * the sprites. */
     if (sprites_mask) {
@@ -2564,21 +2935,11 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
                 r.vofs[g] = (uint16_t)(panel.vofs[s] - panel.at);
             }
     }
-    gba_controls(&r, controls, drawn_layers);
-    r.bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
-    r.bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
-    r.backdrop = backdrop(st);
-    /* Adding the sub screen to the layers colour math takes in, as the GBA's
-     * blending of two targets at full weight (half at half): of the sub
-     * screen, only what the main screen shows too, and the backdrop. The
-     * SNES's subtraction has no GBA counterpart. */
-    const VidColorMath *m = &st->math;
-    uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
-    if (st->brightness == 15 && m->sub_screen && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
-        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
-        r.bldcnt = (uint16_t)(BLD_ALPHA | gba_layer_bits(first) | gba_layer_bits(second) << 8);
-        r.bldalpha = m->half ? 0x0808 : 0x1010;
-    }
+    if (mode7)
+        plane_layer(&r, &st->m7), plane_line((unsigned)at, &st->m7, b->left, at + down + 1);
+    else
+        gba_controls(&r, controls, drawn_layers);
+    line_blending(&r, st);
     return r;
 }
 
@@ -2601,6 +2962,33 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
     BG_PALETTE[0] = r->backdrop;
 }
 
+/* The first line's plane and strength, and DMA armed to copy each next
+ * line's in the horizontal blank above it, where the frame has them; DMA
+ * stopped where it hasn't. In the vertical blank. DMA's control: on, at each
+ * horizontal blank, again, to the registers again; words, or a halfword. */
+static const uint32_t DMA_PLANE = 0xA6600000u | sizeof(PlaneLine) / 4;
+static const uint32_t DMA_STRENGTH = 0xA2400000u | 1;
+static volatile bool plane_dma, strength_dma;
+__attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_lines(void)
+{
+    DMA0CNT = 0;
+    DMA1CNT = 0;
+    if (plane_dma && plane_table) {
+        const volatile uint32_t *first = (const volatile uint32_t *)&plane_lines[0];
+        for (unsigned w = 0; w < sizeof(PlaneLine) / 4; w++)
+            BG2_PLANE[w] = first[w];
+        DMA0SAD = (uint32_t)&plane_lines[1];
+        DMA0DAD = (uint32_t)BG2_PLANE;
+        DMA0CNT = DMA_PLANE;
+    }
+    if (strength_dma) {
+        BLDY = line_strength[0];
+        DMA1SAD = (uint32_t)&line_strength[1];
+        DMA1DAD = (uint32_t)&BLDY;
+        DMA1CNT = DMA_STRENGTH;
+    }
+}
+
 /* The line counter's interrupt for the line above the next change, or for
  * the vertical blank once the frame has no more. */
 __attribute__((target("arm"), section(".iwram"))) static void await_change(void)
@@ -2620,6 +3008,7 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
     if (by_line && (raised & IRQ_VCOUNT)) {
         if (line >= GBA_LINES) {
             set_line(&change_registers[0]);
+            arm_the_lines();
             next_change = 1;
             await_change();
         } else {
@@ -2667,6 +3056,9 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     st->fixed_color = snes.fixed_color;
     st->brightness = (uint8_t)(v->display.brightness & 15);
     st->blank = v->display.blank;
+    st->mode = snes.mode.mode;
+    st->m7 = snes.m7;
+    st->m7_latch = snes.m7_latch;
     for (unsigned n = 0; n < 3; n++)
         st->hofs[n] = snes.bg[n].hofs, st->vofs[n] = snes.bg[n].vofs, st->map[n] = map_byte_of(&snes.bg[n]);
     memcpy(f->slot, snes.slot, sizeof f->slot);
@@ -2696,7 +3088,7 @@ static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next, uint
         if (!bands[*next].black)
             continue;
         LineRegisters black = nothing_shown(layers_enabled);
-        if (count == 0 || memcmp(&black, &change_registers[count - 1], sizeof black) != 0) {
+        if (count < GBA_LINES && (count == 0 || memcmp(&black, &change_registers[count - 1], sizeof black) != 0)) {
             change_registers[count] = black;
             change_line[count++] = bands[*next].at;
         }
@@ -2769,6 +3161,12 @@ static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, b
 static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t layers_enabled)
 {
     LineState st = *st_out, shown;
+    plane_on_lines = false;
+    plane_shown = false;
+    memset(plane_set, 0, sizeof plane_set);
+    strength_steps = false;
+    memset(strength_set, 0, sizeof strength_set);
+    lines_text_mode = NO_MODE;
     uint8_t enabled = v->line_effects;
     uint8_t below = v->below_line_effects ? v->line_effects_below : enabled;
     memset(read_lines, 0, sizeof read_lines);
@@ -2809,28 +3207,73 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 asked_shown[k] = (uint8_t)(st.main_layers | (st.blank ? ASKED_BLANK : 0));
         const Band *b = line ? band_showing((int)line - 1) : NULL;
         int at = !b ? -1 : b->drawn ? band_line(b, (int)line - 1) : b->at + ((int)line - 1 - b->row);
+        if (at >= 0 && st.mode == 7)
+            plane_on_lines = true;
+        else if (at >= 0 && lines_text_mode == NO_MODE)
+            lines_text_mode = st.mode;
         if (at >= 0) {
             int down = (int)(line - 1) - at;
             if (next_black < band_count && bands[next_black].at < at)
                 count = black_bands_above((unsigned)at, count, &next_black, layers_enabled);
             bool band_starts = at == b->at, again = false;
+            /* Where only the scroll, the plane or the colour math may have
+             * changed (but not a band cut's scroll, which moves the cut in
+             * its maps, nor between Mode 7 and another mode), the last
+             * change's registers with those: a line's scroll (but on the
+             * drawn panel, whose layers' scroll is its own); on a Mode 7
+             * line, its plane (the first layer's scroll is the plane's); the
+             * blending, a step of its strength alone no change at all. */
+            bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
+                         !(b->cut_dots && (touched & CHANGED_SCROLL)) &&
+                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn);
             LineRegisters r;
-            if (count == 0 || band_starts || ((touched & CHANGED_OTHER) && memcmp(&st, &shown, sizeof st) != 0) ||
-                (touched && b->cut_dots && memcmp(&st, &shown, sizeof st) != 0)) {
-                r = line_registers(&st, layers_enabled, b, down);
+            /* a Mode 7 line's plane is its own table's, no change's */
+            if (touched && cheap && st.mode == 7 && (touched & (CHANGED_PLANE | CHANGED_SCROLL))) {
+                plane_line((unsigned)at, &st.m7, b->left, at + 1 + down);
+                shown.m7 = st.m7;
+                shown.m7_latch = st.m7_latch;
+                for (unsigned n = 0; n < 3; n++)
+                    shown.hofs[n] = st.hofs[n], shown.vofs[n] = st.vofs[n];
+                touched &= CHANGED_MATH;
+            }
+            if (touched && cheap) {
+                bool scrolled = st.mode != 7 && (touched & CHANGED_SCROLL) && !b->drawn &&
+                                (memcmp(st.hofs, shown.hofs, sizeof st.hofs) != 0 ||
+                                 memcmp(st.vofs, shown.vofs, sizeof st.vofs) != 0);
+                bool blended = (touched & CHANGED_MATH) && (st.fixed_color != shown.fixed_color ||
+                                                            memcmp(&st.math, &shown.math, sizeof st.math) != 0);
+                if (scrolled || blended) {
+                    r = change_registers[count - 1];
+                    again = true;
+                }
+                if (scrolled) {
+                    line_scroll(&r, &st, b, down);
+                    memcpy(shown.hofs, st.hofs, sizeof st.hofs);
+                    memcpy(shown.vofs, st.vofs, sizeof st.vofs);
+                }
+                if (blended) {
+                    LineState drawn;
+                    line_blending(&r, line_looks(&st, b, layers_enabled, &drawn));
+                    shown.math = st.math;
+                    shown.fixed_color = st.fixed_color;
+                    /* the strength alone changed: a step, not a change */
+                    LineRegisters same = r;
+                    same.bldy = change_registers[count - 1].bldy;
+                    if (!scrolled && memcmp(&same, &change_registers[count - 1], sizeof same) == 0) {
+                        set_strength((unsigned)at, r.bldy);
+                        strength_steps = true;
+                        again = false;
+                    }
+                }
+            } else if (count == 0 || band_starts || (touched && memcmp(&st, &shown, sizeof st) != 0)) {
+                r = line_registers(&st, layers_enabled, b, down, at);
                 memcpy(&shown, &st, sizeof st);
                 again = true;
-            } else if (touched && !b->drawn && (memcmp(st.hofs, shown.hofs, sizeof st.hofs) != 0 ||
-                                                memcmp(st.vofs, shown.vofs, sizeof st.vofs) != 0)) {
-                r = change_registers[count - 1];
-                line_scroll(&r, &st, b, down);
-                memcpy(shown.hofs, st.hofs, sizeof st.hofs);
-                memcpy(shown.vofs, st.vofs, sizeof st.vofs);
-                again = true;
             }
-            if (again && (count == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0)) {
+            if (again && count < GBA_LINES && (count == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0)) {
                 change_registers[count] = r;
                 change_line[count++] = (uint8_t)at;
+                set_strength((unsigned)at, r.bldy);
             }
             touched = 0;
         }
@@ -2896,6 +3339,10 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
             lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
         st = from.st;
         count = work_out_lines(&pf->video, &st, layers_enabled);
+        if (plane_shown)
+            step_the_plane();
+        if (strength_steps)
+            fill_the_strengths();
         last_from = from_hash;
         last_left = st;
         /* a layout's maps change what a line's registers name */
@@ -2904,6 +3351,8 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
             worked_out++;
     }
     changes = count;
+    plane_dma = plane_shown;
+    strength_dma = strength_steps;
     /* What the effects leave stands, as the SNES's registers do. */
     snes.windows = st.windows;
     snes.math = st.math;
@@ -2912,6 +3361,8 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     snes.sub_layers = st.sub_layers;
     for (unsigned n = 0; n < 3; n++)
         snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
+    snes.m7 = st.m7;
+    snes.m7_latch = st.m7_latch;
     WIN0V = GBA_LINES;
     WIN1V = GBA_LINES;
     if (count == 1) {
@@ -2921,6 +3372,7 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
             DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
         }
         set_line(&change_registers[0]);
+        arm_the_lines();
         return;
     }
     if (!by_line) {
@@ -2941,7 +3393,9 @@ void gba_video_present(Platform *pf)
      * own misses stand (starting afresh from the same maps misses the same
      * tiles, and a layout is about ten GBA frames' work). */
     bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
-    bool laid_out = snes.settings_changed || restart;
+    /* the plane's room made where a line shows Mode 7, and given back where none does */
+    bool plane_moved = plane_wanted() ? !plane_room && !plane_refused : plane_room;
+    bool laid_out = snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode;
     if (laid_out) {
         lay_out(usage_known);
         memset(snes.changed, 0xFF, sizeof snes.changed);
