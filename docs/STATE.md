@@ -235,8 +235,10 @@ beside `vars_ram.c`, and a bit for each address an owner keeps
 (`vars_flat_owned`); the others read 0 as the address view's do. An accessor
 every byte of which an owner keeps reads and writes them where the banks keep
 them (`get16`, `put16`), charging the whole value's time at once; an index out
-of range, and the unchecked pairs, go by address. The backing keeps the two banks (`vars_flat_host.c`, or a
-target's own: the GBA's, PLATFORM.md "The GBA build, as built"). Owners kept
+of range, and the unchecked pairs, go by address. The backing keeps the two banks (`vars_flat_host.c`), but for
+the top a target may keep in memory of its own from a 4 KiB step no value read
+or written in place runs across (`VARS_FLAT_COLD_FROM`, `VARS_FLAT_CROSSED_STEPS`:
+the GBA's, PLATFORM.md "The GBA build, as built"). Owners kept
 apart by `overlays` share the one byte, so there is no last writer and no
 crossing to count; since no gate movie crosses, a flat build plays them as
 the typed one does, which `tools/lean_check.py` checks.

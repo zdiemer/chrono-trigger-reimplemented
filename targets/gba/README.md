@@ -21,7 +21,7 @@ platform services' backends. Nothing here is included from `game/`.
   - `toolchain.cmake`: arm-none-eabi GCC for the ARM7TDMI, Thumb by default.
   - `gba.ld`: code, constants and the data's initial values in the
     cartridge; the data and the zeroed state in work RAM (EWRAM), then the
-    arena to its end; the line interrupts, the code that runs most, the
+    arena to its end, with an assert that keeps 28 KiB of it free; the line interrupts, the code that runs most, the
     fibers' stacks and the driver's stack in fast RAM (IWRAM).
   - `fast_code.ld`: the functions copied to fast RAM, chosen from
     `run.py --profile`. `check_fast_code.cmake` fails the build where a
@@ -34,8 +34,7 @@ platform services' backends. Nothing here is included from `game/`.
 - `system/`: the driver and what the C library and the runtime need.
   - `main.c`: the driver. One frame of the game a turn of its loop, as
     ct_native's: the pads, `tm_host_frame`, the sound player's frame, then
-    the picture in the vertical blank, and the save to the cartridge on a
-    frame the game wrote it. Asked by a runner, it reports the frames and lag
+    the picture in the vertical blank. Asked by a runner, it reports the frames and lag
     frames, a CRC-32 of work RAM and save RAM as `ct_native --end-state`
     writes them, each part's GBA frames of work a frame, the arena and the
     stacks' deepest use.
@@ -59,11 +58,13 @@ platform services' backends. Nothing here is included from `game/`.
     slots in fast RAM (the game's main thread's 3 KiB, the tasks' 2 KiB), each
     with a guard, and no snapshots.
 - `services/`: the platform services' backends, one per service.
-  - `cartridge_save.c`, `cartridge_save.h`: where the save service's bytes
-    persist: the SNES's 8 KiB save at the start of the cartridge's SRAM, as
-    the .srm has it, then a mark (`CTSV`) that says it is there; a cartridge
-    without the mark starts with the save erased. mGBA keeps the SRAM in the
-    `.sav` beside the `.gba`.
+  - `cartridge_save.c`, `cartridge_save.h`: the cartridge's SRAM. The
+    SNES's 8 KiB save at its start, as the .srm has it, is the game's save
+    RAM, read and written where it is; then a mark (`CTSV`) that says it is
+    there (a cartridge without the mark starts with the save erased); then
+    the top of the game's work RAM, `$7F:B000` on, its coldest
+    (`VARS_FLAT_COLD_FROM`). mGBA keeps the SRAM in the `.sav`
+    beside the `.gba`.
   - `video.c`, `video.h`: the video service on the GBA's own picture.
   - `mixer.c`, `mixer.h`: the sound driver's voices played, in the native
     mixer's place (frontend/sound_native.c takes it through
@@ -129,7 +130,8 @@ frame (docs/PLATFORM.md, "The GBA build, as built"); the game plays the
 same either way.
 Its save is the cartridge's 32 KiB SRAM (mGBA's `ct.sav`). A `.srm` from
 ct_native or a SNES emulator becomes a `.sav` with the mark after it: its
-8 KiB, `CTSV`, then `FF` to 32 KiB (`run.py`'s `gba_save`).
+8 KiB, `CTSV`, then `FF` to 32 KiB (`run.py`'s `gba_save`); what the
+program leaves after the mark is work RAM's, not the save's.
 
 To check it against ct_native:
 

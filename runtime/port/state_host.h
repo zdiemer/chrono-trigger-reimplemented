@@ -32,6 +32,11 @@ GameState *state_host_create(const uint8_t *sram);
 /* The same, placed in the arena (port/arena.h) for a run that snapshots it:
  * at the same address in every run that makes the same allocations first. */
 GameState *state_host_create_lasting(const uint8_t *sram);
+/* The same, its save RAM the host's own 8 KiB at `save`, used where they are
+ * from the start (as they hold the save, or erased) and never copied: a
+ * small target's battery-backed memory, which then needs nothing written out
+ * to keep a save. It is read and written a byte at a time. */
+GameState *state_host_create_lasting_over(uint8_t *save);
 /* The bytes of a GameState, and of the game's work RAM and save RAM in it
  * (ct_native --measure). */
 size_t state_host_bytes(void);
@@ -47,8 +52,7 @@ void state_host_snapshot(const GameState *g, uint8_t *out);
 void state_host_restore(GameState *g, const uint8_t *in);
 
 /* The game's time since the timing backend last took it, at the front of the
- * state after its storage, so that an accessor charges its access with no
- * call. An access only counts its bus clocks (raw_bus); they are priced when
+ * state, so that an accessor charges its access with no call. An access only counts its bus clocks (raw_bus); they are priced when
  * the rate changes, as a stretch begins or ends and as the backend takes the
  * work (state_host_take_owed): at the rate of the routine the work is timed as
  * (charge_time_as_begin), as whole clocks and thousandths of one. The work is
@@ -63,13 +67,16 @@ typedef struct {
     uint32_t rate_clocks, rate_milli;
     uint32_t work_clocks, work_milli;
 } StateHostAccount;
-/* A state's first member, its head: the storage, then the time account. The
+/* A state's first member, its head: the time account, then the storage. The
  * accessors reach both with no call, through C's own rule that a pointer to a
  * structure, converted, points to its first member; what they then read and
- * write are the head's own members. */
+ * write are the head's own members. The account comes first, at offsets a
+ * Thumb load reaches from the state's address in one instruction (under 128
+ * bytes), which the flat state's 128 bytes of page pointers would push it
+ * past. */
 typedef struct {
-    VarsHost vars;
     StateHostAccount account;
+    VarsHost vars;
 } StateHostHead;
 static inline StateHostHead *state_host_head(const GameState *g) { return (StateHostHead *)(void *)(uintptr_t)g; }
 

@@ -1406,7 +1406,7 @@ def render_backing(m, flat=False):
         out += [
             "enum { WORK_RAM = 0x7E0000u, WORK_RAM_BYTES = 0x20000u };",
             "",
-            "/* A byte by its address: work RAM's two banks read and written where they",
+            "/* A byte by its address: work RAM's pages read and written where they",
             "   are kept (a byte no owner keeps holds 0 and takes no write, as",
             "   vars_flat_host.c has it), any other address through the state's view. */",
             "static uint8_t r8(const GameState *g, uint32_t a)",
@@ -1415,7 +1415,7 @@ def render_backing(m, flat=False):
             "        state_host_game_access(g, 8);",
             "    uint32_t at = a - WORK_RAM;",
             "    if (at < WORK_RAM_BYTES)",
-            "        return state_host_vars_const(g)->bank[at >> 16][at & 0xFFFFu];",
+            "        return *vars_flat_byte(state_host_vars_const(g), at);",
             "    return state_host_read8(g, a);",
             "}",
             "static void w8(GameState *g, uint32_t a, uint8_t v)",
@@ -1426,7 +1426,7 @@ def render_backing(m, flat=False):
             "    if (at >= WORK_RAM_BYTES)",
             "        state_host_write8(g, a, v);",
             "    else if (vars_flat_owned(a))",
-            "        state_host_vars(g)->bank[at >> 16][at & 0xFFFFu] = v;",
+            "        *vars_flat_byte(state_host_vars(g), at) = v;",
             "}",
         ]
     else:
@@ -1479,11 +1479,16 @@ def render_backing(m, flat=False):
         out += [
             "",
             "/* An accessor's own bytes, every one of which an owner keeps: read and",
-            "   written where work RAM keeps them, the whole value's time at once. */",
-            "static inline uint8_t *kept(const GameState *g, uint32_t a)",
+            "   written where work RAM keeps them, the whole value's time at once. `top`",
+            "   is the accessor's last byte over all its values: one that can't reach a",
+            "   target's cold top (VARS_FLAT_COLD_FROM) finds its bytes in the run from",
+            "   $7E:0000 with no look at the pages. */",
+            "static inline uint8_t *kept(const GameState *g, uint32_t a, uint32_t top)",
             "{",
             "    a -= 0x7E0000u;",
-            "    return &state_host_vars_const(g)->bank[a >> 16][a & 0xFFFFu];",
+            "    if (top - 0x7E0000u < VARS_FLAT_COLD_FROM)",
+            "        return state_host_vars_const(g)->page[0] + a;",
+            "    return vars_flat_byte(state_host_vars_const(g), a);",
             "}",
             "",
             "static inline void timed(const GameState *g, uint32_t clocks)",
@@ -1492,46 +1497,46 @@ def render_backing(m, flat=False):
             "        state_host_game_access(g, clocks);",
             "}",
             "",
-            "static inline uint8_t get8(const GameState *g, uint32_t a) { timed(g, 8); return *kept(g, a); }",
-            "static inline uint16_t get16(const GameState *g, uint32_t a)",
+            "static inline uint8_t get8(const GameState *g, uint32_t a, uint32_t top) { timed(g, 8); return *kept(g, a, top); }",
+            "static inline uint16_t get16(const GameState *g, uint32_t a, uint32_t top)",
             "{",
             "    timed(g, 16);",
-            "    const uint8_t *p = kept(g, a);",
+            "    const uint8_t *p = kept(g, a, top);",
             "    return (uint16_t)(p[0] | p[1] << 8);",
             "}",
-            "static inline uint32_t get24(const GameState *g, uint32_t a)",
+            "static inline uint32_t get24(const GameState *g, uint32_t a, uint32_t top)",
             "{",
             "    timed(g, 24);",
-            "    const uint8_t *p = kept(g, a);",
+            "    const uint8_t *p = kept(g, a, top);",
             "    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16;",
             "}",
-            "static inline uint32_t get32(const GameState *g, uint32_t a)",
+            "static inline uint32_t get32(const GameState *g, uint32_t a, uint32_t top)",
             "{",
             "    timed(g, 32);",
-            "    const uint8_t *p = kept(g, a);",
+            "    const uint8_t *p = kept(g, a, top);",
             "    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;",
             "}",
             "",
-            "static inline void put8(GameState *g, uint32_t a, uint8_t v) { timed(g, 8); *kept(g, a) = v; }",
-            "static inline void put16(GameState *g, uint32_t a, uint16_t v)",
+            "static inline void put8(GameState *g, uint32_t a, uint32_t top, uint8_t v) { timed(g, 8); *kept(g, a, top) = v; }",
+            "static inline void put16(GameState *g, uint32_t a, uint32_t top, uint16_t v)",
             "{",
             "    timed(g, 16);",
-            "    uint8_t *p = kept(g, a);",
+            "    uint8_t *p = kept(g, a, top);",
             "    p[0] = (uint8_t)v;",
             "    p[1] = (uint8_t)(v >> 8);",
             "}",
-            "static inline void put24(GameState *g, uint32_t a, uint32_t v)",
+            "static inline void put24(GameState *g, uint32_t a, uint32_t top, uint32_t v)",
             "{",
             "    timed(g, 24);",
-            "    uint8_t *p = kept(g, a);",
+            "    uint8_t *p = kept(g, a, top);",
             "    p[0] = (uint8_t)v;",
             "    p[1] = (uint8_t)(v >> 8);",
             "    p[2] = (uint8_t)(v >> 16);",
             "}",
-            "static inline void put32(GameState *g, uint32_t a, uint32_t v)",
+            "static inline void put32(GameState *g, uint32_t a, uint32_t top, uint32_t v)",
             "{",
             "    timed(g, 32);",
-            "    uint8_t *p = kept(g, a);",
+            "    uint8_t *p = kept(g, a, top);",
             "    p[0] = (uint8_t)v;",
             "    p[1] = (uint8_t)(v >> 8);",
             "    p[2] = (uint8_t)(v >> 16);",
@@ -1569,7 +1574,9 @@ def render_backing(m, flat=False):
                     if not direct:
                         body = by_address
                     else:
-                        body = ("put%d(g, %s, v);" if write else "return get%d(g, %s);") % (w, a.address())
+                        top = max(addr for base in a.var.bases() for addr in accessor_bytes(a, base + a.offset))
+                        body = ("put%d(g, %s, 0x%06Xu, v);" if write else "return get%d(g, %s, 0x%06Xu);") % (
+                            w, a.address(), top)
                         if bad:
                             body = "if (%s) { %s%s } %s" % (bad, by_address, " return;" if write else "", body)
                     out.append("%s { %s%s }" % (a.signature(write), checks, body))
@@ -1582,6 +1589,31 @@ def flat_owned(a, ov):
     each of its instances, elements, rows and columns: then the flat state's
     accessor reads them where work RAM keeps them, with nothing to look up."""
     return all(addr in ov.at for base in a.var.bases() for addr in accessor_bytes(a, base + a.offset))
+
+
+FLAT_STEP_SHIFT = 12
+
+
+def flat_crossed_steps(m):
+    """For the flat state: a bit for each 4 KiB step of work RAM that a value
+    read or written in place (get16 and the rest) runs across, from the bytes
+    before it into the ones after, so that a target may keep work RAM's top
+    apart (VARS_FLAT_COLD_FROM) only at a step whose bit is clear."""
+    ov = Overlays.of(m)
+    joined = 0
+    for _, groups in accessors(m):
+        for _, _, group in groups:
+            for a in group:
+                if a.size < 2 or a.unchecked or not flat_owned(a, ov):
+                    continue
+                for base in a.var.bases():
+                    for row in range(a.var.rows or 1):
+                        for element in range(a.var.count):
+                            start = base + a.offset + row * (a.var.row_stride or 0) + element * a.var.stride
+                            first, last = start - 0x7E0000, start + a.size - 1 - 0x7E0000
+                            if first >> FLAT_STEP_SHIFT != last >> FLAT_STEP_SHIFT:
+                                joined |= 1 << (last >> FLAT_STEP_SHIFT)
+    return joined
 
 
 def render_flat_owners(m):
@@ -1970,10 +2002,34 @@ def render_host_header(m):
         out += ["} VarsHost%s;" % camel(module), ""]
     out += ["#ifdef CT_FLAT_STATE",
             "/* Work RAM as the original lays it out (runtime/port/vars_flat.c): its two",
-            " * 64 KiB banks, a byte for each address, where the backing keeps them",
-            " * (runtime/port/vars_flat_host.c, or a target's). The typed records above",
-            " * are left unused. */",
-            "typedef struct {", "    uint8_t *bank[2];", "} VarsHost;",
+            " * 64 KiB banks, a byte for each address, in pages of 4 KiB where the backing",
+            " * keeps them (runtime/port/vars_flat_host.c): one run of memory from",
+            " * $7E:0000, page[0] on, but for the top a target may keep in memory of its",
+            " * own (vars_host_cold), from VARS_FLAT_COLD_FROM (bytes from $7E:0000, a",
+            " * page's start) to the end, as a second run: the GBA keeps its coldest",
+            " * there, in the cartridge's SRAM. That is read and written a byte at a",
+            " * time, and no value of the map read or written in place runs across the",
+            " * page it starts at (VARS_FLAT_CROSSED_STEPS has a bit for each page start",
+            " * one does). The typed records above are left unused. */",
+            "enum { VARS_FLAT_PAGE_SHIFT = %d, VARS_FLAT_PAGE_BYTES = 1 << VARS_FLAT_PAGE_SHIFT," % FLAT_STEP_SHIFT,
+            "       VARS_FLAT_PAGES = 0x20000 >> VARS_FLAT_PAGE_SHIFT };",
+            "#ifndef VARS_FLAT_COLD_FROM",
+            "#define VARS_FLAT_COLD_FROM 0x20000u   /* none: all of it in the one run */",
+            "#endif",
+            "#define VARS_FLAT_CROSSED_STEPS 0x%08Xu" % flat_crossed_steps(m),
+            "_Static_assert(VARS_FLAT_COLD_FROM % VARS_FLAT_PAGE_BYTES == 0 && VARS_FLAT_COLD_FROM <= 0x20000u &&",
+            "               (VARS_FLAT_COLD_FROM == 0x20000u ||",
+            "                !(VARS_FLAT_CROSSED_STEPS >> (VARS_FLAT_COLD_FROM >> VARS_FLAT_PAGE_SHIFT & 31u) & 1u)),",
+            "               \"work RAM's cold top starts where a value runs across\");",
+            "typedef struct {", "    uint8_t *page[VARS_FLAT_PAGES];", "} VarsHost;",
+            "/* The byte `at` bytes from $7E:0000 (under 128 KiB), where it is kept. */",
+            "static inline uint8_t *vars_flat_byte(const VarsHost *h, uint32_t at)",
+            "{",
+            "    return &h->page[at >> VARS_FLAT_PAGE_SHIFT][at & (VARS_FLAT_PAGE_BYTES - 1)];",
+            "}",
+            "/* The target's memory for the cold top, 0x20000 - VARS_FLAT_COLD_FROM",
+            " * bytes, where it keeps one. */",
+            "uint8_t *vars_host_cold(void);",
             "/* Whether the map gives the address an owner: bytes no owner keeps read 0",
             " * and drop writes, as the typed state's address view does. */",
             "bool vars_flat_owned(uint32_t addr);",

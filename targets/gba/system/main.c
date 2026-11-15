@@ -3,9 +3,9 @@
  *
  * The driver runs one frame of the game per turn of its loop, as ct_native
  * does, with the pads from the keypad (system/keypad.h) or, where a runner
- * drives it from outside (system/drive_box.h), from the runner. The save
- * starts from the cartridge's SRAM and goes back to it on a frame the game
- * wrote it (services/cartridge_save.h). Asked by a runner, it reports over
+ * drives it from outside (system/drive_box.h), from the runner. The game's
+ * save RAM is the cartridge's SRAM, which the game reads and writes where it
+ * is (services/cartridge_save.h). Asked by a runner, it reports over
  * mGBA's debug log: the frames and lag frames run, a CRC-32 of work RAM and
  * save RAM (as ct_native --end-state writes them) and of save RAM alone, each
  * part's work a frame, and the memory it used. A frame of the game takes as
@@ -221,14 +221,13 @@ int main(void)
     source = (AssetSource){ pack_resource, (void *)head };
     assets_use(&source);
 
-    GameState *g = state_host_create_lasting(NULL);
+    GameState *g = state_host_create_lasting_over(cartridge_save_open());
     static Platform pf;
     if (!g) {
         fprintf(stderr, "ct_gba: no memory for the game's state\n");
         abort();
     }
     *canary() = CANARY;
-    cartridge_save_load(state_host_sram(g));   /* or none, erased */
     pf.save.bytes = state_host_sram(g);
     vid_host_start(&pf, read_game, g);
     mixer_use_samples((const MixerSamples *)((const uint8_t *)head + head->samples_at));
@@ -268,9 +267,5 @@ int main(void)
         count_mixing(&run.mixing, mixer_take_cycles());
         check_driver_stack();
         run.frames++;
-        bool wrote;
-        const uint8_t *save = sv_host_bytes(&pf, &wrote);
-        if (wrote)
-            cartridge_save_store(save);
     }
 }
