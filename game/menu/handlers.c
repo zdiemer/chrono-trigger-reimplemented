@@ -78,7 +78,8 @@ void menu_script_set_console_byte(GameState *g, Platform *pf, uint8_t opcode, ui
 static bool decode_and_perform(GameState *g, Platform *pf, const ScriptOpcode *row, MenuObject self, uint32_t at,
                                ScriptFlow *f)
 {
-    ScriptCommand command = menu_script_decode(g, row, self, at, pf);
+    ScriptCommand command;
+    menu_script_decode(g, row, self, at, pf, &command);
     if (!PORT_CHECK(menu_script_runs_here(g, row, &command)))
         return false;
     *f = menu_script_perform(g, row, &command);
@@ -192,11 +193,29 @@ static const MenuScriptRoutines *const ROUTINE_TABLES[] = {
 };
 enum { ROUTINE_TABLES_COUNT = sizeof ROUTINE_TABLES / sizeof ROUTINE_TABLES[0] };
 
-static const MenuScriptRoutine *script_routine(uint32_t routine)
+static const MenuScriptRoutine *find_script_routine(uint32_t routine)
 {
     for (unsigned t = 0; t < ROUTINE_TABLES_COUNT; t++)
         for (unsigned i = 0; i < ROUTINE_TABLES[t]->count; i++)
             if (ROUTINE_TABLES[t]->rows[i].routine == routine)
                 return &ROUTINE_TABLES[t]->rows[i];
     return NULL;
+}
+
+/* A scene's scripts call the same few routines frame after frame, so the
+ * rows found lately are kept by routine; the tables are constant, so what is
+ * kept is never stale. */
+enum { KEPT_ROUTINES = 16 };
+
+static const MenuScriptRoutine *script_routine(uint32_t routine)
+{
+    static const MenuScriptRoutine *kept[KEPT_ROUTINES];
+    const MenuScriptRoutine **k = &kept[(routine ^ routine >> 4) % KEPT_ROUTINES];
+    if (!*k || (*k)->routine != routine) {
+        const MenuScriptRoutine *found = find_script_routine(routine);
+        if (!found)
+            return NULL;
+        *k = found;
+    }
+    return *k;
 }

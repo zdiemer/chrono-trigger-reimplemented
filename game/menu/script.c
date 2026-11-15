@@ -2,6 +2,8 @@
  * row, and running an object's script for a frame. */
 #include "menu/script.h"
 
+#include <string.h>
+
 #include "menu/menu_data.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
@@ -90,9 +92,9 @@ static ByteRef byte_ref(const CommandBytes *b, ScriptArg a)
 /* A row names a handful of the language's parameters, which the decoding
  * walks (menu_named_parameters); the rest read nothing. */
 #define SCRIPT_DECODE_BYTE_REF(name) \
-    case MENU_PARAMETER_##name: c.name = byte_ref(&bytes, row->name); break;
+    case MENU_PARAMETER_##name: c->name = byte_ref(&bytes, row->name); break;
 #define SCRIPT_DECODE(type, name) \
-    case MENU_PARAMETER_##name: c.name = (type)argument(&bytes, row->name); break;
+    case MENU_PARAMETER_##name: c->name = (type)argument(&bytes, row->name); break;
 #define SCRIPT_DECODE_ONE(type, name) SCRIPT_DECODE_##type(type, name)
 #define SCRIPT_DECODE_ByteRef(type, name) SCRIPT_DECODE_BYTE_REF(name)
 #define SCRIPT_DECODE_ByteChange SCRIPT_DECODE
@@ -105,23 +107,22 @@ static ByteRef byte_ref(const CommandBytes *b, ScriptArg a)
 #define SCRIPT_DECODE_uint16_t SCRIPT_DECODE
 #define SCRIPT_DECODE_uint32_t SCRIPT_DECODE
 #define SCRIPT_DECODE_bool(type, name) \
-    case MENU_PARAMETER_##name: c.name = argument(&bytes, row->name) != 0; break;
+    case MENU_PARAMETER_##name: c->name = argument(&bytes, row->name) != 0; break;
 
-ScriptCommand menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at,
-                                 Platform *pf)
+void menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf,
+                        ScriptCommand *c)
 {
-    ScriptCommand c = { 0 };
+    memset(c, 0, sizeof *c);
+    c->self = self;
+    c->at = at;
+    c->opcode = row->opcode;
+    c->pf = pf;
     const CommandBytes bytes = { g, at, menu_script_run(at) };
-    c.self = self;
-    c.at = at;
-    c.opcode = row->opcode;
-    c.pf = pf;
     for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++)
         switch ((MenuScriptParameter)menu_named_parameters[p]) {
             SCRIPT_PARAMETERS(SCRIPT_DECODE_ONE)
         default: break;
         }
-    return c;
 }
 
 /* The screens' tables a command marks entries of are indexed by the table's
