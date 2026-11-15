@@ -2075,15 +2075,6 @@ static void band_up_the_view(void)
     }
 }
 
-/* The band showing the SNES's line `row`, or NULL. */
-static const Band *band_showing(int row)
-{
-    for (unsigned k = 0; k < band_count; k++)
-        if (!bands[k].black && row >= bands[k].row && row < bands[k].row + bands[k].rows)
-            return &bands[k];
-    return NULL;
-}
-
 /* The first of a band's lines that shows the SNES's line `row` (of those it
  * shows), or -1: a drawn panel's lines may pass over a line of the screen's
  * they are spread over. */
@@ -2160,9 +2151,10 @@ static uint8_t over_squares(Squares squares, const Shown *sp, bool mark)
 }
 
 /* The band showing each SNES line a sprite's top or foot may be on (its
- * top is 0-255, its foot up to 63 below), as band_showing finds it: its
- * index plus one, or 0 where none. Made for each frame's sprites, which
- * would otherwise look through the bands twice a sprite. */
+ * top is 0-255, its foot up to 63 below): the first band not black whose
+ * rows hold it, as its index plus one, or 0 where none. Made for each
+ * frame's sprites, which would otherwise look through the bands twice a
+ * sprite. */
 enum { SPRITE_ROWS = 256 + 64 };
 static uint8_t band_of_row[SPRITE_ROWS];
 
