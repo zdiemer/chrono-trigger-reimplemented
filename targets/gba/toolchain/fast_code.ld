@@ -47,6 +47,3 @@
 *(.text.next_of .text.next_of.*)
 *(.text.event_script_byte .text.event_script_byte.*)
 *(.text.r8 .text.r8.*)
-*(.text.asset_containing .text.asset_containing.*)
-*(.text.fixed_byte .text.fixed_byte.*)
-*(.text.field_object_sprite_high .text.field_object_sprite_high.*)
