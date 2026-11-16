@@ -117,6 +117,7 @@ typedef struct {
     uint8_t layer;
     uint8_t cut;          /* the first column cut, and (<< 5) how many; NO_CUT: the map whole */
     bool shared;          /* kept where another layer's own map is */
+    bool front_refused;   /* its tiles in front found no room for their copy at the layout */
     uint16_t byte, bytes;
     uint16_t gba_byte;    /* NO_PLACE: no room for it */
     uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
@@ -474,6 +475,8 @@ const VidFrame *vid_host_picture(Platform *pf)
     return NULL;
 }
 
+static bool darkened_this_frame;   /* the display darkened from the top since the frame began (display_from) */
+
 void vid_host_frame_begins(Platform *pf)
 {
     VidHost *v = &pf->video;
@@ -483,6 +486,7 @@ void vid_host_frame_begins(Platform *pf)
         v->line_effects = v->line_effects_below;
     v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
+    darkened_this_frame = false;
     view_panel_count = 0;
     panel.drawn = false;
 }
@@ -609,6 +613,17 @@ static uint16_t below_the_line_handler(const Platform *pf)
     return pf->timing.part == TM_HOST_IN_LINE ? (uint16_t)(pf->timing.line + 1) : 0;
 }
 
+static void black_where_nothing_shows(Platform *pf);
+
+static bool dark(const VidDisplay *d) { return d->blank || !(d->brightness & 15); }
+
+/* The display from a line down, or from the top. Darkened from the top a
+ * second time in a frame, with no light between, the game means the screen
+ * dark from here, and it is black at once rather than at the frame's
+ * picture: a scene's loading frame (the title's last as A was pressed) ran
+ * on for GBA frames over the last picture. The vertical blank's handler
+ * darkens it each frame only to give it back at once. */
+
 static void display_from(Platform *pf, uint16_t from, const VidDisplay *d)
 {
     VidHost *v = &pf->video;
@@ -620,6 +635,9 @@ static void display_from(Platform *pf, uint16_t from, const VidDisplay *d)
     }
     v->display = *d;
     v->below_display = false;
+    if (darkened_this_frame && dark(d))
+        black_where_nothing_shows(pf);
+    darkened_this_frame = dark(d);
 }
 
 void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d)
@@ -2008,9 +2026,10 @@ static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, b
  * places are free in. Where `pruned`, the maps the lines haven't shown
  * since the last layout are left out, their places and the tiles they name
  * given to the rest; a map left out that a line shows again is noted, and
- * the next layout has it. */
+ * the next layout has it. A `refill` is laid out only for tiles that found
+ * no place, mid-scene. */
 
-static uint8_t lay_out(bool pruned)
+static uint8_t lay_out(bool pruned, bool refill)
 {
     memset(view_memory, 0, sizeof view_memory);   /* the panel's room and the caches' places are made afresh */
     if (pruned) {
@@ -2104,7 +2123,7 @@ static uint8_t lay_out(bool pruned)
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
         lm->gba_byte = lm->front_byte = NO_PLACE;
-        lm->shared = false;
+        lm->shared = lm->front_refused = false;
         if (!layers[lm->layer].shown)
             continue;
         for (unsigned k = 0; k < BLOCKS; k++)
@@ -2149,8 +2168,12 @@ static uint8_t lay_out(bool pruned)
             lm->front_byte = owner->front_byte;
         else if (!layers[lm->layer].own_map)
             low |= (uint16_t)(1u << m);   /* placed once the caches have kept their places */
-        else if (has_tiles_in_front(lm->byte, lm->bytes) && (lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
-            front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+        else if (has_tiles_in_front(lm->byte, lm->bytes)) {
+            if ((lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
+                front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+            else
+                lm->front_refused = true;
+        }
     }
     /* The places the last layout's tiles had, before the caches keep theirs:
      * they stay in their windows until then. */
@@ -2166,7 +2189,11 @@ static uint8_t lay_out(bool pruned)
     /* The caches the last layout had keep their windows and their tiles'
      * places (keep_places), but where the rooms made took so much of a
      * window that another has more places free: that cache starts afresh
-     * there, as it would have. */
+     * there, as it would have. A refill's cache stays where its maps' tiles
+     * and a blank still fit: starting afresh hides the picture while its
+     * tiles are converted again (the attract sequence's battle blinked black
+     * where a screen's map took 64 of its window's places and another window
+     * had all 1,024). */
     if (had) {
         uint32_t named[CACHES][CACHE_TILES / 32];
         uint32_t placed[CACHES][CACHE_TILES / 32];
@@ -2174,7 +2201,10 @@ static uint8_t lay_out(bool pruned)
         for (unsigned c = 0; c < CACHES; c++) {
             if (!caches[c].used || !(had >> c & 1))
                 continue;
-            if (free_in_window(caches[c].block) < free_in_window(roomiest_window()))
+            unsigned tiles = 0, here = free_in_window(caches[c].block);
+            for (unsigned w = 0; refill && w < CACHE_TILES / 32; w++)
+                tiles += bits_set(named[c][w]);
+            if ((!refill || tiles >= here) && here < free_in_window(roomiest_window()))
                 had &= (uint8_t)~(1u << c);
             else if (keep_places(&caches[c], named[c], placed[c]))
                 lost |= (uint8_t)(1u << c);
@@ -2182,9 +2212,12 @@ static uint8_t lay_out(bool pruned)
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
-        if (low >> m & 1 && has_tiles_in_front(lm->byte, lm->bytes) &&
-            (lm->front_byte = place_copy_low(lm->bytes, held)) != NO_PLACE)
+        if (!(low >> m & 1) || !has_tiles_in_front(lm->byte, lm->bytes))
+            continue;
+        if ((lm->front_byte = place_copy_low(lm->bytes, held)) != NO_PLACE)
             front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+        else
+            lm->front_refused = true;
     }
     for (unsigned c = 0; c < CACHES; c++) {
         Cache *cache = &caches[c];
@@ -2207,22 +2240,64 @@ static uint8_t lay_out(bool pruned)
     return kept;
 }
 
-/* What a layout leaves to convert: the maps, the sprites' tiles where
- * their tables moved (the GBA's sprite VRAM holds them as the game sent
- * them, each change converted as it comes, while they stay where they
- * are: a scene's first picture converted all 16 KiB of them again), and
- * the plane's VRAM. The caches' tiles are converted as the maps name them:
- * those of a cache kept are where they were, and one started afresh names
- * none yet. A layout converted all of VRAM, tiles and all: ten GBA frames
- * and more of work, through which the GBA showed the last frame's lines
- * over maps half converted; then every unit of each cache started afresh
- * too, 1,024 a cache that named nothing, a sixth of a scene's first
- * picture's work (the black as Crono's room's curtain opens). */
-static void layout_changed(void)
+/* Where a layout put a map (a layer's own or a line effect's), and the
+ * window and blank of the cache whose tiles it names: a map whose place
+ * and cache are as the last layout had them, the cache having kept its
+ * tiles' places, is in the GBA's VRAM as the layout would convert it. */
+enum { OWN_MAP = 1, SPLIT = 2, OVERLAID = 4, SHARED = 8, DEEP = 16, MAP_PLACES = 4 + sizeof snes.line_maps / sizeof snes.line_maps[0] };
+typedef struct {
+    uint16_t byte, bytes, gba_byte, front_byte;
+    uint8_t layer, cut, kind;   /* kind: OWN_MAP, SPLIT, OVERLAID, SHARED and DEEP (4bpp), a bit each */
+    uint8_t block;              /* its cache's window */
+    uint16_t char_byte, blank;  /* its cache's tiles and blank's place */
+} MapPlace;
+static MapPlace map_places[MAP_PLACES];
+static uint8_t map_place_count;
+
+static unsigned places_of_the_maps(MapPlace out[MAP_PLACES])
+{
+    unsigned count = 0;
+    for (unsigned k = 0; k < MAP_PLACES; k++) {
+        const LineMap *lm = k < 4 ? NULL : k - 4 < snes.line_map_count ? &snes.line_maps[k - 4] : NULL;
+        if (k >= 4 && !lm)
+            break;
+        const Layer *l = &layers[lm ? lm->layer : k];
+        if (!l->shown || (lm ? lm->gba_byte == NO_PLACE : !l->own_map))
+            continue;
+        const Cache *c = &caches[l->cache];
+        out[count++] = (MapPlace){
+            .byte = lm ? lm->byte : l->map_byte, .bytes = lm ? lm->bytes : l->map_bytes,
+            .gba_byte = lm ? lm->gba_byte : l->map_byte, .front_byte = lm ? lm->front_byte : l->front_byte,
+            .layer = lm ? lm->layer : (uint8_t)k, .cut = lm ? lm->cut : NO_CUT,
+            .kind = (uint8_t)((lm ? 0 : OWN_MAP) | (l->split ? SPLIT : 0) | (l->overlaid ? OVERLAID : 0) |
+                              (lm && lm->shared ? SHARED : 0) | (l->bpp == 4 ? DEEP : 0)),
+            .block = c->block, .char_byte = c->char_byte, .blank = c->blank };
+    }
+    return count;
+}
+
+/* What a layout leaves to convert: the maps it put somewhere else than the
+ * last did, or whose cache started afresh or lost a place its maps name
+ * (`kept`, the caches that kept theirs, a bit each), or all of them where
+ * tiles had found no place (`missed`), which they may find now; the
+ * sprites' tiles where their tables moved (the GBA's sprite VRAM holds them
+ * as the game sent them, each change converted as it comes, while they
+ * stay where they are: a scene's first picture converted all 16 KiB of them
+ * again), and the plane's VRAM. The caches' tiles are converted as the maps
+ * name them: those of a cache kept are where they were, and one started
+ * afresh names none yet. A layout converted all of VRAM, tiles and all: ten
+ * GBA frames and more of work, through which the GBA showed the last
+ * frame's lines over maps half converted; then every unit of each cache
+ * started afresh too, 1,024 a cache that named nothing, a sixth of a
+ * scene's first picture's work (the black as Crono's room's curtain opens);
+ * then every map again where a line effect's map came in beside them,
+ * three GBA frames as the opening's narration and each dialog of a scene
+ * opened. */
+static void layout_changed(uint8_t kept, bool missed)
 {
     static uint32_t sprites_from = NO_SPRITE_TABLES;   /* the tables the sprites' tiles were converted from */
     uint32_t tables = sprite_table(0) | sprite_table(1) << 16;
-    uint8_t roles_converted = MAP | LINE_MAP | (tables != sprites_from ? SPRITE_TILES : 0);
+    uint8_t roles_converted = tables != sprites_from ? SPRITE_TILES : 0;
     sprites_from = tables;
     for (unsigned k = 0; k < BLOCKS; k++) {
         uint32_t byte = (uint32_t)k * BLOCK_BYTES;
@@ -2230,6 +2305,17 @@ static void layout_changed(void)
         if (convert)   /* a block's 16 units, half a word of the bits */
             snes.changed[k / 2] |= 0xFFFFu << (k % 2 * 16);
     }
+    MapPlace now[MAP_PLACES];
+    unsigned count = places_of_the_maps(now);
+    for (unsigned i = 0; i < count; i++) {
+        bool where_it_was = false;
+        for (unsigned j = 0; !missed && kept >> layers[now[i].layer].cache & 1 && j < map_place_count; j++)
+            where_it_was |= memcmp(&now[i], &map_places[j], sizeof now[i]) == 0;
+        for (uint32_t b = 0; !where_it_was && b < now[i].bytes; b += UNIT_BYTES)
+            unit_changed((now[i].byte + b) & (VRAM_BYTES - 1));
+    }
+    memcpy(map_places, now, sizeof now[0] * count);
+    map_place_count = (uint8_t)count;
 }
 
 /* A SNES map entry as the GBA's, its tiles in cache `c`: its tile's place
@@ -2442,8 +2528,10 @@ static void convert_block(unsigned k, uint32_t units)
                           lm->shared ? NO_PLACE : lm->gba_byte + offset,
                           lm->front_byte != NO_PLACE && !front_shared ? lm->front_byte + offset : NO_PLACE);
         /* tiles in front where its split layer had none: the next layout
-         * gives them their copy */
-        for (unsigned i = 0; lm->front_byte == NO_PLACE && layers[lm->layer].split && i < 16; i++)
+         * gives them their copy, where this one had room for it (laid out
+         * again each frame where it hadn't, the battle in Gato's movie went
+         * black a dozen GBA frames a frame) */
+        for (unsigned i = 0; lm->front_byte == NO_PLACE && !lm->front_refused && layers[lm->layer].split && i < 16; i++)
             if (units >> i & 1 && has_tiles_in_front(block + i * UNIT_BYTES, UNIT_BYTES))
                 snes.settings_changed = true;
     }
@@ -4396,10 +4484,16 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
             DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
         }
     } else if (by_line && (raised & IRQ_HBLANK) && line < GBA_LINES) {
-        while (next_change < changes && change_line[shown_place(next_change)] <= line)
-            next_change++;
-        if (next_change < changes && change_line[shown_place(next_change)] == line + 1)
-            set_line(&change_registers[shown_place(next_change++)]);
+        /* the change for the next line; or, where the interrupt came late
+         * (another handler ran on past this line's blank), the last of
+         * those it passed, so that a band shows its own lines from here
+         * rather than the last band's through to the next change (the
+         * naming's rows a gap's six lines low, as the cursor moved) */
+        unsigned passed = changes;
+        while (next_change < changes && change_line[shown_place(next_change)] <= line + 1)
+            passed = next_change++;
+        if (passed < changes)
+            set_line(&change_registers[shown_place(passed)]);
         if (!(next_change < changes && change_line[shown_place(next_change)] == line + 2))
             await_change();
     }
@@ -4892,10 +4986,12 @@ static void show_the_pending_frame(void)
     REG_IME = 1;
 }
 
-/* The frame's lines, and the GBA's registers set for them. A frame that
- * starts from what the last one did, its tables unchanged, makes the same
- * changes and leaves the registers as it did: those stand, unworked. */
-static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
+/* The frame's lines, and the GBA's registers for them, worked out but not
+ * shown yet (show_the_frame); `made` is whether they were worked out rather
+ * than the last frame's kept, and `left` what the effects leave set. A frame
+ * that starts from what the last one did, its tables unchanged, makes the
+ * same changes and leaves the registers as it did: those stand, unworked. */
+static uint8_t make_lines(Platform *pf, uint16_t layers_enabled, bool laid_out, bool *made_out, LineState *left)
 {
     static uint32_t last_from IN_FAST_RAM;   /* its hash */
     static LineState last_left IN_FAST_RAM;
@@ -4939,17 +5035,24 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
         if (worked_out < 2)
             worked_out++;
     }
-    /* What the effects leave stands, as the SNES's registers do. */
-    snes.windows = st.windows;
-    snes.math = st.math;
-    snes.fixed_color = st.fixed_color;
-    snes.main_layers = st.main_layers;
-    snes.sub_layers = st.sub_layers;
+    *made_out = made;
+    *left = st;
+    return count;
+}
+
+/* What the frame's line effects leave stands, as the SNES's registers do:
+ * the next frame's lines start from it. */
+static void lines_leave(const LineState *st)
+{
+    snes.windows = st->windows;
+    snes.math = st->math;
+    snes.fixed_color = st->fixed_color;
+    snes.main_layers = st->main_layers;
+    snes.sub_layers = st->sub_layers;
     for (unsigned n = 0; n < 3; n++)
-        snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
-    snes.m7 = st.m7;
-    snes.m7_latch = st.m7_latch;
-    show_the_frame(made, count);
+        snes.bg[n].hofs = st->hofs[n], snes.bg[n].vofs = st->vofs[n];
+    snes.m7 = st->m7;
+    snes.m7_latch = st->m7_latch;
 }
 
 /* The picture hidden, black, until this frame's lines are set: while a
@@ -4972,28 +5075,38 @@ static void hide_the_picture(void)
     picture_hidden = true;
 }
 
-void gba_video_present(Platform *pf)
+/* Whether the frame shows nothing: blanked or dark from its top line to its
+ * bottom, no line effect setting the brightness. */
+static bool shows_nothing(const VidHost *v)
 {
-    show_the_pending_frame();
-    /* Tiles that found no place have the caches started afresh: a second
-     * on where a tile missed since the layout, eight where only the layout's
-     * own misses stand (starting afresh from the same maps misses the same
-     * tiles, and a layout is about ten GBA frames' work). */
-    bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
-    /* the plane's room made where a line shows Mode 7, and given back where none does */
-    bool plane_moved = plane_wanted() ? !plane_room && !plane_refused : plane_room;
-    bool laid_out = snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode ||
-                    (laid_out_mode == 2 && third_on_lines && !laid_out_third);
-    if (laid_out) {
-        uint8_t kept = lay_out(usage_known);
-        for (unsigned c = 0; c < CACHES; c++)
-            if (caches[c].used && !(kept >> c & 1)) {
-                hide_the_picture();
-                break;
-            }
-        layout_changed();
-        snes.settings_changed = false;
-    }
+    if (!dark(&v->display) || (v->below_display && v->display_from && !dark(&v->display_below)))
+        return false;
+    uint8_t slots = (uint8_t)(v->line_effects | (v->below_line_effects ? v->line_effects_below : 0));
+    for (unsigned i = 0; i < 8; i++)
+        if (slots >> i & 1 && snes.slot[i].target == VID_LINE_BRIGHTNESS)
+            return false;
+    return true;
+}
+
+/* The picture laid out afresh (a `refill`: only for tiles that found no
+ * place); where a cache of tiles starts afresh, the picture is hidden until
+ * this frame's is shown. */
+static void lay_out_again(bool refill)
+{
+    bool missed = misses != 0;
+    uint8_t kept = lay_out(usage_known, refill);
+    for (unsigned c = 0; c < CACHES; c++)
+        if (caches[c].used && !(kept >> c & 1)) {
+            hide_the_picture();
+            break;
+        }
+    layout_changed(kept, missed);
+    snes.settings_changed = false;
+}
+
+/* VRAM's changes since the last picture converted, and the palettes. */
+static void convert_the_changes(bool laid_out)
+{
     for (unsigned w = 0; w < UNITS / 32; w++) {
         uint32_t units = snes.changed[w];
         if (units & 0xFFFF)
@@ -5008,9 +5121,14 @@ void gba_video_present(Platform *pf)
         present_palettes();
         snes.palette_written = false;
     }
-    /* The GBA's layers, where the mode, the layout or the maps' priorities
-     * changed; a layer to split, or a split one to join, makes the layout
-     * again in the next frame. */
+}
+
+/* The GBA's layers, where the mode, the layout or the maps' priorities
+ * changed (a layer to split, or a split one to join, makes the layout
+ * again), the view's bands and the sprites; the SNES's layers shown, a bit
+ * each. */
+static uint16_t arrange_the_layers(bool laid_out)
+{
     if (priorities_noted && layers_to_split(split_wanted) != split_wanted)
         snes.settings_changed = true;
     const Order *was = order;
@@ -5032,7 +5150,6 @@ void gba_video_present(Platform *pf)
         present_sprites();
         snes.sprites_changed = false;
     }
-
     uint16_t layers_enabled = 0;
     for (unsigned n = 0; n < 4; n++)
         if (layers[n].shown)
@@ -5040,7 +5157,67 @@ void gba_video_present(Platform *pf)
     for (unsigned s = 0; panel.drawn && panel_room.made && s < PANEL_LAYERS; s++)
         if (panel.layer[s] != NO_LAYER)
             panel.control[s] = panel_layer_control(s);
-    present_lines(pf, layers_enabled, laid_out);
+    return layers_enabled;
+}
+
+/* Whether the picture is laid out afresh: the settings changed what it is
+ * made from, the lines show Mode 7 or stop showing it, or they show text in
+ * another mode than the layout's (`restart`: tiles that found no place). */
+static bool layout_wanted(bool restart)
+{
+    /* the plane's room made where a line shows Mode 7, and given back where none does */
+    bool plane_moved = plane_wanted() ? !plane_room && !plane_refused : plane_room;
+    return snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode ||
+           (laid_out_mode == 2 && third_on_lines && !laid_out_third);
+}
+
+/* The picture made from the SNES's memory and registers as the frame left
+ * them: laid out again where it must be, VRAM's changes converted, the
+ * palettes, the GBA's layers and sprites, then the lines worked out. A frame
+ * whose lines ask for a layout the picture doesn't have yet (a map a line
+ * effect shows, the lines' mode) is laid out again and its lines worked out
+ * once more before it is shown: shown first, it would show a map not yet
+ * converted, and the next frame's layout would convert the scene a second
+ * time under the picture shown (the dialog window's first row in stray
+ * tiles as the opening's narration begins). */
+/* The picture black from here where the frame shows nothing. */
+static void black_where_nothing_shows(Platform *pf)
+{
+    if (!picture_hidden && shows_nothing(&pf->video))
+        hide_the_picture();
+}
+
+void gba_video_present(Platform *pf)
+{
+    show_the_pending_frame();
+    /* Tiles that found no place have the caches started afresh: a second
+     * on where a tile missed since the layout, eight where only the layout's
+     * own misses stand (starting afresh from the same maps misses the same
+     * tiles, and a layout is about ten GBA frames' work). */
+    bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
+    bool refill = restart && !layout_wanted(false), laid_out = layout_wanted(restart), made;
+    LineState left;
+    uint8_t count;
+    for (unsigned pass = 0;; pass++) {
+        if (laid_out)
+            lay_out_again(refill && pass == 0);
+        /* a layout's lines worked out first, before its maps are converted:
+         * where they ask for another, that one's maps are converted alone */
+        if (laid_out && pass == 0) {
+            make_lines(pf, arrange_the_layers(true), true, &made, &left);
+            if (layout_wanted(false))
+                continue;
+            copied.made = strips.made = false;   /* made from maps not converted yet */
+        }
+        convert_the_changes(laid_out);
+        uint16_t layers_enabled = arrange_the_layers(laid_out);
+        count = make_lines(pf, layers_enabled, laid_out, &made, &left);
+        if (pass == 1 || !layout_wanted(false))
+            break;
+        laid_out = true;
+    }
+    lines_leave(&left);
+    show_the_frame(made, count);
     usage_known = true;
 }
 
