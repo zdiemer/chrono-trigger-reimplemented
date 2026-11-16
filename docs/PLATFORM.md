@@ -2244,7 +2244,13 @@ the GBA's work. What changed, each measured over the four movies above:
   9% of all the GBA's work, at any speed. Now a line's registers are worked
   out only where what the line effects set has changed, and set only where
   they change, by two interrupts a change (the line counter's on the line
-  above, the horizontal blank's at its end). The line effects' tables are
+  above, the horizontal blank's at its end). Where the horizontal blank's
+  comes late, another handler having run on past the line, it sets the last
+  change it passed rather than skipping it: skipped, a band showed the band
+  above's lines down to the next change, and the naming screen's rows came
+  six lines low as the cursor moved (issue #520; a sweep of the cursor over
+  every letter now shows the rows where ct_native's 240x160 view does, but
+  a frame's lag as it changes row). The line effects' tables are
   read 32 bytes at a time, not a call a byte, and a slot's idle lines
   between transfers are passed over.
 - **Only what changed is converted.** VRAM is followed in 32-byte units
