@@ -10,6 +10,7 @@
 #include "battle/wide_window.h"
 #include "core/panel_layout.h"
 #include "core/sprite_table.h"
+#include "event/records.h"
 #include "field/margin_objects.h"
 #include "field/streaming.h"
 #include "menu/menu.h"
@@ -33,6 +34,7 @@ struct GameState {
     MenuPanels menu_panels;
     FieldObjectsPast field_objects_past;
     MenuSpritesPast menu_sprites_past;
+    EventRecords event_records;
     /* save RAM: `kept_sram` below, or the host's own bytes (state_host_create_lasting_over) */
     uint8_t *sram;
     /* the multiplier and divider: their operands, and the result the
@@ -158,6 +160,7 @@ BattleWideWindow *battle_wide_window(GameState *g) { return &g->battle_wide_wind
 MenuPanels *menu_panels(GameState *g) { return &g->menu_panels; }
 FieldObjectsPast *field_objects_past(GameState *g) { return &g->field_objects_past; }
 MenuSpritesPast *menu_sprites_past(GameState *g) { return &g->menu_sprites_past; }
+EventRecords *event_records(GameState *g) { return &g->event_records; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 /* state_host_head (state_host.h) reaches the head as the state's first member. */
