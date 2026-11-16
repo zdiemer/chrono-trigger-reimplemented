@@ -1284,15 +1284,15 @@ time model's rows aren't in the program. Its host decides instead
 
 In mGBA, with a late frame's picture left out (`Pictures`, below) and the
 fibers' stacks sized from the library as before, the movies (`title-start`,
-`new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`) take 2,120,
-8,523, 29,431, 16,454 and 9,084 GBA frames against 2,136, 9,652, 35,142,
-18,501 and 9,697 with the time model (0.7-16.3% fewer; 1.18-1.75 GBA frames
-a game frame), with 34, 1,361, 6,599, 3,313 and 1,542 pictures left out
-against 61, 1,658, 8,141, 3,673 and 1,647. Measured alone, before the
+`new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`) take 2,141,
+8,603, 29,770, 16,690 and 9,174 GBA frames against 2,165, 9,771, 35,667,
+18,769 and 9,817 with the time model (1.1-16.5% fewer; 1.19-1.78 GBA frames
+a game frame), with 35, 1,362, 6,600, 3,317 and 1,545 pictures left out
+against 61, 1,658, 8,136, 3,673 and 1,647. Measured alone, before the
 pictures were left out, the game's frame fell from 0.53, 0.72, 1.02, 1.11
 and 0.69 GBA frames to 0.51, 0.61, 0.83, 0.95 and 0.62. The program falls
 from 1.92 to 1.72 MB, and fast RAM keeps 2,048 bytes spare rather than 528.
-`new-game` played by hand to its 7,200th frame lags 396 frames against
+`new-game` played by hand to its 7,200th frame lags 387 frames against
 ct_native's 244. A movie whose decisions run out stops there, saying at
 which frame, and one that leaves some unread fails `host/run.py`.
 
