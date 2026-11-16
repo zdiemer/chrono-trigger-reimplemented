@@ -185,8 +185,7 @@ static uint16_t next_exit_tile(uint16_t tile, bool down, uint16_t repeat)
 static void mark_the_exits(GameState *g)
 {
     for (unsigned row = 0; row < EXIT_TABLE_ROWS; row++)
-        for (unsigned column = 0; column < EXIT_TABLE_COLUMNS; column++)
-            set_field_tile_exits(g, row, column, NO_EXIT);
+        fill_field_tile_exits_run(g, row, 0, NO_EXIT, EXIT_TABLE_COLUMNS);
     FieldExitRun run = field_location_exit_run(g, location_id(g));
     set_field_location_exits(g, run.first);
     uint16_t repeat = field_map_index_mask(g);

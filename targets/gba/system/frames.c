@@ -81,6 +81,15 @@ static bool time_left_at(uint32_t elapsed, uint16_t line)
     return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
 }
 
+bool frames_pass(void *ctx)
+{
+    (void)ctx;
+    if (replayed || cycles_now() - main_began < GBA_FRAME_CYCLES)
+        return false;
+    sat_out = true;
+    return true;
+}
+
 bool frames_decide(void *ctx, TmHostDecision what, uint16_t line)
 {
     (void)ctx;

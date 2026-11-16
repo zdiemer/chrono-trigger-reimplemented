@@ -219,6 +219,7 @@ static bool draw_and_send_a_layer(GameState *g, Platform *pf, unsigned layer)
     bool whole = layer != FIELD_BG1 && (field_layer_drawn_whole(g) & FIELD_LAYER_BIT(layer));
     TIMED_AS(g, whole ? FIELD_SEND_STAGED_SCREENS_ENTRY : FIELD_SEND_STAGED_SCREEN_ENTRY,
              field_send_staged_layer(g, pf, whole));
+    tm_let_frames_pass(pf);
     return true;
 }
 
@@ -265,6 +266,7 @@ static bool draw_the_objects_in_view(GameState *g, Platform *pf)
         object_make_current(g, obj);
         if (may_come_into_view(g, obj) && object_in_view_at_the_start(g, obj) && !draw_at_once(g, pf, obj))
             return false;
+        tm_let_frames_pass(pf);
     }
     bool built = false;
     TIMED_AS(g, SPRITE_TABLE, built = field_sprite_table_built(g));

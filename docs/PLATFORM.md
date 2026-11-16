@@ -53,6 +53,13 @@ without a ROM. Core owns typed mode callbacks in game state; the frame driver
 dispatches them in the established order. The program test checks callback
 isolation, replacement and mode hand-offs. Removing a state read preserves its
 counted work explicitly where pacing depended on it (REIMPLEMENTATION.md).
+A long stretch of the main thread's work with the frame's handlers off --
+a location, the world map or the race loading behind a dark screen --
+says between its steps where the SNES's frames went by in the middle of it
+(`tm_let_frames_pass`). The time model keeps those frames at the work's
+end; a host keeping time of its own (`TmHostProgram.passes`, the GBA played
+by hand) may let them go by there, its sound and picture going on through
+the load. Nothing of the game's runs in them.
 
 ## Input, saves and resources
 
@@ -1444,7 +1451,16 @@ mode 0's four tiled layers and its sprites:
   than through the port a byte at a time (the game's frame in
   `gato-battle` 1.05 GBA frames to 1.02). Maps a line effect shows part of
   the way down (the field's dialog, whose two layers show one map as their
-  own) are converted for their layer into room the GBA has spare.
+  own) are converted for their layer into room the GBA has spare: seven
+  of them, a map a band shows cut taking no more than six and giving its
+  place up to one a line shows whole. With six, the battles that keep three
+  layers' maps for the field and three for the window left the third
+  layer's second map out (`attract-demo`'s Magus castle battles, where it
+  holds the candles' flames), and its lines showed whatever the GBA's VRAM
+  held there, a window's border in rows down the whole battle; the
+  census's cluster there (frames 6644-7254 and 17680-18424) fell from 6.6
+  and 6.8 million pixels to 2.5 and 2.8, what is left the flames' tint, a
+  colour the fixed colour adds that the GBA's blending can't (issue #554).
 - **Tiles** live in caches, one for each set of tiles: a window of 1,024
   tiles from a 16 KiB block of the GBA's background VRAM, whose places no
   map takes are handed out to the tiles the maps name as they name them,
@@ -2110,6 +2126,34 @@ at `gato-battle` frame 11580 from 69 to 34; the heaviest frames are 43, 43,
 `events-jetbike-race`, `menus-sweep`), each ending as ct_native does. The
 pack grows by 508 bytes (13,824,576 in all), and fast RAM gains 496 bytes,
 the hashing's loop gone from it.
+
+**A load's frames between its steps** (issue #568). A location's load runs
+with the frame's handlers off and the original's frames went by in the
+middle of it (36 at `attract-demo` frame 7535 in ct_native, which keeps
+them as lag frames at the load's end), while the GBA did the whole load in
+one game frame of 24 GBA frames, its sound's frames and picture stopped.
+Its steps now say where frames may go by (`tm_let_frames_pass`, "Timing
+without a beam"): the location's graphics, map, tile looks and script, the
+entering steps, each layer and object drawn as the screen is set up; the
+world map's graphics, maps and planes; each of the race's graphics. Played
+by hand, the GBA's own time lets them go by there once its load has run a
+GBA frame (`frames_pass`); replaying ct_native's decisions, and in
+ct_native, nothing changes. The map's unpack, about 9 GBA frames of the
+load, went through the work RAM port and the state's accessors a byte at a
+time: the stream is now read a row of a layer's map, or a tile's three
+attribute bytes, at a time (`hw_port_read_span`), and the tables written a
+row at a time (`set_<table>_run`, `fill_<table>_run`, STATE.md "The flat
+state"), each charged as the single reads and writes were. Replayed, the
+location loads in `attract-demo` take 21.1 and 20.5 GBA frames (from 24.9
+and 24.3) and the return from a battle 7.2 (from 13.5). Played by hand
+(the census's `attract-idle` and `new-game-by-hand`), the longest frames of
+the stretches round loads fall from 16, 22, 21 and 15 GBA frames to 8, 7, 8
+and 11; what is left over 8 is the battle's way in (28-30), power-on and
+the title's set-up and song. The census over `title-start`, `new-game`,
+`gato-battle`, `events-jetbike-race`, `menus-sweep` and `attract-demo`
+finds the same clusters as before, none new over a single GBA frame, each
+run ending as ct_native's, whose movies and lag frames are as before. Work
+RAM is 512 bytes above its floor, fast RAM 616 spare.
 
 **Measured** (2026-11-14, mGBA 0.10.5):
 
