@@ -1555,8 +1555,7 @@ mode 0's four tiled layers and its sprites:
   line below that isn't mode 2 shows the third layer (the menus' lines below
   their lists are mode 1, and show their descriptions on it), mode 2 is laid
   out with it, in front as those lines put it. A frame whose offsets' map
-  changed works its lines out again. The title screen's logo is mode 2's
-  too, and shows as natively now. Finding and showing the runs takes 0.8%
+  changed works its lines out again. Finding and showing the runs takes 0.8%
   more of the GBA's frames over `title-start`, 0.6% over `new-game`, 0.1%
   over `gato-battle` and `events-jetbike-race`, all of it on the title and
   the menus, and 12% over `menus-sweep`, whose screens are mostly mode 2
@@ -1571,6 +1570,31 @@ mode 0's four tiled layers and its sprites:
   screen's 12 bands (10,796 against 10,550); `title-start`, `new-game`,
   `gato-battle` and `events-jetbike-race` take 2,194, 11,019, 43,234 and
   23,704 against 2,196, 11,073, 43,276 and 23,674.
+  Where a layer's columns move up and down more ways than two runs show
+  (the title's logo, whose every column the ripple moves by its own
+  offset), the layer is shown from a copy of its map made in the frame,
+  each column the lines show moved down the copy as its offset moves it,
+  so that the copy at the layer's own scroll shows what the columns show
+  (`show_columns_copied`). A column moved by part of a tile takes new
+  tiles, each eight rows of the two tiles it lies across: the columns'
+  tiles are kept flipped as their map has them, each run of a column's
+  rows with tiles one after another (the strips, made again only as the
+  map or its tiles change), so a run's new tiles are its strip from the
+  row its offset starts at, one copy a run. A new tile takes the palette
+  of whichever of the two gives it more rows. There are two copies, the
+  one the lines show and the one made next, in room no cache has (21 KiB
+  at the title: two maps of 4 KiB, two runs of 128 tiles and 160 tiles of
+  strips), made only where 8 KiB more stay free for the caches, and given
+  back by the first layout no line wants it in. A split layer's columns, and columns
+  moved across, are runs as before. Watched in mGBA at the GBA's speed,
+  the logo had stood still while natively it ripples, jumping each time
+  the two runs it could show changed (issue #518); its ripple now matches
+  ct_native's frame by frame. A copy is about 29,000 cycles (0.1 GBA
+  frames), and the strips about 160,000 in each of the 50 frames the logo
+  is drawn in; the five movies take 2,120, 8,147, 28,500, 15,824 and 8,803 GBA
+  frames against 2,114, 8,131, 28,437, 15,810 and 8,792 (`title-start`,
+  `new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`), and
+  work RAM keeps 30,240 bytes free against 30,824.
 - **Colour math with the fixed colour** (the sub screen added where it has
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at
@@ -1691,9 +1715,10 @@ Approximated, or not shown yet (issue #483):
   the plane's mosaic and direct colour aren't shown; a frame whose plane's
   room was not yet made (the first frame a line shows Mode 7) shows its
   sprites alone on those lines. Mosaic and mode 0's fourth layer aren't
-  shown. Mode 2's moved columns past what the GBA's two windows and its
-  free layers show (above), or where the SNES's windows use both of the
-  GBA's, show as their layer lies; the clouds before the Ocean Palace in
+  shown. Mode 2's columns moved across past what the GBA's two windows and
+  its free layers show (above), or where the SNES's windows use both of the
+  GBA's, and those moved up and down on a split layer past them, show as
+  their layer lies; the clouds before the Ocean Palace in
   the attract sequence, mode 2 too, still show black.
 - Where both windows cover a dot, the GBA shows window 1's choice.
 - A sprite whose tiles run past a SNES tile table's row or table end takes
