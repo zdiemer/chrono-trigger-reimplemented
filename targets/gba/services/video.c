@@ -4792,9 +4792,12 @@ static bool frame_differs(bool made, uint8_t count)
 
 static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
 static uint8_t pending_count;
+static bool picture_hidden;   /* black since hide_the_picture, until a frame is shown */
 
-/* The frame's picture shown from here, with the interrupts off. */
-static void frame_shown(bool made, uint8_t count)
+/* The frame's picture shown from here, with the interrupts off; or, `at_blank`,
+ * from the vertical blank, the line counter's interrupt there setting its
+ * first line's registers (on_line), the picture hidden until then. */
+static void frame_shown(bool made, uint8_t count, bool at_blank)
 {
     if (made)
         show_from_end(made_end);
@@ -4809,6 +4812,19 @@ static void frame_shown(bool made, uint8_t count)
     }
     WIN0V = GBA_LINES;
     WIN1V = GBA_LINES;
+    picture_hidden = false;
+    if (at_blank) {
+        if (!by_line) {
+            gba_interrupt_handler(IRQ_VCOUNT | IRQ_HBLANK, on_line);
+            DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_VCOUNT_IRQ);
+            REG_IF = IRQ_VCOUNT | IRQ_HBLANK;
+            REG_IE = (uint16_t)(REG_IE | IRQ_VCOUNT | IRQ_HBLANK);
+            by_line = true;
+        }
+        next_change = count;   /* none left before the vertical blank */
+        await_change();
+        return;
+    }
     set_line(&change_registers[shown_place(0)]);
     arm_the_lines();
     if (count == 1) {
@@ -4830,14 +4846,19 @@ static void frame_shown(bool made, uint8_t count)
 
 static void show_the_frame(bool made, uint8_t count)
 {
-    bool late = VCOUNT < GBA_LINES, differs = late && frame_differs(made, count);
+    bool late = VCOUNT < GBA_LINES, differs = late && (picture_hidden || frame_differs(made, count));
     REG_IME = 0;
     if (!late) {
-        frame_shown(made, count);
+        frame_shown(made, count, false);
     } else if (!differs) {
         if (made)
             show_from_end(made_end);
         sprites_aside = false;
+    } else if (picture_hidden) {
+        /* black meanwhile, so nothing is shown torn: shown whole from the
+         * vertical blank, rather than from the next picture's, which a
+         * scene's loading frames put off by a dozen GBA frames and more */
+        frame_shown(made, count, true);
     } else {
         /* shown as the next picture's vertical blank begins */
         pending_made = made;
@@ -4855,7 +4876,7 @@ static void show_the_pending_frame(void)
     if (!show_pending)
         return;
     REG_IME = 0;
-    frame_shown(pending_made, pending_count);
+    frame_shown(pending_made, pending_count, false);
     show_pending = false;
     REG_IME = 1;
 }
@@ -4937,6 +4958,7 @@ static void hide_the_picture(void)
     DISPCNT = (uint16_t)(DISPCNT & ~(0xF * DISPCNT_BG0 | DISPCNT_OBJ));
     BLDCNT = 0;
     BG_PALETTE[0] = 0;
+    picture_hidden = true;
 }
 
 void gba_video_present(Platform *pf)
