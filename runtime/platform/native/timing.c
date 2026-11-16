@@ -239,6 +239,16 @@ void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources)
     pf->timing.interrupts = sources;
 }
 
+void tm_let_frames_pass(Platform *pf)
+{
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_MAIN || (t->interrupts & (TM_INT_VBLANK | TM_INT_LINE)) || !t->program.passes ||
+        !t->program.passes(t->program.ctx))
+        return;
+    t->waiting = fiber_current();
+    fiber_switch(t->driver);
+}
+
 void tm_set_line(Platform *pf, PfOrigin o, uint16_t line)
 {
     (void)o;

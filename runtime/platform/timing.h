@@ -57,6 +57,14 @@ PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o);
 /* Before I/O another processor watches (the APU): let the time the native
  * routine has taken so far pass first. */
 PF_API void tm_sync(Platform *pf);
+/* A point between the steps of the main thread's long work with the frame's
+ * handlers off (a mode loading behind its dark screen), where the SNES's
+ * frames went by in the middle of it. A host that keeps time of its own (the
+ * GBA played by hand) may let the frames its work has filled go by here,
+ * keeping its sound and picture going through a load; nothing of the game's
+ * runs in them. The time model keeps them where the work ends, so on a host
+ * that takes its frames from it nothing changes. */
+PF_API void tm_let_frames_pass(Platform *pf);
 /* A move of `bytes` (1-65536) of the game's own memory, made in one go -- a
  * buffer cleared or filled, a table copied, a map read back out of VRAM --
  * holds the main thread for as long as the SNES's transfer of as many bytes

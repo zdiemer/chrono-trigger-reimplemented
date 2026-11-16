@@ -60,6 +60,10 @@ typedef struct {
     bool (*decide)(void *ctx, TmHostDecision what, uint16_t line);
     /* optional: each decision as the time model made it (ct_native --decisions) */
     void (*decided)(void *ctx, TmHostDecision what, bool yes);
+    /* optional: whether the main thread, between a load's steps with the
+     * handlers off (tm_let_frames_pass), goes on in the next frame: a host
+     * keeping time of its own, whose frames go by as its load works */
+    bool (*passes)(void *ctx);
 } TmHostProgram;
 
 /* Where the frame is: which of its three parts runs. */

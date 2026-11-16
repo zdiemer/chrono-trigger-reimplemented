@@ -480,12 +480,16 @@ enum { LINE_EFFECTS = 0xFDC2C1, LINE_EFFECTS_SET_UP = 0xFDC1EE, WHOLE_FIGURE = 0
 static bool load_graphics_map_and_scripts(GameState *g, Platform *pf)
 {
     load_the_graphics(g, pf);
+    tm_let_frames_pass(pf);
     bool loaded = false;
     TIMED_AS(g, FIELD_UNPACK_THE_MAP_ENTRY, loaded = field_load_the_map(g));
     if (!loaded)
         return false;
+    tm_let_frames_pass(pf);
     load_the_tile_looks(g);
+    tm_let_frames_pass(pf);
     TIMED_AS(g, SCRIPT_UNPACKED, loaded = field_load_the_script(g));
+    tm_let_frames_pass(pf);
     return loaded;
 }
 

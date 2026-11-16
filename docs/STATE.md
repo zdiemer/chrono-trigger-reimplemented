@@ -235,7 +235,12 @@ beside `vars_ram.c`, and a bit for each address an owner keeps
 (`vars_flat_owned`); the others read 0 as the address view's do. An accessor
 every byte of which an owner keeps reads and writes them where the banks keep
 them (`get16`, `put16`), charging the whole value's time at once; an index out
-of range, and the unchecked pairs, go by address. The backing keeps the two banks (`vars_flat_host.c`), but for
+of range, and the unchecked pairs, go by address. A table of rows marked
+`runs` (a map's tile maps, attributes and exits, which a location's load
+writes a row at a time) also has `set_<name>_run` and `fill_<name>_run`, a
+run along a row as that many single writes: the typed state makes them so,
+and the flat state copies or fills the row's bytes in one go where they lie
+together, charging each byte's time. The backing keeps the two banks (`vars_flat_host.c`), but for
 the top a target may keep in memory of its own from a 4 KiB step no value read
 or written in place runs across (`VARS_FLAT_COLD_FROM`, `VARS_FLAT_CROSSED_STEPS`:
 the GBA's, PLATFORM.md "The GBA build, as built"). Owners kept

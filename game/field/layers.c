@@ -366,21 +366,17 @@ static bool next_tile(MapSize size, MapPlace *p)
     return ++p->row < size.rows;
 }
 
-/* A layer's tile map, a byte a tile from the stream. */
+/* A layer's tile map, a byte a tile from the stream, a row at a time. */
+enum { MOST_COLUMNS = FIELD_LAYER_MAPS_COLUMNS };
+
 static void unpack_layer_map(GameState *g, unsigned layer)
 {
     MapSize size = layer_size(g, layer);
-    MapPlace p = { 0, 0 };
-    do
-        set_field_layer_maps(g, layer, p.row, p.column, hw_port_read(g));
-    while (next_tile(size, &p));
-}
-
-static void set_tile_attributes(GameState *g, MapPlace p, TileAttributes a)
-{
-    set_field_tile_properties(g, p.row, p.column, a.properties);
-    set_field_tile_upper_attributes(g, p.row, p.column, a.upper);
-    set_field_tile_lower_attributes(g, p.row, p.column, a.lower);
+    uint8_t tiles[MOST_COLUMNS];
+    for (uint8_t row = 0; row < size.rows; row++) {
+        hw_port_read_span(g, tiles, size.columns);
+        set_field_layer_maps_run(g, layer, row, 0, tiles, size.columns);
+    }
 }
 
 TileAttributes map_tile_attributes(const GameState *g, MapPlace p)
@@ -395,42 +391,56 @@ TileAttributes map_tile_attributes_past_the_map(const GameState *g, MapPlace p)
                              .lower = field_tile_lower_attributes_unchecked(g, p.row, p.column) };
 }
 
-/* A tile's bytes from the stream, each written as it is read: a big map's
- * attribute tables reach the stream's bytes still to come, and change them
- * as the original does. */
-static TileAttributes read_tile_attributes(GameState *g, MapPlace p, uint8_t properties)
+enum { RUN = 0x80, RUN_OF_256 = 0x00, TILE_BYTES = 3 };
+
+/* A row of the attributes as they are unpacked, written to the tables once
+ * it is whole. */
+typedef struct {
+    uint8_t properties[MOST_COLUMNS], upper[MOST_COLUMNS], lower[MOST_COLUMNS];
+} AttributeRow;
+
+static void put_tile(AttributeRow *r, uint8_t column, TileAttributes a)
 {
-    TileAttributes a = { .properties = properties };
-    set_field_tile_properties(g, p.row, p.column, a.properties);
-    a.upper = hw_port_read(g);
-    set_field_tile_upper_attributes(g, p.row, p.column, a.upper);
-    a.lower = hw_port_read(g);
-    set_field_tile_lower_attributes(g, p.row, p.column, a.lower);
-    return a;
+    r->properties[column] = a.properties;
+    r->upper[column] = a.upper;
+    r->lower[column] = a.lower;
 }
 
-enum { RUN = 0x80, RUN_OF_256 = 0x00 };
+/* The next tile, the row written where it is the row's last: false past the
+ * map's last row. */
+static bool next_tile_written(GameState *g, MapSize size, MapPlace *p, const AttributeRow *r)
+{
+    if (p->column + 1 == size.columns) {
+        set_field_tile_properties_run(g, p->row, 0, r->properties, size.columns);
+        set_field_tile_upper_attributes_run(g, p->row, 0, r->upper, size.columns);
+        set_field_tile_lower_attributes_run(g, p->row, 0, r->lower, size.columns);
+    }
+    return next_tile(size, p);
+}
 
 /* The attributes: three bytes a tile, over BG1's size. A first byte with RUN
  * set starts a run: the tile's bytes (RUN taken off) repeat for the count
- * after them, 0 meaning 256. */
+ * after them, 0 meaning 256. The stream never reaches the tables it fills
+ * (field_tile_maps_fit), so a tile's three bytes are read together and its
+ * row written whole. */
 static void unpack_attributes(GameState *g, MapSize size)
 {
-
     MapPlace p = { 0, 0 };
+    AttributeRow row;
     for (;;) {
-        uint8_t first = hw_port_read(g);
-        TileAttributes a = read_tile_attributes(g, p, (uint8_t)(first & ~RUN));
-        if (first & RUN) {
-
+        uint8_t bytes[TILE_BYTES];
+        hw_port_read_span(g, bytes, TILE_BYTES);
+        TileAttributes a = { .properties = (uint8_t)(bytes[0] & ~RUN), .upper = bytes[1], .lower = bytes[2] };
+        put_tile(&row, p.column, a);
+        if (bytes[0] & RUN) {
             uint8_t count = hw_port_read(g);
             for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
-                if (!next_tile(size, &p))
+                if (!next_tile_written(g, size, &p, &row))
                     return;
-                set_tile_attributes(g, p, a);
+                put_tile(&row, p.column, a);
             }
         }
-        if (!next_tile(size, &p))
+        if (!next_tile_written(g, size, &p, &row))
             return;
     }
 }
