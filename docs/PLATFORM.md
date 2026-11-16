@@ -877,7 +877,11 @@ made in `game/` as presentation and never as a rule:
   keeps the rest in the view's memory (`vid_view_memory`) with the page as
   it last set it; it sends again only the tiles whose pieces or dots
   changed (a glyph's, while it types), and everything where the string,
-  the choice, the window's place or its lines change. While the
+  the choice, the window's place or its lines change. The page is set
+  again only where a line's ink moved, and a frame in which no dot changed
+  sends nothing: in `gato-battle` on the GBA the window went from 4.3% of
+  the samples to 0.9% (`new-game` 3.1% to 0.7%), what is left reading the
+  line the game types into. While the
   page is being typed the window shows four lines, the newest at its foot.
   Once the page waits for the player, it grows to show every line. It opens
   and shuts from its middle as the screen's band does. The game's text,
@@ -2291,6 +2295,16 @@ idling until a picture was due, calling it from the cartridge into fast RAM
 through a veneer on every turn of the wait. It is now read in place
 (`system/debug_log.h`, a few loads), so the samples are the wait's own, in
 `main`; the movies' GBA frames are the same to within 0.1%.
+
+**The field's sprites.** Building the field's sprite table
+(`field_sprite_table_built`) is 4.3% of `gato-battle`'s samples and 2.6% of
+`events-jetbike-race`'s: the original's work every frame, each object's
+records placed and copied into the table a byte at a time through the
+accessors, whose every read and write ct_native's time model counts, so
+the port can't read fewer. Its entries now go through the work RAM port in
+one piece (`hw_port_write_span`, the same time), 6% of it; a fifth of the
+rest is the walk over the 64 rows, twice (the port's check that it draws
+every object, then the drawing), and the rest the objects' own.
 
 ## Scene map fills
 
