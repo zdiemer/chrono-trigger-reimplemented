@@ -27,6 +27,14 @@
 #include "platform/video.h"
 #include "port/fiber.h"
 
+/* What the time model decides of the game's frames, the only way its time
+ * reaches the game: whether the main thread sits a frame out (a lag frame),
+ * whether it stops in the middle of its work to go on in the next frame
+ * (tm_host_sit_out_owed), and whether a budget still has time in the frame
+ * (tm_frame_time_left). The same decisions in the same order make the same
+ * game. */
+typedef enum { TM_HOST_LAGS, TM_HOST_SITS_OUT, TM_HOST_TIME_LEFT } TmHostDecision;
+
 /* The game, as the driver runs it: its main thread from power-on, which never
  * returns (it waits for frames instead), and its two handlers; and, if the
  * game's state keeps it, the original's time of the game's work since the
@@ -46,6 +54,12 @@ typedef struct {
     /* optional: the main thread's wait at `frame` lasts `frames` more, for
      * `owed` master clocks of work (ct_native --lag-log) */
     void (*lagged)(void *ctx, uint32_t frame, uint32_t frames, uint32_t owed);
+    /* optional: the time model's decisions made by the host instead (a
+     * program replaying another's, the GBA's: docs/PLATFORM.md), each in the
+     * order the time model makes them; `line` is TM_HOST_TIME_LEFT's */
+    bool (*decide)(void *ctx, TmHostDecision what, uint16_t line);
+    /* optional: each decision as the time model made it (ct_native --decisions) */
+    void (*decided)(void *ctx, TmHostDecision what, bool yes);
 } TmHostProgram;
 
 /* Where the frame is: which of its three parts runs. */

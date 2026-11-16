@@ -67,7 +67,9 @@ static GameState *start(GameState *g, uint8_t *save, const uint8_t *sram)
 {
     if (!g)
         return NULL;
+#ifndef CT_UNTIMED
     g->timed = time_rate_count;
+#endif
     vars_host_init(&g->head.vars);
     g->sram = save ? save : g->kept_sram;
     if (sram)
@@ -457,8 +459,84 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
  * tag names, and a guard's look (vars_peek), take none. The timing backend
  * takes the account as the main thread waits (state_host_take_owed) and makes
  * lag frames of the whole frames it fills, and drops the handlers' at the
- * main thread's start of a frame, keeping it as the frame's own. */
+ * main thread's start of a frame, keeping it as the frame's own.
+ *
+ * A build with no time model (CT_UNTIMED, the GBA's) keeps none of this:
+ * the accesses count nothing, a scope is its statement (charge.h), and the
+ * charges are empty. Its host decides the game's frames instead, replaying
+ * the decisions another build's time model made or from its own time
+ * (TmHostProgram.decide, platform/native/host.h; docs/PLATFORM.md). */
 
+#ifdef CT_UNTIMED
+static void owe(GameState *g, uint32_t clocks) { (void)g, (void)clocks; }
+
+bool state_host_record_time(GameState *g)
+{
+    (void)g;
+    return false;
+}
+
+const StateHostTime *state_host_time(const GameState *g, unsigned *count)
+{
+    (void)g;
+    *count = 0;
+    return NULL;
+}
+
+void charge_as(GameState *g, uint32_t routine, uint32_t accesses) { (void)g, (void)routine, (void)accesses; }
+void charge_block_move(GameState *g, uint32_t bytes) { (void)g, (void)bytes; }
+void charge_io_accesses(GameState *g, uint32_t accesses) { (void)g, (void)accesses; }
+void charge_rom_accesses(GameState *g, uint32_t accesses) { (void)g, (void)accesses; }
+void charge_accesses(GameState *g, uint32_t accesses) { (void)g, (void)accesses; }
+
+uint32_t state_host_take_owed(GameState *g)
+{
+    (void)g;
+    return 0;
+}
+
+uint32_t charge_retired_begin(GameState *g)
+{
+    (void)g;
+    return 0;
+}
+
+void charge_retired_end(GameState *g, uint32_t mark, uint32_t routine, uint32_t accesses)
+{
+    (void)g, (void)mark, (void)routine, (void)accesses;
+}
+
+uint32_t charge_uncounted_begin(GameState *g)
+{
+    (void)g;
+    return 0;
+}
+
+void charge_uncounted_end(GameState *g, uint32_t mark) { (void)g, (void)mark; }
+
+void vars_peek(const GameState *g, bool on)
+{
+#ifdef CT_LEAN
+    (void)g, (void)on;
+#else
+    GameState *state = (GameState *)(uintptr_t)g;
+    if (on) {
+        if (state->looks++ == 0)
+            vars_peek_flag(true);
+    } else if (state->looks && --state->looks == 0) {
+        vars_peek_flag(false);
+    }
+#endif
+}
+
+int charge_time_as_begin(GameState *g, uint32_t routine)
+{
+    (void)g, (void)routine;
+    return 0;
+}
+
+void charge_time_as_end(GameState *g, int was) { (void)g, (void)was; }
+#else
 static unsigned rate_search(uint32_t routine)
 {
     unsigned lo = 0, hi = time_rate_count;
@@ -800,6 +878,7 @@ void charge_time_as_end(GameState *g, int was)
     g->timed = index;
 }
 #endif
+#endif   /* CT_UNTIMED */
 
 /* ---- Where the program's C ends (core/program.h) --------------------------------------------- */
 

@@ -569,6 +569,27 @@ static int write_samples(const char *path)
     return fclose(f) ? -1 : 0;
 }
 
+/* The program's cartridge with a movie's decisions put far past its end
+ * (system/drive_box.h), for the program to replay. */
+static int load_with_decisions(const char *rom_path, const char *decisions_path)
+{
+    size_t rom_size, size;
+    uint8_t *rom = read_file(rom_path, &rom_size);
+    uint8_t *decisions = read_file(decisions_path, &size);
+    uint32_t at = DRIVE_DECISIONS_AT - 0x08000000u;
+    uint8_t *image = rom && decisions && rom_size <= at ? calloc(1, at + size) : NULL;
+    if (image) {
+        memcpy(image, rom, rom_size);
+        memcpy(image + at, decisions, size);
+    }
+    free(rom);
+    free(decisions);
+    struct VFile *vf = image ? VFileFromMemory(image, at + size) : NULL;   /* kept: the core reads it as it plays */
+    if (!vf || !core->loadROM(core, vf))
+        return -1;
+    return 0;
+}
+
 static int play_movie(const char *path, unsigned long frames, Shot *shots, unsigned count, const char *samples_path,
                       const char *wav_path, const char *stream_path)
 {
@@ -624,9 +645,10 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
-                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] "
+                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
                                 "[--watch FROM TO DIR] | --drive)\n";
     const char *movie = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
+    const char *decisions_path = NULL;
     unsigned long frames = 0;
     int driving = 0;
     Shot shots[MAX_SHOTS];
@@ -644,6 +666,8 @@ int main(int argc, char **argv)
             wav_path = argv[++i];
         else if (!strcmp(argv[i], "--stream") && i + 1 < argc)
             stream_path = argv[++i];
+        else if (!strcmp(argv[i], "--decisions") && i + 1 < argc)
+            decisions_path = argv[++i];
         else if (!strcmp(argv[i], "--drive"))
             driving = 1;
         else if (!strcmp(argv[i], "--watch") && i + 3 < argc) {
@@ -673,7 +697,7 @@ int main(int argc, char **argv)
     core->desiredVideoDimensions(core, &width, &height);
     video = calloc((size_t)width * height, sizeof *video);
     core->setVideoBuffer(core, video, width);
-    if (!mCoreLoadFile(core, argv[1])) {
+    if (decisions_path ? load_with_decisions(argv[1], decisions_path) : !mCoreLoadFile(core, argv[1])) {
         fprintf(stderr, "mgba_run: cannot load %s\n", argv[1]);
         return 2;
     }

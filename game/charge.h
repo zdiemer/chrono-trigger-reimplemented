@@ -44,11 +44,22 @@ void charge_uncounted_end(GameState *g, uint32_t mark);
 
 int charge_time_as_begin(GameState *g, uint32_t routine);
 void charge_time_as_end(GameState *g, int was);
+#ifdef CT_UNTIMED
+/* A build with no time model (runtime/port/state_host.c): the work alone,
+ * the routine named and not looked up. */
+#define TIMED_AS(g, routine, statement) \
+    do {                                \
+        (void)(g);                      \
+        (void)sizeof(routine);          \
+        statement;                      \
+    } while (0)
+#else
 #define TIMED_AS(g, routine, statement)                           \
     do {                                                          \
         int timed_as_was_ = charge_time_as_begin((g), (routine)); \
         statement;                                                \
         charge_time_as_end((g), timed_as_was_);                   \
     } while (0)
+#endif
 
 #endif
