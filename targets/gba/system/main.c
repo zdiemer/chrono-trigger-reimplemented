@@ -442,6 +442,7 @@ int main(void)
             uint32_t blank = cycles_now();
             picture_shown(&run.pictures, blank);
             picture_paced(&run.pacing, blank, run.frames + 1);
+            drive_showing(run.frames + 1);
             gba_video_present(&pf);
             picture = cycles_now() - blank;
             picture_made(&run.pacing, picture);
