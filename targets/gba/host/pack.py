@@ -15,7 +15,12 @@ order; then the resources, the sound's samples converted to 8-bit PCM
 each of the 32,768 BGR555 colours as the GBA shows it (services/video.c). The
 `port-style` profile brightens the colours for a GBA's screen, darker than a
 television: a gamma of 0.7 on each channel, then 15% more saturation around
-the colour's luma. With --fast-rom, the
+the colour's luma. With --event-records, the locations' event scripts
+read a command at a time, as ct_native works them out from the same
+cartridge (game/event/records.h): a table of each resource's place and
+length after "CTER", the catalogue's version and its count, then each
+script's records; without it the game reads every command from its bytes,
+as it plays the same. With --fast-rom, the
 options word after the header (targets/gba/toolchain/start.s) asks for the
 cartridge's waits at 2 and 1 rather than 3 and 1, which flash carts and the
 Analogue Pocket take and some cheap reproduction cartridges don't. With --bios,
@@ -40,7 +45,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import samples  # noqa: E402
 
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
-HEAD = struct.Struct("<4sIIII")
+HEAD = struct.Struct("<4sIIIII")
+RECORDS_HEAD = struct.Struct("<4sII")   # the event records' (frontend/event_records.h)
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 OPTIONS_AT = 0xC0    # start.s's options word, after the header
@@ -113,7 +119,7 @@ def bios_logo(bios):
     return logo if zlib.crc32(logo) == LOGO_CRC32 else None
 
 
-def pack(program, cartridge, fast_rom=False, profile="original", logo=None):
+def pack(program, cartridge, fast_rom=False, profile="original", logo=None, records=None):
     parts = resources(cartridge)
     out = bytearray(program)
     out += bytes(-len(out) % ALIGN)
@@ -134,7 +140,12 @@ def pack(program, cartridge, fast_rom=False, profile="original", logo=None):
         body += bytes(-(table + len(body)) % 4)
         colours_at = table + len(body)
         body += colours
-    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at, colours_at)
+    records_at = 0
+    if records is not None:
+        body += bytes(-(table + len(body)) % 4)
+        records_at = table + len(body)
+        body += records
+    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at, colours_at, records_at)
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body
@@ -162,7 +173,16 @@ def main(argv=None):
                     help="the colours as the GBA shows them: the SNES's as they are (original), or brightened for a GBA's screen (port-style)")
     ap.add_argument("--bios", type=pathlib.Path,
                     help="your own dump of the GBA's BIOS (16 KiB, CRC-32 81977335), for the logo a GBA checks")
+    ap.add_argument("--event-records", type=pathlib.Path, metavar="FILE",
+                    help="the event scripts read a command at a time, as `ct_native --event-records FILE` writes them")
     args = ap.parse_args(argv)
+    records = None
+    if args.event_records:
+        records = args.event_records.read_bytes()
+        magic, catalogue, count = RECORDS_HEAD.unpack_from(records)
+        if magic != b"CTER" or catalogue != catalogue_version() or count != len(assets.load()):
+            print("pack: %s is no event records of this catalogue" % args.event_records, file=sys.stderr)
+            return 1
     logo = None
     if args.bios:
         logo = bios_logo(args.bios.read_bytes())
@@ -176,7 +196,7 @@ def main(argv=None):
     if zlib.crc32(cartridge) != rom.EXPECTED_CRC32:
         print("pack: %s is not the No-Intro Chrono Trigger (USA) image" % args.rom, file=sys.stderr)
         return 1
-    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom, args.profile, logo)
+    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom, args.profile, logo, records)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(image)
     print("pack: %s, %d bytes: the program %d, the pack from %d" % (args.out, len(image), base, base))

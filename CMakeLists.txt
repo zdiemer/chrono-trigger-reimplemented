@@ -90,7 +90,7 @@ add_executable(ct_native frontend/ct_native.c frontend/measure.c frontend/route_
   frontend/file_store.c frontend/assets.c frontend/decoded.c frontend/palettes.c frontend/fonts.c
   frontend/lz.c frontend/packed.c frontend/tiles.c frontend/maps.c frontend/scripts.c frontend/text.c
   frontend/commands.c frontend/battle_language.c frontend/menu_language.c frontend/enemy_scripts.c
-  frontend/records.c frontend/sound_native.c
+  frontend/records.c frontend/event_records.c frontend/sound_native.c
   runtime/platform/native/render.c)
 target_include_directories(ct_native PRIVATE frontend)
 target_link_libraries(ct_native PRIVATE ct_game ct_media)
@@ -219,13 +219,16 @@ if(BUILD_TESTING)
   add_executable(screen_command_test tests/port/screen_command_test.c)
   target_include_directories(screen_command_test PRIVATE runtime)
   target_link_libraries(screen_command_test PRIVATE ct_game)
+  add_executable(event_records_test tests/port/event_records_test.c)
+  target_include_directories(event_records_test PRIVATE runtime)
+  target_link_libraries(event_records_test PRIVATE ct_game)
   add_executable(sound_native_test tests/frontend/sound_native_test.c frontend/sound_native.c)
   target_include_directories(sound_native_test PRIVATE frontend runtime)
   target_link_libraries(sound_native_test PRIVATE ct_game)
   add_executable(enemy_movement_test tests/port/enemy_movement_test.c)
   target_include_directories(enemy_movement_test PRIVATE game runtime)
   target_link_libraries(enemy_movement_test PRIVATE ct_game)
-  foreach(test player_files presentation recorder fiber route_driver file_store timing video tasks native_time program ${CT_VARS_HOST_TEST} unpack_time assets palettes fonts lz tiles maps scripts commands text records sound_setting sound_native object_talk party_trail enemy_movement menu_fade decimal screen_command palette_sharers overworld_leader named_parameters)
+  foreach(test player_files presentation recorder fiber route_driver file_store timing video tasks native_time program ${CT_VARS_HOST_TEST} unpack_time assets palettes fonts lz tiles maps scripts commands text records sound_setting sound_native object_talk party_trail enemy_movement menu_fade decimal screen_command event_records palette_sharers overworld_leader named_parameters)
     if(test STREQUAL "file_store")
       add_test(NAME file_store COMMAND file_store_test ${CMAKE_CURRENT_BINARY_DIR}/file-store-test.bin)
     else()

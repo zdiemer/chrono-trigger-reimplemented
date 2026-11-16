@@ -58,7 +58,20 @@ typedef struct {
 typedef struct {
     const uint8_t *(*resource)(void *ctx, AssetId id, uint32_t *length);
     void *ctx;
+    /* The resource worked out ahead in `form` (AssetForm), where the source
+     * keeps it so (a builder's, which a cartridge keeps beside the
+     * resources), or NULL; may be NULL where it keeps none. */
+    const uint8_t *(*form)(void *ctx, uint8_t form, AssetId id, uint32_t *length);
 } AssetSource;
+
+/* The forms a source may keep a resource worked out ahead in, beside the
+ * cartridge's own: a location's event script read a command at a time
+ * (event/records.h). The game runs the same without them. */
+typedef enum { ASSET_FORM_EVENT_RECORDS } AssetForm;
+
+/* The resource `id` in `form` from the source, setting *length, or NULL
+ * where the source keeps none. */
+const uint8_t *asset_form(AssetForm form, AssetId id, uint32_t *length);
 
 /* Read the resources from `source` from now on: the driver's to call, before
  * the game runs or between frames. NULL leaves the game with no source, so a

@@ -25,8 +25,9 @@ class PackTest(unittest.TestCase):
         finally:
             pack.resources, pack.sound_samples = saved
         self.assertEqual(base, 0x200)                    # the program's end rounded up to 256
-        magic, version, count, samples_at, colours_at = pack.HEAD.unpack_from(image, base)
+        magic, version, count, samples_at, colours_at, records_at = pack.HEAD.unpack_from(image, base)
         self.assertEqual(colours_at, 0)                  # the original's colours: no table
+        self.assertEqual(records_at, 0)                  # no event records: every command from its bytes
         self.assertEqual((magic, version, count), (b"CTGB", pack.catalogue_version(), 3))
         for i, data in enumerate(resources):
             at, length = pack.ENTRY.unpack_from(image, base + pack.HEAD.size + i * pack.ENTRY.size)
@@ -74,6 +75,19 @@ class PackTest(unittest.TestCase):
         self.assertIsNotNone(logo)
         self.assertEqual(zlib.crc32(logo), pack.LOGO_CRC32)
 
+
+    def test_event_records(self):
+        # the event records ct_native writes, after the rest, a word apart
+        records = b"CTER" + bytes(8) + b"RECORDS"
+        saved = pack.resources, pack.sound_samples
+        pack.resources, pack.sound_samples = (lambda cartridge: [b"\x01"]), (lambda cartridge: b"SAMPLES")
+        try:
+            image, base = pack.pack(bytes(0x1F0), b"", records=records)
+        finally:
+            pack.resources, pack.sound_samples = saved
+        records_at = pack.HEAD.unpack_from(image, base)[5]
+        self.assertEqual(records_at % 4, 0)
+        self.assertEqual(image[base + records_at:base + records_at + len(records)], records)
 
     def test_port_style(self):
         saved = pack.resources, pack.sound_samples

@@ -37,15 +37,23 @@
 #include "system/keypad.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
- * order, the sound's samples, and the colours' table where it was packed
- * with a profile that changes them. */
+ * order, the sound's samples, the colours' table where it was packed with a
+ * profile that changes them, and the event scripts read a command at a time
+ * where it was packed with them. */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
     uint32_t samples_at;           /* services/mixer.h, MixerSamples */
     uint32_t colours_at;           /* services/video.h, gba_video_use_colours; 0: none */
+    uint32_t records_at;           /* the event records (game/event/records.h); 0: none */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
+/* The event records: "CTER", the catalogue's version and its count, then
+ * each resource's records' place (from "CTER") and length, 0 where none. */
+typedef struct {
+    char magic[4];
+    uint32_t catalogue, count;
+} RecordsHead;
 
 extern const uint8_t __rom_end[];
 extern const uint8_t __iwram_bss_end[], __stack_top[];   /* the driver's stack, zeroed at the start (start.s) */
@@ -92,6 +100,19 @@ static const uint8_t *pack_resource(void *ctx, AssetId id, uint32_t *length)
     const PackEntry *e = (const PackEntry *)(head + 1) + id;
     *length = e->length;
     return (const uint8_t *)head + e->at;
+}
+
+static const uint8_t *pack_form(void *ctx, uint8_t form, AssetId id, uint32_t *length)
+{
+    const PackHead *head = ctx;
+    if (form != ASSET_FORM_EVENT_RECORDS || !head->records_at)
+        return NULL;
+    const RecordsHead *records = (const RecordsHead *)((const uint8_t *)head + head->records_at);
+    if (id >= records->count)
+        return NULL;
+    const PackEntry *e = (const PackEntry *)(records + 1) + id;
+    *length = e->length;
+    return e->at ? (const uint8_t *)records + e->at : NULL;
 }
 
 static void read_game(void *ctx, uint32_t addr, uint8_t *out, uint32_t len) { state_host_read_span(ctx, addr, out, len); }
@@ -340,8 +361,16 @@ int main(void)
         fprintf(stderr, "ct_gba: no pack of this catalogue after the program: pack it again (targets/gba/host/pack.py)\n");
         abort();
     }
+    if (head->records_at) {
+        const RecordsHead *records = (const RecordsHead *)((const uint8_t *)head + head->records_at);
+        if (memcmp(records->magic, "CTER", 4) || records->catalogue != asset_catalogue_version ||
+            records->count != asset_catalogue_count) {
+            fprintf(stderr, "ct_gba: the pack's event records are another catalogue's: pack it again\n");
+            abort();
+        }
+    }
     static AssetSource source;
-    source = (AssetSource){ pack_resource, (void *)head };
+    source = (AssetSource){ pack_resource, (void *)head, pack_form };
     assets_use(&source);
 
     GameState *g = state_host_create_lasting_over(cartridge_save_open());
