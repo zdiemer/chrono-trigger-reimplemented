@@ -1448,7 +1448,16 @@ mode 0's four tiled layers and its sprites:
   copies and the panel's room made from the top stay where they were. A
   layout in which a tile a map still names lost its place to a map or a
   room hides the picture while its work goes on, as one whose caches start
-  afresh does.
+  afresh does. Where the layer kept for mode 2's
+  moved columns leaves none to split, the first layer that would be split
+  has its tiles in front shown again on that layer, from a copy of them,
+  on the lines no run takes it (the menus' lines below their lists are
+  mode 1 and take none), at their priority; a run of that layer stands in
+  front where its map's units under the run have tiles in front. The
+  naming screen's help window covered by the alphabet's rows, and the
+  equipment's list of what fits covered by the members' rows (issue #502,
+  issue #483), were a second layer's windows in front of a first layer's
+  text behind, the second standing behind the first on the GBA.
 - **Sprite masks**: where sprites overlap, the SNES shows the one first in
   its table and then sets that one's priority against the layers', where
   the GBA shows the one of the higher priority. The game masks with that:
@@ -1910,6 +1919,22 @@ frame added up, with both settings ending in ct_native's work RAM and save RAM:
 About 5% everywhere: only the code and constants still read from the
 cartridge (the first access of a run, the prefetch's misses) gain, and the
 code that runs most is already in fast RAM.
+
+A GBA's BIOS starts a cartridge only where the header's bytes $04-$9F are
+the logo it keeps its own copy of, so the logo is the one thing a ROM for
+hardware needs that the project can't ship. `host/pack.py --bios FILE` takes
+it from the player's own dump of the BIOS (16 KiB, CRC-32 81977335): the
+BIOS keeps its reference copy compressed as the header holds it, and
+compares the two byte for byte before unpacking the header's to show it, so
+the copy goes in as it is, checked by its CRC-32 (`D0BEB55E`, the one mGBA
+checks too). Without `--bios` the logo is blank and pack.py says so:
+emulators and flash carts that patch the header boot it, a GBA doesn't.
+`mgba_run --bios FILE` (and `run.py --bios`) starts mGBA in that BIOS rather
+than its own, which goes straight to the program, and fails where mGBA
+skipped it for the logo; `title-start` played that way, through the BIOS's
+logo and check, ends in ct_native's work RAM and save RAM. Nothing of the
+BIOS is in the repository; the test that reads one runs where `CT_GBA_BIOS`
+names it.
 
 #### Where the GBA's frame goes
 
