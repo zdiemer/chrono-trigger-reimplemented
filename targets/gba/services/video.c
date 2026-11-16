@@ -3250,6 +3250,12 @@ static uint16_t backdrop(const LineState *st)
  * (backdrop, above), so it isn't a target. */
 enum { BRIGHTENED_STRENGTH = 7, DARKENED_STRENGTH = 20, BLEND_STEPS = 16 };
 
+/* n / d for the small n (under 2^16 / d) and constant d the shading works
+ * out, by a multiply by d's reciprocal scaled by 2^16 rather than a
+ * call to the C library's divide: Thumb has no divide, nor a multiply that
+ * keeps a product's high word, so even a / by a constant is a call. */
+static inline unsigned small_quotient(unsigned n, unsigned d) { return n * ((1u << 16) / d + 1) >> 16; }
+
 static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits);
 
 static void fixed_shading(LineRegisters *r, const LineState *st)
@@ -3261,7 +3267,8 @@ static void fixed_shading(LineRegisters *r, const LineState *st)
     unsigned red = st->fixed_color & 31, green = st->fixed_color >> 5 & 31, blue = st->fixed_color >> 10 & 31;
     if (red != green || green != blue || red == 0)
         return;
-    unsigned steps = m->subtract ? red * BLEND_STEPS / DARKENED_STRENGTH : red * BLEND_STEPS / (31 - BRIGHTENED_STRENGTH);
+    unsigned steps = m->subtract ? small_quotient(red * BLEND_STEPS, DARKENED_STRENGTH)
+                                 : small_quotient(red * BLEND_STEPS, 31 - BRIGHTENED_STRENGTH);
     if (m->half)
         steps /= 2;
     r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
@@ -3328,7 +3335,7 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
 static void line_blending(LineRegisters *r, const LineState *st)
 {
     r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
-    r->bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
+    r->bldy = (uint16_t)small_quotient((15u - st->brightness) * 16, 15);
     r->bldalpha = 0;
     r->backdrop = shown(backdrop(st));
     const VidColorMath *m = &st->math;

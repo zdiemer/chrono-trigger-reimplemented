@@ -229,22 +229,25 @@ static const uint32_t edge_uploads[FIELD_EDGE_UPLOADS] = { 0xC08445, 0xC084C1, 0
                                                            0xC085E7, 0xC08649, 0xC086AB, 0xC086F7,
                                                            0xC08729, 0xC0875B, 0xC0878D, 0xC087BF };
 
-static bool edge_upload_asked(const GameState *g, unsigned k)
+enum { EDGE_GROUPS = 4, EDGE_LAYERS = FIELD_EDGE_UPLOADS / EDGE_GROUPS };
+
+static bool edge_upload_asked(const GameState *g, unsigned group, unsigned layer)
 {
-    return field_layer_upload_flags(g, k / 3) & (1u << (k % 3));
+    return field_layer_upload_flags(g, group) & (1u << layer);
 }
 
 static bool edges(const GameState *g)
 {
-    for (unsigned k = 0; k < FIELD_EDGE_UPLOADS; k++)
-        if (edge_upload_asked(g, k) && !field_layer_edges_fit(g))
-            return false;
+    for (unsigned group = 0; group < EDGE_GROUPS; group++)
+        for (unsigned layer = 0; layer < EDGE_LAYERS; layer++)
+            if (edge_upload_asked(g, group, layer) && !field_layer_edges_fit(g))
+                return false;
     return true;
 }
 
 static void no_more_edges_asked(GameState *g)
 {
-    for (unsigned group = 0; group < 4; group++)
+    for (unsigned group = 0; group < EDGE_GROUPS; group++)
         set_field_layer_upload_flags(g, group, 0);
 }
 
@@ -252,11 +255,12 @@ static void no_more_edges_asked(GameState *g)
 static bool upload_the_edges(GameState *g, Platform *pf)
 {
     bool any = false;
-    for (unsigned k = 0; k < FIELD_EDGE_UPLOADS; k++)
-        if (edge_upload_asked(g, k)) {
-            TIMED_AS(g, edge_uploads[k], field_upload_layer_edge(g, pf, k));
-            any = true;
-        }
+    for (unsigned group = 0, k = 0; group < EDGE_GROUPS; group++)
+        for (unsigned layer = 0; layer < EDGE_LAYERS; layer++, k++)
+            if (edge_upload_asked(g, group, layer)) {
+                TIMED_AS(g, edge_uploads[k], field_upload_layer_edge(g, pf, k));
+                any = true;
+            }
     no_more_edges_asked(g);
     return any;
 }

@@ -23,6 +23,7 @@
 #include "menu/text.h"
 
 #include "charge.h"
+#include "core/decimal.h"
 #include "menu/menu_data.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -151,13 +152,13 @@ static uint32_t number_at(const GameState *g, uint32_t at, uint8_t bytes)
 }
 
 /* A number as eight decimal digits, four bits each, the units lowest. */
-static uint32_t decimal_digits(uint32_t value)
+static uint32_t four_bit_digits(uint32_t value)
 {
+    uint8_t digit[8];
+    decimal_digits(value, digit, 8);
     uint32_t digits = 0;
-    for (unsigned place = 0; place < 8; place++) {
-        digits |= (value % 10) << (4 * place);
-        value /= 10;
-    }
+    for (unsigned place = 0; place < 8; place++)
+        digits |= (uint32_t)digit[place] << (4 * place);
     return digits;
 }
 
@@ -205,7 +206,7 @@ static void keep_number(GameState *g, uint32_t digits)
 static uint32_t value_converted(GameState *g, uint32_t value, uint8_t bytes)
 {
     charge_conversion(g, value, bytes);
-    return decimal_digits(value);
+    return four_bit_digits(value);
 }
 
 uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes)
