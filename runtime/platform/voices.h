@@ -8,6 +8,7 @@
 #ifndef CT_PLATFORM_VOICES_H
 #define CT_PLATFORM_VOICES_H
 
+#include "platform/platform.h"
 #include "platform/voice_types.h"
 
 typedef struct AuVoicesOps {
@@ -37,6 +38,7 @@ typedef struct AuVoicesOps {
     void (*sample_define)(AuVoices *v, uint8_t sample, const uint8_t *brr, uint16_t length, uint16_t loop);
     void (*sample_write)(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte);
     void (*sample_memory_write)(AuVoices *v, uint16_t at, uint8_t byte);
+    void (*sample_memory_send)(AuVoices *v, uint16_t at, PfData bytes, uint16_t length);
     void (*sample_memory_move)(AuVoices *v, uint16_t to, uint16_t from, uint16_t length);
     void (*sample_place)(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop);
     AuVoiceSettings (*voice_settings)(AuVoices *v, uint8_t voice);

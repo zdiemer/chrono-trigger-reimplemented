@@ -3,7 +3,9 @@
  * volume and each byte of the pitch keeping the rest, the envelope's two
  * halves, both kinds of gain, the mix's volumes and keys, the switches, the
  * echo's buffer and one tap of its filter, a setting that takes nothing, and
- * the voice taken from the setting's number. Exits non-zero on failure.
+ * the voice taken from the setting's number; and a sample's run of bytes
+ * sent into sound memory whole, as a byte at a time would put them, wrapping
+ * at its end. Exits non-zero on failure.
  *
  *   sound_setting_test */
 #include <stdio.h>
@@ -118,6 +120,13 @@ int main(void)
     set(0x7C, 0x55);
     set(0x1E, 0x55);
     CHECK(!memcmp(&before, &mixer, sizeof mixer), "a setting that takes nothing changed the mixer");
+
+    static const uint8_t run[] = { 0xB2, 0x01, 0x23, 0x45 };
+    au_sample_memory_send(driver.voices, 0xFFFE, (PfData){ .addr = 0xC50000, .ptr = run }, sizeof run);
+    CHECK(mixer.memory[0xFFFE] == 0xB2 && mixer.memory[0xFFFF] == 0x01 && mixer.memory[0] == 0x23 &&
+              mixer.memory[1] == 0x45,
+          "the run sent %02X %02X %02X %02X", mixer.memory[0xFFFE], mixer.memory[0xFFFF], mixer.memory[0],
+          mixer.memory[1]);
 
     if (failures)
         return 1;

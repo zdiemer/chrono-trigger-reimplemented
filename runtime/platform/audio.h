@@ -195,11 +195,15 @@ void au_sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte);
 /* The game's samples: BRR bytes in the voices' sound memory, which the
  * driver places itself (game/sound/loads.c), where the original's CPU half
  * uploaded them, since where a sample lies decides whether the echo's buffer
- * runs over it. A byte of one put in place; the samples between two addresses
+ * runs over it. A byte of one put in place, or a run of `length` from the
+ * cartridge put in place from `at` on, as many bytes put in place one after
+ * another (a voices implementation may know a run by where it comes from:
+ * targets/gba/services/mixer.c); the samples between two addresses
  * moved down to another, whole 256-byte pages first from the start and then
  * what is left from its end down, as the original's receiver copies them; and
  * sample `sample` of the directory found at `start`, looping from `loop`. */
 void au_sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte);
+void au_sample_memory_send(AuVoices *v, uint16_t at, PfData bytes, uint16_t length);
 void au_sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length);
 void au_sample_place(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop);
 

@@ -36,7 +36,6 @@
 *(.text.offset_row .text.offset_row.*)
 *(.text.r16 .text.r16.*)
 *(.text.load_sprite_list .text.load_sprite_list.*)
-*(.text.sample_memory_write .text.sample_memory_write.*)
 *(.text.wram_copy .text.wram_copy.*)
 *(.text.plane_line .text.plane_line.*)
 *(.text.vid_send_vram_fill .text.vid_send_vram_fill.*)
