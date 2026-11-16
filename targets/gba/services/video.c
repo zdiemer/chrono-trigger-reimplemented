@@ -1509,6 +1509,121 @@ static void make_room_for_the_panel(bool kept)
     panel_room.made = true;
 }
 
+/* Room for a layer's columns copied (A layer's columns copied, below): two
+ * copies, the one the lines show and the one made next, so that a copy is
+ * never made while the GBA shows it, each a map as large as the layer's
+ * and a run of places for its tiles, a blank one and COPY_TILES more,
+ * within one char block's reach; and the strips both are made from. Made
+ * where a line first wants it, from places nothing has, where as many
+ * again as COPY_SPARE are left to the caches; a layout makes it again
+ * where it was, if a line wanted it since the last, and gives it back if
+ * none did. The title's logo takes up to 99 tiles a copy. */
+enum { COPY_TILES = 127, COPIES = 2, STRIP_TILES = 160, COPY_SPARE = 256 };
+typedef struct {
+    bool made, asked;
+    bool missed;                   /* no room was found since the last layout */
+    uint8_t screens;               /* the screen blocks each map takes */
+    uint8_t map_block[COPIES];     /* the GBA's screen blocks */
+    uint16_t run[COPIES];          /* the tiles' run's first place, its blank */
+    uint16_t strips;               /* the strips' first place (Strips, below) */
+} CopyRoom;
+static CopyRoom copy_room;
+
+/* What a copy was made from: the GBA's control of the layer's map shown
+ * (its tiles' char block, its screen block and size), the layer's scroll,
+ * and how far each column the lines show is moved down its map, from the
+ * left (the first, the screen's first dot's, by none). */
+enum { COPY_COLUMNS = 33 };
+typedef struct {
+    uint16_t control, hofs, vofs;
+    uint16_t moved[COPY_COLUMNS];
+    uint8_t layer;
+} CopyKey;
+/* The copy the lines show, what it was made from, and whether it was made
+ * in this frame's lines (another can't be: the other is the one shown) or
+ * what it was made from has changed since. */
+typedef struct {
+    CopyKey key;
+    uint16_t map_byte, map_bytes;   /* the SNES's map it was made from */
+    uint8_t shown;
+    bool made, fresh, stale;
+} Copied;
+static Copied copied;
+
+/* The tiles of the columns the lines show, each run of a column's rows
+ * whose tiles aren't blank flipped as the map shows them, one run after
+ * another in the strips' room with a blank tile between: a column moved by
+ * part of a tile then takes its new tiles' rows as they lie, eight words
+ * on from where they start. Made again only where the map, its tiles or
+ * the columns shown change; and for each copy, the rows each run takes in
+ * it, which the next copy into it blanks. */
+enum { STRIPS = 48 };
+typedef struct {
+    bool made;
+    uint16_t control, hofs;
+    uint8_t count;
+    uint8_t column[STRIPS];   /* the column the lines show, from the left */
+    uint8_t col[STRIPS];      /* its column of the map */
+    uint8_t first[STRIPS];    /* the run's first row */
+    uint8_t rows[STRIPS];
+    uint16_t at[STRIPS];      /* the blank tile before it, in the strips' room */
+    bool blanked[COPIES];     /* the copy's map holds blank tiles and the rows below */
+    uint8_t was_first[COPIES][STRIPS], was_rows[COPIES][STRIPS];
+} Strips;
+static Strips strips;
+
+static int32_t run_from_the_top(uint32_t count)
+{
+    for (int32_t first = (int32_t)((PLACES - count) / RUN_STEP * RUN_STEP); first >= 0; first -= RUN_STEP)
+        if ((uint32_t)first % 512 + count <= CACHE_TILES && room_at((uint32_t)first, count)) {
+            take_room((uint32_t)first, count);
+            return first;
+        }
+    return -1;
+}
+
+/* The room for copies of maps `screens` screen blocks large, where it was
+ * (`again`, a layout's) or anywhere free; false where there is none. */
+static bool make_room_for_the_copies(unsigned screens, bool again)
+{
+    CopyRoom was = copy_room;
+    copy_room = (CopyRoom){ 0 };
+    /* made between layouts only where the caches keep room to spare */
+    unsigned free = 0;
+    for (uint32_t place = 0; !again && place < PLACES; place++)
+        free += !is_taken(place);
+    if (!again && free < COPIES * (screens * (SCREEN_BYTES / 32u) + COPY_TILES + 1) + STRIP_TILES + COPY_SPARE) {
+        copy_room.missed = true;
+        return false;
+    }
+    for (unsigned k = 0; k < COPIES; k++) {
+        uint32_t map = was.map_block[k] * (SCREEN_BYTES / 32u), places = screens * (SCREEN_BYTES / 32u);
+        int32_t block = again && room_at(map, places) ? (take_room(map, places), (int32_t)map)
+                                                      : room_from_the_top(places, places);
+        int32_t run = again && room_at(was.run[k], COPY_TILES + 1) ? (take_room(was.run[k], COPY_TILES + 1), (int32_t)was.run[k])
+                                                                    : run_from_the_top(COPY_TILES + 1);
+        if (block < 0 || run < 0) {
+            copy_room.missed = true;
+            return false;   /* what it took stays taken until the next layout */
+        }
+        copy_room.map_block[k] = (uint8_t)(block * 32 / SCREEN_BYTES);
+        copy_room.run[k] = (uint16_t)run;
+        for (unsigned w = 0; w < 8; w++)
+            BG_VRAM[(uint32_t)run * 8u + w] = 0;
+    }
+    int32_t at = again && room_at(was.strips, STRIP_TILES) ? (take_room(was.strips, STRIP_TILES), (int32_t)was.strips)
+                                                           : room_from_the_top(STRIP_TILES, RUN_STEP);
+    if (at < 0) {
+        copy_room.missed = true;
+        return false;
+    }
+    copy_room.strips = (uint16_t)at;
+    copy_room.screens = (uint8_t)screens;
+    copy_room.made = true;
+    strips.made = false;
+    return true;
+}
+
 /* ---- Mode 7 ----------------------------------------------------------------------------------------
  *
  * The plane is the SNES's VRAM's first 32 KiB, each word a byte of its
@@ -1877,6 +1992,11 @@ static uint8_t lay_out(bool pruned)
         lm->gba_byte = lm->shared ? lm->byte : place_copy(lm->bytes);
     }
     make_room_for_the_panel(pruned);
+    if (copy_room.asked && copy_room.made)
+        make_room_for_the_copies(copy_room.screens, true);
+    else
+        copy_room = (CopyRoom){ 0 };
+    copied.made = strips.made = false;   /* the maps and tiles they were made from may have moved */
     memset(front_block, NO_BLOCK, sizeof front_block);
     bool line_splits = line_splits_in_this_scene(had);
     for (unsigned n = 0; n < 4; n++) {
@@ -2069,6 +2189,9 @@ static void convert_unit(unsigned u)
     if (plane_room && first < PLANE_BYTES)
         convert_plane_unit(first);
     uint8_t role = roles[first / BLOCK_BYTES];
+    /* a layer's columns copied from a map that changed are copied again */
+    if (copied.made && within(first, copied.map_byte, copied.map_bytes))
+        copied.stale = offsets_written = true;
     if (role & LINE_MAP)
         for (unsigned m = 0; m < snes.line_map_count; m++) {
             const LineMap *lm = &snes.line_maps[m];
@@ -2109,8 +2232,12 @@ static void convert_unit(unsigned u)
             for (uint32_t t = 0; t < UNIT_BYTES; t += bytes) {
                 uint16_t tile = (uint16_t)(((first + t - cache->char_byte) & (VRAM_BYTES - 1)) / bytes);
                 uint16_t slot = cache->slot_of[tile & (CACHE_TILES - 1)];
-                if (slot != NO_SLOT)
+                if (slot != NO_SLOT) {
                     convert_tile(cache, tile, slot);
+                    /* and from tiles that changed */
+                    if (copied.made && c == layers[copied.key.layer].cache)
+                        copied.stale = offsets_written = true;
+                }
             }
         }
     if (role & SPRITE_TILES) {
@@ -3491,10 +3618,223 @@ static unsigned moved_columns(const LineState *st, const LineOffsets *o, unsigne
         if (!in_run)
             continue;
         if (count == MOST_RUNS)
-            break;
+            return MOST_RUNS + 1;
         runs[count++] = (MovedColumns){ .first = dot, .last = dot + 7, .hofs = h, .vofs = v };
     }
     return count;
+}
+
+/* ---- A layer's columns copied ----
+ *
+ * Where a layer's columns move more ways than the runs show (the title's
+ * logo, each of whose columns the ripple moves up or down by its own
+ * offset), the layer is shown from a copy of its map made in the frame:
+ * each column the line shows moved up or down as its offset moves it, so
+ * that the copy at the layer's own scroll shows what the columns show. A
+ * column moved by part of a tile takes new tiles, each a tile's rows from
+ * the two tiles of the column it lies across (Strips), in the copy's room
+ * (CopyRoom). A tile takes one palette, the palette of the one of the two
+ * that gives it the more rows. Horizontal offsets aren't copied. */
+
+/* A tile's row as the map entry shows it, flipped as the entry says. */
+static uint32_t entry_row(const volatile uint32_t *tile, uint16_t e, unsigned y)
+{
+    uint32_t w = tile[e & 0x0800 ? 7 - y : y];
+    if (e & 0x0400) {
+        w = (w >> 4 & 0x0F0F0F0F) | (w & 0x0F0F0F0F) << 4;
+        w = (w >> 8 & 0x00FF00FF) | (w & 0x00FF00FF) << 8;
+        w = w >> 16 | w << 16;
+    }
+    return w;
+}
+
+/* A map entry's halfword in a GBA map of `w` columns, from its screen block. */
+static unsigned entry_at(unsigned col, unsigned row, unsigned w)
+{
+    return (col >= 32 ? 1024u : 0) + (row >= 32 ? (w == 64 ? 2048u : 1024u) : 0) + (row & 31) * 32 + (col & 31);
+}
+
+/* Whether the tile a map entry names is blank, remembered for each of the
+ * window's places as it is found, a bit each (`known`, `blank`). */
+static bool is_blank(const volatile uint32_t *tiles, uint16_t e, uint32_t *known, uint32_t *blank)
+{
+    unsigned place = e & 0x3FF;
+    uint32_t bit = 1u << (place % 32);
+    if (!(known[place / 32] & bit)) {
+        const volatile uint32_t *t = tiles + place * 8u;
+        known[place / 32] |= bit;
+        if (!(t[0] | t[1] | t[2] | t[3] | t[4] | t[5] | t[6] | t[7]))
+            blank[place / 32] |= bit;
+    }
+    return blank[place / 32] & bit;
+}
+
+/* The strips of the map's columns `col` the lines show (Strips), from the
+ * GBA's map and tiles `control` names; false where they are more than the
+ * room holds. */
+static bool make_strips(uint16_t control, const uint8_t *col, unsigned columns)
+{
+    unsigned w = control & 0x4000 ? 64 : 32, h = control & 0x8000 ? 64 : 32;
+    const volatile uint16_t *from = (const volatile uint16_t *)BG_VRAM + (control >> 8 & 31) * 1024u;
+    const volatile uint32_t *tiles = BG_VRAM + (control >> 2 & 3) * 512u * 8u;
+    volatile uint32_t *strip = BG_VRAM + copy_room.strips * 8u;
+    uint32_t known[CACHE_TILES / 32] = { 0 }, blank[CACHE_TILES / 32] = { 0 };
+    for (unsigned y = 0; y < 8; y++)
+        strip[y] = 0;
+    unsigned at = 1, count = 0;   /* the strips' next tile, the runs */
+    strips.made = false;
+    for (unsigned i = 0; i < columns; i++) {
+        bool in_run = false;
+        const volatile uint16_t *e = from + entry_at(col[i], 0, w);
+        for (unsigned row = 0; row < h; row++, e += 32) {
+            if (row == 32)
+                e = from + entry_at(col[i], 32, w);
+            if (is_blank(tiles, *e, known, blank)) {
+                if (in_run) {   /* the blank tile after the run */
+                    for (unsigned y = 0; y < 8; y++)
+                        strip[at * 8 + y] = 0;
+                    at++;
+                }
+                in_run = false;
+                continue;
+            }
+            if (!in_run) {
+                if (count == STRIPS)
+                    return false;
+                strips.column[count] = (uint8_t)i;
+                strips.col[count] = col[i];
+                strips.first[count] = (uint8_t)row;
+                strips.rows[count] = 0;
+                strips.at[count++] = (uint16_t)(at - 1);
+                in_run = true;
+            }
+            if (at + 2 > STRIP_TILES)
+                return false;
+            const volatile uint32_t *t = tiles + (*e & 0x3FF) * 8u;
+            for (unsigned y = 0; y < 8; y++)
+                strip[at * 8 + y] = entry_row(t, *e, y);
+            strips.rows[count - 1]++;
+            at++;
+        }
+        if (in_run) {
+            for (unsigned y = 0; y < 8; y++)
+                strip[at * 8 + y] = 0;
+            at++;
+        }
+    }
+    strips.count = (uint8_t)count;
+    strips.control = control;
+    strips.blanked[0] = strips.blanked[1] = false;
+    strips.made = true;
+    return true;
+}
+
+/* Copy `c`: each column the lines show moved down its map by `moved[i]`
+ * lines, its tiles' rows taken from its strips; its other rows blank.
+ * False where its tiles are more than the room holds. */
+static bool copy_the_columns(const uint16_t *moved, unsigned c)
+{
+    uint16_t control = strips.control;
+    unsigned w = control & 0x4000 ? 64 : 32, h = control & 0x8000 ? 64 : 32;
+    const volatile uint16_t *from = (const volatile uint16_t *)BG_VRAM + (control >> 8 & 31) * 1024u;
+    const volatile uint32_t *strip = BG_VRAM + copy_room.strips * 8u;
+    volatile uint16_t *to = (volatile uint16_t *)BG_VRAM + copy_room.map_block[c] * 1024u;
+    volatile uint32_t *made = BG_VRAM + (copy_room.run[c] + 1u) * 8u;
+    uint16_t blank = (uint16_t)(copy_room.run[c] % 512), count = 0;
+    if (!strips.blanked[c]) {
+        volatile uint32_t *map = (volatile uint32_t *)to;
+        for (unsigned k = 0; k < copy_room.screens * SCREEN_BYTES / 4u; k++)
+            map[k] = (uint32_t)blank * 0x10001u;
+        memset(strips.was_rows[c], 0, sizeof strips.was_rows[c]);
+        strips.blanked[c] = true;
+    }
+    /* the rows the last copy into it took blanked first: a run may take
+     * rows another took */
+    for (unsigned s = 0; s < strips.count; s++)
+        for (unsigned r = 0; r < strips.was_rows[c][s]; r++)
+            to[entry_at(strips.col[s], (strips.was_first[c][s] + r) & (h - 1), w)] = blank;
+    for (unsigned s = 0; s < strips.count; s++) {
+        unsigned m = strips.col[s], rows = strips.rows[s], mv = moved[strips.column[s]];
+        /* the copy's row shows the strip's tile k (the blank before the
+         * run's first is 0) and the next, from line `fine` of it */
+        unsigned fine = mv & 7, down = (mv & (h * 8u - 1)) >> 3, k = fine ? 0 : 1;
+        unsigned row = (strips.first[s] - 1u + k - down) & (h - 1);
+        strips.was_first[c][s] = (uint8_t)row;
+        strips.was_rows[c][s] = (uint8_t)(rows + 1 - k);
+        if (count + rows + 1 - k > COPY_TILES) {
+            strips.blanked[c] = false;
+            return false;
+        }
+        /* the run's new tiles lie one after another in its strip, from
+         * line `fine` of its tile k */
+        unsigned tiles = rows + 1 - k;
+        memcpy((void *)made, (const void *)(strip + (strips.at[s] + k) * 8u + fine), tiles * 32u);
+        made += tiles * 8u;
+        for (; k <= rows; k++, row = (row + 1) & (h - 1)) {
+            /* the palette of the tile that gives it the more rows */
+            unsigned source = k && (fine <= 4 || k == rows) ? k - 1 : k;
+            uint16_t e = from[entry_at(m, strips.first[s] + source, w)];
+            to[entry_at(m, row, w)] = (uint16_t)((blank + 1 + count++) | (e & 0xF000));
+        }
+    }
+    return true;
+}
+
+/* Layer `n` shown on its GBA layer `own` from a copy of its map with its
+ * columns moved as the line's offsets move them; false where it can't be
+ * (a split layer, horizontal offsets, no room, or a copy made in this frame
+ * for another line's). */
+static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned n, unsigned own, const LineOffsets *o)
+{
+    if (layers[n].split || layers[n].overlaid)
+        return false;
+    uint16_t names = (uint16_t)(OFFSET_LAYER_BIT << n);
+    for (unsigned j = 0; j < OFFSET_COLUMNS; j++)
+        if (o->across[j] & names)
+            return false;
+    CopyKey key = { .control = (uint16_t)(r->bgcnt[own] & 0xDF0C), .hofs = st->hofs[n], .vofs = st->vofs[n],
+                    .layer = (uint8_t)n };
+    /* the columns the line shows: the first, from the screen's first dot,
+     * moved by none; then each from the dot its tile starts at, by the
+     * offsets of the third layer's column its dot left of it is in */
+    unsigned fine = key.hofs & 7, j = (o->hofs & 7) >= fine ? 1 : 0, columns = 1;
+    for (int dot = 8 - (int)fine; dot <= VID_WINDOW_LAST_DOT && columns < COPY_COLUMNS; dot += 8, j++) {
+        uint16_t down = o->down[j];
+        key.moved[columns++] = down & names ? (uint16_t)((down & OFFSET_SCROLL) - key.vofs) : 0;
+    }
+    unsigned screens = (key.control & 0x4000 ? 2u : 1u) * (key.control & 0x8000 ? 2u : 1u);
+    if (!copy_room.made && (copy_room.missed || !make_room_for_the_copies(screens, false)))
+        return false;
+    if (copy_room.screens < screens)
+        return false;
+    copy_room.asked = true;
+    if (!copied.made || copied.stale || memcmp(&key, &copied.key, sizeof key) != 0) {
+        if (copied.fresh)
+            return false;
+        bool stale = copied.stale;
+        copied.made = copied.stale = false;
+        copied.fresh = true;   /* made, or tried, once a frame */
+        if (stale || !strips.made || strips.control != key.control || strips.hofs != key.hofs) {
+            unsigned w = key.control & 0x4000 ? 64 : 32;
+            uint8_t col[COPY_COLUMNS];
+            col[0] = (uint8_t)((key.hofs >> 3) & (w - 1));
+            for (unsigned i = 1; i < columns; i++)
+                col[i] = (uint8_t)(((key.hofs + 8 * i - fine) >> 3) & (w - 1));
+            strips.hofs = key.hofs;
+            if (!make_strips(key.control, col, columns))
+                return false;
+        }
+        unsigned c = copied.shown ^ 1;
+        if (!copy_the_columns(key.moved, c))
+            return false;
+        VidBg map = { 0 };
+        vid_bg_map_decode(&map, st->map[n]);
+        copied = (Copied){ .key = key, .map_byte = (uint16_t)(map.map_base << 1), .map_bytes = map_bytes(&map),
+                           .shown = (uint8_t)c, .made = true, .fresh = true };
+    }
+    r->bgcnt[own] = (uint16_t)((r->bgcnt[own] & ~0x1F0Cu) | (copy_room.run[copied.shown] / 512u) << 2 |
+                               copy_room.map_block[copied.shown] << 8);
+    return true;
 }
 
 static uint16_t *window_edges(LineRegisters *r, unsigned w) { return w ? &r->win1h : &r->win0h; }
@@ -3603,6 +3943,10 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
         MovedColumns runs[MOST_RUNS];
         unsigned count = own == NO_LAYER || !(st->main_layers >> n & 1) ? 0 :
                          moved_columns(st, &offsets, n, column.end ? column.end + b->left : 0, column.rows, runs);
+        if (count > MOST_RUNS && !column.end && show_columns_copied(r, st, n, own, &offsets))
+            continue;
+        if (count > MOST_RUNS)
+            count = MOST_RUNS;
         uint8_t spare = columns_layer[n] != NO_LAYER ? (uint8_t)(1u << columns_layer[n]) : 0;
         uint8_t layers = free_layers | spare;
         for (unsigned k = 0; k < count && layers; k++) {
@@ -4178,6 +4522,7 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
         if (may_stand)
             lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
         st = from.st;
+        copied.fresh = false;
         count = work_out_lines(&pf->video, &st, layers_enabled);
         if (plane_shown)
             step_the_plane();
