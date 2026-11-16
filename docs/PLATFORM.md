@@ -1847,10 +1847,10 @@ mode 0's four tiled layers and its sprites:
   32-column map's, whole columns where the layer's scroll puts the cut),
   converted again only as the game changes them or the cut moves, and its
   windows' edges and sprites move across as the cut moves the dots.
-  The table of line effects' maps holds nine: a battle's line effects show
-  six and the cut takes three more, which a table of six left no room for
-  (the window shown whole, 16 dots right of ct_native's, its gauges past
-  the screen's edge). A band that cuts a map notes its cut copy alone, the
+  The table of line effects' maps holds ten, nine of them cut at most: a
+  battle's line effects show six and the cut takes three more, which a
+  table of six or seven left no room for (the window shown whole, 16 dots
+  right of ct_native's, its gauges past the screen's edge). A band that cuts a map notes its cut copy alone, the
   map whole only where the copy found no room: the whole map, shown by no
   line, was left out by each layout and noted again, a layout a frame in
   the battle's menus.
