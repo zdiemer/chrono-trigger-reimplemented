@@ -1019,6 +1019,7 @@ typedef struct {
     bool shown;
     bool own_map;          /* whether its own map is converted (a layout may leave it out) */
     bool split;
+    bool overlaid;         /* its tiles in front shown again (layers_to_split), from front_byte */
     uint8_t bpp, cache;
     uint16_t char_byte, map_byte, map_bytes;
     uint16_t front_byte;   /* NO_PLACE: not split */
@@ -1179,7 +1180,10 @@ static uint8_t text_mode(void) { return lines_text_mode != NO_MODE ? lines_text_
  * layers, whose own maps no line shows), added to them. */
 enum { MAP_UNITS = 4 * SCREEN_BYTES / UNIT_BYTES, PRIORITY_BIT = 0x2000, NO_BLOCK = 0xFF };
 static uint32_t units_in_front[4][MAP_UNITS / 32], units_behind[4][MAP_UNITS / 32];
-static uint8_t split_wanted;   /* the layers the last layout was asked to split */
+/* The layers the last layout was asked to split, a bit each, and above
+ * them (OVERLAY_SHIFT) the one asked to have its tiles in front shown again. */
+enum { OVERLAY_SHIFT = 4 };
+static uint8_t split_wanted;
 static bool priorities_noted;  /* whether a unit's have changed since the GBA's layers were assigned */
 
 static void note_priorities(unsigned n, uint32_t first, uint32_t map_byte, bool added)
@@ -1222,7 +1226,11 @@ static void count_priorities(unsigned n, bool only, unsigned *front, unsigned *b
  * tiles in front alone would cover the first's in front: the stalls' wares
  * at the Fair), then the others (the sprites stand among the first two's
  * tiles; the third is the text and the panels, mostly); a layer of `split`
- * before one not split yet; then those with the most of the fewer. */
+ * before one not split yet; then those with the most of the fewer. Where
+ * the layer kept for mode 2's moved columns leaves none to split, the first
+ * of those left has its tiles in front shown again on that layer instead,
+ * on the lines no run takes it (Mode 2's columns, below): its bit above
+ * the others, at OVERLAY_SHIFT. */
 static uint8_t layers_to_split(uint8_t split)
 {
     unsigned spare = 4, rank[4] = { 0 };
@@ -1236,17 +1244,18 @@ static uint8_t layers_to_split(uint8_t split)
         if (fewer)
             rank[n] = fewer + (split >> n & 1 ? 0x1000u : 0) + (n == 0 ? 0x4000u : n == 1 ? 0x2000u : 0);
     }
-    if (laid_out_mode == 2 && layers[0].shown && spare)
+    bool kept = laid_out_mode == 2 && layers[0].shown && spare;
+    if (kept)
         spare--;   /* kept for the first layer's moved columns (Mode 2's columns) */
     uint8_t wanted = 0;
-    for (; spare; spare--) {
+    for (spare += kept; spare; spare--) {
         unsigned best = NO_LAYER, most = 0;
         for (unsigned n = 0; n < 4; n++)
             if (!(wanted >> n & 1) && rank[n] > most)
                 most = rank[n], best = n;
         if (best == NO_LAYER)
             break;
-        wanted |= (uint8_t)(1u << best);
+        wanted |= (uint8_t)(1u << (best + (kept && spare == 1 ? OVERLAY_SHIFT : 0)));
     }
     return wanted;
 }
@@ -1857,11 +1866,13 @@ static uint8_t lay_out(bool pruned)
     bool line_splits = line_splits_in_this_scene(had);
     for (unsigned n = 0; n < 4; n++) {
         Layer *l = &layers[n];
-        l->front_byte = split_wanted >> n & 1 && l->own_map ? place_copy(l->map_bytes) : NO_PLACE;
+        bool split = split_wanted >> n & 1, overlay = split_wanted >> (n + OVERLAY_SHIFT) & 1;
+        l->front_byte = (split || overlay) && l->own_map ? place_copy(l->map_bytes) : NO_PLACE;
+        l->overlaid = overlay && l->front_byte != NO_PLACE;
         /* a layer whose own map no line shows is split in its line effects'
          * maps alone (below), where there is room */
-        l->split = l->front_byte != NO_PLACE || (split_wanted >> n & 1 && !l->own_map && line_splits);
-        if (l->front_byte != NO_PLACE)
+        l->split = split && (l->front_byte != NO_PLACE || (!l->own_map && line_splits));
+        if (l->split && l->front_byte != NO_PLACE)
             front_block[l->map_byte / SCREEN_BYTES] = (uint8_t)(l->front_byte / SCREEN_BYTES);
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
@@ -2069,8 +2080,10 @@ static void convert_unit(unsigned u)
             if (layers[n].shown && layers[n].own_map && within(first, layers[n].map_byte, layers[n].map_bytes))
                 note_priorities(n, first, layers[n].map_byte, false);
         const Layer *l = map_layer(first);
-        convert_map(first, l, first,
-                    l->split ? l->front_byte + ((first - l->map_byte) & (VRAM_BYTES - 1)) : NO_PLACE);
+        uint32_t front = l->front_byte + ((first - l->map_byte) & (VRAM_BYTES - 1));
+        convert_map(first, l, first, l->split ? front : NO_PLACE);
+        if (l->overlaid)
+            convert_map(first, l, NO_PLACE, front);
     }
     if (role & TILES)
         for (unsigned c = 0; c < CACHES; c++) {
@@ -3482,6 +3495,51 @@ static unsigned own_layer(unsigned n)
     return NO_LAYER;
 }
 
+/* Whether a run of a layer whose tiles in front are shown again stands in
+ * front, on the line `y` lines down the GBA's screen: where its map's units
+ * under the run's two ends on that row have tiles in front (the menus' list
+ * windows, which stand in front of what the first layer has under them). */
+static bool runs_in_front(unsigned n, const MovedColumns *run, int y)
+{
+    const Layer *l = &layers[n];
+    if (!l->overlaid)
+        return false;
+    VidBg map = { 0 };
+    vid_bg_map_decode(&map, map_byte_of(&snes.bg[n]));
+    unsigned row = (unsigned)(run->vofs + y) >> 3 & (map.map_h - 1u);
+    for (int x = run->first; x <= run->last; x += run->last - run->first > 0 ? run->last - run->first : 1) {
+        unsigned col = (unsigned)(run->hofs + x) >> 3 & (map.map_w - 1u);
+        uint32_t byte = (col >= 32 ? SCREEN_BYTES : 0) + (row >= 32 ? (map.map_w == 64 ? 2 : 1) * SCREEN_BYTES : 0) +
+                        (row & 31) * 64 + (col & 31) * 2;
+        unsigned unit = byte / UNIT_BYTES;
+        if (!(units_in_front[n][unit / 32] >> (unit % 32) & 1))
+            return false;
+    }
+    return true;
+}
+
+/* A layer's tiles in front shown again on a GBA layer `g` free on a line
+ * (layers_to_split): its copy of them, scrolled as the layer and shown where
+ * it is, at the priority its tiles in front have; where the line shows the
+ * layer's own map. */
+static void show_tiles_in_front_again(LineRegisters *r, uint8_t free_layers)
+{
+    for (unsigned n = 0; n < 4 && free_layers; n++) {
+        const Layer *l = &layers[n];
+        unsigned own = l->overlaid ? own_layer(n) : NO_LAYER;
+        if (own == NO_LAYER || (r->bgcnt[own] >> 8 & 31) != l->map_byte / SCREEN_BYTES)
+            continue;
+        unsigned g = (unsigned)__builtin_ctz(free_layers);
+        r->bgcnt[g] = (uint16_t)((r->bgcnt[own] & ~0x1F03u) | (l->front_byte / SCREEN_BYTES) << 8 | order->priority[n][1]);
+        r->hofs[g] = r->hofs[own];
+        r->vofs[g] = r->vofs[own];
+        r->winin |= (uint16_t)((r->winin & 0x0101u << own) >> own << g);
+        r->winout |= (uint16_t)((r->winout & 0x0101u << own) >> own << g);
+        r->bldcnt |= (uint16_t)((r->bldcnt & 0x0101u << own) >> own << g);
+        return;
+    }
+}
+
 /* The first two layers' moved columns on a band's line of a frame laid out
  * for mode 2, after its layers' control and blending are set: the layers
  * spare for them left out; then on a mode 2 line the third layer left out
@@ -3493,24 +3551,31 @@ static unsigned own_layer(unsigned n)
  * even where the offsets match the layer's own scroll. Kept out of the frame's lines'
  * loop: inlined there, or with the third layer left out of the line's
  * state instead, the loop ran a percent slower (the jet bike race). */
-__attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const LineState *st, const Band *b, int down)
+__attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const LineState *st, const Band *b, int down, int at)
 {
     uint16_t hidden = columns_bits;
     if (st->mode == 2)
         hidden |= gba_bits_of[VID_BG3_BIT];
     r->winin &= (uint16_t)~(hidden | hidden << 8);
     r->winout &= (uint16_t)~(hidden | hidden << 8);
-    if (st->mode != 2)
+    if (b->drawn)
         return;
+    if (st->mode != 2) {
+        show_tiles_in_front_again(r, columns_bits);
+        return;
+    }
     r->bldcnt &= (uint16_t)~(gba_bits_of[VID_BG3_BIT] | gba_bits_of[VID_BG3_BIT] << 8);
-    LineOffsets offsets;
-    if (b->drawn || !line_offsets(st, &offsets))
-        return;
-    MovedColumn column = band_columns[b - bands];
     uint8_t free_layers = 0, taken = 0;   /* GBA layers, and the windows given to runs, a bit each */
     for (unsigned g = 0; g < 4; g++)
         if (gba_layers[g].source == 2)
             free_layers |= (uint8_t)(1u << g);
+    uint8_t unused = (uint8_t)(free_layers | columns_bits);   /* the layers no run takes */
+    LineOffsets offsets;
+    if (!line_offsets(st, &offsets)) {
+        show_tiles_in_front_again(r, unused);
+        return;
+    }
+    MovedColumn column = band_columns[b - bands];
     for (unsigned n = 0; n < 2; n++) {
         unsigned own = own_layer(n);
         MovedColumns runs[MOST_RUNS];
@@ -3536,8 +3601,11 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
             unsigned g = (unsigned)__builtin_ctz(layers & spare ? spare : layers);
             layers &= (uint8_t)~(1u << g);
             free_layers &= (uint8_t)~(1u << g);
+            unused &= (uint8_t)~(1u << g);
             r->winin = (uint16_t)((r->winin & ~(gba_bits_of[1u << n] << 8 * w)) | 1u << (g + 8 * w));
             r->bgcnt[g] = r->bgcnt[own];
+            if (runs_in_front(n, &runs[k], at + down + 1))
+                r->bgcnt[g] = (uint16_t)((r->bgcnt[g] & ~3u) | order->priority[n][1]);
             r->hofs[g] = (uint16_t)(runs[k].hofs + b->left);
             r->vofs[g] = (uint16_t)(runs[k].vofs + down + 1);
             if (r->bldcnt & 1u << own)
@@ -3546,6 +3614,7 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
                 r->bldcnt |= (uint16_t)(0x100u << g);
         }
     }
+    show_tiles_in_front_again(r, unused);
 }
 
 /* A line's registers: the SNES's line shown on a band's line `down` lines
@@ -3600,7 +3669,7 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
         gba_controls(&r, controls, drawn_layers);
     line_blending(&r, st);
     if (laid_out_mode == 2 && !mode7)
-        show_moved_columns(&r, st, b, down);
+        show_moved_columns(&r, st, b, down, at);
     return r;
 }
 
@@ -3957,14 +4026,16 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
             bool band_starts = at == b->at, again = false;
             /* Where only the scroll, the plane or the colour math may have
              * changed (but not a band cut's scroll, which moves the cut in
-             * its maps, nor mode 2's, which moves its columns, nor between
+             * its maps, nor mode 2's, which moves its columns, nor that of a
+             * layout showing a layer's tiles in front again, whose layer
+             * isn't its GBA layer's scroll source, nor between
              * Mode 7 and another mode), the last
              * change's registers with those: a line's scroll (but on the
              * drawn panel, whose layers' scroll is its own); on a Mode 7
              * line, its plane (the first layer's scroll is the plane's); the
              * blending, a step of its strength alone no change at all. */
             bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
-                         !((b->cut_dots || st.mode == 2) && (touched & CHANGED_SCROLL)) &&
+                         !((b->cut_dots || st.mode == 2 || split_wanted >> OVERLAY_SHIFT) && (touched & CHANGED_SCROLL)) &&
                          (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn);
             LineRegisters r;
             /* a Mode 7 line's plane is its own table's, no change's */

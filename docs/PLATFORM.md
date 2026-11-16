@@ -1448,7 +1448,16 @@ mode 0's four tiled layers and its sprites:
   copies and the panel's room made from the top stay where they were. A
   layout in which a tile a map still names lost its place to a map or a
   room hides the picture while its work goes on, as one whose caches start
-  afresh does.
+  afresh does. Where the layer kept for mode 2's
+  moved columns leaves none to split, the first layer that would be split
+  has its tiles in front shown again on that layer, from a copy of them,
+  on the lines no run takes it (the menus' lines below their lists are
+  mode 1 and take none), at their priority; a run of that layer stands in
+  front where its map's units under the run have tiles in front. The
+  naming screen's help window covered by the alphabet's rows, and the
+  equipment's list of what fits covered by the members' rows (issue #502,
+  issue #483), were a second layer's windows in front of a first layer's
+  text behind, the second standing behind the first on the GBA.
 - **Sprite masks**: where sprites overlap, the SNES shows the one first in
   its table and then sets that one's priority against the layers', where
   the GBA shows the one of the higher priority. The game masks with that:
