@@ -2026,10 +2026,10 @@ static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, b
  * places are free in. Where `pruned`, the maps the lines haven't shown
  * since the last layout are left out, their places and the tiles they name
  * given to the rest; a map left out that a line shows again is noted, and
- * the next layout has it. A `refill` is laid out only for tiles that found
- * no place, mid-scene. */
+ * the next layout has it. Where it `keeps_windows`, it is laid out only for
+ * tiles that found no place mid-scene, or to give the plane's room back. */
 
-static uint8_t lay_out(bool pruned, bool refill)
+static uint8_t lay_out(bool pruned, bool keeps_windows)
 {
     memset(view_memory, 0, sizeof view_memory);   /* the panel's room and the caches' places are made afresh */
     if (pruned) {
@@ -2189,11 +2189,12 @@ static uint8_t lay_out(bool pruned, bool refill)
     /* The caches the last layout had keep their windows and their tiles'
      * places (keep_places), but where the rooms made took so much of a
      * window that another has more places free: that cache starts afresh
-     * there, as it would have. A refill's cache stays where its maps' tiles
-     * and a blank still fit: starting afresh hides the picture while its
-     * tiles are converted again (the attract sequence's battle blinked black
-     * where a screen's map took 64 of its window's places and another window
-     * had all 1,024). */
+     * there, as it would have. A layout that `keeps_windows` keeps a cache
+     * where its maps' tiles and a blank still fit: starting afresh hides the
+     * picture while its tiles are converted again (the attract sequence's
+     * battle blinked black where a screen's map took 64 of its window's
+     * places and another window had all 1,024, and the title as the plane's
+     * room was given back). */
     if (had) {
         uint32_t named[CACHES][CACHE_TILES / 32];
         uint32_t placed[CACHES][CACHE_TILES / 32];
@@ -2202,9 +2203,9 @@ static uint8_t lay_out(bool pruned, bool refill)
             if (!caches[c].used || !(had >> c & 1))
                 continue;
             unsigned tiles = 0, here = free_in_window(caches[c].block);
-            for (unsigned w = 0; refill && w < CACHE_TILES / 32; w++)
+            for (unsigned w = 0; keeps_windows && w < CACHE_TILES / 32; w++)
                 tiles += bits_set(named[c][w]);
-            if ((!refill || tiles >= here) && here < free_in_window(roomiest_window()))
+            if ((!keeps_windows || tiles >= here) && here < free_in_window(roomiest_window()))
                 had &= (uint8_t)~(1u << c);
             else if (keep_places(&caches[c], named[c], placed[c]))
                 lost |= (uint8_t)(1u << c);
@@ -5082,18 +5083,49 @@ static bool shows_nothing(const VidHost *v)
     return true;
 }
 
-/* The picture laid out afresh (a `refill`: only for tiles that found no
- * place); where a cache of tiles starts afresh, the picture is hidden until
- * this frame's is shown. */
-static void lay_out_again(bool refill)
+/* Whether a layout puts tiles or maps where the picture shown has
+ * something (`shown`, the places the last layout took, a bit each): the
+ * free places of the windows of the caches that start afresh or lost a
+ * place (`kept`, those that didn't, a bit each), which their tiles will
+ * take, and those of the maps put somewhere new. */
+static bool lays_over_the_picture(const uint8_t shown[PLACES / 8], uint8_t kept)
+{
+    for (unsigned c = 0; c < CACHES; c++) {
+        if (!caches[c].used || kept >> c & 1)
+            continue;
+        uint32_t first = caches[c].block * 512u, end = first + CACHE_TILES < PLACES ? first + CACHE_TILES : PLACES;
+        for (uint32_t k = first / 8; k < end / 8; k++)
+            if (shown[k] & (uint8_t)~taken[k])
+                return true;
+    }
+    MapPlace now[MAP_PLACES];
+    unsigned count = places_of_the_maps(now);
+    for (unsigned i = 0; i < count; i++) {
+        bool where_it_was = false;
+        for (unsigned j = 0; j < map_place_count; j++)
+            where_it_was |= memcmp(&now[i], &map_places[j], sizeof now[i]) == 0;
+        for (unsigned copy = 0; !where_it_was && copy < 2; copy++) {
+            uint32_t at = copy ? now[i].front_byte : now[i].gba_byte;
+            for (uint32_t place = at / 32; at != NO_PLACE && place < (at + now[i].bytes) / 32; place++)
+                if (shown[place / 8] >> (place % 8) & 1)
+                    return true;
+        }
+    }
+    return false;
+}
+
+/* The picture laid out afresh (`keep_windows`: only for tiles that found
+ * no place, or to give the plane's room back); where its tiles or maps go
+ * where the picture shown has something, the picture is hidden until this
+ * frame's is shown. */
+static void lay_out_again(bool keep_windows)
 {
     bool missed = misses != 0;
-    uint8_t kept = lay_out(usage_known, refill);
-    for (unsigned c = 0; c < CACHES; c++)
-        if (caches[c].used && !(kept >> c & 1)) {
-            hide_the_picture();
-            break;
-        }
+    uint8_t shown[PLACES / 8];
+    memcpy(shown, taken, sizeof shown);
+    uint8_t kept = lay_out(usage_known, keep_windows);
+    if (lays_over_the_picture(shown, kept))
+        hide_the_picture();
     layout_changed(kept, missed);
     snes.settings_changed = false;
 }
@@ -5157,12 +5189,16 @@ static uint16_t arrange_the_layers(bool laid_out)
 /* Whether the picture is laid out afresh: the settings changed what it is
  * made from, the lines show Mode 7 or stop showing it, or they show text in
  * another mode than the layout's (`restart`: tiles that found no place). */
+static bool settings_ask_for_a_layout(void)
+{
+    return snes.settings_changed || (plane_wanted() && !plane_room && !plane_refused) ||
+           text_mode() != laid_out_mode || (laid_out_mode == 2 && third_on_lines && !laid_out_third);
+}
+
 static bool layout_wanted(bool restart)
 {
     /* the plane's room made where a line shows Mode 7, and given back where none does */
-    bool plane_moved = plane_wanted() ? !plane_room && !plane_refused : plane_room;
-    return snes.settings_changed || restart || plane_moved || text_mode() != laid_out_mode ||
-           (laid_out_mode == 2 && third_on_lines && !laid_out_third);
+    return settings_ask_for_a_layout() || restart || (plane_room && !plane_wanted());
 }
 
 /* The picture made from the SNES's memory and registers as the frame left
@@ -5189,12 +5225,12 @@ void gba_video_present(Platform *pf)
      * own misses stand (starting afresh from the same maps misses the same
      * tiles, and a layout is about ten GBA frames' work). */
     bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
-    bool refill = restart && !layout_wanted(false), laid_out = layout_wanted(restart), made;
+    bool keep_windows = !settings_ask_for_a_layout(), laid_out = layout_wanted(restart), made;
     LineState left;
     uint8_t count;
     for (unsigned pass = 0;; pass++) {
         if (laid_out)
-            lay_out_again(refill && pass == 0);
+            lay_out_again(pass == 0 ? keep_windows : !settings_ask_for_a_layout());
         /* a layout's lines worked out first, before its maps are converted:
          * where they ask for another, that one's maps are converted alone */
         if (laid_out && pass == 0) {
