@@ -82,13 +82,13 @@ SECTIONS
     /* What the arena hands out, to the end of work RAM. It must hold what
      * the program takes from it as it starts (main.c's report: the game's
      * state and work RAM's warm pages, the sound player, the C library's
-     * heap), measured as 138,808 bytes (2026-11-16), and leave 28 KiB of
+     * heap), measured as 138,824 bytes (2026-11-16), and leave 28 KiB of
      * work RAM free beside it (docs/PLATFORM.md, "The GBA build, as built",
      * says who has the rest); a build that leaves less fails here rather than
      * when the GBA starts. Raise the first with what a change takes, and
      * lower the second only for what is worth that room. */
     __arena_start = .;
-    ASSERT(__ewram_end - __arena_start >= 138808 + 28 * 1024, "work RAM leaves less than 28 KiB free beside what the program takes from it")
+    ASSERT(__ewram_end - __arena_start >= 138824 + 28 * 1024, "work RAM leaves less than 28 KiB free beside what the program takes from it")
 
     __rom_end = LOADADDR(.data) + SIZEOF(.data);
 

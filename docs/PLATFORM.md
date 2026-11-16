@@ -1961,7 +1961,7 @@ the hashing's loop gone from it.
 |---|---|
 | The outcome, driven by `mgba_run` | `title-start` (1,800 frames, 124 lag frames, end state CRC-32 `F711BBF1`), `new-game` (7,200, 244, `9126C7F9`), `gato-battle` (21,600, `A2944878`) and `events-jetbike-race` (9,400, `68804B38`, its track read back from VRAM) and `menus-save-point` (end state `497AE9A0`, which saves the game: the SRAM afterwards `DE9ED421`): each the same as ct_native's |
 | Pictures | the title, the Millennial Fair, Crono's room with Mom's dialog and the battle with Gato as ct_native shows them, but for the approximations above; the 240x160 view's dialog at the top and foot (a page set again included: `new-game` frames 6000 and 6500, `gato-battle` 9400 and 19000) and the battle window with its two columns cut (`gato-battle` 19400) as `ct_native --view 240x160` shows them; per-tile priority and the sprite masks: Crono under his covers (`new-game` 5900), the naming screen's instructions in front of the alphabet (2500), the Fair's stalls with their wares (`gato-battle` 12400 and 14800) and the battle (20000 and 20800) as `ct_native --view 240x160` shows them, but for the colour math |
-| Cartridge | the program 1.81 MiB (code 1.17, constants 0.63; 2.01 MiB, code 1.37, before the accesses stopped asking whether a guard looks), the pack 11.52 MiB after it (4.12 MiB, the event scripts read ahead 3.47 MiB and the packed streams unpacked 3.94 MiB) |
+| Cartridge | the program 1.81 MiB (code 1.17, constants 0.63; 2.01 MiB, code 1.37, before the accesses stopped asking whether a guard looks), the pack 11.79 MiB after it (4.12 MiB, the scripts read ahead 3.74 MiB, the event scripts' 3.47 of it, and the packed streams unpacked 3.94 MiB); 14.11 MB in all |
 | Work RAM (EWRAM, 256 KiB) | about 225.9 KiB used, 30.1 KiB free (GCC 13.3, 2026-11-15, 2 KiB fewer with no time model kept, `CT_UNTIMED`, with the tiles' conversion table moved here from fast RAM and the equipment screen's column state; the link fails with under 28 KiB free). By owner: the game's work RAM 108 KiB (`$7E:0000`-`$7F:AFFF`; the rest is in the SRAM, below); the picture 83.8 KiB (the SNES's video memory 65.6 KiB, the line registers 7.5 KiB, with the GBA's fourth layer's since per-tile priority, 1.3 KiB more in all, the tile caches 6 KiB, its line and band state 1.5 KiB, the tiles' conversion table 1 KiB, `services/video.c`); GameState 12.9 KiB (work RAM's page table 128 bytes, the menus' panels 5.8 KiB, the panels' layout 4 KiB, the past sprites and objects 2 KiB; save RAM is the SRAM's); the sound 15.6 KiB (the driver about 13.6 KiB, `frontend/sound_native.c`; the ring 1 KiB, `services/direct_sound.c`; the mixer under 1 KiB); the game's own tables 2 KiB (the interpreters' opcode tables; the time model's recent rows are left out with the time model); the driver 2.2 KiB (its report's histograms 1.6 KiB, the drive box 0.5 KiB); the C library 3.3 KiB (its state, stdio, and the heap's first take). Before (2026-11-14): 247.5 KiB, 0.2 KiB free, with work RAM's two banks 128 KiB and save RAM 8 KiB in GameState, and the drive box 4.3 KiB |
 | Work RAM's top in the SRAM | `$7F:B000`-`$7F:FFFF`, 20 KiB, after the save and its mark (`VARS_FLAT_COLD_FROM`, `services/cartridge_save.c`), at the SRAM's 4 waits (5 cycles a byte; EWRAM's are 3), which the start now sets in place of the 8 a cartridge's flash chip would need (an SRAM takes 4, the GBA's own from its start): of the game's reads and writes of work RAM, none in `title-start` and `menus-save-point`, 0.3% in `new-game`, 0.4% in `gato-battle`, 0.2% in `events-jetbike-race` (counted a 4 KiB page at a time); the movies take 0.1-1.0% more GBA frames than before (`title-start` 2,828 against 2,799, `new-game` 13,337 against 13,304, `gato-battle` 52,417 against 52,346, `events-jetbike-race` 28,331 against 28,222). No value read or written in place runs across `$7F:B000` (`VARS_FLAT_CROSSED_STEPS`, which an assert checks) |
 | Fast RAM (IWRAM, 32 KiB) | the fibers' stacks 10.5 KiB, nine slots: the main thread's and one for each of the menus' eight tasks, which `menus-sweep` has all running at once (deepest use over the whole movie library, 84 movies, 1,844 of the main thread's 2,560 bytes in `battle-rust-tyrano` and 712 of a task's 1,024 in `menus-sweep`; before, 3,072 and 1,536, and a task's deepest 1,792 when eight slots stopped `menus-sweep` at frame 3,838, and 2,048 before the view's memory), the code that runs most 11.1 KiB (the line interrupts 656 bytes of it, the mixing and the sound's interrupt 1.2 KiB, the line effects' transfers 2.5 KiB, in ARM; the time model's scopes left with the time model, `CT_UNTIMED`), the line effects' reads of their tables 0.3 KiB, the view's framing, bands and drawn panel 0.3 KiB and its memory 0.6 KiB, the interrupts' stack 192 bytes (deepest use 136, a line's interrupt taken inside the sound's) and the mixing's 448 (deepest use 368), the driver's stack the 7 KiB above them (the link fails with under 5 KiB, which leaves 1,792 bytes spare for the next change, 1,296 before a song's samples were known by where they come from, 584 before the streams were kept unpacked and the unpacker left, 1,952 before the unpacker went in, 2,048 before the division's own and 528 before the time model left; it was 6 KiB with the mixing on it), a canary at its end checked each frame (deepest use 2,312 bytes over the whole movie library, a layout's and the dialog's panel drawn on it) |
@@ -2089,14 +2089,14 @@ command's operands by its row each time the command runs: the parameters
 the row names, each by its kind, the script's bytes one at a time through
 the state's accessor, once for the checks and again to decode. What the
 bytes alone decide is the same every time, so a builder reads it once:
-`ct_native --event-records FILE` walks every location's script (from its
+`ct_native --script-records FILE` walks every location's script (from its
 code's start, and from each place its functions' table and its jumps name)
 and, with the engine's own decoding (`event_record_read`,
 game/event/records.h), writes a record for each command: its opcode, the
 bytes it was read from, and a value for each parameter its row names, the
 value itself where the bytes decide it, the operand where it reads the
 game's state (a variable's value, a party member's object), the kind in the
-value's top byte. `pack.py --event-records` puts them in the cartridge after
+value's top byte. `pack.py --script-records` puts them in the cartridge after
 the pack (3.47 MiB: each script's index of its offsets, two bytes an
 offset, and its records), by the packed script's resource; the driver's
 asset source answers `asset_form` from them, the script's load finds its
@@ -2124,9 +2124,40 @@ fewer in `gato-battle`, where the scripts run most; packed without the
 records, the same program takes 2,105, 8,812, 29,361, 16,295 and 9,155),
 each ending as ct_native does. Fast RAM and its 728 bytes spare are as
 they were; the game's state takes 16 bytes more of work RAM for the
-loaded script's records. The menus' object scripts, read from the
-cartridge in place, are not read ahead yet (issue #533).
+loaded script's records.
 
+**The menus' object scripts read ahead** (issue #533), the same way. The
+object scripts' interpreter (`menu_run_script`, $C2:0F63) read each
+command's parameters by its row as the object's script reached it, most of
+them a world map's scene's scripts, which the map's load unpacks to
+`$7F:0400` (over `new-game` and `gato-battle`, all but two of the 186,000
+commands run). Every parameter of the object scripts' language is decided
+by the command's bytes, so a record holds each named parameter's value
+itself (`menu_record_read`, game/menu/records.h): the cartridge's
+`script:object` scripts and the scenes' unpacked `lz:object` streams, each
+walked a command after a command as their text is, go in the same file,
+now `ct_native --script-records FILE` (`pack.py --script-records`; the
+form is `ASSET_FORM_SCRIPT_RECORDS` for both languages, each record block
+headed by its language's hash). The scene's load finds its scripts'
+records (`menu_records_use`), a cartridge script's are found by its
+resource as the interpreter asks, and the interpreter takes a command's
+record only where the script's bytes are still the record's, read as a
+look that takes no time, then charges the reads of the script the decoding
+would have made (`charge_rom_accesses`, the same clocks a cartridge or
+work RAM read through the data's pointer takes), so a timed build with
+records keeps ct_native's time. ct_native keeps no records and runs and
+charges as before. A ROM-free test (`tests/port/menu_records_test.c`)
+holds the command taken from each opcode's record to the one decoded from
+the same bytes, and the record's use to its bytes. The interpreter's share
+of the samples (its loop, the commands' work inlined in it, and the
+decoding or the records) went from 4.02%, 1.67% and 0.35% to 3.46%, 1.44%
+and 0.31% (`new-game`, `gato-battle`, `menus-sweep`); what is left is
+mostly the commands' own work and the checks, Thumb from the cartridge.
+In mGBA the movies take 2,002, 8,472, 28,184, 15,608 and 9,035 GBA frames
+against 2,002, 8,544, 28,282, 15,611 and 9,042 (0.8% fewer in `new-game`,
+the heaviest frames unchanged), each ending as ct_native does. The
+records take 0.27 MiB more of the cartridge (14.11 MB in all), the game's
+state 16 bytes more of work RAM; fast RAM is as it was.
 The cartridge's waits are 3 and 1 with the prefetch by default, as
 commercial games set them and every cartridge handles. `host/pack.py
 --fast-rom` sets a flag in the word after the header (`toolchain/start.s`'s

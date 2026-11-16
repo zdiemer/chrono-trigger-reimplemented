@@ -6,7 +6,7 @@
  * What the bytes alone decide -- a number, a word, bits of one, an address,
  * which variable or object an operand names -- is the same every time a
  * command runs, so a builder can read it once for every command of every
- * script (frontend/event_records.c, which the GBA's packing step puts in the
+ * script (frontend/script_records.c, which the GBA's packing step puts in the
  * cartridge) and the engine take it from there: a record per command, the
  * row's named parameters' values in their order, what reads the game's state
  * (a variable's value, a party member's object) left as the operand for the
