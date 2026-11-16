@@ -11,6 +11,7 @@ set(CT_GAME_SOURCES
   game/core/sprite_table.c
   game/core/panel_layout.c
   game/core/view_framing.c
+  game/core/decimal.c
   game/menu/camera.c
   game/menu/panels_across.c
   game/data/assets.c

@@ -21,7 +21,6 @@
 *(.text.asset_read8 .text.asset_read8.*)
 *(.text.served .text.served.*)
 *(.text.resource_bytes .text.resource_bytes.*)
-*libgcc.a:_udivsi3.o(.text)
 *libc.a:libc_a-memcmp.o(.text)
 /* The picture's line effects, a frame's every transfer (services/video.c,
  * compiled as ARM there) */
