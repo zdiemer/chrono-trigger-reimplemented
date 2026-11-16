@@ -41,7 +41,9 @@
  *   the point of the plane at its left end ("Mode 7", below).
  * - Mode 2's columns, each of the first two layers' scrolled by its own
  *   offsets, are runs of them each shown on a GBA layer free on the line,
- *   through a window ("Mode 2's columns", below).
+ *   through a window ("Mode 2's columns", below); where they move up and
+ *   down more ways than that, the layer is shown from a copy of its map
+ *   with its columns moved ("A layer's columns copied").
  * - The GBA's 240x160 screen is a smaller view (vid_view): the game frames
  *   it, a camera on the SNES's 256x224 and bands of its lines kept in view
  *   (core/view_framing.h), and each GBA line shows the SNES line its band
