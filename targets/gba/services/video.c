@@ -1275,7 +1275,7 @@ enum { OVERLAY_SHIFT = 4 };
 static uint8_t split_wanted;
 static bool priorities_noted;  /* whether a unit's have changed since the GBA's layers were assigned */
 
-static void note_priorities(unsigned n, uint32_t first, uint32_t map_byte, bool added)
+ARM_CODE __attribute__((noinline, noclone)) static void note_priorities(unsigned n, uint32_t first, uint32_t map_byte, bool added)
 {
     uint32_t unit = ((first - map_byte) & (VRAM_BYTES - 1)) / UNIT_BYTES, bit = 1u << (unit % 32);
     if (unit >= MAP_UNITS)
