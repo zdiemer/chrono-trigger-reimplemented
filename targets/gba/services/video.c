@@ -1141,7 +1141,8 @@ static uint32_t sprite_table(unsigned table)
 
 /* A bitplane's byte spread out as the first bit of each of a row's eight
  * packed nibbles, its leftmost dot (the byte's top bit) in the lowest:
- * filled at the start, for the tiles' conversion. In work RAM: fast RAM's
+ * filled at the start, for the sprites' tiles and the panel's, converted a
+ * few at a time from the cartridge, inline. In work RAM: fast RAM's
  * kilobyte does more as the line effects' code (toolchain/fast_code.ld). */
 static uint32_t spread[256];
 
@@ -1167,19 +1168,25 @@ static void convert_4bpp(volatile uint32_t *to, const uint8_t *tile)
         to[y] = packed_row(tile[2 * y], tile[2 * y + 1], tile[16 + 2 * y], tile[16 + 2 * y + 1]);
 }
 
-/* A nibble of a bitplane's byte spread out as spread[] spreads a byte: in
- * fast RAM beside the code that reads it, for the tiles a layout gives
- * places, hundreds at a scene's first picture. */
+/* A nibble of a bitplane's byte spread out as spread[] spreads a byte, for
+ * the caches' tiles, hundreds given their places at a scene's first
+ * picture: in fast RAM beside the code that reads it, where reading
+ * spread[] from work RAM took longer than the rest of a tile's conversion.
+ * The sprites' tiles converted so too took the five movies longer, a tile
+ * at a time between the cartridge's code and fast RAM's, so they keep
+ * spread[]. */
 static const uint32_t nibble_dots[16] __attribute__((section(".iwram.nibble_dots"))) = {
     0x00000u, 0x01000u, 0x00100u, 0x01100u, 0x00010u, 0x01010u, 0x00110u, 0x01110u,
     0x00001u, 0x01001u, 0x00101u, 0x01101u, 0x00011u, 0x01011u, 0x00111u, 0x01111u,
 };
 
+/* A bitplane's byte as spread[] has it, from its two nibbles. */
 static inline __attribute__((always_inline)) uint32_t plane_dots(uint32_t byte)
 {
     return nibble_dots[byte >> 4] | nibble_dots[byte & 15] << 16;
 }
 
+/* A cache's tile, 2bpp (widened to 4bpp) or 4bpp, into its place. */
 ARM_CODE __attribute__((noinline)) static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
 {
     volatile uint32_t *to = BG_VRAM + (c->block * 512u + slot) * 8u;
@@ -2338,11 +2345,14 @@ static int sprite_slot(uint32_t byte)
  * its priorities noted for layer `n` (note_priorities'; none where n is
  * past the fourth) and, where `l` is a layer, converted for it into `to`
  * and `front_to` as convert_map does (or its tiles in front alone, where
- * `to` is NO_PLACE: convert_front), each place stepping with the units. From fast RAM, the block's units one after another: a
- * call there and back for each unit of a scene's maps cost more than the
- * call's work. */
-ARM_CODE __attribute__((noinline, noclone, optimize("no-unswitch-loops"))) static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte,
-                                                                 bool added, const Layer *l, uint32_t to, uint32_t front_to)
+ * `to` is NO_PLACE: convert_front), each place stepping with the units.
+ * From fast RAM, the units one after another: a call there and back from
+ * the cartridge for each unit of a scene's maps cost more than its work.
+ * Its loop is kept whole rather than copied for each kind of call, which
+ * fast RAM has no room for. */
+ARM_CODE __attribute__((noinline, noclone, optimize("no-unswitch-loops")))
+static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte, bool added, const Layer *l,
+                              uint32_t to, uint32_t front_to)
 {
 #pragma GCC unroll 1
     for (; units; units >>= 1, first += UNIT_BYTES) {
