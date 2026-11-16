@@ -40,7 +40,9 @@ which owes no time, so the run plays the same with or without it. The ctest
 `observers` (tests/frontend/observers.py) plays title-start with each of
 `--timing-report`, `--locations`, `--lag-log`, `--outcomes`, `--end-state`,
 `--screenshot` and `--shot-every` and holds the end state, the last picture
-and the time owed to the plain run's. `--window` forces a
+and the time owed to the plain run's. `--decisions FILE` writes what the time
+model decides of the game's frames, for the GBA build to replay
+(docs/PLATFORM.md, "The game's frames without the time model"). `--window` forces a
 window even with a frame limit. `--drive` exposes the route protocol over
 stdin/stdout and cannot combine with a movie, scene fixture or window.
 

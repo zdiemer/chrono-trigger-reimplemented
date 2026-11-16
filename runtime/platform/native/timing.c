@@ -13,6 +13,14 @@
 
 static uint32_t sum(uint32_t a, uint32_t b) { return b > UINT32_MAX - a ? UINT32_MAX : a + b; }
 
+/* A decision as the time model made it, told to who keeps them. */
+static bool decided(const TmHost *t, TmHostDecision what, bool yes)
+{
+    if (t->program.decided)
+        t->program.decided(t->program.ctx, what, yes);
+    return yes;
+}
+
 /* ---- The frame ----------------------------------------------------------------------------- */
 
 static void main_thread_body(void *arg)
@@ -53,7 +61,9 @@ void tm_host_frame(Platform *pf)
      * thread's: it is what the frame leaves the main thread less */
     t->handlers = sum(t->handler_charges, t->program.owed ? t->program.owed(t->program.ctx) : 0);
     t->handler_charges = 0;
-    if (sits_this_frame_out(t))
+    bool sits = t->program.decide ? t->program.decide(t->program.ctx, TM_HOST_LAGS, 0)
+                                  : decided(t, TM_HOST_LAGS, sits_this_frame_out(t));
+    if (sits)
         t->lag_frames++;
     else if (t->waiting)
         fiber_switch(t->waiting);
@@ -79,6 +89,12 @@ uint32_t tm_host_frames(const Platform *pf) { return pf->timing.frame; }
 void tm_host_charge(Platform *pf, uint32_t clocks)
 {
     TmHost *t = &pf->timing;
+#ifdef CT_UNTIMED
+    /* a build that keeps none of the original's time: the host's own time,
+     * or the decisions it replays, are the game's (TmHostProgram) */
+    (void)t, (void)clocks;
+    return;
+#endif
     if (t->part == TM_HOST_IN_VBLANK || t->part == TM_HOST_IN_LINE)
         t->handler_charges = sum(t->handler_charges, clocks);
     else
@@ -180,6 +196,8 @@ static bool sits_this_frame_out(TmHost *t)
  * is in are lag frames, and the rest is the frame's own. */
 static void lag_for_what_is_owed(TmHost *t)
 {
+    if (t->program.decide)
+        return;   /* the frames after are decided as they come */
     take_the_games_account(t);
     uint32_t frame = main_threads_frame(t);
     if (t->owed >= frame)
@@ -192,14 +210,19 @@ void tm_host_sit_out_owed(Platform *pf)
     TmHost *t = &pf->timing;
     if (t->part != TM_HOST_IN_MAIN)
         return;
-    take_the_games_account(t);
-    uint32_t frame = main_threads_frame(t);
-    if (t->owed < frame)
-        return;
-    /* the main thread goes on in the first frame its work doesn't fill,
-     * with what is left over still owed */
-    begin_lag(t, TM_HOST_LAGGING_IN_WORK, t->owed - frame);
-    t->owed = 0;
+    if (t->program.decide) {
+        if (!t->program.decide(t->program.ctx, TM_HOST_SITS_OUT, 0))
+            return;
+    } else {
+        take_the_games_account(t);
+        uint32_t frame = main_threads_frame(t);
+        if (!decided(t, TM_HOST_SITS_OUT, t->owed >= frame))
+            return;
+        /* the main thread goes on in the first frame its work doesn't fill,
+         * with what is left over still owed */
+        begin_lag(t, TM_HOST_LAGGING_IN_WORK, t->owed - frame);
+        t->owed = 0;
+    }
     t->waiting = fiber_current();
     fiber_switch(t->driver);
 }
@@ -285,12 +308,9 @@ void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16
     tm_enable_interrupts(pf, o, sources);
 }
 
-bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
+/* Whether the main thread's work so far leaves the budget time in the frame. */
+static bool time_left(TmHost *t, uint16_t line)
 {
-    (void)o;
-    TmHost *t = &pf->timing;
-    if (t->part != TM_HOST_IN_MAIN || line >= TIME_BUDGET_REOPENS_LINE)
-        return true;
     take_the_games_account(t);
     uint32_t elapsed = sum(t->owed, t->handlers);
     /* A load that already fills a frame must yield before doing more queued
@@ -301,6 +321,17 @@ bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
         return false;
     uint32_t phase = (TIME_VBLANK_LINE + elapsed / TIME_LINE_CLOCKS) % TIME_FRAME_LINES;
     return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
+}
+
+bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
+{
+    (void)o;
+    TmHost *t = &pf->timing;
+    if (t->part != TM_HOST_IN_MAIN || line >= TIME_BUDGET_REOPENS_LINE)
+        return true;
+    if (t->program.decide)
+        return t->program.decide(t->program.ctx, TM_HOST_TIME_LEFT, line);
+    return decided(t, TM_HOST_TIME_LEFT, time_left(t, line));
 }
 
 /* Where the beam is in a handler: the line its part of the frame starts at,
@@ -326,6 +357,9 @@ void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line)
     TmHost *t = &pf->timing;
     if (t->part != TM_HOST_IN_VBLANK && t->part != TM_HOST_IN_LINE)
         return;
+#ifdef CT_UNTIMED
+    return;   /* the original's time, which an untimed build keeps none of (tm_host_charge) */
+#endif
     uint16_t at = handlers_line(t);
     uint16_t lines = (uint16_t)((line % TIME_FRAME_LINES + TIME_FRAME_LINES - at) % TIME_FRAME_LINES);
     t->handler_charges = sum(t->handler_charges, (uint32_t)lines * TIME_LINE_CLOCKS);

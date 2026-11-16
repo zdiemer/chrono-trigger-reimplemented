@@ -38,23 +38,23 @@ list(TRANSFORM CT_GAME_SOURCES PREPEND "${CT_ROOT}/")
 add_executable(ct_gba
   ${CT_GAME_SOURCES}
   ${CT_ROOT}/runtime/port/vars_flat.c ${CT_ROOT}/runtime/port/vars_flat_host.c ${CT_ROOT}/runtime/port/state_host.c ${CT_ROOT}/runtime/port/rom_host.c
-  ${CT_ROOT}/runtime/port/rom_ram.c ${CT_ROOT}/runtime/port/time_rates.c
+  ${CT_ROOT}/runtime/port/rom_ram.c
   ${CT_ROOT}/runtime/platform/native/timing.c ${CT_ROOT}/runtime/platform/native/input.c
   ${CT_ROOT}/runtime/platform/native/audio.c ${CT_ROOT}/runtime/platform/native/save.c
   ${CT_ROOT}/runtime/platform/voices.c
   ${CT_ROOT}/frontend/sound_native.c ${CT_ROOT}/frontend/checksum.c
-  toolchain/start.s system/switch.s system/fiber.c system/interrupts.c system/nested.s system/system.c system/main.c
+  toolchain/start.s system/switch.s system/fiber.c system/frames.c system/interrupts.c system/nested.s system/system.c system/main.c
   system/copies.s system/divide.s system/drive.c system/keypad.c services/cartridge_save.c services/mixer.c services/mix.s services/direct_sound.c services/video.c)
 # The C library's system calls are called only from the library, which
 # optimizing across files doesn't see: compiled apart, they stay.
 set_source_files_properties(system/system.c PROPERTIES COMPILE_OPTIONS -fno-lto)
-# The state's accesses and the time model's charges run from fast RAM
+# The state's accesses run from fast RAM
 # (toolchain/fast_code.ld), where ARM's 32-bit instructions take no longer to fetch
 # than Thumb's; their few cold functions run as ARM from the cartridge.
 set_source_files_properties(${CT_ROOT}/runtime/port/state_host.c ${CT_ROOT}/runtime/port/vars_flat.c
   PROPERTIES COMPILE_OPTIONS -marm)
 # Work RAM from $7F:B000 on in the cartridge's SRAM (services/cartridge_save.h).
-target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_FLAT_STATE VARS_FLAT_COLD_FROM=0x1B000u SOUND_NATIVE_AUDIO_FRAMES=1
+target_compile_definitions(ct_gba PRIVATE CT_LEAN CT_UNTIMED CT_FLAT_STATE VARS_FLAT_COLD_FROM=0x1B000u SOUND_NATIVE_AUDIO_FRAMES=1
   SOUND_NATIVE_MIXER="services/mixer.h" SOUND_NATIVE_MIXER_PLAYS VID_HOST_NO_WIDER_VIEW)
 target_include_directories(ct_gba PRIVATE ${CT_ROOT}/game ${CT_ROOT}/runtime ${CT_ROOT}/frontend
   ${CMAKE_CURRENT_SOURCE_DIR})

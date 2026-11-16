@@ -1174,15 +1174,19 @@ static uint8_t text_mode(void) { return lines_text_mode != NO_MODE ? lines_text_
  * numbered front to back. */
 
 /* Which of each layer's map's units, by their place in its map, have an
- * entry in front of the sprites, and which have one behind. */
+ * entry in front of the sprites, and which have one behind: its own map's,
+ * and those of the maps its line effects show in its place (the field's
+ * layers, whose own maps no line shows), added to them. */
 enum { MAP_UNITS = 4 * SCREEN_BYTES / UNIT_BYTES, PRIORITY_BIT = 0x2000, NO_BLOCK = 0xFF };
 static uint32_t units_in_front[4][MAP_UNITS / 32], units_behind[4][MAP_UNITS / 32];
 static uint8_t split_wanted;   /* the layers the last layout was asked to split */
 static bool priorities_noted;  /* whether a unit's have changed since the GBA's layers were assigned */
 
-static void note_priorities(unsigned n, uint32_t first)
+static void note_priorities(unsigned n, uint32_t first, uint32_t map_byte, bool added)
 {
-    uint32_t unit = ((first - layers[n].map_byte) & (VRAM_BYTES - 1)) / UNIT_BYTES, bit = 1u << (unit % 32);
+    uint32_t unit = ((first - map_byte) & (VRAM_BYTES - 1)) / UNIT_BYTES, bit = 1u << (unit % 32);
+    if (unit >= MAP_UNITS)
+        return;
     bool front = false, behind = false;
     for (uint32_t i = 1; i < UNIT_BYTES; i += 2) {
         if (snes.vram[first + i] & (PRIORITY_BIT >> 8))
@@ -1191,7 +1195,8 @@ static void note_priorities(unsigned n, uint32_t first)
             behind = true;
     }
     uint32_t *in_front = &units_in_front[n][unit / 32], *in_behind = &units_behind[n][unit / 32];
-    uint32_t f = front ? *in_front | bit : *in_front & ~bit, b = behind ? *in_behind | bit : *in_behind & ~bit;
+    uint32_t f = front ? *in_front | bit : added ? *in_front : *in_front & ~bit;
+    uint32_t b = behind ? *in_behind | bit : added ? *in_behind : *in_behind & ~bit;
     if (f != *in_front || b != *in_behind) {
         *in_front = f;
         *in_behind = b;
@@ -1384,6 +1389,28 @@ static uint16_t place_copy(uint32_t bytes)
 {
     int32_t at = room_from_the_top(bytes / 32, SCREEN_BYTES / 32);
     return at < 0 ? NO_PLACE : (uint16_t)(at * 32);
+}
+
+/* Room for a copy from the bottom of the GBA's background VRAM up: the
+ * copies of tiles in front of a layer split in its line effects' maps
+ * alone, which come and go with the scene's maps, kept out of the way of
+ * the copies and the panel's room made from the top, and off the places the
+ * last layout's tiles had (`held`, a bit each), so that what the last
+ * frame's lines show stays where they show it while the layout's work goes
+ * on; NO_PLACE where there is no such room, and the map shows its tiles in
+ * front where its layer would stand not split. */
+static uint16_t place_copy_low(uint32_t bytes, const uint8_t *held)
+{
+    for (uint32_t first = 0; first + bytes / 32 <= PLACES; first += SCREEN_BYTES / 32) {
+        bool free = room_at(first, bytes / 32);
+        for (uint32_t p = first; free && p < first + bytes / 32; p++)
+            free = !(held[p / 8] >> (p % 8) & 1);
+        if (free) {
+            take_room(first, bytes / 32);
+            return (uint16_t)(first * 32);
+        }
+    }
+    return NO_PLACE;
 }
 
 static const Layer *map_layer(uint32_t byte);
@@ -1602,24 +1629,29 @@ static void name_the_tiles(uint32_t named[CACHES][CACHE_TILES / 32], uint32_t pl
  * afresh handed the tiles new places the maps still on screen didn't name
  * yet, which showed the room in stray tiles as a dialog opened and each
  * time the caches filled; the tiles no map names give their places back as
- * starting afresh did. */
-static void keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const uint32_t placed[CACHE_TILES / 32])
+ * starting afresh did. Whether a tile a map still names lost its place to
+ * one of the layout's maps or rooms: until the maps are converted again,
+ * what the GBA shows there is that map's bytes, not the tile. */
+static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const uint32_t placed[CACHE_TILES / 32])
 {
     uint32_t first = c->block * 512u;
+    bool lost = false;
     c->next = 0;
     for (unsigned t = 0; t < CACHE_TILES; t++) {
         uint16_t slot = c->slot_of[t];
         if (slot == NO_SLOT)
             continue;
         bool needed = (named[t / 32] >> (t % 32) & 1) || (placed[slot / 32] >> (slot % 32) & 1);
-        if (!needed || first + slot >= PLACES || is_taken(first + slot))
+        if (!needed || first + slot >= PLACES || is_taken(first + slot)) {
+            lost |= needed;
             c->slot_of[t] = NO_SLOT;
-        else
+        } else {
             take(first + slot);
+        }
     }
     if (first + c->blank < PLACES && !is_taken(first + c->blank)) {
         take(first + c->blank);
-        return;
+        return lost;
     }
     c->blank = take_slot(c);
     if (c->blank == NO_SLOT)
@@ -1627,12 +1659,78 @@ static void keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
     else
         for (unsigned w = 0; w < 8; w++)
             BG_VRAM[(first + c->blank) * 8u + w] = 0;
+    return lost;
 }
 
 /* The maps the frame's lines showed since the layout (layer_control): each
  * layer's own (bit n) and each line map (bit LINE_MAPS_SHOWN + m). */
 enum { LINE_MAPS_SHOWN = 4 };
 static uint16_t maps_shown IN_FAST_RAM;
+
+/* Whether background VRAM has room left for the copies of tiles in front
+ * that the line effects' maps of layers split by them alone would take,
+ * beside a place for each tile the maps name: those copies took the tile
+ * caches' room in Crono's house while Mom's dialog held the panel's, and
+ * the room showed holes where tiles found no place. */
+static bool line_splits_fit(uint8_t had)
+{
+    uint32_t named[CACHES][CACHE_TILES / 32];
+    memset(named, 0, sizeof named);
+    unsigned copies = 0, needed = 0, free = 0;
+    for (unsigned k = 0; k < 4u + snes.line_map_count; k++) {
+        const LineMap *lm = k < 4 ? NULL : &snes.line_maps[k - 4];
+        const Layer *l = &layers[lm ? lm->layer : k];
+        if (!l->shown || (!lm && !l->own_map) || (lm && lm->cut != NO_CUT))
+            continue;
+        uint32_t from = lm ? lm->byte : l->map_byte, bytes = lm ? lm->bytes : l->map_bytes;
+        if (lm && lm->gba_byte != NO_PLACE && !lm->shared && (split_wanted >> lm->layer & 1) && !l->own_map &&
+            has_tiles_in_front(lm->byte, lm->bytes))
+            copies += bytes / 32;
+        for (uint32_t i = 0; i < bytes; i += 2) {
+            uint32_t at = (from + i) & (VRAM_BYTES - 1);
+            unsigned tile = (unsigned)(snes.vram[at] | snes.vram[at + 1] << 8) & (CACHE_TILES - 1);
+            named[l->cache][tile / 32] |= 1u << (tile % 32);
+        }
+    }
+    for (uint32_t place = 0; place < PLACES; place++)
+        free += !is_taken(place);
+    /* each cache's tiles in its window (the one it had, or the roomiest),
+     * the copies going low into the first; and all of them in what is free */
+    for (unsigned c = 0; c < CACHES; c++) {
+        unsigned own = 0;
+        for (unsigned w = 0; w < CACHE_TILES / 32; w++)
+            own += (unsigned)__builtin_popcount(named[c][w]);
+        needed += own;
+        if (!caches[c].used)
+            continue;
+        uint8_t block = had >> c & 1 ? caches[c].block : roomiest_window();
+        unsigned in_window = free_in_window(block);
+        in_window = block == 0 ? (in_window > copies ? in_window - copies : 0) : in_window;
+        if (own > in_window)
+            return false;
+    }
+    return free >= needed + copies;
+}
+
+/* Whether layers are split in their line effects' maps alone: decided by
+ * the first layout of a scene (its layers' tiles and maps) and kept while
+ * the scene lasts. Decided afresh at each layout, the split
+ * came and went as a dialog's panel took room and gave it back, each time
+ * moving what the last frame's lines showed. */
+static uint32_t line_split_scene;
+static bool line_split_ok;
+
+static bool line_splits_in_this_scene(uint8_t had)
+{
+    uint32_t scene = 1;
+    for (unsigned n = 0; n < 4; n++)
+        scene = (scene * 31 + layers[n].char_byte) * 31 + (layers[n].shown ? layers[n].map_byte : 0xFFFFu);
+    if (scene != line_split_scene) {
+        line_split_scene = scene;
+        line_split_ok = line_splits_fit(had);
+    }
+    return line_split_ok;
+}
 
 /* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
  * places their maps take, the layers split by priority with their copies of
@@ -1654,7 +1752,16 @@ static uint8_t lay_out(bool pruned)
     }
     memset(layers, 0, sizeof layers);
     /* the caches the last layout had, a bit each */
-    uint8_t had = 0;
+    uint8_t had = 0, lost = 0;   /* and those that lost a place a map names (keep_places) */
+    uint8_t held[PLACES / 8];       /* the places their tiles had, a bit each */
+    uint16_t low = 0;               /* the line maps whose copies of tiles in front go low (place_copy_low) */
+    memset(held, 0, sizeof held);
+    for (unsigned c = 0; c < CACHES; c++)
+        for (unsigned t = 0; caches[c].used && t < CACHE_TILES; t++)
+            if (caches[c].slot_of[t] != NO_SLOT && caches[c].block * 512u + caches[c].slot_of[t] < PLACES) {
+                uint32_t p = caches[c].block * 512u + caches[c].slot_of[t];
+                held[p / 8] |= (uint8_t)(1u << (p % 8));
+            }
     for (unsigned c = 0; c < CACHES; c++) {
         if (caches[c].used)
             had |= (uint8_t)(1u << c);
@@ -1717,7 +1824,12 @@ static uint8_t lay_out(bool pruned)
     memset(units_behind, 0, sizeof units_behind);
     for (unsigned n = 0; n < 4; n++)
         for (uint32_t at = 0; layers[n].shown && layers[n].own_map && at < layers[n].map_bytes; at += UNIT_BYTES)
-            note_priorities(n, (layers[n].map_byte + at) & (VRAM_BYTES - 1));
+            note_priorities(n, (layers[n].map_byte + at) & (VRAM_BYTES - 1), layers[n].map_byte, false);
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        const LineMap *lm = &snes.line_maps[m];
+        for (uint32_t at = 0; lm->cut == NO_CUT && layers[lm->layer].shown && at < lm->bytes; at += UNIT_BYTES)
+            note_priorities(lm->layer, (lm->byte + at) & (VRAM_BYTES - 1), lm->byte, true);
+    }
     split_wanted = layers_to_split(split_wanted);
     /* The line effects' maps and the maps cut, each where the GBA has room
      * for it, from the top of its background VRAM down, but another layer's
@@ -1742,11 +1854,14 @@ static uint8_t lay_out(bool pruned)
     }
     make_room_for_the_panel(pruned);
     memset(front_block, NO_BLOCK, sizeof front_block);
+    bool line_splits = line_splits_in_this_scene(had);
     for (unsigned n = 0; n < 4; n++) {
         Layer *l = &layers[n];
         l->front_byte = split_wanted >> n & 1 && l->own_map ? place_copy(l->map_bytes) : NO_PLACE;
-        l->split = l->front_byte != NO_PLACE;
-        if (l->split)
+        /* a layer whose own map no line shows is split in its line effects'
+         * maps alone (below), where there is room */
+        l->split = l->front_byte != NO_PLACE || (split_wanted >> n & 1 && !l->own_map && line_splits);
+        if (l->front_byte != NO_PLACE)
             front_block[l->map_byte / SCREEN_BYTES] = (uint8_t)(l->front_byte / SCREEN_BYTES);
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
@@ -1761,6 +1876,8 @@ static uint8_t lay_out(bool pruned)
                 front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->gba_byte / SCREEN_BYTES);
         } else if (owner && owner->split)
             lm->front_byte = owner->front_byte;
+        else if (!layers[lm->layer].own_map)
+            low |= (uint16_t)(1u << m);   /* placed once the caches have kept their places */
         else if (has_tiles_in_front(lm->byte, lm->bytes) && (lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
             front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
     }
@@ -1777,9 +1894,15 @@ static uint8_t lay_out(bool pruned)
                 continue;
             if (free_in_window(caches[c].block) < free_in_window(roomiest_window()))
                 had &= (uint8_t)~(1u << c);
-            else
-                keep_places(&caches[c], named[c], placed[c]);
+            else if (keep_places(&caches[c], named[c], placed[c]))
+                lost |= (uint8_t)(1u << c);
         }
+    }
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        LineMap *lm = &snes.line_maps[m];
+        if (low >> m & 1 && has_tiles_in_front(lm->byte, lm->bytes) &&
+            (lm->front_byte = place_copy_low(lm->bytes, held)) != NO_PLACE)
+            front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
     }
     for (unsigned c = 0; c < CACHES; c++) {
         Cache *cache = &caches[c];
@@ -1797,7 +1920,7 @@ static uint8_t lay_out(bool pruned)
     }
     uint8_t kept = 0;
     for (unsigned c = 0; c < CACHES; c++)
-        if (caches[c].used && had >> c & 1)
+        if (caches[c].used && had >> c & 1 && !(lost >> c & 1))
             kept |= (uint8_t)(1u << c);
     return kept;
 }
@@ -1930,6 +2053,7 @@ static void convert_unit(unsigned u)
                 convert_cut_row(lm, offset / 64);
                 continue;
             }
+            note_priorities(lm->layer, first, lm->byte, true);
             /* a shared copy is its owner's, converted as its map */
             bool front_shared = lm->shared && map_layer(first)->split;
             if (!lm->shared || (lm->front_byte != NO_PLACE && !front_shared))
@@ -1943,7 +2067,7 @@ static void convert_unit(unsigned u)
     if (role & MAP) {
         for (unsigned n = 0; n < 4; n++)
             if (layers[n].shown && layers[n].own_map && within(first, layers[n].map_byte, layers[n].map_bytes))
-                note_priorities(n, first);
+                note_priorities(n, first, layers[n].map_byte, false);
         const Layer *l = map_layer(first);
         convert_map(first, l, first,
                     l->split ? l->front_byte + ((first - l->map_byte) & (VRAM_BYTES - 1)) : NO_PLACE);

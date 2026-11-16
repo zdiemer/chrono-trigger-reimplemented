@@ -59,6 +59,10 @@ platform services' backends. Nothing here is included from `game/`.
     each source to its own handler (the picture's lines, the sound's timer),
     on a stack of its own; a handler can hand longer work on to run with the
     other interrupts on, on its own stack too (the sound's mixing).
+  - `frames.c`, `frames.h`: what the time model decides of the game's
+    frames, which the GBA, keeping no time of the original's (`CT_UNTIMED`),
+    decides itself: ct_native's decisions replayed where a runner put them
+    in the cartridge, the GBA's own time and line counter otherwise.
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, nine
     slots in fast RAM (the game's main thread's 2.5 KiB, and 1 KiB for each of the
     menus' eight tasks, which can all run at once, sized from the movie
@@ -97,8 +101,9 @@ platform services' backends. Nothing here is included from `game/`.
     `--watch` every picture the GBA shows over a run of the game's frames,
     as a player sees them at the GBA's speed.
   - `run.py`: the check. It builds the runner against libmgba and zlib,
-    packs `ct.gba`, has the runner play a movie on it from the save RAM the
-    movie starts from, plays the movie in ct_native too, and fails where the
+    packs `ct.gba`, plays the movie in ct_native with its time model's
+    decisions written, has the runner play it on `ct.gba` from the save RAM
+    the movie starts from with those decisions replayed, and fails where the
     two end states' CRCs differ.
 
 ## Controls
@@ -160,7 +165,7 @@ processor was as the movie played. CI builds the program (the
 `ct_native --drive`; `run.py` builds it into the program's directory (on
 Windows, with mGBA's `bin` on `PATH` to run it):
 
-    mgba_run ct.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR]
+    mgba_run ct.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR] [--decisions FILE]
     mgba_run ct.gba [--sav FILE.sav] --drive
 
 `--sav` is the SRAM to start from, held in memory and never written back.
