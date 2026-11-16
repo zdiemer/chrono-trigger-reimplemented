@@ -21,7 +21,8 @@ plays and FILE gets each function's share of the samples, the largest first.
 With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
 every sample the program queued, without the gaps where its frames were
 late. With `--fast-rom`, the ROM is packed with the cartridge's faster waits
-(pack.py). Nothing is played aloud.
+(pack.py); with `--colours PROFILE`, with that profile's colours (pack.py's
+--profile). Nothing is played aloud.
 """
 import argparse
 import bisect
@@ -130,11 +131,13 @@ def main(argv=None):
     ap.add_argument("--profile", type=pathlib.Path, metavar="FILE",
                     help="sample where the processor is as the movie plays; FILE gets each function's share")
     ap.add_argument("--fast-rom", action="store_true", help="pack the ROM with the cartridge's faster waits (pack.py)")
+    ap.add_argument("--colours", choices=pack.PROFILES, default="original",
+                    help="pack the ROM with this profile's colours (pack.py's --profile)")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
     image = out_dir / "ct.gba"
-    if pack.main(["--program", str(args.program), "--rom", str(args.rom), "--out", str(image)]
+    if pack.main(["--program", str(args.program), "--rom", str(args.rom), "--out", str(image), "--profile", args.colours]
                  + (["--fast-rom"] if args.fast_rom else [])):
         return 2
     movie_text = args.movie.read_text(encoding="utf-8")

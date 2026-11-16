@@ -23,7 +23,8 @@ class PackTest(unittest.TestCase):
         finally:
             pack.resources, pack.sound_samples = saved
         self.assertEqual(base, 0x200)                    # the program's end rounded up to 256
-        magic, version, count, samples_at = pack.HEAD.unpack_from(image, base)
+        magic, version, count, samples_at, colours_at = pack.HEAD.unpack_from(image, base)
+        self.assertEqual(colours_at, 0)                  # the original's colours: no table
         self.assertEqual((magic, version, count), (b"CTGB", pack.catalogue_version(), 3))
         for i, data in enumerate(resources):
             at, length = pack.ENTRY.unpack_from(image, base + pack.HEAD.size + i * pack.ENTRY.size)
@@ -48,6 +49,26 @@ class PackTest(unittest.TestCase):
         self.assertEqual(plain[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], bytes(4))
         self.assertEqual(fast[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], pack.FAST_ROM.to_bytes(4, "little"))
         self.assertEqual(plain[:pack.OPTIONS_AT], fast[:pack.OPTIONS_AT])
+
+
+    def test_port_style(self):
+        saved = pack.resources, pack.sound_samples
+        pack.resources, pack.sound_samples = (lambda cartridge: [b""]), (lambda cartridge: b"SAMPLES")
+        try:
+            image, base = pack.pack(bytes(0x1F0), b"", profile="port-style")
+        finally:
+            pack.resources, pack.sound_samples = saved
+        colours_at = pack.HEAD.unpack_from(image, base)[4]
+        self.assertEqual(colours_at % 4, 0)
+        table = image[base + colours_at:base + colours_at + 2 * pack.COLOURS]
+        self.assertEqual(table, pack.colour_table("port-style"))
+        shown = lambda c: int.from_bytes(table[2 * c:2 * c + 2], "little")
+        self.assertEqual((shown(0), shown(0x7FFF)), (0, 0x7FFF))   # black and white stay
+        grey = 10 | 10 << 5 | 10 << 10
+        self.assertEqual(shown(grey), 14 | 14 << 5 | 14 << 10)     # a grey only brightens: 31 * (10/31)^0.7
+        red = shown(20)                                             # a red, brighter and purer
+        self.assertGreater(red & 31, 20)
+        self.assertEqual(red >> 5, 0)
 
 
 def brr_block(header, nibbles):

@@ -1362,7 +1362,25 @@ mode 0's four tiled layers and its sprites:
 
 - **Palettes** are the same colours (both BGR555): the 4bpp layers' eight are
   the GBA's background palettes 0-7, a 2bpp layer's eight of four colours
-  are 8-15, the sprites' eight are its sprite palettes 0-7.
+  are 8-15, the sprites' eight are its sprite palettes 0-7. A GBA's screen
+  shows them darker than a television, so the colours can be packed brighter
+  (`pack.py --profile`): `original`, the default, leaves them as they are;
+  `port-style` gives each channel a gamma of 0.7 and then 15% more
+  saturation around the colour's luma (0.299, 0.587, 0.114), rounded and
+  kept in range. The saturation mixes the channels, so the profile is one
+  table of the 32,768 BGR555 colours' own, 64 KiB that pack.py works out and
+  puts in the cartridge, where room is plentiful; the driver reads a written
+  colour's own from it as it fills the GBA's palette, and each line's
+  backdrop after its colour math. A colour is one cartridge read, and only
+  a frame whose palette changed reads any. The GBA's fades and blending
+  (the SNES's brightness, the dialog's shading, a darkened scene) then work
+  on the colours shown, as the SNES's work on what a television shows. In
+  mGBA, port-style against original over `title-start`, `new-game`,
+  `gato-battle`, `events-jetbike-race` and `menus-sweep`: 156, 507, 1,236,
+  239 and 219 more cycles a game frame (0.05% to 0.44% of a GBA frame,
+  `gato-battle`'s palette changing most), the pictures left out 1, 3, 50,
+  22 and 0 more, the end states the same. The game is never told: the
+  colours are the driver's, not `game/`'s.
 - **Maps** are converted where the SNES has them (an entry's palette, flips
   and tile moved to the GBA's bits), 32 bytes at a time, the ones whose
   bytes the game changed: a send of what VRAM already holds (much of what

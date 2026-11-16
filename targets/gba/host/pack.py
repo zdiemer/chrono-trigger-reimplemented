@@ -8,9 +8,14 @@ committed.
         --out build/gba/ct.gba
 
 The pack after the program (targets/gba/system/main.c, PackHead): "CTGB", the
-catalogue's version and its count, where the sound's samples are; then each
-resource's place and length, in the catalogue's order; then the resources,
-and the sound's samples converted to 8-bit PCM (samples.py). With --fast-rom, the
+catalogue's version and its count, where the sound's samples are and where the
+colours' table is; then each resource's place and length, in the catalogue's
+order; then the resources, the sound's samples converted to 8-bit PCM
+(samples.py), and with a --profile other than `original`, the colours' table:
+each of the 32,768 BGR555 colours as the GBA shows it (services/video.c). The
+`port-style` profile brightens the colours for a GBA's screen, darker than a
+television: a gamma of 0.7 on each channel, then 15% more saturation around
+the colour's luma. With --fast-rom, the
 options word after the header (targets/gba/toolchain/start.s) asks for the
 cartridge's waits at 2 and 1 rather than 3 and 1, which flash carts and the
 Analogue Pocket take and some cheap reproduction cartridges don't. The game's save is the GBA's SRAM,
@@ -31,7 +36,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import samples  # noqa: E402
 
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
-HEAD = struct.Struct("<4sIII")
+HEAD = struct.Struct("<4sIIII")
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 OPTIONS_AT = 0xC0    # start.s's options word, after the header
@@ -63,7 +68,33 @@ def header_check(image):
     return (-(sum(image[0xA0:0xBD]) + 0x19)) & 0xFF
 
 
-def pack(program, cartridge, fast_rom=False):
+PROFILES = ("original", "port-style")
+COLOURS = 1 << 15    # BGR555
+PORT_STYLE_GAMMA, PORT_STYLE_SATURATION = 0.7, 1.15
+LUMA = (0.299, 0.587, 0.114)
+
+
+def port_style(colour):
+    """A BGR555 colour brightened for a GBA's screen: the gamma on each
+    channel, then the saturation raised around the luma, rounded and kept in range."""
+    red, green, blue = ((colour >> shift & 31) / 31 for shift in (0, 5, 10))
+    red, green, blue = (c ** PORT_STYLE_GAMMA for c in (red, green, blue))
+    luma = LUMA[0] * red + LUMA[1] * green + LUMA[2] * blue
+    out = 0
+    for shift, c in zip((0, 5, 10), (red, green, blue)):
+        c = luma + PORT_STYLE_SATURATION * (c - luma)
+        out |= min(31, max(0, round(c * 31))) << shift
+    return out
+
+
+def colour_table(profile):
+    """The colours' table for a profile, or None where the colours stay as they are."""
+    if profile == "original":
+        return None
+    return struct.pack("<%dH" % COLOURS, *(port_style(c) for c in range(COLOURS)))
+
+
+def pack(program, cartridge, fast_rom=False, profile="original"):
     parts = resources(cartridge)
     out = bytearray(program)
     out += bytes(-len(out) % ALIGN)
@@ -78,7 +109,13 @@ def pack(program, cartridge, fast_rom=False):
     body += bytes(-(table + len(body)) % 4)
     samples_at = table + len(body)
     body += sound_samples(cartridge)
-    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at)
+    colours_at = 0
+    colours = colour_table(profile)
+    if colours is not None:
+        body += bytes(-(table + len(body)) % 4)
+        colours_at = table + len(body)
+        body += colours
+    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at, colours_at)
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body
@@ -100,12 +137,14 @@ def main(argv=None):
     ap.add_argument("--out", type=pathlib.Path, required=True)
     ap.add_argument("--fast-rom", action="store_true",
                     help="the cartridge's waits at 2 and 1, not 3 and 1: flash carts and the Analogue Pocket, not every cartridge")
+    ap.add_argument("--profile", choices=PROFILES, default="original",
+                    help="the colours as the GBA shows them: the SNES's as they are (original), or brightened for a GBA's screen (port-style)")
     args = ap.parse_args(argv)
     cartridge = rom.load(args.rom)
     if zlib.crc32(cartridge) != rom.EXPECTED_CRC32:
         print("pack: %s is not the No-Intro Chrono Trigger (USA) image" % args.rom, file=sys.stderr)
         return 1
-    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom)
+    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom, args.profile)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(image)
     print("pack: %s, %d bytes: the program %d, the pack from %d" % (args.out, len(image), base, base))
