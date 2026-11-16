@@ -475,6 +475,8 @@ const VidFrame *vid_host_picture(Platform *pf)
     return NULL;
 }
 
+static bool darkened_this_frame;   /* the display darkened from the top since the frame began (display_from) */
+
 void vid_host_frame_begins(Platform *pf)
 {
     VidHost *v = &pf->video;
@@ -484,6 +486,7 @@ void vid_host_frame_begins(Platform *pf)
         v->line_effects = v->line_effects_below;
     v->display_from = v->effects_from = 0;
     v->below_display = v->below_line_effects = false;
+    darkened_this_frame = false;
     view_panel_count = 0;
     panel.drawn = false;
 }
@@ -610,6 +613,17 @@ static uint16_t below_the_line_handler(const Platform *pf)
     return pf->timing.part == TM_HOST_IN_LINE ? (uint16_t)(pf->timing.line + 1) : 0;
 }
 
+static void black_where_nothing_shows(Platform *pf);
+
+static bool dark(const VidDisplay *d) { return d->blank || !(d->brightness & 15); }
+
+/* The display from a line down, or from the top. Darkened from the top a
+ * second time in a frame, with no light between, the game means the screen
+ * dark from here, and it is black at once rather than at the frame's
+ * picture: a scene's loading frame (the title's last as A was pressed) ran
+ * on for GBA frames over the last picture. The vertical blank's handler
+ * darkens it each frame only to give it back at once. */
+
 static void display_from(Platform *pf, uint16_t from, const VidDisplay *d)
 {
     VidHost *v = &pf->video;
@@ -621,6 +635,9 @@ static void display_from(Platform *pf, uint16_t from, const VidDisplay *d)
     }
     v->display = *d;
     v->below_display = false;
+    if (darkened_this_frame && dark(d))
+        black_where_nothing_shows(pf);
+    darkened_this_frame = dark(d);
 }
 
 void vid_set_display(Platform *pf, PfOrigin o, const VidDisplay *d)
@@ -5052,6 +5069,19 @@ static void hide_the_picture(void)
     picture_hidden = true;
 }
 
+/* Whether the frame shows nothing: blanked or dark from its top line to its
+ * bottom, no line effect setting the brightness. */
+static bool shows_nothing(const VidHost *v)
+{
+    if (!dark(&v->display) || (v->below_display && v->display_from && !dark(&v->display_below)))
+        return false;
+    uint8_t slots = (uint8_t)(v->line_effects | (v->below_line_effects ? v->line_effects_below : 0));
+    for (unsigned i = 0; i < 8; i++)
+        if (slots >> i & 1 && snes.slot[i].target == VID_LINE_BRIGHTNESS)
+            return false;
+    return true;
+}
+
 /* The picture laid out afresh (a `refill`: only for tiles that found no
  * place); where a cache of tiles starts afresh, the picture is hidden until
  * this frame's is shown. */
@@ -5144,6 +5174,13 @@ static bool layout_wanted(bool restart)
  * converted, and the next frame's layout would convert the scene a second
  * time under the picture shown (the dialog window's first row in stray
  * tiles as the opening's narration begins). */
+/* The picture black from here where the frame shows nothing. */
+static void black_where_nothing_shows(Platform *pf)
+{
+    if (!picture_hidden && shows_nothing(&pf->video))
+        hide_the_picture();
+}
+
 void gba_video_present(Platform *pf)
 {
     show_the_pending_frame();
