@@ -1062,7 +1062,7 @@ typedef struct {
     uint8_t block;                 /* the GBA char block its window starts at */
     uint16_t next, blank;          /* the next place to look at, a blank tile's place */
     uint16_t placed;               /* the tiles with places */
-    uint16_t slot_of[CACHE_TILES]; /* each SNES tile's place in the window, or NO_SLOT */
+    uint16_t slot_of[CACHE_TILES] __attribute__((aligned(4)));   /* each SNES tile's place in the window, or NO_SLOT */
 } Cache;
 
 /* A layer as the GBA shows it: how deep its tiles are, where its map is,
@@ -1108,15 +1108,28 @@ static bool within(uint32_t byte, uint32_t start, uint32_t length)
 static uint32_t tile_bytes(uint8_t bpp) { return bpp == 4 ? 32u : 16u; }
 static unsigned tile_shift(uint8_t bpp) { return bpp == 4 ? 5u : 4u; }   /* tile_bytes' */
 
-/* A place in a cache's window, for a tile: the next one free, or NO_SLOT. */
+/* A place in a cache's window, for a tile: the next one free, or NO_SLOT.
+ * Eight places a maps' screen or a room took whole are passed over at once. */
 static uint16_t take_slot(Cache *c)
 {
-    while (c->next < CACHE_TILES && (c->block * 512u + c->next >= PLACES || is_taken(c->block * 512u + c->next)))
-        c->next++;
-    if (c->next == CACHE_TILES)
+    uint32_t first = c->block * 512u, next = c->next;
+    uint32_t end = first + CACHE_TILES < PLACES ? CACHE_TILES : PLACES - first;
+    while (next < end) {
+        uint32_t place = first + next;
+        if (place % 8 == 0 && taken[place / 8] == 0xFF)
+            next += 8;
+        else if (is_taken(place))
+            next++;
+        else
+            break;
+    }
+    if (next >= end) {
+        c->next = CACHE_TILES;
         return NO_SLOT;
-    take(c->block * 512u + c->next);
-    return c->next++;
+    }
+    take(first + next);
+    c->next = (uint16_t)(next + 1);
+    return (uint16_t)next;
 }
 
 /* Where a sprite tile table starts in VRAM (bytes): the second is 8 KiB on
@@ -1870,6 +1883,10 @@ static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
     bool lost = false;
     c->next = c->placed = 0;
     for (unsigned t = 0; t < CACHE_TILES; t++) {
+        if (t % 2 == 0 && *(const Word *)&c->slot_of[t] == 0xFFFFFFFFu) {
+            t++;   /* two tiles with no place */
+            continue;
+        }
         uint16_t slot = c->slot_of[t];
         if (slot == NO_SLOT)
             continue;
