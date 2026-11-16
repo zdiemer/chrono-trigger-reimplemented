@@ -123,6 +123,10 @@ typedef struct {
     uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
 } LineMap;
 enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5 };
+/* The maps kept for the lines, beside the layers' own: a map a band shows
+ * cut takes no more than CUT_LINE_MAPS of them, leaving room for a map a
+ * line shows whole. */
+enum { LINE_MAPS = 7, CUT_LINE_MAPS = 6 };
 
 typedef struct {
     uint8_t vram[VRAM_BYTES] __attribute__((aligned(4)));
@@ -143,7 +147,7 @@ typedef struct {
     uint16_t fixed_color;          /* BGR555 */
     VidLineEffect slot[8];         /* the line effects' slots as the game programmed them */
     /* the maps the line effects show part of the way down, beside the layers' own */
-    LineMap line_maps[6];
+    LineMap line_maps[LINE_MAPS];
     uint8_t line_map_count;
     uint32_t changed[UNITS / 32];     /* the 32-byte units the game changed since the picture was made */
     bool palette_written, settings_changed, sprites_changed;
@@ -3656,13 +3660,30 @@ static uint16_t region_layers(const LineState *st, bool in1, bool in2)
 }
 
 /* A map to keep for the next layout, which converts it: one a line effect
- * shows that the layout hasn't, or one a band shows cut. */
+ * shows that the layout hasn't, or one a band shows cut. Where the maps
+ * kept are as many as there is room for, a map a line shows whole takes
+ * the place of one kept cut: without its own copy a line shows whatever the
+ * GBA's VRAM holds where the SNES's map is (the Magus castle battles' third
+ * layer, whose second map holds the candles' flames, showed a window's
+ * border down the whole battle), where a cut map left out shows the map
+ * whole, its columns uncut. */
 static void note_line_map(unsigned n, uint16_t byte, uint16_t bytes, uint8_t cut)
 {
-    if (!layers[n].shown || line_map(n, byte, cut != NO_CUT) ||
-        snes.line_map_count == sizeof snes.line_maps / sizeof snes.line_maps[0])
+    if (!layers[n].shown || line_map(n, byte, cut != NO_CUT))
         return;
-    snes.line_maps[snes.line_map_count++] =
+    unsigned m = snes.line_map_count;
+    if (cut != NO_CUT && m >= CUT_LINE_MAPS)
+        return;
+    if (m < LINE_MAPS) {
+        snes.line_map_count++;
+    } else {
+        /* full: the last kept cut gives its place up */
+        while (m > 0 && snes.line_maps[m - 1].cut == NO_CUT)
+            m--;
+        if (m-- == 0)
+            return;
+    }
+    snes.line_maps[m] =
         (LineMap){ .layer = (uint8_t)n, .cut = cut, .byte = byte, .bytes = bytes, .gba_byte = NO_PLACE, .front_byte = NO_PLACE };
     snes.settings_changed = true;
 }
