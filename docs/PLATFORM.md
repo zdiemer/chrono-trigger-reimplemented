@@ -1467,8 +1467,38 @@ mode 0's four tiled layers and its sprites:
   which shows no black there, the black at the attract sequence's scene
   changes (game frames 3925, 6641, 9448, 9568 and 9954) went from 18, 17,
   18, 22 and 45 GBA frames to 5, 5, 7, 8 and 7, and as the curtain opens on
-  Crono's room from 32 to none. Fast RAM keeps 600 bytes free, work RAM 536
-  above its floor.
+  Crono's room from 32 to none.
+- **Layouts the lines ask for** are made before the frame is shown. A
+  layout's lines are worked out before its maps are converted, and a frame
+  whose lines name a map the layout hasn't (a line effect's, a dialog
+  window's), or another mode, is laid out again then and there rather than
+  in the next frame, which converted the scene a second time under the
+  picture shown (the dialog window's first row in stray tiles as the
+  opening's narration and Mom's dialog opened). A layout converts again only
+  the maps it put somewhere else than the last did, those of a cache that
+  started afresh or lost a place, or all of them where tiles had missed: a
+  line effect's map coming in beside the scene's converts that map alone. A
+  line map whose tiles in front found no room for their copy doesn't ask
+  for a layout each frame (Gato's battle was laid out, and black, a dozen
+  GBA frames a frame). A layout made only because tiles missed keeps a
+  cache whose tiles still fit its window rather than starting it afresh
+  where another has more room, which hid the picture (the attract
+  sequence's battle blinked black at 9954). And where the game darkens the
+  screen a second time in a frame with no light between, it is black at
+  once, rather than the last picture staying up through the frame's work
+  and the layout's (the title's last frame, in the new scene's colours, as A
+  was pressed while it drew in). Watched again, the black at the attract
+  sequence's scene changes went from 5, 5, 7, 8 and 7 GBA frames to 0, 0, 6,
+  0 and 0, the pictures the 240x160 view shows there; the opening's first
+  narration (game frames 5100-5120) shows 21 black GBA frames where it
+  showed 15 and then the window's first row in stray tiles for 7 (ct_native
+  shows 5 black): its two layouts, the panel's and then the window's map,
+  come two game frames apart and are each a few GBA frames of work. The five
+  movies took 1,924, 8,085, 26,487, 14,921 and 8,580 GBA frames (from 1,926,
+  8,074, 26,448, 14,967 and 8,563), their heaviest picture 5.79, 7.31,
+  8.97, 10.16 and 7.84, every end state ct_native's. Fast RAM keeps 616
+  bytes free, work RAM 352 above its floor (the maps' places kept from the
+  last layout take 160 bytes).
 - **The backdrop**, the first colour, is each line's own, set with its
   registers.
 - **Sprites**: the SNES's two tables of tiles one under the other in the
@@ -1921,6 +1951,25 @@ ct_native's. The gaps left are the game's own long frames
 as a map, a menu, a battle or a song loads (below, "Loads"), and a
 layout's picture of up to 28 GBA frames.
 
+**The census** (`host/census.py`, targets/gba/README.md). Every picture the
+GBA shows, as a player sees it at the GBA's speed, against ct_native's at
+the GBA's view for the game's frame the driver last put on the screen (the
+drive box's `shown`), at 5 bits a channel with no tolerance: a mismatch is
+torn, a whole frame off, off by at most 8 steps of 31 (`colour`) or drawn
+wrong (`picture`), and mismatches make clusters ranked by pixels times GBA
+frames; the same records give every game frame over 2 GBA frames, every
+picture left out and every hang. On main d9177e1d over 16 movies (110,000
+game frames, in about 14 minutes) every movie ends as ct_native's, nearly every
+GBA frame differs somewhere, and no run hangs, five minutes of the attract
+played by hand included. The largest clusters: the Fair drawn darker
+(`gato-battle` 11,685-18,648, issue #562), the gates' white circles (#561),
+the attract's clouds black (mode 2, issue #483), the battle windows laid out
+16 pixels right (#563), the End of Time's lamp in streaks (#564), the race's
+sky and racers (#565), the attract battles' missing sprites (#550), and the
+menus' and load screen's window shading (#554). The costliest stretches of
+pacing: the race (2,704 game frames in 6,165 GBA frames), the End of Time,
+and the attract's battles and the Ocean Palace's clouds (#550).
+
 **Loads** (issue #521). A frame in which a map, a menu, a battle or a song
 loads stops the picture for as long as it takes, and those were the GBA's
 longest frames: 123 GBA frames (two seconds) as the title's song loads,
@@ -2258,7 +2307,13 @@ the GBA's work. What changed, each measured over the four movies above:
   9% of all the GBA's work, at any speed. Now a line's registers are worked
   out only where what the line effects set has changed, and set only where
   they change, by two interrupts a change (the line counter's on the line
-  above, the horizontal blank's at its end). The line effects' tables are
+  above, the horizontal blank's at its end). Where the horizontal blank's
+  comes late, another handler having run on past the line, it sets the last
+  change it passed rather than skipping it: skipped, a band showed the band
+  above's lines down to the next change, and the naming screen's rows came
+  six lines low as the cursor moved (issue #520; a sweep of the cursor over
+  every letter now shows the rows where ct_native's 240x160 view does, but
+  a frame's lag as it changes row). The line effects' tables are
   read 32 bytes at a time, not a call a byte, and a slot's idle lines
   between transfers are passed over.
 - **Only what changed is converted.** VRAM is followed in 32-byte units
