@@ -3,7 +3,7 @@
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
- *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR]
+ *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR] [--record FILE] [--stall N]
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
  *
  * The program names its drive box in its debug log as it starts
@@ -29,7 +29,14 @@
  * DIR/wGBAFRAME_GAMEFRAME.png (the GBA's frame, and the game's frame it had
  * taken), at the GBA's own speed: what a player sees, the picture's work
  * running past the vertical blank and all, where --shot waits for each
- * frame's picture to be finished.
+ * frame's picture to be finished. With --record, every GBA frame the movie
+ * plays goes into FILE.idx as a line `GBA_FRAME TAKEN SHOWN PICTURE`: the
+ * game's frames begun, the one whose picture the driver put on the screen
+ * last (drive_box.h's `shown`), and the picture, numbered as FILE holds
+ * them: the GBA's pixels at 15 bits (red low), each picture written once
+ * where it differs from the one before (host/census.py reads them).
+ * --stall N gives the run up after N GBA frames in which the game takes no
+ * frame (20000).
  *
  * With --drive, a command a line on stdin and a reply a line on stdout, as
  * ct_native's (docs/MOVIES.md, "Routes as a test"); the program's own lines
@@ -300,11 +307,56 @@ static unsigned long gba_frames;
 static unsigned long watch_from, watch_to;
 static const char *watch_dir;
 
+/* --record: every GBA frame's picture, a repeat of the last only named. */
+static FILE *pictures, *pictures_index;
+static uint16_t *picture, *last_picture;
+static unsigned long pictures_written;
+
+static int start_pictures(const char *path)
+{
+    char index[1024];
+    snprintf(index, sizeof index, "%s.idx", path);
+    picture = calloc((size_t)width * height, sizeof *picture);
+    last_picture = calloc((size_t)width * height, sizeof *last_picture);
+    pictures = fopen(path, "wb");
+    pictures_index = fopen(index, "w");
+    return picture && last_picture && pictures && pictures_index ? 0 : -1;
+}
+
+static void record_picture(void)
+{
+    size_t n = (size_t)width * height;
+    for (size_t i = 0; i < n; i++) {
+        uint32_t c = video[i];
+        picture[i] = (uint16_t)((c >> 3 & 0x1F) | (c >> 11 & 0x1F) << 5 | (c >> 19 & 0x1F) << 10);
+    }
+    if (!pictures_written || memcmp(picture, last_picture, n * sizeof *picture)) {
+        fwrite(picture, sizeof *picture, n, pictures);
+        memcpy(last_picture, picture, n * sizeof *picture);
+        pictures_written++;
+    }
+    fprintf(pictures_index, "%lu %u %u %lu\n", gba_frames, (unsigned)box_get(offsetof(DriveBox, taken)),
+            (unsigned)box_get(offsetof(DriveBox, shown)), pictures_written - 1);
+}
+
+static int close_pictures(void)
+{
+    int rc = 0;
+    if (pictures && fclose(pictures))
+        rc = -1;
+    if (pictures_index && fclose(pictures_index))
+        rc = -1;
+    pictures = pictures_index = NULL;
+    return rc;
+}
+
 static void gba_frame(void)
 {
     core->runFrame(core);
     gba_frames++;
     record_frame();
+    if (pictures && recording)
+        record_picture();
     uint32_t taken = watch_dir ? frames_played() : 0;
     if (watch_dir && taken >= watch_from && taken <= watch_to) {
         char path[1024];
@@ -319,6 +371,8 @@ static int settled(uint32_t frame)
     return box_get(offsetof(DriveBox, waiting)) && box_get(offsetof(DriveBox, taken)) == frame &&
            box_get(offsetof(DriveBox, command)) == DRIVE_IDLE;
 }
+
+static unsigned long stall = STALL;
 
 typedef uint32_t PadsAt(const void *ctx, uint32_t frame);
 static uint32_t held(const void *ctx, uint32_t frame)
@@ -346,7 +400,7 @@ static int play_to(uint32_t to, PadsAt *pads, const void *ctx)
             box_put(offsetof(DriveBox, written), written);
         gba_frame();
         idle = frames_played() == taken ? idle + 1 : 0;
-        if (idle > STALL)
+        if (idle > stall)
             return -1;
     }
     return 0;
@@ -595,7 +649,7 @@ static int load_with_decisions(const char *rom_path, const char *decisions_path)
 }
 
 static int play_movie(const char *path, unsigned long frames, Shot *shots, unsigned count, const char *samples_path,
-                      const char *wav_path, const char *stream_path)
+                      const char *wav_path, const char *stream_path, const char *pictures_path)
 {
     ct_movie movie;
     if (ct_movie_load(&movie, path))
@@ -606,6 +660,10 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
     }
     if (start_recording(wav_path, stream_path)) {
         fprintf(stderr, "mgba_run: cannot write the sound's files\n");
+        return 2;
+    }
+    if (pictures_path && start_pictures(pictures_path)) {
+        fprintf(stderr, "mgba_run: cannot write %s\n", pictures_path);
         return 2;
     }
     qsort(shots, count, sizeof *shots, by_frame);
@@ -635,6 +693,10 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
     if (!rc && frames)
         printf("mgba_run: %lu game frames in %lu GBA frames: %.0f cycles a game frame, %.1f GBA frames each\n", frames,
                gba, (double)gba * GBA_FRAME_CYCLES / (double)frames, (double)gba / (double)frames);
+    if (close_pictures()) {
+        fprintf(stderr, "mgba_run: cannot write %s\n", pictures_path);
+        rc = 2;
+    }
     if (wav_close(&heard) || wav_close(&streamed)) {
         fprintf(stderr, "mgba_run: cannot write the sound's files\n");
         rc = 2;
@@ -650,9 +712,9 @@ int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
                                 "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
-                                "[--watch FROM TO DIR] | --drive)\n";
+                                "[--watch FROM TO DIR] [--record FILE] [--stall N] | --drive)\n";
     const char *movie = NULL, *bios = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
-    const char *decisions_path = NULL;
+    const char *decisions_path = NULL, *pictures_path = NULL;
     unsigned long frames = 0;
     int driving = 0;
     Shot shots[MAX_SHOTS];
@@ -674,6 +736,10 @@ int main(int argc, char **argv)
             stream_path = argv[++i];
         else if (!strcmp(argv[i], "--decisions") && i + 1 < argc)
             decisions_path = argv[++i];
+        else if (!strcmp(argv[i], "--record") && i + 1 < argc)
+            pictures_path = argv[++i];
+        else if (!strcmp(argv[i], "--stall") && i + 1 < argc)
+            stall = strtoul(argv[++i], NULL, 10);
         else if (!strcmp(argv[i], "--drive"))
             driving = 1;
         else if (!strcmp(argv[i], "--watch") && i + 3 < argc) {
@@ -740,7 +806,7 @@ int main(int argc, char **argv)
     if (driving)
         drive();
     else
-        rc = play_movie(movie, frames, shots, count, samples_path, wav_path, stream_path);
+        rc = play_movie(movie, frames, shots, count, samples_path, wav_path, stream_path, pictures_path);
     core->deinit(core);
     free(video);
     return rc;

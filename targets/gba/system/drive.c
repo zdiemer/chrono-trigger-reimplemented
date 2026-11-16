@@ -49,3 +49,5 @@ uint32_t drive_next_pads(GameState *g, void (*report)(void *), void *ctx)
     box.taken = frame + 1;
     return pads;
 }
+
+void drive_showing(uint32_t frame) { box.shown = frame; }
