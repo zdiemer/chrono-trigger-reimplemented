@@ -2416,16 +2416,57 @@ static void map_changed(const LineMap *lm)
         unit_changed((lm->byte + i) & (VRAM_BYTES - 1));
 }
 
-/* A sprite tile's place in the GBA's sprite VRAM: the SNES's two tables of
- * 16 tiles a row, one under the other, the first 16 of its 32 a row. */
-static int sprite_slot(uint32_t byte)
+/* A sprite tile's number among the SNES's two tables' 512, or -1. */
+static int sprite_tile(uint32_t byte)
 {
     uint32_t obj = sprite_table(0), second = sprite_table(1);
     int table = within(byte, obj, OBJ_TABLE_BYTES) ? 0 : within(byte, second, OBJ_TABLE_BYTES) ? 1 : -1;
     if (table < 0)
         return -1;
-    uint32_t tile = ((byte - (table ? second : obj)) & (VRAM_BYTES - 1)) / 32;
-    return (int)(((unsigned)table * 16 + tile / 16) * 32 + tile % 16);
+    return table * 256 + (int)(((byte - (table ? second : obj)) & (VRAM_BYTES - 1)) / 32);
+}
+
+/* The sprites' tiles on two pages of the GBA's sprite VRAM, the shown
+ * sprites naming one while the next picture's are converted onto the
+ * other, so that a picture shown a GBA frame late (show_the_frame) never
+ * has the last frame's sprites in the next frame's tiles: an object whose
+ * frame changed showed its pieces moved about for a GBA frame (issue
+ * #550). On a page the SNES's two tables of 16 tiles a row lie one under the
+ * other, the first page in the first 16 of the GBA's 32 a row and the
+ * second in the last 16. The tiles that changed are converted onto the page
+ * not shown, with those the shown page took last (they changed while it
+ * was the page not shown), and the sprites then name that page. */
+enum { SPRITE_TILES_BOTH = 2 * 256, PAGE_COLUMNS = 16 };
+static uint32_t tiles_changed[SPRITE_TILES_BOTH / 32];   /* since the last turn, a bit each */
+static uint32_t tiles_behind[SPRITE_TILES_BOTH / 32];    /* that the page not shown lacks */
+static uint8_t sprite_page;                              /* the page the sprites name */
+
+static void sprite_tile_changed(int tile) { tiles_changed[tile / 32] |= 1u << (tile % 32); }
+
+/* The tiles that changed onto the page not shown, which the sprites then
+ * name. False where none changed. */
+static bool turn_the_sprite_page(void)
+{
+    uint32_t any = 0;
+    for (unsigned w = 0; w < SPRITE_TILES_BOTH / 32; w++)
+        any |= tiles_changed[w];
+    if (!any)
+        return false;
+    sprite_page ^= 1;
+    for (unsigned w = 0; w < SPRITE_TILES_BOTH / 32; w++) {
+        uint32_t bits = tiles_changed[w] | tiles_behind[w];
+        tiles_behind[w] = tiles_changed[w];
+        tiles_changed[w] = 0;
+        for (unsigned b = 0; bits; b++, bits >>= 1) {
+            if (!(bits & 1))
+                continue;
+            unsigned tile = w * 32 + b;
+            uint32_t byte = (sprite_table(tile / 256) + (tile % 256) * 32) & (VRAM_BYTES - 1);
+            unsigned place = (tile / PAGE_COLUMNS) * 32 + sprite_page * PAGE_COLUMNS + tile % PAGE_COLUMNS;
+            convert_4bpp(OBJ_VRAM + place * 8, &snes.vram[byte]);
+        }
+    }
+    return true;
 }
 
 /* A map's units in a block (`units`, a bit each, from `first`), each with
@@ -2509,7 +2550,7 @@ static void convert_block(unsigned k, uint32_t units)
             tiled |= (uint8_t)(1u << c);
             first_tile[c] = (uint16_t)(((block - caches[c].char_byte) & (VRAM_BYTES - 1)) >> tile_shift(caches[c].bpp));
         }
-    int sprites = role & SPRITE_TILES ? sprite_slot(block) : -1;   /* its first sprite tile's place */
+    int sprites = role & SPRITE_TILES ? sprite_tile(block) : -1;   /* its first sprite tile */
     if (!line_maps && !owner && !tiled && sprites < 0 && !plane && !offsets && !copied_from)
         return;   /* tiles none of which has a place yet, as a scene's are as it loads */
     for (unsigned j = 0; j < line_maps; j++) {
@@ -2570,7 +2611,7 @@ static void convert_block(unsigned k, uint32_t units)
             }
         }
         if (sprites >= 0)
-            convert_4bpp(OBJ_VRAM + (uint32_t)(sprites + (int)i) * 8, &snes.vram[first]);
+            sprite_tile_changed(sprites + (int)i);
     }
 }
 
@@ -3059,6 +3100,10 @@ static void present_sprites(void)
         unsigned k = band_of_row[top];
         if (!k)
             k = band_of_row[top + (int)h - 1];
+        /* one that runs past the SNES's last line goes on from its first, as
+         * its feet do where its head is above the screen's top */
+        if (!k && top + (int)h - 1 > 0xFF)
+            k = band_of_row[(top + (int)h - 1) & 0xFF];
         const Band *b = k && !bands[k - 1].drawn ? &bands[k - 1] : NULL;
         int row = b ? b->row : 0;
         if (columns_moved)
@@ -3077,7 +3122,7 @@ static void present_sprites(void)
         shown[count++] = here;
         sprites_mask |= mask;
         uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
-        uint16_t tile = (uint16_t)((name >> 4) * 32 + (name & 15));
+        uint16_t tile = (uint16_t)((name >> 4) * 32 + sprite_page * PAGE_COLUMNS + (name & 15));
         set_sprite(to, 0, (uint16_t)(gy | (mask ? OBJ_WINDOW : 0) | shape << 14));
         set_sprite(to, 1, (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14));
         set_sprite(to, 2, (uint16_t)(tile | priority << 10 | ((e[3] >> 1) & 7) << 12));
@@ -5115,6 +5160,8 @@ static void convert_the_changes(bool laid_out)
             convert_block(2 * w + 1, units >> 16);
         snes.changed[w] = 0;
     }
+    if (turn_the_sprite_page())
+        snes.sprites_changed = true;
     if (laid_out)
         layout_misses = misses;
     if (snes.palette_written) {
