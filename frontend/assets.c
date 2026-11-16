@@ -66,6 +66,7 @@ void asset_source_rom(AssetSource *source, AssetRom *ctx, const uint8_t *rom, si
     ctx->size = size;
     source->resource = rom_resource;
     source->ctx = ctx;
+    source->form = NULL;
 }
 
 void asset_store_rom(AssetStore *store, AssetRom *ctx, const uint8_t *rom, size_t size)
@@ -275,6 +276,7 @@ void asset_pack_source(AssetPack *pack, AssetSource *source)
 {
     source->resource = pack_resource;
     source->ctx = pack;
+    source->form = NULL;
 }
 
 void asset_pack_close(AssetPack *pack)

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "menu/menu_data.h"
+#include "menu/records.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "vars.h"
@@ -54,14 +55,19 @@ const ScriptOpcode *menu_script_opcode(uint8_t opcode)
 
 /* A command's operands are read on from its opcode, across the end of the
  * bank if they reach it: from the script's run of the store's bytes, found
- * once for the command. */
+ * once for the command, or from a copy of the command's own (a builder's,
+ * menu_record_read). */
 typedef struct {
     const GameState *g;
     uint32_t at;
     MenuScriptRun run;
+    const uint8_t *command;
 } CommandBytes;
 
-static uint8_t operand(const CommandBytes *c, uint8_t n) { return menu_script_byte_in(c->g, &c->run, c->at + n); }
+static uint8_t operand(const CommandBytes *c, uint8_t n)
+{
+    return c->command ? c->command[n] : menu_script_byte_in(c->g, &c->run, c->at + n);
+}
 static uint16_t operand_word(const CommandBytes *c, uint8_t n)
 {
     return (uint16_t)(operand(c, n) | operand(c, (uint8_t)(n + 1)) << 8);
@@ -89,40 +95,185 @@ static ByteRef byte_ref(const CommandBytes *b, ScriptArg a)
     return (ByteRef){ false, 0 };
 }
 
-/* A row names a handful of the language's parameters, which the decoding
- * walks (menu_named_parameters); the rest read nothing. */
-#define SCRIPT_DECODE_BYTE_REF(name) \
-    case MENU_PARAMETER_##name: c->name = byte_ref(&bytes, row->name); break;
-#define SCRIPT_DECODE(type, name) \
-    case MENU_PARAMETER_##name: c->name = (type)argument(&bytes, row->name); break;
-#define SCRIPT_DECODE_ONE(type, name) SCRIPT_DECODE_##type(type, name)
-#define SCRIPT_DECODE_ByteRef(type, name) SCRIPT_DECODE_BYTE_REF(name)
-#define SCRIPT_DECODE_ByteChange SCRIPT_DECODE
-#define SCRIPT_DECODE_ByteTest SCRIPT_DECODE
-#define SCRIPT_DECODE_MenuSlotKind SCRIPT_DECODE
-#define SCRIPT_DECODE_MenuAxis SCRIPT_DECODE
-#define SCRIPT_DECODE_SoundEffectVoices SCRIPT_DECODE
-#define SCRIPT_DECODE_uint8_t SCRIPT_DECODE
-#define SCRIPT_DECODE_int8_t SCRIPT_DECODE
-#define SCRIPT_DECODE_uint16_t SCRIPT_DECODE
-#define SCRIPT_DECODE_uint32_t SCRIPT_DECODE
-#define SCRIPT_DECODE_bool(type, name) \
-    case MENU_PARAMETER_##name: c->name = argument(&bytes, row->name) != 0; break;
+/* A parameter's value as a word, what a record keeps of it: a byte it names
+ * as BYTE_OF_THE_OBJECT and the byte's offset, or a cell's address; any
+ * other as its operands say. */
+enum { BYTE_OF_THE_OBJECT = 0x10000 };
+static uint32_t byte_ref_value(ByteRef b) { return (b.of_the_object ? BYTE_OF_THE_OBJECT : 0) | b.at; }
+static ByteRef byte_ref_of(uint32_t v) { return (ByteRef){ (v & BYTE_OF_THE_OBJECT) != 0, (uint16_t)v }; }
 
-void menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf,
-                        ScriptCommand *c)
+#define SCRIPT_VALUE_OF_ByteRef(b, arg) byte_ref_value(byte_ref(b, arg))
+#define SCRIPT_VALUE_OF(b, arg) argument(b, arg)
+#define SCRIPT_VALUE_OF_ByteChange SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_ByteTest SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_MenuSlotKind SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_MenuAxis SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_SoundEffectVoices SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_uint8_t SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_int8_t SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_uint16_t SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_uint32_t SCRIPT_VALUE_OF
+#define SCRIPT_VALUE_OF_bool SCRIPT_VALUE_OF
+
+static uint32_t parameter_value(const CommandBytes *b, const ScriptOpcode *row, MenuScriptParameter p)
+{
+    switch (p) {
+#define SCRIPT_VALUE_CASE(type, name) case MENU_PARAMETER_##name: return SCRIPT_VALUE_OF_##type(b, row->name);
+        SCRIPT_PARAMETERS(SCRIPT_VALUE_CASE)
+#undef SCRIPT_VALUE_CASE
+    default: return 0;
+    }
+}
+
+/* ... and the parameter taken from it into the command. */
+#define SCRIPT_TAKEN_AS_ByteRef(type, v) byte_ref_of(v)
+#define SCRIPT_TAKEN_AS_bool(type, v) ((v) != 0)
+#define SCRIPT_TAKEN_AS(type, v) ((type)(v))
+#define SCRIPT_TAKEN_AS_ByteChange SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_ByteTest SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_MenuSlotKind SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_MenuAxis SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_SoundEffectVoices SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_uint8_t SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_int8_t SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_uint16_t SCRIPT_TAKEN_AS
+#define SCRIPT_TAKEN_AS_uint32_t SCRIPT_TAKEN_AS
+
+static void take_parameter(ScriptCommand *c, MenuScriptParameter p, uint32_t v)
+{
+    switch (p) {
+#define SCRIPT_TAKE_CASE(type, name) case MENU_PARAMETER_##name: c->name = SCRIPT_TAKEN_AS_##type(type, v); break;
+        SCRIPT_PARAMETERS(SCRIPT_TAKE_CASE)
+#undef SCRIPT_TAKE_CASE
+    default: break;
+    }
+}
+
+/* A command with none of its parameters taken yet. */
+static void begin_command(ScriptCommand *c, const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf)
 {
     memset(c, 0, sizeof *c);
     c->self = self;
     c->at = at;
     c->opcode = row->opcode;
     c->pf = pf;
-    const CommandBytes bytes = { g, at, menu_script_run(at) };
+}
+
+/* A row names a handful of the language's parameters, which the decoding
+ * walks (menu_named_parameters); the rest read nothing. */
+void menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf,
+                        ScriptCommand *c)
+{
+    begin_command(c, row, self, at, pf);
+    const CommandBytes bytes = { g, at, menu_script_run(at), NULL };
+    for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++) {
+        MenuScriptParameter named = (MenuScriptParameter)menu_named_parameters[p];
+        take_parameter(c, named, parameter_value(&bytes, row, named));
+    }
+}
+
+void menu_script_decode_record(const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf,
+                               const MenuRecord *record, ScriptCommand *c)
+{
+    begin_command(c, row, self, at, pf);
+    const uint32_t *value = record->value;
     for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++)
-        switch ((MenuScriptParameter)menu_named_parameters[p]) {
-            SCRIPT_PARAMETERS(SCRIPT_DECODE_ONE)
-        default: break;
+        take_parameter(c, (MenuScriptParameter)menu_named_parameters[p], *value++);
+}
+
+/* ---- Commands read ahead (menu/records.h) ----------------------------------------------------- */
+
+/* The bytes of a command, from its opcode, that a parameter's operands take
+ * up to, and how many of them reading it reads. */
+static uint8_t operand_end(ScriptArg a)
+{
+    switch (a.kind) {
+    case ARG_BYTE:
+    case ARG_SIGNED:
+    case ARG_SLOT_BYTE: return (uint8_t)(a.operand + 1);
+    case ARG_WORD:
+    case ARG_CELL: return (uint8_t)(a.operand + 2);
+    case ARG_LONG: return (uint8_t)(a.operand + 3);
+    case ARG_WORD_AND_BANK: return (uint8_t)(a.operand + 2 > a.bank_at + 1 ? a.operand + 2 : a.bank_at + 1);
+    default: return 1;
+    }
+}
+
+static uint8_t operand_reads(ScriptArg a)
+{
+    switch (a.kind) {
+    case ARG_BYTE:
+    case ARG_SIGNED:
+    case ARG_SLOT_BYTE: return 1;
+    case ARG_WORD:
+    case ARG_CELL: return 2;
+    case ARG_LONG:
+    case ARG_WORD_AND_BANK: return 3;
+    default: return 0;
+    }
+}
+
+static ScriptArg row_arg(const ScriptOpcode *row, MenuScriptParameter p)
+{
+    switch (p) {
+#define SCRIPT_ROW_ARG(type, name) case MENU_PARAMETER_##name: return row->name;
+        SCRIPT_PARAMETERS(SCRIPT_ROW_ARG)
+#undef SCRIPT_ROW_ARG
+    default: return (ScriptArg){ ARG_NONE, 0, 0, 0 };
+    }
+}
+
+unsigned menu_record_read(const uint8_t *command, uint16_t available, MenuRecord *out)
+{
+    const ScriptOpcode *row = menu_script_opcode(command[0]);
+    if (!row || !row->run)
+        return 0;
+    uint8_t bytes = row->length, reads = 0;
+    unsigned named = menu_named_from[row->opcode + 1] - menu_named_from[row->opcode];
+    for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++) {
+        ScriptArg a = row_arg(row, (MenuScriptParameter)menu_named_parameters[p]);
+        if (operand_end(a) > bytes)
+            return 0;   /* reads past the command (no row does) */
+        reads = (uint8_t)(reads + operand_reads(a));
+    }
+    if (bytes > MENU_RECORD_BYTES || bytes > available || named > MENU_RECORD_MOST_VALUES)
+        return 0;
+    const CommandBytes from = { NULL, 0, { 0, 0, NULL }, command };
+    uint8_t values = 0;
+    for (unsigned p = menu_named_from[row->opcode]; p < menu_named_from[row->opcode + 1]; p++)
+        out->value[values++] = parameter_value(&from, row, (MenuScriptParameter)menu_named_parameters[p]);
+    out->opcode = command[0];
+    out->bytes = bytes;
+    out->values = values;
+    out->reads = reads;
+    memset(out->made_from, 0, sizeof out->made_from);
+    memcpy(out->made_from, command, bytes);
+    return MENU_RECORD_HEAD + 4u * values;
+}
+
+uint32_t menu_records_language(void)
+{
+    static uint32_t language;
+    if (language)
+        return language;
+    uint32_t h = 0x811C9DC5u;
+#define MIX(v) (h = (h ^ (uint32_t)(v)) * 0x01000193u)
+    MIX(MENU_PARAMETER_COUNT), MIX(MENU_RECORD_BYTES), MIX(MENU_RECORD_HEAD), MIX(BYTE_OF_THE_OBJECT);
+    for (unsigned op = 0; op < 256; op++) {
+        const ScriptOpcode *row = menu_script_opcode((uint8_t)op);
+        MIX(row != NULL);
+        if (!row)
+            continue;
+        MIX(row->run != NULL), MIX(row->length);
+        /* the parameters it names, and how (the rest decode nothing) */
+        for (unsigned p = menu_named_from[op]; p < menu_named_from[op + 1]; p++) {
+            ScriptArg a = row_arg(row, (MenuScriptParameter)menu_named_parameters[p]);
+            MIX(menu_named_parameters[p]), MIX(a.kind), MIX(a.operand), MIX(a.constant), MIX(a.bank_at);
         }
+    }
+#undef MIX
+    language = h | 1u;   /* never 0, which is not worked out yet */
+    return language;
 }
 
 /* The screens' tables a command marks entries of are indexed by the table's

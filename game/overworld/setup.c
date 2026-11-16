@@ -25,6 +25,7 @@
 #include "menu/map.h"
 #include "menu/object.h"
 #include "menu/objects.h"
+#include "menu/records.h"
 #include "menu/screen_objects.h"
 #include "menu/sprites.h"
 #include "overworld/overworld.h"
@@ -115,15 +116,21 @@ void overworld_unpack(GameState *g, uint32_t stream, uint32_t to)
     (void)unpack_stream(g);
 }
 
-/* One stream the record names, from its table, unpacked to `to`. A record
- * that names none leaves the buffer as it was. */
-static void load_named(GameState *g, uint8_t field, OverworldStreamTable table, uint32_t to)
+/* One stream the record names, from its table, unpacked to `to`: the
+ * stream's address, or NO_STREAM_UNPACKED where the record names none and
+ * leaves the buffer as it was. */
+enum { NO_STREAM_UNPACKED = 0 };
+
+static uint32_t load_named(GameState *g, uint8_t field, OverworldStreamTable table, uint32_t to)
 {
     uint8_t number = record_byte(g, field);
-    if (number & NO_STREAM)
+    if (number & NO_STREAM) {
         set_decompress_dest(g, to);
-    else
-        overworld_unpack(g, overworld_stream(g, table, number), to);
+        return NO_STREAM_UNPACKED;
+    }
+    uint32_t stream = overworld_stream(g, table, number);
+    overworld_unpack(g, stream, to);
+    return stream;
 }
 
 /* Several blocks the record names in a row, each to the staging buffer's
@@ -366,9 +373,13 @@ static void load_the_ground(GameState *g)
     load_named(g, RECORD_GROUND_KINDS, OVERWORLD_GROUND_KINDS, RAM_OVERWORLD_GROUND_KINDS);
 }
 static void load_the_regions(GameState *g) { load_named(g, RECORD_REGIONS, OVERWORLD_REGION_MAPS, RAM_OVERWORLD_REGIONS); }
+/* The scene's script, with its commands read ahead where the resources keep
+ * them so (menu/records.h). */
 static void load_the_scene_script(GameState *g)
 {
-    load_named(g, RECORD_SCENE_SCRIPT, OVERWORLD_SCENE_SCRIPTS, SCENE_STAGE);
+    uint32_t stream = load_named(g, RECORD_SCENE_SCRIPT, OVERWORLD_SCENE_SCRIPTS, SCENE_STAGE);
+    if (stream != NO_STREAM_UNPACKED)
+        menu_records_use(g, stream, SCENE_STAGE);
 }
 
 /* The buffer the sign's name and the map view's sprite graphics share. */

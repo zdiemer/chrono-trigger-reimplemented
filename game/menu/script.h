@@ -39,6 +39,7 @@
 
 #include "script_text.h"
 #include "menu/object.h"
+#include "menu/records.h"
 #include "platform/platform.h"
 #include "sound/sound.h"
 #include "state.h"
@@ -277,6 +278,12 @@ const ScriptOpcode *menu_script_opcode(uint8_t opcode);
  * doesn't name are 0. */
 void menu_script_decode(const GameState *g, const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf,
                         ScriptCommand *c);
+
+/* The same command taken from its record (menu/records.h), which the
+ * builder read from the same bytes: the parameters menu_script_decode would
+ * read, without reading them. */
+void menu_script_decode_record(const ScriptOpcode *row, MenuObject self, uint32_t at, Platform *pf,
+                               const MenuRecord *record, ScriptCommand *c);
 
 /* Whether the command is one the port runs as the original does: every cell
  * it names is low RAM, and every table it indexes is one it has (a script the

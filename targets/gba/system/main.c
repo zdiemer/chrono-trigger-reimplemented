@@ -38,20 +38,20 @@
 
 /* The pack after the program (pack.py): the catalogue's resources in its
  * order, the sound's samples, the colours' table where it was packed with a
- * profile that changes them, the event scripts read a command at a time
- * where it was packed with them, and the packed streams unpacked
+ * profile that changes them, the scripts read a command at a time where it
+ * was packed with them, and the packed streams unpacked
  * (host/streams.py). */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
     uint32_t samples_at;           /* services/mixer.h, MixerSamples */
     uint32_t colours_at;           /* services/video.h, gba_video_use_colours; 0: none */
-    uint32_t records_at;           /* the event records (game/event/records.h); 0: none */
+    uint32_t records_at;           /* the script records (frontend/script_records.h); 0: none */
     uint32_t unpacked_at;          /* a word a resource: where its AssetUnpacked is from there, or 0 */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
-/* The event records: "CTER", the catalogue's version and its count, then
- * each resource's records' place (from "CTER") and length, 0 where none. */
+/* The script records: "CTSR", the catalogue's version and its count, then
+ * each resource's records' place (from "CTSR") and length, 0 where none. */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
@@ -120,7 +120,7 @@ static const uint8_t *pack_form(void *ctx, uint8_t form, AssetId id, uint32_t *l
     const PackHead *head = ctx;
     if (form == ASSET_FORM_UNPACKED)
         return pack_unpacked(head, id, length);
-    if (form != ASSET_FORM_EVENT_RECORDS || !head->records_at)
+    if (form != ASSET_FORM_SCRIPT_RECORDS || !head->records_at)
         return NULL;
     const RecordsHead *records = (const RecordsHead *)((const uint8_t *)head + head->records_at);
     if (id >= records->count)
@@ -378,9 +378,9 @@ int main(void)
     }
     if (head->records_at) {
         const RecordsHead *records = (const RecordsHead *)((const uint8_t *)head + head->records_at);
-        if (memcmp(records->magic, "CTER", 4) || records->catalogue != asset_catalogue_version ||
+        if (memcmp(records->magic, "CTSR", 4) || records->catalogue != asset_catalogue_version ||
             records->count != asset_catalogue_count) {
-            fprintf(stderr, "ct_gba: the pack's event records are another catalogue's: pack it again\n");
+            fprintf(stderr, "ct_gba: the pack's script records are another catalogue's: pack it again\n");
             abort();
         }
     }

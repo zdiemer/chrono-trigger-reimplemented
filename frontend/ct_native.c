@@ -36,9 +36,9 @@
  * frames as PNGs, --locations the places the run enters, --lag-log each wait
  * the time model makes last (its frame, the frames and the work's clocks),
  * --decisions what it decides of the game's frames, for a build that replays
- * them, --end-state work RAM and save RAM at the end, and --event-records
- * the locations' event scripts read a command at a time, for a target to
- * keep beside them (frontend/event_records.h), and nothing else. Exit status 0 when it ran every frame, 1 where the
+ * them, --end-state work RAM and save RAM at the end, and --script-records
+ * the event and object scripts read a command at a time, for a target to
+ * keep beside them (frontend/script_records.h), and nothing else. Exit status 0 when it ran every frame, 1 where the
  * program stopped short, 2 on bad arguments or files. This file is the driver:
  * the loop, the files and the report belong here. */
 #include <errno.h>
@@ -50,7 +50,7 @@
 #include <string.h>
 
 #include "assets.h"
-#include "event_records.h"
+#include "script_records.h"
 #include "file_store.h"
 #include "fonts.h"
 #include "maps.h"
@@ -789,7 +789,7 @@ static void usage(FILE *out)
                  "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--fullscreen-mode borderless|exclusive]\n"
                  "                 [--scaling integer|fit] [--filter none|scanlines] [--pixels tv|square] [--mute]\n"
                  "                 [--view WIDTHx224|16:9|16:10|21:9|4:3|240x160] [--present WxH]\n"
-                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--decisions FILE] [--event-records FILE] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
+                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--decisions FILE] [--script-records FILE] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. F5 saves a snapshot of the frame; F7 loads it.\n"
@@ -883,7 +883,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL, *shot_dir = NULL;
     const char *load_state = NULL, *save_state = NULL, *wav_path = NULL, *screenshot = NULL;
-    const char *end_state = NULL, *save_dir = NULL, *record_path = NULL, *decisions_path = NULL, *event_records_path = NULL;
+    const char *end_state = NULL, *save_dir = NULL, *record_path = NULL, *decisions_path = NULL, *script_records_path = NULL;
     bool import_only = false, help = false;
 #ifdef CT_HAVE_SDL
     const char *keys_path = NULL, *binds[128];
@@ -947,7 +947,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--locations")) locations = true;
         else if (!strcmp(a, "--lag-log")) lag_log = true;
         else if (!strcmp(a, "--decisions") && v) decisions_path = v, i++;
-        else if (!strcmp(a, "--event-records") && v) event_records_path = v, i++;
+        else if (!strcmp(a, "--script-records") && v) script_records_path = v, i++;
         else if (!strcmp(a, "--timing-report")) timing_report = true;
         else if (!strcmp(a, "--measure")) measuring = true;
         else if (!strcmp(a, "--outcomes")) outcomes = true;
@@ -1089,8 +1089,8 @@ int main(int argc, char **argv)
     asset_pack_source(pack, &source);
     Measure *measure = measuring ? measure_create(&source, &counted) : NULL;
     assets_use(measure ? &counted : &source);
-    if (event_records_path) {
-        int written = event_records_write(&source, event_records_path);
+    if (script_records_path) {
+        int written = script_records_write(&source, script_records_path);
         asset_pack_close(pack);
         return written ? 2 : 0;
     }

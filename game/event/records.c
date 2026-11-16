@@ -12,7 +12,7 @@ void event_records_use(GameState *g, uint32_t packed)
     *r = (EventRecords){ NULL, NULL, 0, 0 };
     AssetId id = asset_containing(packed);
     uint32_t length = 0;
-    const uint8_t *block = id == ASSET_NONE ? NULL : asset_form(ASSET_FORM_EVENT_RECORDS, id, &length);
+    const uint8_t *block = id == ASSET_NONE ? NULL : asset_form(ASSET_FORM_SCRIPT_RECORDS, id, &length);
     if (!block || length < RECORDS_HEAD || (uintptr_t)block % WORD)
         return;
     const uint32_t *head = (const uint32_t *)(const void *)block;
