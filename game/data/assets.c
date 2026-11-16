@@ -183,11 +183,11 @@ static const uint8_t *find_served(uint32_t at, uint32_t a)
     return bytes ? bytes + (a - asset_catalogue[id].at) : NULL;
 }
 
-/* The store's copy of the cartridge byte at `at` (its cartridge address `a`),
- * or NULL: the address is in no resource (counted), there is no store, or it
- * hasn't the resource. */
-static const uint8_t *served_at(uint32_t at, uint32_t a)
+/* The store's copy of the cartridge byte at `at`, or NULL: the address is in
+ * no resource (counted), there is no store, or it hasn't the resource. */
+static const uint8_t *served(uint32_t at)
 {
+    uint32_t a = cartridge_address(at);
     const uint32_t i = (a >> NEAR_SHIFT) & (NEARBY - 1);
     if (a == NOT_ROM || a - found[i].at >= found[i].length)
         return find_served(at, a);
@@ -196,16 +196,13 @@ static const uint8_t *served_at(uint32_t at, uint32_t a)
     return found[i].bytes ? found[i].bytes + (a - found[i].at) : NULL;
 }
 
-static const uint8_t *served(uint32_t at) { return served_at(at, cartridge_address(at)); }
-
 /* Where a pointer in the data names RAM, the byte is the game's RAM's
  * (wram_data_read8), never the cartridge's. */
 uint8_t rom_read8(const GameState *g, uint32_t at)
 {
-    uint32_t a = cartridge_address(at);
-    if (a == NOT_ROM)
+    if (cartridge_address(at) == NOT_ROM)
         return wram_data_read8(g, at & 0xFFFFFFu);
-    return rom_cartridge_read(g, at, served_at(at, a));
+    return rom_cartridge_read(g, at, served(at));
 }
 
 /* A resource's bytes, as resource_bytes finds them, with the one the read
