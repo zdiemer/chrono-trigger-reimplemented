@@ -1900,6 +1900,22 @@ About 5% everywhere: only the code and constants still read from the
 cartridge (the first access of a run, the prefetch's misses) gain, and the
 code that runs most is already in fast RAM.
 
+A GBA's BIOS starts a cartridge only where the header's bytes $04-$9F are
+the logo it keeps its own copy of, so the logo is the one thing a ROM for
+hardware needs that the project can't ship. `host/pack.py --bios FILE` takes
+it from the player's own dump of the BIOS (16 KiB, CRC-32 81977335): the
+BIOS keeps its reference copy compressed as the header holds it, and
+compares the two byte for byte before unpacking the header's to show it, so
+the copy goes in as it is, checked by its CRC-32 (`D0BEB55E`, the one mGBA
+checks too). Without `--bios` the logo is blank and pack.py says so:
+emulators and flash carts that patch the header boot it, a GBA doesn't.
+`mgba_run --bios FILE` (and `run.py --bios`) starts mGBA in that BIOS rather
+than its own, which goes straight to the program, and fails where mGBA
+skipped it for the logo; `title-start` played that way, through the BIOS's
+logo and check, ends in ct_native's work RAM and save RAM. Nothing of the
+BIOS is in the repository; the test that reads one runs where `CT_GBA_BIOS`
+names it.
+
 #### Where the GBA's frame goes
 
 `host/run.py --profile FILE` has the runner note where the processor is every

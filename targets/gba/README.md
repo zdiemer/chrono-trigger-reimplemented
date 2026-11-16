@@ -88,8 +88,8 @@ platform services' backends. Nothing here is included from `game/`.
     verifies the player's cartridge, cuts the catalogue's resources from it,
     and appends them to the program with a directory the driver indexes in
     place. The program is code only; the packed `.gba` is never committed.
-    `--fast-rom` asks for the cartridge's faster waits (Building and
-    running, below).
+    `--fast-rom` asks for the cartridge's faster waits, `--bios` puts in
+    the logo a GBA checks (Building and running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
     the pack, their loops kept, each listed by its block's length and hash.
   - `mgba_run.c`: the runner, the GBA's `ct_native --drive`: `ct.gba` in
@@ -134,6 +134,14 @@ installed or only unpacked, or a build of mGBA) and a staged cartridge
 
 `ct.gba` is the game: open it in mGBA, or put it on a flash cart, and play.
 
+A GBA's BIOS starts only a cartridge whose header holds its logo, which the
+project can't ship. `pack.py --bios FILE`, with your own dump of the GBA's
+BIOS (16 KiB, CRC-32 81977335), copies it in from the BIOS; without it the
+logo is left blank, which mGBA and flash carts that patch the header (most
+EZ-Flash and EverDrive loaders) boot and a GBA on its own doesn't.
+`run.py --bios FILE` packs with it and starts mGBA in that BIOS, so the run
+goes through the BIOS's logo and its check as a GBA's does.
+
 `pack.py --fast-rom` (and `run.py --fast-rom`) writes a flag into the word
 after the header that has the start set the cartridge's waits to 2 and 1
 with the prefetch, rather than 3 and 1, which every cartridge handles. Most
@@ -163,8 +171,8 @@ processor was as the movie played. CI builds the program (the
 `ct_native --drive`; `run.py` builds it into the program's directory (on
 Windows, with mGBA's `bin` on `PATH` to run it):
 
-    mgba_run ct.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR] [--decisions FILE]
-    mgba_run ct.gba [--sav FILE.sav] --drive
+    mgba_run ct.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR] [--decisions FILE]
+    mgba_run ct.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
 
 `--sav` is the SRAM to start from, held in memory and never written back.
 `--drive` reads a command a line and answers a line, as ct_native's do:
