@@ -2,15 +2,18 @@
  * nothing played aloud, driving it from outside as `ct_native --drive` is driven
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
- *   mgba_run ROM.gba [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
+ *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
  *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR]
- *   mgba_run ROM.gba [--sav FILE.sav] --drive
+ *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
  *
  * The program names its drive box in its debug log as it starts
  * (targets/gba/system/drive_box.h); the runner arms it then, and from then on
  * puts each frame's pads in it, from the movie or from the commands on stdin.
  * --sav is the cartridge's SRAM to start from, held in memory and never
- * written back.
+ * written back. --bios is the player's own dump of the GBA's BIOS: the GBA
+ * starts in it, shows its logo and checks the cartridge's before it starts the
+ * program, as a GBA does (mGBA's own BIOS starts the program at once); where
+ * mGBA would skip it, the cartridge's logo being wrong, the runner fails.
  *
  * With --movie, it plays the movie's first N frames, writes the picture as a
  * PNG once each FRAME is played, asks the program for its report and prints
@@ -45,6 +48,7 @@
  * The CRCs are as `ct_native --end-state` writes the state: of work RAM and
  * save RAM, and of save RAM alone. It is a host tool, built against libmgba
  * and zlib with frontend/movie.c (targets/gba/host/run.py builds it). */
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -644,10 +648,10 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 
 int main(int argc, char **argv)
 {
-    static const char usage[] = "usage: mgba_run ROM.gba [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
+    static const char usage[] = "usage: mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
                                 "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
                                 "[--watch FROM TO DIR] | --drive)\n";
-    const char *movie = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
+    const char *movie = NULL, *bios = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
     const char *decisions_path = NULL;
     unsigned long frames = 0;
     int driving = 0;
@@ -658,6 +662,8 @@ int main(int argc, char **argv)
             movie = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc)
             frames = strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--bios") && i + 1 < argc)
+            bios = argv[++i];
         else if (!strcmp(argv[i], "--sav") && i + 1 < argc)
             sav = argv[++i];
         else if (!strcmp(argv[i], "--samples") && i + 1 < argc)
@@ -711,7 +717,18 @@ int main(int argc, char **argv)
             return 2;
         }
     }
+    if (bios) {
+        struct VFile *vf = VFileOpen(bios, O_RDONLY);
+        if (!vf || !core->loadBIOS(core, vf, 0)) {
+            fprintf(stderr, "mgba_run: cannot load the BIOS %s\n", bios);
+            return 2;
+        }
+    }
     core->reset(core);
+    if (bios && ((struct ARMCore *)core->cpu)->gprs[ARM_PC] >= 0x4000) {
+        fprintf(stderr, "mgba_run: mGBA skipped the BIOS: the cartridge's logo isn't the one it checks\n");
+        return 1;
+    }
     for (unsigned long n = 0; !box; n++) {
         if (n > STALL) {
             fprintf(stderr, "mgba_run: the program never named its drive box\n");

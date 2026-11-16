@@ -1,12 +1,12 @@
 @ The cartridge's first bytes and the processor's start (targets/gba/toolchain/gba.ld).
 @
 @ The header's fields are left for the packing step (targets/gba/host/pack.py) to
-@ fill: the title, the game code and the complement check, and the options
-@ word after it, where `pack.py --fast-rom` asks for the cartridge's faster
-@ waits. The start sets the waits, puts the
-@ driver's stack at the top of fast RAM, copies the data's initial values out
-@ of the cartridge, zeroes the rest and calls main, in Thumb, which never
-@ returns.
+@ fill: the logo (from the player's BIOS, `pack.py --bios`), the title, the
+@ game code and the complement check, and the options word after it, where
+@ `pack.py --fast-rom` asks for the cartridge's faster waits. The start sets
+@ the waits, puts the driver's stack at the top of fast RAM, copies the data's
+@ initial values out of the cartridge, zeroes the rest and calls main, in
+@ Thumb, which never returns.
     .section .header, "ax"
     .arm
     .global _start
