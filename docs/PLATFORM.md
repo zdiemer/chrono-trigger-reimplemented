@@ -1903,6 +1903,25 @@ ct_native's. The gaps left are the game's own long frames
 as a map, a menu, a battle or a song loads (below, "Loads"), and a
 layout's picture of up to 28 GBA frames.
 
+**The census** (`host/census.py`, targets/gba/README.md). Every picture the
+GBA shows, as a player sees it at the GBA's speed, against ct_native's at
+the GBA's view for the game's frame the driver last put on the screen (the
+drive box's `shown`), at 5 bits a channel with no tolerance: a mismatch is
+torn, a whole frame off, off by at most 8 steps of 31 (`colour`) or drawn
+wrong (`picture`), and mismatches make clusters ranked by pixels times GBA
+frames; the same records give every game frame over 2 GBA frames, every
+picture left out and every hang. On main d9177e1d over 16 movies (110,000
+game frames, in about 14 minutes) every movie ends as ct_native's, nearly every
+GBA frame differs somewhere, and no run hangs, five minutes of the attract
+played by hand included. The largest clusters: the Fair drawn darker
+(`gato-battle` 11,685-18,648, issue #562), the gates' white circles (#561),
+the attract's clouds black (mode 2, issue #483), the battle windows laid out
+16 pixels right (#563), the End of Time's lamp in streaks (#564), the race's
+sky and racers (#565), the attract battles' missing sprites (#550), and the
+menus' and load screen's window shading (#554). The costliest stretches of
+pacing: the race (2,704 game frames in 6,165 GBA frames), the End of Time,
+and the attract's battles and the Ocean Palace's clouds (#550).
+
 **Loads** (issue #521). A frame in which a map, a menu, a battle or a song
 loads stops the picture for as long as it takes, and those were the GBA's
 longest frames: 123 GBA frames (two seconds) as the title's song loads,
