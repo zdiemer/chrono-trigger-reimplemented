@@ -1381,7 +1381,24 @@ mode 0's four tiled layers and its sprites:
   the first's), is shown from that layer's copy rather than a copy of its
   own, which leaves the caches the room a split takes. A map a band shows
   cut isn't split: all of it stands where its layer would not split (the
-  battle's windows' text in front). Where the layer kept for mode 2's
+  battle's windows' text in front). The field's layers show their line
+  effects' maps on every line and never their own, so which units have
+  tiles in front is taken from those maps too: counted from the own maps
+  alone, the field's first layer had none, wasn't split, and stood behind
+  the sprites, so walking down the stairs in Crono's house drew Mom and
+  Crono over the railing (issue #504). A layer split in its line effects'
+  maps alone has their copies of the tiles in front only where background
+  VRAM has room for them beside a place for each tile the maps name, each
+  cache's in its window (while Mom's dialog held the panel's room, the
+  copies left the caches short and the room showed holes); that is decided
+  by a scene's first layout and kept while the scene lasts, since a split
+  that came and went moved what the last frame's lines showed. The copies
+  go in from the bottom of background VRAM, after the caches have kept
+  their places and off the places the last layout's tiles had, so the
+  copies and the panel's room made from the top stay where they were. A
+  layout in which a tile a map still names lost its place to a map or a
+  room hides the picture while its work goes on, as one whose caches start
+  afresh does. Where the layer kept for mode 2's
   moved columns leaves none to split, the first layer that would be split
   has its tiles in front shown again on that layer, from a copy of them,
   on the lines no run takes it (the menus' lines below their lists are
@@ -1686,6 +1703,25 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
 - The meter's output (command `$FF` `$01`, docs/SOUND.md) is a voice's
   sample at its level, not the S-DSP's output; the game never turns the
   meter on.
+
+**A picture left out where the frame runs late** (`system/main.c`,
+`Pictures`). A frame's picture is due at the vertical blank a GBA frame
+after the last picture's. Where the game's frame and the sound driver's end
+past it, the driver leaves that frame's picture out and starts the next
+frame at once, so the game catches up on the GBA's time rather than waiting
+for the next blank and then converting; never two in a row, so the picture
+shown is at most one game frame behind. Nothing the game does depends on
+its picture: the picture is made from the video memory the game's calls
+leave, a picture left out leaves its changes for the next, and the view's
+framing reads only what the game's frames set. The movies end as ct_native's
+and their lag frames are the same. In mGBA, the GBA frames over the movie
+and the pictures left out (`title-start`, `new-game`, `gato-battle`,
+`events-jetbike-race`, `menus-sweep`): 2,180, 9,753, 35,849, 19,109 and
+9,943 against 2,214, 11,181, 43,752, 24,352 and 11,173 (1.5-21.5% fewer),
+with 68, 1,668, 8,157, 3,678 and 1,657 of 1,800, 7,200, 21,600, 9,400 and
+6,424 pictures left out (4-39%). Where the game keeps the GBA's time no
+picture is left out. Allowing two in a row took `gato-battle` to 34,523 and
+`events-jetbike-race` to 17,147, with half the pictures left out.
 
 **Measured** (2026-11-14, mGBA 0.10.5):
 
