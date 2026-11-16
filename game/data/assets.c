@@ -220,9 +220,8 @@ uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
     const AssetEntry *e = &asset_catalogue[resource];
     if (offset >= e->length)
         return rom_read8(g, e->at + offset);
-    if (left_untyped(resource))
-        note_if_unread(resource, e->at + offset);
-    const uint8_t *bytes = held_bytes(resource);
+    note_if_unread(resource, e->at + offset);
+    const uint8_t *bytes = resource_bytes(resource);
     return rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
 }
 
