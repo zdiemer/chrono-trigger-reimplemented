@@ -2290,23 +2290,50 @@ static int sprite_slot(uint32_t byte)
     return (int)(((unsigned)table * 16 + tile / 16) * 32 + tile % 16);
 }
 
-/* A unit of VRAM the game changed, as what the settings make it. */
-static void convert_unit(unsigned u)
+/* The units of a block of VRAM the game changed (`units`, a bit each, the
+ * first unit's lowest), each as what the settings make it. What a block is
+ * for (the maps, line maps and caches it holds; every one starts on a
+ * block) is worked out once for its 16 units: a scene's first picture
+ * converts some thousand units, and working it out for each was a fifth of
+ * that picture's work. Each unit's work is done in the order it was, its
+ * maps' entries naming their tiles before its own tiles are converted. */
+static void convert_block(unsigned k, uint32_t units)
 {
-    uint32_t first = (uint32_t)u * UNIT_BYTES;
-    if (laid_out_mode == 2 && within(first, (uint32_t)snes.bg[2].map_base << 1, map_bytes(&snes.bg[2])))
-        offsets_written = true;
-    if (plane_room && first < PLANE_BYTES)
-        convert_plane_unit(first);
-    uint8_t role = roles[first / BLOCK_BYTES];
-    /* a layer's columns copied from a map that changed are copied again */
-    if (copied.made && within(first, copied.map_byte, copied.map_bytes))
-        copied.stale = offsets_written = true;
-    if (role & LINE_MAP)
-        for (unsigned m = 0; m < snes.line_map_count; m++) {
-            const LineMap *lm = &snes.line_maps[m];
-            if (lm->gba_byte == NO_PLACE || !layers[lm->layer].shown || !within(first, lm->byte, lm->bytes))
-                continue;
+    uint32_t block = (uint32_t)k * BLOCK_BYTES;
+    uint8_t role = roles[k];
+    /* mode 2's columns' offsets, and a layer's columns copied from a map:
+     * made again where their maps changed */
+    bool offsets = laid_out_mode == 2 && within(block, (uint32_t)snes.bg[2].map_base << 1, map_bytes(&snes.bg[2]));
+    bool copied_from = copied.made && within(block, copied.map_byte, copied.map_bytes);
+    bool plane = plane_room && block < PLANE_BYTES;
+    const LineMap *shown_maps[sizeof snes.line_maps / sizeof snes.line_maps[0]];
+    unsigned line_maps = 0;
+    for (unsigned m = 0; role & LINE_MAP && m < snes.line_map_count; m++) {
+        const LineMap *lm = &snes.line_maps[m];
+        if (lm->gba_byte != NO_PLACE && layers[lm->layer].shown && within(block, lm->byte, lm->bytes))
+            shown_maps[line_maps++] = lm;
+    }
+    uint8_t own_maps = 0;   /* the layers whose own map it is, a bit each */
+    for (unsigned n = 0; role & MAP && n < 4; n++)
+        if (layers[n].shown && layers[n].own_map && within(block, layers[n].map_byte, layers[n].map_bytes))
+            own_maps |= (uint8_t)(1u << n);
+    const Layer *owner = role & MAP ? map_layer(block) : NULL;
+    uint8_t tiled = 0;      /* the caches whose tiles it holds, a bit each */
+    for (unsigned c = 0; role & TILES && c < CACHES; c++)
+        if (caches[c].used && within(block, caches[c].char_byte, CACHE_TILES * tile_bytes(caches[c].bpp)))
+            tiled |= (uint8_t)(1u << c);
+    int sprites = role & SPRITE_TILES ? sprite_slot(block) : -1;   /* its first sprite tile's place */
+    for (unsigned i = 0; units; i++, units >>= 1) {
+        if (!(units & 1))
+            continue;
+        uint32_t first = block + i * UNIT_BYTES;
+        offsets_written |= offsets;
+        if (plane)
+            convert_plane_unit(first);
+        if (copied_from)
+            copied.stale = offsets_written = true;
+        for (unsigned j = 0; j < line_maps; j++) {
+            const LineMap *lm = shown_maps[j];
             uint32_t offset = (first - lm->byte) & (VRAM_BYTES - 1);
             if (lm->cut != NO_CUT) {
                 convert_cut_row(lm, offset / 64);
@@ -2323,23 +2350,20 @@ static void convert_unit(unsigned u)
             if (lm->front_byte == NO_PLACE && layers[lm->layer].split && has_tiles_in_front(first, UNIT_BYTES))
                 snes.settings_changed = true;
         }
-    if (role & MAP) {
-        for (unsigned n = 0; n < 4; n++)
-            if (layers[n].shown && layers[n].own_map && within(first, layers[n].map_byte, layers[n].map_bytes))
-                note_priorities(n, first, layers[n].map_byte, false);
-        const Layer *l = map_layer(first);
-        uint32_t front = l->front_byte + ((first - l->map_byte) & (VRAM_BYTES - 1));
-        convert_map(first, l, first, l->split ? front : NO_PLACE);
-        if (l->overlaid)
-            convert_map(first, l, NO_PLACE, front);
-    }
-    if (role & TILES)
+        if (owner) {
+            for (unsigned n = 0; n < 4; n++)
+                if (own_maps >> n & 1)
+                    note_priorities(n, first, layers[n].map_byte, false);
+            uint32_t front = owner->front_byte + ((first - owner->map_byte) & (VRAM_BYTES - 1));
+            convert_map(first, owner, first, owner->split ? front : NO_PLACE);
+            if (owner->overlaid)
+                convert_map(first, owner, NO_PLACE, front);
+        }
         for (unsigned c = 0; c < CACHES; c++) {
             const Cache *cache = &caches[c];
-            uint32_t bytes = tile_bytes(cache->bpp);
-            if (!cache->used || !within(first, cache->char_byte, CACHE_TILES * bytes))
+            if (!(tiled >> c & 1))
                 continue;
-            for (uint32_t t = 0; t < UNIT_BYTES; t += bytes) {
+            for (uint32_t t = 0; t < UNIT_BYTES; t += tile_bytes(cache->bpp)) {
                 uint16_t tile = (uint16_t)(((first + t - cache->char_byte) & (VRAM_BYTES - 1)) >> tile_shift(cache->bpp));
                 uint16_t slot = cache->slot_of[tile & (CACHE_TILES - 1)];
                 if (slot != NO_SLOT) {
@@ -2350,10 +2374,8 @@ static void convert_unit(unsigned u)
                 }
             }
         }
-    if (role & SPRITE_TILES) {
-        int slot = sprite_slot(first);
-        if (slot >= 0)
-            convert_4bpp(OBJ_VRAM + (uint32_t)slot * 8, &snes.vram[first]);
+        if (sprites >= 0)
+            convert_4bpp(OBJ_VRAM + (uint32_t)(sprites + (int)i) * 8, &snes.vram[first]);
     }
 }
 
@@ -4844,10 +4866,11 @@ void gba_video_present(Platform *pf)
         snes.settings_changed = false;
     }
     for (unsigned w = 0; w < UNITS / 32; w++) {
-        uint32_t bits = snes.changed[w];
-        for (unsigned b = 0; bits; b++, bits >>= 1)
-            if (bits & 1)
-                convert_unit(w * 32 + b);
+        uint32_t units = snes.changed[w];
+        if (units & 0xFFFF)
+            convert_block(2 * w, units & 0xFFFF);
+        if (units >> 16)
+            convert_block(2 * w + 1, units >> 16);
         snes.changed[w] = 0;
     }
     if (laid_out)
