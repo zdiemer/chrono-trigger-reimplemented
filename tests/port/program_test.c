@@ -11,10 +11,12 @@
 #include "platform/native/host.h"
 #include "port/state_host.h"
 #include "port/time_rates.h"
+#include "rom.h"
 
 const TimeRate time_rates[] = { { 0xC00000, 1000 } };
 const unsigned time_rate_count = 1;
 uint8_t rom_read8(const GameState *g, uint32_t at) { (void)g; (void)at; abort(); }
+RomRun rom_run_from(uint32_t at) { return (RomRun){ at, 0, NULL }; }
 
 static int failures;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); failures++; } } while (0)

@@ -21,6 +21,10 @@ uint8_t rom_read8(const GameState *g, uint32_t at)
     return 0;
 }
 
+/* No resource holds a run of the cartridge here: a copy from it goes a byte
+ * at a time, through rom_read8. */
+RomRun rom_run_from(uint32_t at) { return (RomRun){ at, 0, NULL }; }
+
 static int failures;
 #define CHECK(test) do { if (!(test)) { printf("FAIL line %d: %s\n", __LINE__, #test); failures++; } } while (0)
 

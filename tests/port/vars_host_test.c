@@ -26,6 +26,9 @@ static const struct { uint32_t address; uint16_t length; } saved_runs[] = {
     { 0x7F0000, 512 }, { 0x00027E, 2 }, { 0x000290, 17 }, { 0x7E2C7C, 30 }
 };
 
+/* No resource holds a run: a copy from the cartridge goes through rom_read8. */
+RomRun rom_run_from(uint32_t at) { return (RomRun){ at, 0, NULL }; }
+
 uint8_t rom_read8(const GameState *g, uint32_t at)
 {
     (void)g;

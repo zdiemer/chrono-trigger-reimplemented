@@ -80,38 +80,50 @@ static Glyph glyph_numbered(uint16_t glyph)
 
 static Pen pen_at(uint8_t x) { return (Pen){ (uint8_t)(x / TILE_WIDTH), (uint8_t)(x % TILE_WIDTH) }; }
 
-/* A line of the glyph in one bitplane (`byte` of its 24, counted in a word
- * as the original counts it), its 12
- * pixels in the top of 16 bits. */
-static uint16_t glyph_pixels(const GameState *g, Glyph glyph, uint16_t byte)
+/* A line of the glyph in one bitplane, from its left byte and the byte its
+ * right four pixels share: its 12 pixels in the top of 16 bits. */
+static uint16_t line_pixels(Glyph glyph, uint8_t left, uint8_t shared)
 {
-    uint8_t left = menu_font_byte(g, glyph.left + byte);
-    uint8_t shared = menu_font_byte(g, glyph.right + byte);
     uint8_t right = glyph.odd ? (uint8_t)(shared << 4) : (uint8_t)(shared & 0xF0);
     return (uint16_t)(left << 8 | right);
+}
+
+/* The line (`byte` of its 24, counted in a word as the original counts it)
+ * read from the font. */
+static uint16_t glyph_pixels(const GameState *g, Glyph glyph, uint16_t byte)
+{
+    return line_pixels(glyph, menu_font_byte(g, glyph.left + byte), menu_font_byte(g, glyph.right + byte));
 }
 
 /* A line reaches a third tile when the pen is far enough into its own that
  * 12 pixels don't fit in two. */
 static bool reaches_a_third_tile(uint8_t pen_offset) { return pen_offset + GLYPH_WIDTH > 2 * TILE_WIDTH; }
 
-/* Where `column`'s tile has the line at `at` (a place in the pen's tile). */
-static uint32_t in_column(const GameState *g, Tiles t, uint32_t at, unsigned column)
+/* How far into the text's tiles each of the pen's tile and the two after it
+ * start, the pen's first (the third's only where a line reaches it). */
+typedef struct {
+    uint16_t of[3];
+} Columns;
+
+/* Read from the table of columns' offsets, as each line reads them. */
+static Columns columns_at(const GameState *g, Tiles t, Pen p)
 {
-    uint16_t offset = t.sixteen_colour ? menu_text_column_offset_16_colour(g, column) : menu_text_column_offset(g, column);
-    return (at + offset) & 0xFFFFFFu;
+    Columns c = { { 0, 0, 0 } };
+    for (unsigned k = reaches_a_third_tile(p.offset) ? 3 : 2; k-- > 0;)
+        c.of[k] = t.sixteen_colour ? menu_text_column_offset_16_colour(g, p.column + k) : menu_text_column_offset(g, p.column + k);
+    return c;
 }
 
 /* Put a line of pixels at the pen, `at` being the line's byte in the pen's
  * tile: shifted along by the pen's offset, the pixels fill the tiles from the
  * right, the pen's own last, where they join what is there already. */
-static void put_pixels(GameState *g, Tiles t, uint32_t at, Pen p, uint16_t pixels)
+static void put_pixels(GameState *g, Columns c, uint32_t at, Pen p, uint16_t pixels)
 {
     uint32_t across = (uint32_t)pixels << TILE_WIDTH >> p.offset;   /* the three tiles' bytes, the pen's first */
     if (reaches_a_third_tile(p.offset))
-        wram_write8(g, in_column(g, t, at, p.column + 2u), (uint8_t)across);
-    wram_write8(g, in_column(g, t, at, p.column + 1u), (uint8_t)(across >> 8));
-    uint32_t own = in_column(g, t, at, p.column);
+        wram_write8(g, (at + c.of[2]) & 0xFFFFFFu, (uint8_t)across);
+    wram_write8(g, (at + c.of[1]) & 0xFFFFFFu, (uint8_t)(across >> 8));
+    uint32_t own = (at + c.of[0]) & 0xFFFFFFu;
     uint8_t mine = (uint8_t)(across >> 16);
     wram_write8(g, own, p.offset == 0 ? mine : (uint8_t)(mine | wram_read8(g, own)));
 }
@@ -129,13 +141,37 @@ static uint32_t glyph_byte_place(Tiles t, uint32_t first, uint8_t byte)
 /* A line of the glyph read from the font and put at the pen. */
 static void draw_glyph_line(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t first, uint8_t byte)
 {
-    put_pixels(g, t, glyph_byte_place(t, first, byte), p, glyph_pixels(g, glyph, byte));
+    uint16_t pixels = glyph_pixels(g, glyph, byte);
+    put_pixels(g, columns_at(g, t, p), glyph_byte_place(t, first, byte), p, pixels);
+}
+
+/* The same from the glyph's bytes and the columns' offsets found in the
+ * cartridge once for the glyph, charged as the line's own reads of them: the
+ * original reads both again for each of a glyph's 24 lines, and read so, a
+ * screen of text's opening (the load screen's slots) was some tens of
+ * thousands of lookups, a dozen GBA frames. */
+static void draw_glyph_line_from(GameState *g, Tiles t, const uint8_t *left, const uint8_t *right, Glyph glyph,
+                                 Columns c, Pen p, uint32_t first, uint8_t byte)
+{
+    charge_rom_accesses(g, 2u + 2u * (reaches_a_third_tile(p.offset) ? 3u : 2u));
+    put_pixels(g, c, glyph_byte_place(t, first, byte), p, line_pixels(glyph, left[byte], right[byte]));
 }
 
 enum { GLYPH_LINE = 0xC25E89 };   /* the drawer's routine for a line of a glyph */
 
 static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t first)
 {
+    unsigned columns = reaches_a_third_tile(p.offset) ? 3 : 2;
+    const uint8_t *left = menu_font_bytes(glyph.left, GLYPH_BYTES), *right = menu_font_bytes(glyph.right, GLYPH_BYTES);
+    const uint8_t *offsets = menu_text_column_offsets(t.sixteen_colour, p.column, columns);
+    if (left && right && offsets) {
+        Columns c = { { 0, 0, 0 } };
+        for (unsigned k = 0; k < columns; k++)
+            c.of[k] = (uint16_t)(offsets[2 * k] | offsets[2 * k + 1] << 8);
+        for (uint8_t byte = 0; byte < GLYPH_BYTES; byte++)
+            TIMED_AS(g, GLYPH_LINE, draw_glyph_line_from(g, t, left, right, glyph, c, p, first, byte));
+        return;
+    }
     for (uint8_t byte = 0; byte < GLYPH_BYTES; byte++)
         TIMED_AS(g, GLYPH_LINE, draw_glyph_line(g, t, glyph, p, first, byte));
     /* Two-byte progress, one-byte count and three-byte destination. */
