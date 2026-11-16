@@ -2283,6 +2283,15 @@ from 1.80, 2.11, 2.91 and 3.40 to 1.61, 1.98, 2.75 and 3.13 (`field` 2.28 to
 build time would leave out the lookup, 1.1-1.4%, at the cost of rows in
 place of routines in some 90 tables and 100 named routines (#426).
 
+**The clock.** The build with no time model reads the GBA's cycle count
+(`cycles_now`, two chained timers) only for the driver's pacing and its
+report: a few times a frame and twice a mixing chunk. The 1.4% of
+`gato-battle`'s samples it took (3% of `title-start`'s) was the driver
+idling until a picture was due, calling it from the cartridge into fast RAM
+through a veneer on every turn of the wait. It is now read in place
+(`system/debug_log.h`, a few loads), so the samples are the wait's own, in
+`main`; the movies' GBA frames are the same to within 0.1%.
+
 ## Scene map fills
 
 `vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving

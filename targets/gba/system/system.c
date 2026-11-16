@@ -87,9 +87,9 @@ int _write(int fd, const char *bytes, int count)
 
 /* ---- Cycles ---------------------------------------------------------------------------------- */
 
-#define TIMER2_COUNT (*(volatile uint16_t *)0x04000108)
+#define TIMER2_COUNT CT_GBA_TIMER2_COUNT
 #define TIMER2_CONTROL (*(volatile uint16_t *)0x0400010A)
-#define TIMER3_COUNT (*(volatile uint16_t *)0x0400010C)
+#define TIMER3_COUNT CT_GBA_TIMER3_COUNT
 #define TIMER3_CONTROL (*(volatile uint16_t *)0x0400010E)
 enum { TIMER_ON = 0x80, TIMER_CHAINED = 0x04 };
 
@@ -101,15 +101,6 @@ void cycles_start(void)
     TIMER3_COUNT = 0;
     TIMER3_CONTROL = TIMER_ON | TIMER_CHAINED;
     TIMER2_CONTROL = TIMER_ON;
-}
-
-/* The high half again where the low one wrapped between the two reads. */
-uint32_t cycles_now(void)
-{
-    uint16_t high = TIMER3_COUNT, low = TIMER2_COUNT, again = TIMER3_COUNT;
-    if (again != high)
-        low = TIMER2_COUNT;
-    return (uint32_t)again << 16 | low;
 }
 
 /* ---- The rest of what the library asks for ------------------------------------------------- */
