@@ -173,10 +173,11 @@ static inline uint32_t sound_song_at(const GameState *g, uint8_t song)
 
 static inline uint16_t sound_song_length(const GameState *g, uint8_t song) { return rom_read16(g, sound_song_at(g, song)); }
 
-static inline uint8_t sound_song_byte(const GameState *g, uint8_t song, uint16_t i)
+/* The first `count` bytes of a song's sequence, from straight after its
+ * length. */
+static inline void sound_song_bytes(const GameState *g, uint8_t song, uint8_t *to, uint16_t count)
 {
-    uint32_t at = sound_song_at(g, song) + 2;
-    return rom_read8(g, (at & 0xFF0000u) + (at & 0xFFFFu) + i);
+    rom_read_span(g, sound_song_at(g, song) + 2, to, count);
 }
 
 static inline uint8_t sound_song_instrument_block(const GameState *g, uint8_t song, uint8_t i)
@@ -284,9 +285,10 @@ static inline uint16_t sound_effect_set_length(const GameState *g, uint8_t set)
     return asset_read16(g, sound_effect_set(set), 0);
 }
 
-static inline uint8_t sound_effect_set_byte(const GameState *g, uint8_t set, uint16_t i)
+/* The first `count` bytes of an effect set, from straight after its length. */
+static inline void sound_effect_set_bytes(const GameState *g, uint8_t set, uint8_t *to, uint16_t count)
 {
-    return asset_read8(g, sound_effect_set(set), 2u + i);
+    rom_read_span(g, asset_address(sound_effect_set(set)) + 2u, to, count);
 }
 
 #endif

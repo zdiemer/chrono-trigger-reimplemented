@@ -77,6 +77,27 @@ void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_
     }
 }
 
+/* `n` bytes from `at` (bytes from $7E:0000, below the cold top) filled where
+ * owners keep them: runs of eight-byte groups owners keep whole at once, the
+ * rest a byte at a time. */
+static void fill_owned(VarsHost *h, uint32_t at, uint8_t value, uint32_t n)
+{
+    uint8_t *to = h->page[0] + at;
+    for (uint32_t i = 0; i < n;) {
+        uint32_t whole = i;
+        while (!((at + whole) & 7u) && n - whole >= 8 && vars_flat_owners(at + whole) == 0xFF)
+            whole += 8;
+        if (whole > i) {
+            memset(to + i, value, whole - i);
+            i = whole;
+            continue;
+        }
+        if (vars_flat_owners(at + i) >> ((at + i) & 7u) & 1u)
+            to[i] = value;
+        i++;
+    }
+}
+
 /* A fill keeps to the owned bytes, as vars_host_write8 does: the rest hold
  * the 0 they started with. */
 void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len)
@@ -87,11 +108,15 @@ void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len
             return;
         uint32_t end = at < VARS_FLAT_COLD_FROM ? VARS_FLAT_COLD_FROM : (at | PAGE_MASK) + 1;
         uint32_t n = len < end - at ? len : end - at;
-        /* a byte at a time, as the cold top's memory takes it */
-        volatile uint8_t *to = vars_flat_byte(h, at);
-        for (uint32_t i = 0; i < n; i++)
-            if (vars_flat_owned(addr + i))
-                to[i] = value;
+        if (at < VARS_FLAT_COLD_FROM) {
+            fill_owned(h, at, value, n);
+        } else {
+            /* a byte at a time, as the cold top's memory takes it */
+            volatile uint8_t *to = vars_flat_byte(h, at);
+            for (uint32_t i = 0; i < n; i++)
+                if (vars_flat_owned(addr + i))
+                    to[i] = value;
+        }
         addr += n, len -= n;
     }
 }
