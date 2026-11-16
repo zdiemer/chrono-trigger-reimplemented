@@ -10,7 +10,9 @@
  * sizes, which layers show. And the GBA's picture made from them once a
  * frame (gba_video_present), in mode 0's four tiled layers and its sprites:
  *
- * - The palette is the same colours (both are BGR555). The 4bpp layers' eight
+ * - The palette is the same colours (both are BGR555), or each as the
+ *   cartridge's colours' table has it where it was packed with one
+ *   (gba_video_use_colours). The 4bpp layers' eight
  *   palettes are the GBA's background palettes 0-7; a 2bpp layer's eight
  *   palettes of four are 8-15, their first four colours each; the sprites'
  *   eight are the GBA's sprite palettes 0-7.
@@ -402,6 +404,19 @@ static uint8_t asked_line[ASKED_LINES] IN_FAST_RAM;   /* 1-224; 0: none */
 static uint8_t asked_shown[ASKED_LINES] IN_FAST_RAM;
 static bool asked_anew IN_FAST_RAM;                   /* a line the last frame's lines didn't keep */
 static bool offsets_written;                          /* mode 2's columns' offsets (Mode 2's columns, below) */
+
+/* The colours as the GBA shows them: each BGR555 colour's own in the
+ * cartridge's table, where the pack has one (pack.py --profile), or the
+ * colour itself. A colour is one read of the cartridge, cheaper than working
+ * a gamma and a saturation out, and only the palette's written colours and
+ * each line's backdrop pass through it. The GBA's fades and blending then
+ * work on what it shows, as the SNES's brightness and colour math work on
+ * what a television shows. */
+static const uint16_t *shown_colours;
+
+void gba_video_use_colours(const uint16_t *colours) { shown_colours = colours; }
+
+static uint16_t shown(uint16_t colour) { return shown_colours ? shown_colours[colour & 0x7FFF] : colour; }
 
 void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
 {
@@ -2250,15 +2265,15 @@ static void present_palettes(void)
     for (unsigned c = 0; c < CACHES; c++)
         copies |= caches[c].used && caches[c].bpp == 2;
     for (unsigned i = 1; i < 128; i++)   /* 0: the backdrop, each line's own (set_line) */
-        BG_PALETTE[i] = snes.cgram[i];
+        BG_PALETTE[i] = shown(snes.cgram[i]);
     if (plane_room && !copies)
         for (unsigned i = 128; i < 256; i++)
-            BG_PALETTE[i] = snes.cgram[i];
+            BG_PALETTE[i] = shown(snes.cgram[i]);
     for (unsigned p = 0; copies && p < 8; p++)
         for (unsigned c = 0; c < 4; c++)
-            BG_PALETTE[(8 + p) * 16 + c] = snes.cgram[p * 4 + c];
+            BG_PALETTE[(8 + p) * 16 + c] = shown(snes.cgram[p * 4 + c]);
     for (unsigned i = 0; i < 128; i++)
-        OBJ_PALETTE[i] = snes.cgram[128 + i];
+        OBJ_PALETTE[i] = shown(snes.cgram[128 + i]);
 }
 
 /* The SNES's sprite sizes, small and large, for each of its size settings. */
@@ -3204,6 +3219,12 @@ static uint16_t backdrop(const LineState *st)
  * (backdrop, above), so it isn't a target. */
 enum { BRIGHTENED_STRENGTH = 7, DARKENED_STRENGTH = 20, BLEND_STEPS = 16 };
 
+/* n / d for the small n (under 2^16 / d) and constant d the shading works
+ * out, by a multiply by d's reciprocal scaled by 2^16 rather than a
+ * call to the C library's divide: Thumb has no divide, nor a multiply that
+ * keeps a product's high word, so even a / by a constant is a call. */
+static inline unsigned small_quotient(unsigned n, unsigned d) { return n * ((1u << 16) / d + 1) >> 16; }
+
 static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits);
 
 static void fixed_shading(LineRegisters *r, const LineState *st)
@@ -3215,7 +3236,8 @@ static void fixed_shading(LineRegisters *r, const LineState *st)
     unsigned red = st->fixed_color & 31, green = st->fixed_color >> 5 & 31, blue = st->fixed_color >> 10 & 31;
     if (red != green || green != blue || red == 0)
         return;
-    unsigned steps = m->subtract ? red * BLEND_STEPS / DARKENED_STRENGTH : red * BLEND_STEPS / (31 - BRIGHTENED_STRENGTH);
+    unsigned steps = m->subtract ? small_quotient(red * BLEND_STEPS, DARKENED_STRENGTH)
+                                 : small_quotient(red * BLEND_STEPS, 31 - BRIGHTENED_STRENGTH);
     if (m->half)
         steps /= 2;
     r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
@@ -3282,9 +3304,9 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
 static void line_blending(LineRegisters *r, const LineState *st)
 {
     r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
-    r->bldy = (uint16_t)((15 - st->brightness) * 16 / 15);
+    r->bldy = (uint16_t)small_quotient((15u - st->brightness) * 16, 15);
     r->bldalpha = 0;
-    r->backdrop = backdrop(st);
+    r->backdrop = shown(backdrop(st));
     const VidColorMath *m = &st->math;
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {

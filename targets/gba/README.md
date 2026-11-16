@@ -54,6 +54,8 @@ platform services' backends. Nothing here is included from `game/`.
     chained timers.
   - `copies.s`: the C library's `memcpy` and `memset` in place of newlib's,
     ARM in fast RAM, eight words to a load and a store.
+  - `divide.s`: the C library's division (`/` and `%`, which the processor
+    has no instruction for) in place of libgcc's, ARM in fast RAM.
   - `interrupts.c`, `interrupts.h`, `nested.s`: the one interrupt vector,
     each source to its own handler (the picture's lines, the sound's timer),
     on a stack of its own; a handler can hand longer work on to run with the
@@ -88,7 +90,8 @@ platform services' backends. Nothing here is included from `game/`.
   - `pack.py`: the packing step, the seed of the builder (issue #421). It
     verifies the player's cartridge, cuts the catalogue's resources from it,
     and appends them to the program with a directory the driver indexes in
-    place. The program is code only; the packed `.gba` is never committed.
+    place, and with `--profile`, the colours' table. The program is code
+    only; the packed `.gba` is never committed.
     `--fast-rom` asks for the cartridge's faster waits, `--bios` puts in
     the logo a GBA checks (Building and running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
@@ -151,6 +154,14 @@ at 2 and 1; some cheap reproduction cartridges don't, and a ROM packed with
 it may crash or show garbage on them. It takes about 5% off the GBA's work a
 frame (docs/PLATFORM.md, "The GBA build, as built"); the game plays the
 same either way.
+
+`pack.py --profile port-style` brightens the colours for a GBA's screen,
+which shows them darker than a television: a gamma of 0.7 on each channel,
+then 15% more saturation. The default, `original`, leaves the SNES's colours
+as they are. The profile is a 64 KiB table in the cartridge that the driver
+reads as it fills the palette (`services/video.c`, `gba_video_use_colours`);
+`run.py --colours` packs with one.
+
 Its save is the cartridge's 32 KiB SRAM (mGBA's `ct.sav`). A `.srm` from
 ct_native or a SNES emulator becomes a `.sav` with the mark after it: its
 8 KiB, `CTSV`, then `FF` to 32 KiB (`run.py`'s `gba_save`); what the

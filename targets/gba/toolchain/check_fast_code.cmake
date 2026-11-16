@@ -21,7 +21,7 @@ set(gone "")
 set(inlined "")
 foreach(line IN LISTS lines)
   if(line MATCHES "^\\*[^:(]*:([^(]+)\\(\\.text")
-    # a library's member, as `*libgcc.a:_udivsi3.o(.text)`: one the link
+    # a library's member, as `*libc.a:libc_a-memcmp.o(.text)`: one the link
     # takes must be in fast RAM; one it doesn't take, this compiler didn't need
     string(REPLACE "." "\\." member "${CMAKE_MATCH_1}")
     if(map MATCHES "0x030[0-9a-f]+ +0x[0-9a-f]+ [^\n]*\\(${member}\\)")

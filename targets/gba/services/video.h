@@ -5,12 +5,16 @@
 #define CT_GBA_VIDEO_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "platform/platform.h"
 
 void gba_video_present(Platform *pf);
 /* Waits for the vertical blank, where the driver makes the picture. */
 void gba_video_await_blank(void);
+/* The colours as the GBA shows them: a table of the 32,768 BGR555 colours'
+ * own (the pack's, pack.py --profile), or NULL for the colours as they are. */
+void gba_video_use_colours(const uint16_t *colours);
 /* The bytes the SNES's video memory and settings take. */
 size_t gba_video_bytes(void);
 
