@@ -13,6 +13,12 @@
 
 #include <stdint.h>
 
+/* A movie's decisions of the game's frames, as ct_native's time model made
+ * them (ct_native --decisions, system/frames.h), go in the cartridge, far
+ * past the program and its pack: the mark "CTDC", their count, then one a
+ * bit, the first in the lowest. Only a runner puts them there. */
+enum { DRIVE_DECISIONS_AT = 0x09800000u, DRIVE_DECISIONS_MARK = 0x43445443u };
+
 enum {
     DRIVE_ARMED = 0x56495244u,   /* "DRIV": a runner drives */
     DRIVE_RING = 64,             /* frames of pads the runner can put ahead */

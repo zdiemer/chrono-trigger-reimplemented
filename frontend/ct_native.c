@@ -35,7 +35,8 @@
  * reaching the last frame says nothing of the picture). --shot-every writes
  * frames as PNGs, --locations the places the run enters, --lag-log each wait
  * the time model makes last (its frame, the frames and the work's clocks),
- * --end-state work RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
+ * --decisions what it decides of the game's frames, for a build that replays
+ * them, --end-state work RAM and save RAM at the end. Exit status 0 when it ran every frame, 1 where the
  * program stopped short, 2 on bad arguments or files. This file is the driver:
  * the loop, the files and the report belong here. */
 #include <errno.h>
@@ -116,6 +117,49 @@ static void lagged(void *ctx, uint32_t frame, uint32_t frames, uint32_t owed)
 {
     (void)ctx;
     fprintf(stderr, "lag: frame %u, %u frame(s) for %u clocks of work\n", (unsigned)frame, (unsigned)frames, (unsigned)owed);
+}
+
+/* --decisions: what the time model decides of the game's frames, as it
+ * decides it, a bit each, for a build that replays them rather than keeping
+ * the original's time (the GBA's, targets/gba/system/frames.h): the mark
+ * "CTDC", their count, then the bits, the first in the lowest. */
+typedef struct {
+    uint8_t *bits;
+    uint32_t count, room;
+    bool short_of_memory;
+} Decisions;
+static Decisions decisions;
+
+static void decided(void *ctx, TmHostDecision what, bool yes)
+{
+    (void)ctx, (void)what;
+    Decisions *d = &decisions;
+    if (d->count / 8 >= d->room) {
+        uint32_t room = d->room ? 2 * d->room : 4096;
+        uint8_t *bits = realloc(d->bits, room);
+        if (!bits) {
+            d->short_of_memory = true;
+            return;
+        }
+        memset(bits + d->room, 0, room - d->room);
+        d->bits = bits, d->room = room;
+    }
+    if (yes)
+        d->bits[d->count / 8] |= (uint8_t)(1u << (d->count % 8));
+    d->count++;
+}
+
+static int write_decisions(const char *path)
+{
+    const Decisions *d = &decisions;
+    FILE *f = fopen(path, "wb");
+    if (!f)
+        return -1;
+    uint8_t head[8] = { 'C', 'T', 'D', 'C', (uint8_t)d->count, (uint8_t)(d->count >> 8), (uint8_t)(d->count >> 16),
+                        (uint8_t)(d->count >> 24) };
+    bool ok = !d->short_of_memory && fwrite(head, 1, sizeof head, f) == sizeof head &&
+              fwrite(d->bits, 1, (d->count + 7) / 8, f) == (d->count + 7) / 8;
+    return fclose(f) == 0 && ok ? 0 : -1;
 }
 
 /* The picture each frame, drawn from the video service's state by the native
@@ -742,7 +786,7 @@ static void usage(FILE *out)
                  "                 [--headless | --window | --drive] [--scale N] [--fullscreen] [--fullscreen-mode borderless|exclusive]\n"
                  "                 [--scaling integer|fit] [--filter none|scanlines] [--pixels tv|square] [--mute]\n"
                  "                 [--view WIDTHx224|16:9|16:10|21:9|4:3|240x160] [--present WxH]\n"
-                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
+                 "                 [--check-snapshots EVERY[,SPAN]] [--screenshot FILE] [--wav FILE] [--shot-every N --shot-dir DIR] [--end-state out.bin] [--decisions FILE] [--locations] [--lag-log] [--timing-report] [--measure] [--outcomes] [--scene flags[,song]]...\n"
                  "The first launch imports your ROM; later launches use the remembered asset pack.\n"
                  "--frames selects headless unless --window is given; --headless defaults to 600 frames.\n"
                  "Window play writes cartridge saves; headless runs only read them. F5 saves a snapshot of the frame; F7 loads it.\n"
@@ -836,7 +880,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *pack_path = NULL, *movie_path = NULL, *shot_dir = NULL;
     const char *load_state = NULL, *save_state = NULL, *wav_path = NULL, *screenshot = NULL;
-    const char *end_state = NULL, *save_dir = NULL, *record_path = NULL;
+    const char *end_state = NULL, *save_dir = NULL, *record_path = NULL, *decisions_path = NULL;
     bool import_only = false, help = false;
 #ifdef CT_HAVE_SDL
     const char *keys_path = NULL, *binds[128];
@@ -899,6 +943,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--end-state") && v) end_state = v, i++;
         else if (!strcmp(a, "--locations")) locations = true;
         else if (!strcmp(a, "--lag-log")) lag_log = true;
+        else if (!strcmp(a, "--decisions") && v) decisions_path = v, i++;
         else if (!strcmp(a, "--timing-report")) timing_report = true;
         else if (!strcmp(a, "--measure")) measuring = true;
         else if (!strcmp(a, "--outcomes")) outcomes = true;
@@ -1084,7 +1129,7 @@ int main(int argc, char **argv)
         return 2;
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed,
-                                         lag_log ? lagged : NULL }, 1);
+                                         lag_log ? lagged : NULL, NULL, decisions_path ? decided : NULL }, 1);
     NativeDriver driver = {
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
         .movie = movie_path ? &movie : NULL, .pack = pack_bytes, .sram_path = sram_path,
@@ -1185,6 +1230,10 @@ int main(int argc, char **argv)
     }
     if (end_state && write_end_state(end_state, g) != 0) {
         fprintf(stderr, "ct_native: cannot write %s\n", end_state);
+        rc = 2;
+    }
+    if (decisions_path && write_decisions(decisions_path) != 0) {
+        fprintf(stderr, "ct_native: cannot write %s\n", decisions_path);
         rc = 2;
     }
     vid_render_destroy(picture.renderer);
