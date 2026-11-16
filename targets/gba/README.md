@@ -53,6 +53,8 @@ platform services' backends. Nothing here is included from `game/`.
     chained timers.
   - `copies.s`: the C library's `memcpy` and `memset` in place of newlib's,
     ARM in fast RAM, eight words to a load and a store.
+  - `divide.s`: the C library's division (`/` and `%`, which the processor
+    has no instruction for) in place of libgcc's, ARM in fast RAM.
   - `interrupts.c`, `interrupts.h`, `nested.s`: the one interrupt vector,
     each source to its own handler (the picture's lines, the sound's timer),
     on a stack of its own; a handler can hand longer work on to run with the

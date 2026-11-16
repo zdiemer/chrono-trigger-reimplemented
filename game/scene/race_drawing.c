@@ -16,6 +16,7 @@
 #include "scene/race.h"
 
 #include "charge.h"
+#include "core/decimal.h"
 #include "cpu_io.h"
 #include "platform/input.h"
 #include "port/vars_ram.h"
@@ -249,13 +250,8 @@ enum { NUMBER_LIST = (uint16_t)0x7E3A7D, DIGIT_TILES = 0x20, DIGIT_BYTES = 4, DI
 
 static void draw_number(GameState *g, uint16_t value)
 {
-    static const uint16_t places[DIGITS] = { 1, 10, 100, 1000, 10000 };
     uint8_t digits[DIGITS];
-    uint16_t left = value;
-    for (unsigned d = DIGITS; d-- > 0;) {
-        digits[d] = (uint8_t)(left / places[d]);
-        left = (uint16_t)(left % places[d]);
-    }
+    decimal_digits(value, digits, DIGITS);
     for (unsigned d = DIGITS; d-- > 0;)
         set_scene_number_digits(g, 1 + d * DIGIT_BYTES, (uint8_t)(DIGIT_TILES + digits[d]));
     unsigned shown = DIGITS;
