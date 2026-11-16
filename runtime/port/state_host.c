@@ -362,6 +362,19 @@ void hw_port_write(GameState *g, uint8_t v)
     g->port = (g->port + 1) & PORT_MASK;
 }
 
+void hw_port_read_span(GameState *g, uint8_t *bytes, uint16_t count)
+{
+    state_host_game_access(g, (uint32_t)count * IO_ACCESS_CLOCKS);
+    /* to $7F's end, then round to $7E's start (a count is under a bank) */
+    uint32_t room = PORT_MASK + 1u - g->port;
+    if (count > room) {
+        vars_host_read_span(&g->head.vars, 0x7E0000u + g->port, bytes, room);
+        bytes += room, count = (uint16_t)(count - room), g->port = 0;
+    }
+    vars_host_read_span(&g->head.vars, 0x7E0000u + g->port, bytes, count);
+    g->port = (g->port + count) & PORT_MASK;
+}
+
 void hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count)
 {
     state_host_game_access(g, (uint32_t)count * IO_ACCESS_CLOCKS);

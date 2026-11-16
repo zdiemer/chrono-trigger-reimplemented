@@ -282,6 +282,7 @@ static void load_race_graphics(GameState *g, Platform *pf)
             before_kind(g, pf, kind);
         }
         load_graphics(g, pf, &race_graphics[i]);
+        tm_let_frames_pass(pf);
     }
 }
 
@@ -473,7 +474,9 @@ bool scene_race_set_up(GameState *g, Platform *pf)
     }
     load_race_graphics(g, pf);
     load_racers_pictures(g);
+    tm_let_frames_pass(pf);
     clear_race_buffers(g, pf);
+    tm_let_frames_pass(pf);
     set_scene_scaler_output_end(g, SCALER_OUTPUT_AS_FULL);
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
     set_scene_line_effects(g, RACE_LINE_EFFECTS);
@@ -484,6 +487,7 @@ bool scene_race_set_up(GameState *g, Platform *pf)
     set_scene_perspective_start(g, PERSPECTIVE_FROM_THE_HORIZON);
     set_scene_main_loop_call(g, MAIN_LOOP_SCALES_PICTURES);
     TIMED_AS(g, 0xC309E9, scene_write_matrix_code_for(g, MATRIX_DESTINATION, MATRIX_SOURCE));
+    tm_let_frames_pass(pf);
     setup_race_maps(g, pf);
     return true;
 }

@@ -57,6 +57,9 @@ void hw_port_seek_address(GameState *g, uint16_t at);
 void hw_port_seek_bank(GameState *g, uint8_t bank);
 uint8_t hw_port_read(GameState *g);
 void hw_port_write(GameState *g, uint8_t v);
+/* `count` bytes read through the port one after another, as that many
+ * hw_port_read's: the cursor and the time where they leave them. */
+void hw_port_read_span(GameState *g, uint8_t *bytes, uint16_t count);
 /* `count` bytes written through the port one after another, as that many
  * hw_port_write's: the cursor and the time where they leave them. */
 void hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count);
