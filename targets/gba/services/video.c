@@ -1805,6 +1805,13 @@ static void make_room_for_the_plane(void)
             plane_table = (volatile uint8_t *)BG_VRAM + table * 32;
         }
     }
+    /* the table the frame shown reads its plane's lines from stays taken
+     * while it is shown: a cache's new tiles there would be read as lines */
+    if (!plane_table && shown_plane_table) {
+        uint32_t at = (uint32_t)((const volatile uint8_t *)shown_plane_table - (const volatile uint8_t *)BG_VRAM) / 32u;
+        if (room_at(at, PLANE_TABLE_PLACES))
+            take_room(at, PLANE_TABLE_PLACES);
+    }
     if (plane_room != was)
         snes.palette_written = true;
 }
@@ -5146,10 +5153,22 @@ static bool shows_nothing(const VidHost *v)
     return true;
 }
 
+/* Whether any of the places from `first`, `count` of them, has something in
+ * the picture shown (`shown`, a bit each). */
+static bool places_shown(const uint8_t shown[PLACES / 8], uint32_t first, uint32_t count)
+{
+    for (uint32_t p = first; p < first + count && p < PLACES; p++)
+        if (shown[p / 8] >> (p % 8) & 1)
+            return true;
+    return false;
+}
+
 /* Whether a layout's caches that start afresh or lost a place (`kept`, those
- * that didn't, a bit each) have free places, which their tiles will take,
- * where the picture shown has something (`shown`, the places the last
- * layout took, a bit each). */
+ * that didn't, a bit each) write where the picture shown has something
+ * (`shown`, the places the last layout took, a bit each): their free places,
+ * which their tiles will take; their blank, cleared as the layout gives it;
+ * and the maps that name their tiles, each converted again with the tiles'
+ * new places while the picture shown may still read it. */
 static bool lays_over_the_picture(const uint8_t shown[PLACES / 8], uint8_t kept)
 {
     for (unsigned c = 0; c < CACHES; c++) {
@@ -5159,6 +5178,17 @@ static bool lays_over_the_picture(const uint8_t shown[PLACES / 8], uint8_t kept)
         for (uint32_t k = first / 8; k < end / 8; k++)
             if (shown[k] & (uint8_t)~taken[k])
                 return true;
+        if (places_shown(shown, first + caches[c].blank, 1))
+            return true;
+    }
+    MapPlace now[MAP_PLACES];
+    unsigned count = places_of_the_maps(now);
+    for (unsigned i = 0; i < count; i++) {
+        if (kept >> layers[now[i].layer].cache & 1)
+            continue;
+        if (places_shown(shown, now[i].gba_byte / 32u, now[i].bytes / 32u) ||
+            (now[i].front_byte != NO_PLACE && places_shown(shown, now[i].front_byte / 32u, now[i].bytes / 32u)))
+            return true;
     }
     return false;
 }
