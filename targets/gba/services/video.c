@@ -117,6 +117,7 @@ typedef struct {
     uint8_t layer;
     uint8_t cut;          /* the first column cut, and (<< 5) how many; NO_CUT: the map whole */
     bool shared;          /* kept where another layer's own map is */
+    bool front_refused;   /* its tiles in front found no room for their copy at the layout */
     uint16_t byte, bytes;
     uint16_t gba_byte;    /* NO_PLACE: no room for it */
     uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
@@ -2105,7 +2106,7 @@ static uint8_t lay_out(bool pruned, bool refill)
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
         lm->gba_byte = lm->front_byte = NO_PLACE;
-        lm->shared = false;
+        lm->shared = lm->front_refused = false;
         if (!layers[lm->layer].shown)
             continue;
         for (unsigned k = 0; k < BLOCKS; k++)
@@ -2150,8 +2151,12 @@ static uint8_t lay_out(bool pruned, bool refill)
             lm->front_byte = owner->front_byte;
         else if (!layers[lm->layer].own_map)
             low |= (uint16_t)(1u << m);   /* placed once the caches have kept their places */
-        else if (has_tiles_in_front(lm->byte, lm->bytes) && (lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
-            front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+        else if (has_tiles_in_front(lm->byte, lm->bytes)) {
+            if ((lm->front_byte = place_copy(lm->bytes)) != NO_PLACE)
+                front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+            else
+                lm->front_refused = true;
+        }
     }
     /* The places the last layout's tiles had, before the caches keep theirs:
      * they stay in their windows until then. */
@@ -2190,9 +2195,12 @@ static uint8_t lay_out(bool pruned, bool refill)
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
-        if (low >> m & 1 && has_tiles_in_front(lm->byte, lm->bytes) &&
-            (lm->front_byte = place_copy_low(lm->bytes, held)) != NO_PLACE)
+        if (!(low >> m & 1) || !has_tiles_in_front(lm->byte, lm->bytes))
+            continue;
+        if ((lm->front_byte = place_copy_low(lm->bytes, held)) != NO_PLACE)
             front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->front_byte / SCREEN_BYTES);
+        else
+            lm->front_refused = true;
     }
     for (unsigned c = 0; c < CACHES; c++) {
         Cache *cache = &caches[c];
@@ -2503,8 +2511,10 @@ static void convert_block(unsigned k, uint32_t units)
                           lm->shared ? NO_PLACE : lm->gba_byte + offset,
                           lm->front_byte != NO_PLACE && !front_shared ? lm->front_byte + offset : NO_PLACE);
         /* tiles in front where its split layer had none: the next layout
-         * gives them their copy */
-        for (unsigned i = 0; lm->front_byte == NO_PLACE && layers[lm->layer].split && i < 16; i++)
+         * gives them their copy, where this one had room for it (laid out
+         * again each frame where it hadn't, the battle in Gato's movie went
+         * black a dozen GBA frames a frame) */
+        for (unsigned i = 0; lm->front_byte == NO_PLACE && !lm->front_refused && layers[lm->layer].split && i < 16; i++)
             if (units >> i & 1 && has_tiles_in_front(block + i * UNIT_BYTES, UNIT_BYTES))
                 snes.settings_changed = true;
     }
