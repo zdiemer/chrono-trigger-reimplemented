@@ -450,6 +450,18 @@ static inline uint16_t menu_text_column_offset_16_colour(const GameState *g, uns
     return asset_read16(g, ASSET_MENU_CHARACTER_NAME_PLACE, 0x8Eu + 2u * column);
 }
 
+/* The same font and offsets in place, `bytes` of them from the font's `at`
+ * or from `column`'s offset on, taking none of their reads' time (the
+ * reader charges them, charge.h); NULL where one resource doesn't hold them
+ * all, and the reader reads them one at a time as above. */
+static inline const uint8_t *menu_font_bytes(uint32_t at, uint32_t bytes) { return rom_bytes_on(at & 0xFFFFFFu, bytes); }
+
+static inline const uint8_t *menu_text_column_offsets(bool sixteen_colour, unsigned column, unsigned columns)
+{
+    uint32_t first = (sixteen_colour ? 0x8Eu : 0xEu) + 2u * column;
+    return rom_bytes_on(asset_address(ASSET_MENU_CHARACTER_NAME_PLACE) + first, 2u * columns);
+}
+
 /* How far the pen moves after each of the font's glyphs ($C2:60E6), by the
  * glyph's number less $A0 (a byte: the two-byte glyphs take their low byte's
  * entry, and the table runs on into what follows it). */
