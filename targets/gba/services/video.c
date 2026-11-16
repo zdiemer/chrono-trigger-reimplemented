@@ -2256,31 +2256,38 @@ static const Layer *map_layer(uint32_t byte)
 
 /* A unit of a map, converted for a layer into the GBA's VRAM at `to`; where
  * `front_to` is a place, its tiles in front go there instead, each left
- * blank in the other; where `to` is NO_PLACE, those alone (the tiles
- * behind given no place). A scene's first picture converts thousands of
+ * blank in the other. A scene's first picture converts thousands of
  * entries, most of whose tiles have their places by then: this runs from
  * fast RAM, an entry's place looked up where it is kept. */
-ARM_CODE static void convert_map(uint32_t first, const Layer *l, uint32_t to, uint32_t front_to)
+ARM_CODE __attribute__((noinline, noclone)) static void convert_map(uint32_t first, const Layer *l, uint32_t to, uint32_t front_to)
 {
     Cache *c = &caches[l->cache];
     const Halfword *entries = (const Halfword *)&snes.vram[first];
     uint32_t high = high_palettes(l), blank = c->blank;
     volatile uint16_t *back = (volatile uint16_t *)BG_VRAM + to / 2, *front = (volatile uint16_t *)BG_VRAM + front_to / 2;
     for (unsigned i = 0; i < UNIT_BYTES / 2; i++) {
-        uint32_t e = entries[i];
-        bool in_front = (e & PRIORITY_BIT) != 0;
-        if (to == NO_PLACE) {
-            front[i] = (uint16_t)(in_front ? entry_in(c, e, high) : blank);
-            continue;
-        }
-        uint32_t entry = entry_in(c, e, high);
+        uint32_t e = entries[i], entry = entry_in(c, e, high);
         if (front_to == NO_PLACE) {
             back[i] = (uint16_t)entry;
         } else {
+            bool in_front = (e & PRIORITY_BIT) != 0;
             back[i] = (uint16_t)(in_front ? blank : entry);
             front[i] = (uint16_t)(in_front ? entry : blank);
         }
     }
+}
+
+/* A unit of a map's tiles in front alone, converted for a layer into the
+ * GBA's VRAM at `front_to`, the others blank and given no place: a shared
+ * map's own copy of them, and a layer's shown again (overlaid). Few, from
+ * the cartridge. */
+__attribute__((noinline)) static void convert_front(uint32_t first, const Layer *l, uint32_t front_to)
+{
+    Cache *c = &caches[l->cache];
+    const Halfword *entries = (const Halfword *)&snes.vram[first];
+    volatile uint16_t *front = (volatile uint16_t *)BG_VRAM + front_to / 2;
+    for (unsigned i = 0; i < UNIT_BYTES / 2; i++)
+        front[i] = (uint16_t)(entries[i] & PRIORITY_BIT ? entry_in(c, entries[i], high_palettes(l)) : c->blank);
 }
 
 
@@ -2330,18 +2337,21 @@ static int sprite_slot(uint32_t byte)
 /* A map's units in a block (`units`, a bit each, from `first`), each with
  * its priorities noted for layer `n` (note_priorities'; none where n is
  * past the fourth) and, where `l` is a layer, converted for it into `to`
- * and `front_to` as convert_map does, each place, or NO_PLACE, stepping
- * with the units. From fast RAM, the block's units one after another: a
+ * and `front_to` as convert_map does (or its tiles in front alone, where
+ * `to` is NO_PLACE: convert_front), each place stepping with the units. From fast RAM, the block's units one after another: a
  * call there and back for each unit of a scene's maps cost more than the
  * call's work. */
-ARM_CODE __attribute__((noinline, noclone)) static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte,
+ARM_CODE __attribute__((noinline, noclone, optimize("no-unswitch-loops"))) static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte,
                                                                  bool added, const Layer *l, uint32_t to, uint32_t front_to)
 {
+#pragma GCC unroll 1
     for (; units; units >>= 1, first += UNIT_BYTES) {
         if (units & 1) {
             if (n < 4)
                 note_priorities(n, first, map_byte, added);
-            if (l)
+            if (l && to == NO_PLACE)
+                convert_front(first, l, front_to);
+            else if (l)
                 convert_map(first, l, to, front_to);
         }
         if (to != NO_PLACE)
