@@ -10,8 +10,8 @@
  * the game's part of a frame runs past a GBA frame, what it ran over is owed
  * and the frames after sit it out a whole frame at a time; the main thread
  * stops in the middle of its work where it has run a whole GBA frame; and a
- * budget has time left while the GBA's line counter, as the SNES's lines,
- * is inside its window. */
+ * budget has time left while the game's time so far in the frame, as the
+ * SNES's lines from its vertical blank, is inside its window. */
 #ifndef CT_GBA_FRAMES_H
 #define CT_GBA_FRAMES_H
 
@@ -24,6 +24,8 @@
  * the GBA's own time otherwise. `cycles_now`'s count starts here. */
 void frames_start(bool driven);
 bool frames_replayed(void);
+/* The game's part of a frame begins (main.c, before tm_host_frame). */
+void frames_game_begins(void);
 /* The game's part of a frame took `cycles` (main.c, after tm_host_frame). */
 void frames_game_took(uint32_t cycles);
 /* TmHostProgram.decide. */
