@@ -88,7 +88,7 @@ Measure *measure_create(const AssetSource *inner, AssetSource *out)
     }
     m->inner = inner;
     m->seen = seen;
-    m->source = (AssetSource){ counted_resource, m };
+    m->source = (AssetSource){ counted_resource, m, NULL };
     *out = m->source;
     return m;
 }

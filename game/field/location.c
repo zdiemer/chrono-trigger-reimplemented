@@ -39,6 +39,7 @@
 #include "data/packed_graphics.h"
 #include "event/event_data.h"
 #include "event/party.h"
+#include "event/records.h"
 #include "event/variables.h"
 #include "field/bridge.h"
 #include "field/display.h"
@@ -424,7 +425,9 @@ static uint16_t the_locations_script(const GameState *g) { return location_scrip
 bool field_load_the_script(GameState *g)
 {
     uint16_t script = the_locations_script(g);
-    unpack(g, field_packed_script(g, script), SCRIPT_BUFFER);
+    uint32_t packed = field_packed_script(g, script);
+    unpack(g, packed, SCRIPT_BUFFER);
+    event_records_use(g, packed);
     // $C0:5CC7
     if (!PORT_CHECK(script_validity(g) == SCRIPT_VALID)) {
         program_breaks_a_contract(g, 0xC05CC7, "a text or oversized field script");
