@@ -1485,6 +1485,19 @@ mode 0's four tiled layers and its sprites:
   8.97, 10.16 and 7.84, every end state ct_native's. Fast RAM keeps 616
   bytes free, work RAM 352 above its floor (the maps' places kept from the
   last layout take 160 bytes).
+- **The picture kept up through a layout where it can be.** A layout hides
+  the picture only where a cache starting afresh has free places the
+  picture shown has something in; one that gives the plane's room back, as
+  one made only for tiles that missed, keeps the caches where their tiles
+  still fit. The line DMA (the plane's lines, the blending's strength) is
+  armed again at every vertical blank from the table of the frame shown,
+  even with one change of registers: a game frame that runs on for GBA
+  frames left it reading past its table, and a layout that gave the plane's
+  room back took the table from under it. As the title's logo began to draw
+  in (game frame 870) the screen went black twice and then the pendulum,
+  a part of the plane, fell apart for a few GBA frames; now the picture stays
+  up. The five movies took 1,925, 8,078, 26,486, 14,933 and 8,584 GBA frames,
+  their end states ct_native's.
 - **The backdrop**, the first colour, is each line's own, set with its
   registers.
 - **Sprites**: the SNES's two tables of tiles one under the other in the

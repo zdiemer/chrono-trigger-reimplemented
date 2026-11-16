@@ -5095,11 +5095,10 @@ static bool shows_nothing(const VidHost *v)
     return true;
 }
 
-/* Whether a layout puts tiles or maps where the picture shown has
- * something (`shown`, the places the last layout took, a bit each): the
- * free places of the windows of the caches that start afresh or lost a
- * place (`kept`, those that didn't, a bit each), which their tiles will
- * take, and those of the maps put somewhere new. */
+/* Whether a layout's caches that start afresh or lost a place (`kept`, those
+ * that didn't, a bit each) have free places, which their tiles will take,
+ * where the picture shown has something (`shown`, the places the last
+ * layout took, a bit each). */
 static bool lays_over_the_picture(const uint8_t shown[PLACES / 8], uint8_t kept)
 {
     for (unsigned c = 0; c < CACHES; c++) {
@@ -5110,26 +5109,15 @@ static bool lays_over_the_picture(const uint8_t shown[PLACES / 8], uint8_t kept)
             if (shown[k] & (uint8_t)~taken[k])
                 return true;
     }
-    MapPlace now[MAP_PLACES];
-    unsigned count = places_of_the_maps(now);
-    for (unsigned i = 0; i < count; i++) {
-        bool where_it_was = false;
-        for (unsigned j = 0; j < map_place_count; j++)
-            where_it_was |= memcmp(&now[i], &map_places[j], sizeof now[i]) == 0;
-        for (unsigned copy = 0; !where_it_was && copy < 2; copy++) {
-            uint32_t at = copy ? now[i].front_byte : now[i].gba_byte;
-            for (uint32_t place = at / 32; at != NO_PLACE && place < (at + now[i].bytes) / 32; place++)
-                if (shown[place / 8] >> (place % 8) & 1)
-                    return true;
-        }
-    }
     return false;
 }
 
 /* The picture laid out afresh (`keep_windows`: only for tiles that found
- * no place, or to give the plane's room back); where its tiles or maps go
- * where the picture shown has something, the picture is hidden until this
- * frame's is shown. */
+ * no place, or to give the plane's room back); where a cache starting
+ * afresh puts its tiles where the picture shown has something, the picture
+ * is hidden until this frame's is shown. One whose window the picture
+ * shown leaves free keeps it up: the title's logo, put where the clock's
+ * plane wasn't, went black twice as it began to draw in. */
 static void lay_out_again(bool keep_windows)
 {
     bool missed = misses != 0;
