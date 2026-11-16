@@ -21,7 +21,10 @@ plays and FILE gets each function's share of the samples, the largest first.
 With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
 every sample the program queued, without the gaps where its frames were
 late. With `--fast-rom`, the ROM is packed with the cartridge's faster waits
-(pack.py). Nothing is played aloud.
+(pack.py). With `--bios FILE`, the player's own dump of the GBA's BIOS, the
+ROM gets the logo the BIOS checks (pack.py) and the runner starts the GBA in
+that BIOS, which checks it, rather than in mGBA's own, which starts the program
+at once. Nothing is played aloud.
 """
 import argparse
 import bisect
@@ -130,12 +133,14 @@ def main(argv=None):
     ap.add_argument("--profile", type=pathlib.Path, metavar="FILE",
                     help="sample where the processor is as the movie plays; FILE gets each function's share")
     ap.add_argument("--fast-rom", action="store_true", help="pack the ROM with the cartridge's faster waits (pack.py)")
+    ap.add_argument("--bios", type=pathlib.Path, metavar="FILE",
+                    help="your own dump of the GBA's BIOS: the ROM gets its logo and the GBA starts in it")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
     image = out_dir / "ct.gba"
     if pack.main(["--program", str(args.program), "--rom", str(args.rom), "--out", str(image)]
-                 + (["--fast-rom"] if args.fast_rom else [])):
+                 + (["--fast-rom"] if args.fast_rom else []) + (["--bios", str(args.bios)] if args.bios else [])):
         return 2
     movie_text = args.movie.read_text(encoding="utf-8")
     frames = re.search(r"^# frames (\d+)", movie_text, re.M).group(1)

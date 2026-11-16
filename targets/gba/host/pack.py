@@ -13,7 +13,11 @@ resource's place and length, in the catalogue's order; then the resources,
 and the sound's samples converted to 8-bit PCM (samples.py). With --fast-rom, the
 options word after the header (targets/gba/toolchain/start.s) asks for the
 cartridge's waits at 2 and 1 rather than 3 and 1, which flash carts and the
-Analogue Pocket take and some cheap reproduction cartridges don't. The game's save is the GBA's SRAM,
+Analogue Pocket take and some cheap reproduction cartridges don't. With --bios,
+the player's own dump of the GBA's BIOS, the header gets the logo the BIOS
+checks before it starts a cartridge, copied from the BIOS's reference copy;
+without it the logo is left blank, which emulators and flash carts that patch
+the header boot and a GBA's own BIOS doesn't. The game's save is the GBA's SRAM,
 which mGBA keeps in the .sav beside the .gba (targets/gba/services/cartridge_save.h).
 """
 import argparse
@@ -36,6 +40,10 @@ ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 OPTIONS_AT = 0xC0    # start.s's options word, after the header
 FAST_ROM = 1         # its bit for the cartridge's waits at 2 and 1
+BIOS_BYTES, BIOS_CRC32 = 0x4000, 0x81977335   # the GBA's BIOS, as every GBA and GBA SP has it
+LOGO_AT, LOGO_BYTES = 0x04, 156                # where the header holds the logo
+BIOS_LOGO_AT = 0x3290  # where that BIOS keeps the copy it compares the header's with
+LOGO_CRC32 = 0xD0BEB55E                        # the copy's CRC-32, as mGBA checks it too
 
 
 def catalogue_version():
@@ -63,7 +71,18 @@ def header_check(image):
     return (-(sum(image[0xA0:0xBD]) + 0x19)) & 0xFF
 
 
-def pack(program, cartridge, fast_rom=False):
+def bios_logo(bios):
+    """The logo a cartridge's header must hold for the BIOS to start it: the
+    BIOS's reference copy, held in the same compressed form as the header holds
+    it (the BIOS compares the two byte for byte before it unpacks the header's to
+    show it), so it is copied as it is. None where `bios` isn't the GBA's BIOS."""
+    if len(bios) != BIOS_BYTES or zlib.crc32(bios) != BIOS_CRC32:
+        return None
+    logo = bios[BIOS_LOGO_AT:BIOS_LOGO_AT + LOGO_BYTES]
+    return logo if zlib.crc32(logo) == LOGO_CRC32 else None
+
+
+def pack(program, cartridge, fast_rom=False, logo=None):
     parts = resources(cartridge)
     out = bytearray(program)
     out += bytes(-len(out) % ALIGN)
@@ -82,6 +101,8 @@ def pack(program, cartridge, fast_rom=False):
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body
+    if logo is not None:
+        out[LOGO_AT:LOGO_AT + LOGO_BYTES] = logo
     out[0xA0:0xAC] = TITLE.ljust(12, b"\0")
     out[0xAC:0xB0] = CODE
     out[0xBD] = header_check(out)
@@ -100,12 +121,23 @@ def main(argv=None):
     ap.add_argument("--out", type=pathlib.Path, required=True)
     ap.add_argument("--fast-rom", action="store_true",
                     help="the cartridge's waits at 2 and 1, not 3 and 1: flash carts and the Analogue Pocket, not every cartridge")
+    ap.add_argument("--bios", type=pathlib.Path,
+                    help="your own dump of the GBA's BIOS (16 KiB, CRC-32 81977335), for the logo a GBA checks")
     args = ap.parse_args(argv)
+    logo = None
+    if args.bios:
+        logo = bios_logo(args.bios.read_bytes())
+        if logo is None:
+            print("pack: %s is not the GBA's BIOS (16 KiB, CRC-32 %08X)" % (args.bios, BIOS_CRC32), file=sys.stderr)
+            return 1
+    else:
+        print("pack: no --bios, so the header's logo is blank: emulators and flash carts that patch the header "
+              "boot it, a GBA's own BIOS doesn't", file=sys.stderr)
     cartridge = rom.load(args.rom)
     if zlib.crc32(cartridge) != rom.EXPECTED_CRC32:
         print("pack: %s is not the No-Intro Chrono Trigger (USA) image" % args.rom, file=sys.stderr)
         return 1
-    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom)
+    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom, logo)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(image)
     print("pack: %s, %d bytes: the program %d, the pack from %d" % (args.out, len(image), base, base))
