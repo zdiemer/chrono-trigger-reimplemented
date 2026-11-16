@@ -1061,6 +1061,7 @@ typedef struct {
     uint16_t char_byte;
     uint8_t block;                 /* the GBA char block its window starts at */
     uint16_t next, blank;          /* the next place to look at, a blank tile's place */
+    uint16_t placed;               /* the tiles with places */
     uint16_t slot_of[CACHE_TILES]; /* each SNES tile's place in the window, or NO_SLOT */
 } Cache;
 
@@ -1178,6 +1179,7 @@ __attribute__((noinline)) static uint16_t slot_for(Cache *c, uint16_t tile)
             misses++;
             return c->blank;
         }
+        c->placed++;
         convert_tile(c, tile, *slot);
     }
     return *slot;
@@ -1866,7 +1868,7 @@ static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
 {
     uint32_t first = c->block * 512u;
     bool lost = false;
-    c->next = 0;
+    c->next = c->placed = 0;
     for (unsigned t = 0; t < CACHE_TILES; t++) {
         uint16_t slot = c->slot_of[t];
         if (slot == NO_SLOT)
@@ -1877,6 +1879,7 @@ static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
             c->slot_of[t] = NO_SLOT;
         } else {
             take(first + slot);
+            c->placed++;
         }
     }
     if (first + c->blank < PLACES && !is_taken(first + c->blank)) {
@@ -2145,7 +2148,7 @@ static uint8_t lay_out(bool pruned)
         Cache *cache = &caches[c];
         if (!cache->used || had >> c & 1)
             continue;
-        cache->next = 0;
+        cache->next = cache->placed = 0;
         cache->block = roomiest_window();
         memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
         cache->blank = take_slot(cache);
@@ -2182,9 +2185,8 @@ static void layout_changed(void)
     for (unsigned k = 0; k < BLOCKS; k++) {
         uint32_t byte = (uint32_t)k * BLOCK_BYTES;
         bool convert = (roles[k] & roles_converted) || (plane_room && byte < PLANE_BYTES);
-        if (convert)
-            for (uint32_t u = byte / UNIT_BYTES; u < (byte + BLOCK_BYTES) / UNIT_BYTES; u++)
-                snes.changed[u / 32] |= 1u << (u % 32);
+        if (convert)   /* a block's 16 units, half a word of the bits */
+            snes.changed[k / 2] |= 0xFFFFu << (k % 2 * 16);
     }
 }
 
@@ -2318,10 +2320,16 @@ static void convert_block(unsigned k, uint32_t units)
         if (layers[n].shown && layers[n].own_map && within(block, layers[n].map_byte, layers[n].map_bytes))
             own_maps |= (uint8_t)(1u << n);
     const Layer *owner = role & MAP ? map_layer(block) : NULL;
-    uint8_t tiled = 0;      /* the caches whose tiles it holds, a bit each */
+    /* the caches whose tiles it holds, a bit each, but those none of whose
+     * tiles have places yet (a cache started afresh, at a scene's first
+     * picture): a tile given its place in this picture was converted then */
+    uint8_t tiled = 0;
+    uint16_t first_tile[CACHES] = { 0 };   /* and each one's first tile there */
     for (unsigned c = 0; role & TILES && c < CACHES; c++)
-        if (caches[c].used && within(block, caches[c].char_byte, CACHE_TILES * tile_bytes(caches[c].bpp)))
+        if (caches[c].used && caches[c].placed && within(block, caches[c].char_byte, CACHE_TILES * tile_bytes(caches[c].bpp))) {
             tiled |= (uint8_t)(1u << c);
+            first_tile[c] = (uint16_t)(((block - caches[c].char_byte) & (VRAM_BYTES - 1)) >> tile_shift(caches[c].bpp));
+        }
     int sprites = role & SPRITE_TILES ? sprite_slot(block) : -1;   /* its first sprite tile's place */
     for (unsigned i = 0; units; i++, units >>= 1) {
         if (!(units & 1))
@@ -2359,12 +2367,13 @@ static void convert_block(unsigned k, uint32_t units)
             if (owner->overlaid)
                 convert_map(first, owner, NO_PLACE, front);
         }
-        for (unsigned c = 0; c < CACHES; c++) {
+        for (unsigned c = 0; tiled >> c; c++) {
             const Cache *cache = &caches[c];
             if (!(tiled >> c & 1))
                 continue;
-            for (uint32_t t = 0; t < UNIT_BYTES; t += tile_bytes(cache->bpp)) {
-                uint16_t tile = (uint16_t)(((first + t - cache->char_byte) & (VRAM_BYTES - 1)) >> tile_shift(cache->bpp));
+            unsigned per_unit = UNIT_BYTES >> tile_shift(cache->bpp);
+            for (unsigned t = 0; t < per_unit; t++) {
+                uint16_t tile = (uint16_t)(first_tile[c] + i * per_unit + t);
                 uint16_t slot = cache->slot_of[tile & (CACHE_TILES - 1)];
                 if (slot != NO_SLOT) {
                     convert_tile(cache, tile, slot);
