@@ -134,7 +134,7 @@ static const uint8_t *no_resource(void *ctx, AssetId id, uint32_t *length)
 static const uint8_t *records_form(void *ctx, uint8_t form, AssetId id, uint32_t *length)
 {
     (void)ctx;
-    if (form != ASSET_FORM_EVENT_RECORDS || id != script_resource)
+    if (form != ASSET_FORM_SCRIPT_RECORDS || id != script_resource)
         return NULL;
     *length = sizeof block;
     return (const uint8_t *)block;

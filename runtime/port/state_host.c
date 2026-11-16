@@ -14,6 +14,7 @@
 #include "field/margin_objects.h"
 #include "field/streaming.h"
 #include "menu/menu.h"
+#include "menu/records.h"
 #include "menu/panels_across.h"
 #include "menu/sprites.h"
 #include "cpu_io.h"
@@ -35,6 +36,7 @@ struct GameState {
     FieldObjectsPast field_objects_past;
     MenuSpritesPast menu_sprites_past;
     EventRecords event_records;
+    MenuRecords menu_records;
     /* save RAM: `kept_sram` below, or the host's own bytes (state_host_create_lasting_over) */
     uint8_t *sram;
     /* the multiplier and divider: their operands, and the result the
@@ -161,6 +163,7 @@ MenuPanels *menu_panels(GameState *g) { return &g->menu_panels; }
 FieldObjectsPast *field_objects_past(GameState *g) { return &g->field_objects_past; }
 MenuSpritesPast *menu_sprites_past(GameState *g) { return &g->menu_sprites_past; }
 EventRecords *event_records(GameState *g) { return &g->event_records; }
+MenuRecords *menu_records(GameState *g) { return &g->menu_records; }
 
 uint8_t *state_host_sram(GameState *g) { return g->sram; }
 /* state_host_head (state_host.h) reaches the head as the state's first member. */

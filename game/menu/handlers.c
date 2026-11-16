@@ -72,14 +72,21 @@ void menu_script_set_console_byte(GameState *g, Platform *pf, uint8_t opcode, ui
     script_set_the_consoles_byte(pf, handler_of(g, opcode), at, v);
 }
 
-/* A command's operands read and the command performed, as its handler does
- * both in the original; false, with nothing done, where the port doesn't run
- * what the operands say. */
+/* A command's operands read (or taken from its record) and the command
+ * performed, as its handler does both in the original; false, with nothing
+ * done, where the port doesn't run what the operands say. */
 static bool decode_and_perform(GameState *g, Platform *pf, const ScriptOpcode *row, MenuObject self, uint32_t at,
                                ScriptFlow *f)
 {
     ScriptCommand command;
-    menu_script_decode(g, row, self, at, pf, &command);
+    const MenuRecord *record = menu_record_at(g, at, row->opcode);
+    if (record) {
+        /* read ahead (menu/records.h): the reads of the script's bytes it stands for */
+        menu_script_decode_record(row, self, at, pf, record, &command);
+        charge_rom_accesses(g, record->reads);
+    } else {
+        menu_script_decode(g, row, self, at, pf, &command);
+    }
     if (!PORT_CHECK(menu_script_runs_here(g, row, &command)))
         return false;
     *f = menu_script_perform(g, row, &command);

@@ -30,7 +30,7 @@ class PackTest(unittest.TestCase):
         self.assertEqual(base, 0x200)                    # the program's end rounded up to 256
         magic, version, count, samples_at, colours_at, records_at, unpacked_at = pack.HEAD.unpack_from(image, base)
         self.assertEqual(colours_at, 0)                  # the original's colours: no table
-        self.assertEqual(records_at, 0)                  # no event records: every command from its bytes
+        self.assertEqual(records_at, 0)                  # no script records: every command from its bytes
         self.assertEqual((magic, version, count), (b"CTGB", pack.catalogue_version(), 3))
         for i, data in enumerate(resources):
             at, length = pack.ENTRY.unpack_from(image, base + pack.HEAD.size + i * pack.ENTRY.size)
@@ -83,9 +83,9 @@ class PackTest(unittest.TestCase):
         self.assertEqual(zlib.crc32(logo), pack.LOGO_CRC32)
 
 
-    def test_event_records(self):
-        # the event records ct_native writes, after the rest, a word apart
-        records = b"CTER" + bytes(8) + b"RECORDS"
+    def test_script_records(self):
+        # the script records ct_native writes, after the rest, a word apart
+        records = b"CTSR" + bytes(8) + b"RECORDS"
         saved = pack.resources, pack.sound_samples, pack.unpacked_streams
         pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: [b"\x01"]), (lambda cartridge: b"SAMPLES")

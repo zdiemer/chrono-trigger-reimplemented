@@ -19,7 +19,7 @@
  * A source with no records (ct_native's) runs every command from its bytes.
  *
  * The records of a script, as a source keeps them (asset_form,
- * ASSET_FORM_EVENT_RECORDS, by the packed script's resource), little-endian:
+ * ASSET_FORM_SCRIPT_RECORDS, by the packed script's resource), little-endian:
  *
  *     u32 language       event_records_language(): the rows they were read by
  *     u32 covered        the script offsets the index covers

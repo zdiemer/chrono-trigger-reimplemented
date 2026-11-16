@@ -19,11 +19,11 @@ a --profile other than `original`, the colours' table:
 each of the 32,768 BGR555 colours as the GBA shows it (services/video.c). The
 `port-style` profile brightens the colours for a GBA's screen, darker than a
 television: a gamma of 0.7 on each channel, then 15% more saturation around
-the colour's luma. With --event-records, the locations' event scripts
-read a command at a time, as ct_native works them out from the same
-cartridge (game/event/records.h): a table of each resource's place and
-length after "CTER", the catalogue's version and its count, then each
-script's records; without it the game reads every command from its bytes,
+the colour's luma. With --script-records, the locations' event scripts and
+the menus' object scripts read a command at a time, as ct_native works them
+out from the same cartridge (frontend/script_records.h): a table of each
+resource's place and length after "CTSR", the catalogue's version and its
+count, then each script's records; without it the game reads every command from its bytes,
 as it plays the same. With --fast-rom, the
 options word after the header (targets/gba/toolchain/start.s) asks for the
 cartridge's waits at 2 and 1 rather than 3 and 1, which flash carts and the
@@ -51,7 +51,7 @@ import streams  # noqa: E402
 
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
 HEAD = struct.Struct("<4sIIIIII")
-RECORDS_HEAD = struct.Struct("<4sII")   # the event records' (frontend/event_records.h)
+RECORDS_HEAD = struct.Struct("<4sII")   # the script records' (frontend/script_records.h)
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 OPTIONS_AT = 0xC0    # start.s's options word, after the header
@@ -204,15 +204,15 @@ def main(argv=None):
                     help="the colours as the GBA shows them: the SNES's as they are (original), or brightened for a GBA's screen (port-style)")
     ap.add_argument("--bios", type=pathlib.Path,
                     help="your own dump of the GBA's BIOS (16 KiB, CRC-32 81977335), for the logo a GBA checks")
-    ap.add_argument("--event-records", type=pathlib.Path, metavar="FILE",
-                    help="the event scripts read a command at a time, as `ct_native --event-records FILE` writes them")
+    ap.add_argument("--script-records", type=pathlib.Path, metavar="FILE",
+                    help="the scripts read a command at a time, as `ct_native --script-records FILE` writes them")
     args = ap.parse_args(argv)
     records = None
-    if args.event_records:
-        records = args.event_records.read_bytes()
+    if args.script_records:
+        records = args.script_records.read_bytes()
         magic, catalogue, count = RECORDS_HEAD.unpack_from(records)
-        if magic != b"CTER" or catalogue != catalogue_version() or count != len(assets.load()):
-            print("pack: %s is no event records of this catalogue" % args.event_records, file=sys.stderr)
+        if magic != b"CTSR" or catalogue != catalogue_version() or count != len(assets.load()):
+            print("pack: %s is no script records of this catalogue" % args.script_records, file=sys.stderr)
             return 1
     logo = None
     if args.bios:

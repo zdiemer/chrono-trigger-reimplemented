@@ -11,9 +11,10 @@ or lib/libmgba.so): MSYS2's mingw-w64-x86_64-mgba package, installed or only
 unpacked, or a build of mGBA. The runner (targets/gba/host/mgba_run.c) is built
 with the host's C compiler into the program's directory. The GBA build is
 packed first (targets/gba/host/pack.py) from the staged cartridge as ct.gba,
-the one ROM a player plays too, with the event scripts read a command at a
-time as ct_native works them out (`--event-records`; `--no-event-records`
-packs without them, and the game reads every command from its bytes).
+the one ROM a player plays too, with the event and object scripts read a
+command at a time as ct_native works them out (`--script-records`;
+`--no-script-records` packs without them, and the game reads every command
+from its bytes).
 ct_native plays the movie first and writes
 what its time model decides of the game's frames (`--decisions`), which the
 GBA build, keeping no time of the original's, replays
@@ -139,25 +140,25 @@ def main(argv=None):
     ap.add_argument("--fast-rom", action="store_true", help="pack the ROM with the cartridge's faster waits (pack.py)")
     ap.add_argument("--colours", choices=pack.PROFILES, default="original",
                     help="pack the ROM with this profile's colours (pack.py's --profile)")
-    ap.add_argument("--no-event-records", action="store_true",
-                    help="pack without the event scripts read ahead (pack.py --event-records)")
+    ap.add_argument("--no-script-records", action="store_true",
+                    help="pack without the scripts read ahead (pack.py --script-records)")
     ap.add_argument("--bios", type=pathlib.Path, metavar="FILE",
                     help="your own dump of the GBA's BIOS: the ROM gets its logo and the GBA starts in it")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
     image = out_dir / "ct.gba"
-    records = out_dir / "event.records"
-    if not args.no_event_records:
-        written = subprocess.run([str(args.ct_native), "--rom", str(args.rom), "--headless", "--event-records", str(records)],
+    records = out_dir / "script.records"
+    if not args.no_script_records:
+        written = subprocess.run([str(args.ct_native), "--rom", str(args.rom), "--headless", "--script-records", str(records)],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         if written.returncode or not records.exists():
             print(written.stderr)
-            print("run: ct_native didn't write the event records")
+            print("run: ct_native didn't write the script records")
             return 2
     if pack.main(["--program", str(args.program), "--rom", str(args.rom), "--out", str(image), "--profile", args.colours]
                  + (["--fast-rom"] if args.fast_rom else []) + (["--bios", str(args.bios)] if args.bios else [])
-                 + ([] if args.no_event_records else ["--event-records", str(records)])):
+                 + ([] if args.no_script_records else ["--script-records", str(records)])):
         return 2
     movie_text = args.movie.read_text(encoding="utf-8")
     frames = re.search(r"^# frames (\d+)", movie_text, re.M).group(1)

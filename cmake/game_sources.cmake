@@ -114,6 +114,7 @@ set(CT_GAME_SOURCES
   game/menu/objects.c
   game/menu/opening.c
   game/menu/party.c
+  game/menu/records.c
   game/menu/save_screen.c
   game/menu/saves.c
   game/menu/saving.c

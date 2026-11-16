@@ -65,10 +65,11 @@ typedef struct {
 } AssetSource;
 
 /* The forms a source may keep a resource worked out ahead in, beside the
- * cartridge's own: a location's event script read a command at a time
- * (event/records.h); a packed stream unpacked (AssetUnpacked). The game runs
+ * cartridge's own: a script read a command at a time, by its language (a
+ * location's event script, event/records.h; a menu object script,
+ * menu/records.h); a packed stream unpacked (AssetUnpacked). The game runs
  * the same without them. */
-typedef enum { ASSET_FORM_EVENT_RECORDS, ASSET_FORM_UNPACKED } AssetForm;
+typedef enum { ASSET_FORM_SCRIPT_RECORDS, ASSET_FORM_UNPACKED } AssetForm;
 
 /* A packed stream (a resource of an `lz` codec) unpacked ahead
  * (ASSET_FORM_UNPACKED; the GBA's packing step, targets/gba/host/streams.py):
