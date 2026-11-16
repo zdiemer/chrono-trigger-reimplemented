@@ -1773,6 +1773,26 @@ with 68, 1,668, 8,157, 3,678 and 1,657 of 1,800, 7,200, 21,600, 9,400 and
 picture is left out. Allowing two in a row took `gato-battle` to 34,523 and
 `events-jetbike-race` to 17,147, with half the pictures left out.
 
+**The pictures' pacing** (`system/main.c`, `Pacing`; issue #521). The
+report counts how many GBA frames apart each picture shown is from the last
+(a histogram, 0 to 15 and more) and keeps the eight longest gaps, with the
+game's frame whose picture ended each and whose work it was: the last
+picture's making after its blank, and the heaviest game and sound of the
+frames between. A picture waits for the blank it is due at, never the one
+the last picture was shown in: a short frame that ended inside that blank
+showed its picture in it too, so the GBA never showed the last one and the
+game ran a frame ahead of the GBA's time, two game frames in a GBA frame and
+then none. Played as by hand (`mgba_run` with no decisions to replay, the
+GBA's own time deciding the game's frames), `new-game` showed 345 pictures
+in the same blank as the one before (of 5,900), now none: its pictures
+apart 0, 4,676, 507, 517 and 185 GBA frames (0, 1, 2, 3, 4) against 345,
+4,329, 496, 533 and 183. The game's frames no longer run ahead of the GBA's,
+so the movies take longer in mGBA, replaying ct_native's decisions:
+`new-game` 9,064 GBA frames against 8,623, `gato-battle` 30,495 against
+29,856, ending as ct_native's. The gaps left are the game's own long frames
+(below): a frame of the game that takes 20-226 GBA frames, as a map, a
+menu or a battle loads, and a layout's picture of up to 28.
+
 **Measured** (2026-11-14, mGBA 0.10.5):
 
 | What | On the GBA |

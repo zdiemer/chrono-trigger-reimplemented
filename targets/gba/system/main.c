@@ -200,12 +200,91 @@ static bool picture_left_out(Pictures *p, uint32_t now)
 
 static void picture_shown(Pictures *p, uint32_t blank) { p->due = blank + GBA_FRAME_CYCLES; }
 
+/* A picture waits for the vertical blank it is due at, never the one the
+ * last picture was shown in: a short frame that ended inside that blank
+ * would otherwise show its picture in it too, so that the GBA never showed
+ * the last one and the game ran a frame ahead of the GBA's time, two game
+ * frames a GBA frame and then none. Half a GBA frame before the picture is
+ * due is past the end of the last one's blank, which is under a third of a
+ * frame long, wherever in it the last picture began. */
+static void picture_await_due(const Pictures *p)
+{
+    while ((int32_t)(cycles_now() - (p->due - GBA_FRAME_CYCLES / 2)) < 0)
+        ;
+    gba_video_await_blank();
+}
+
+/* The pictures' pacing as a player sees it: how many GBA frames apart each
+ * picture shown is from the last, a histogram, and the longest gaps, with
+ * the game's frame that ended them and whose work they were: the last
+ * picture's making, after its blank, and the heaviest game and sound of the
+ * frames between. */
+enum { PACING_GAPS = 16, LONGEST_GAPS = 8 };
+typedef struct {
+    uint32_t gap;                  /* GBA frames, in hundredths */
+    uint32_t frame;                /* the game's frame whose picture ended it */
+    uint32_t picture, game, sound; /* cycles */
+} Gap;
+typedef struct {
+    uint32_t last_blank, last_picture, game_most, sound_most;
+    uint16_t count[PACING_GAPS + 1];
+    Gap longest[LONGEST_GAPS];
+} Pacing;
+
+static void frame_paced(Pacing *p, uint32_t game, uint32_t sound)
+{
+    if (game > p->game_most)
+        p->game_most = game;
+    if (sound > p->sound_most)
+        p->sound_most = sound;
+}
+
+static void picture_paced(Pacing *p, uint32_t blank, uint32_t frame)
+{
+    uint32_t cycles = blank - p->last_blank;
+    uint32_t gap = (cycles + GBA_FRAME_CYCLES / 2) / GBA_FRAME_CYCLES;
+    uint16_t *count = &p->count[gap < PACING_GAPS ? gap : PACING_GAPS];
+    if (*count < UINT16_MAX)
+        (*count)++;
+    unsigned least = 0;
+    for (unsigned i = 1; i < LONGEST_GAPS; i++)
+        if (p->longest[i].gap < p->longest[least].gap)
+            least = i;
+    uint32_t hundredths = (uint32_t)((uint64_t)cycles * 100 / GBA_FRAME_CYCLES);
+    if (hundredths > p->longest[least].gap)
+        p->longest[least] = (Gap){ hundredths, frame, p->last_picture, p->game_most, p->sound_most };
+    p->last_blank = blank;
+    p->game_most = p->sound_most = 0;
+}
+
+static void picture_made(Pacing *p, uint32_t cycles) { p->last_picture = cycles; }
+
+static void report_pacing(const Pacing *p)
+{
+    fprintf(stderr, "ct_gba: pictures apart, in GBA frames (0-%u, more):", PACING_GAPS - 1);
+    for (unsigned i = 0; i <= PACING_GAPS; i++)
+        fprintf(stderr, " %u", (unsigned)p->count[i]);
+    fprintf(stderr, "\n");
+    for (unsigned i = 0; i < LONGEST_GAPS; i++)
+        if (p->longest[i].gap) {
+            char picture[16], game[16], sound[16];
+            gba_frames(picture, sizeof picture, p->longest[i].picture);
+            gba_frames(game, sizeof game, p->longest[i].game);
+            gba_frames(sound, sizeof sound, p->longest[i].sound);
+            fprintf(stderr, "ct_gba: a gap of %u.%02u GBA frames to frame %u: the picture before it %s, the game's "
+                            "heaviest frame %s, the sound's %s\n",
+                    (unsigned)(p->longest[i].gap / 100), (unsigned)(p->longest[i].gap % 100),
+                    (unsigned)p->longest[i].frame, picture, game, sound);
+        }
+}
+
 /* What the report covers: the frames run and each part's cycles in them. */
 typedef struct {
     GameState *g;
     Platform *pf;
     uint32_t frames;
     Pictures pictures;
+    Pacing pacing;
     Cycles game, sounds, picture;
     Mixing mixing;
 } Run;
@@ -226,6 +305,7 @@ static void report(void *ctx)
         report_cycles(&run->picture, run->frames);
         fprintf(stderr, "ct_gba: %u picture(s) left out, the game's frame running late\n",
                 (unsigned)run->pictures.pictures_left_out);
+        report_pacing(&run->pacing);
         char mean[16], most[16];
         gba_frames(mean, sizeof mean, run->mixing.total / run->frames);
         gba_frames(most, sizeof most, run->mixing.most);
@@ -297,6 +377,7 @@ int main(void)
             frames_replayed() ? "the runner's decisions" : "the GBA's own time");
     gba_video_await_blank();
     picture_shown(&run.pictures, cycles_now());
+    run.pacing.last_blank = cycles_now();
     for (;;) {
         uint32_t pads = driven ? drive_next_pads(g, report, &run) : keypad_buttons(&keypad, keypad_held());
         in_host_set(&pf, 0, (uint16_t)pads);
@@ -307,13 +388,16 @@ int main(void)
         frames_game_took(game_done - began);
         sound_native_frame(sound);
         uint32_t sound_done = cycles_now();
+        frame_paced(&run.pacing, game_done - began, sound_done - game_done);
         uint32_t picture = 0;
         if (!picture_left_out(&run.pictures, sound_done)) {
-            gba_video_await_blank();
+            picture_await_due(&run.pictures);
             uint32_t blank = cycles_now();
             picture_shown(&run.pictures, blank);
+            picture_paced(&run.pacing, blank, run.frames + 1);
             gba_video_present(&pf);
             picture = cycles_now() - blank;
+            picture_made(&run.pacing, picture);
         }
         count_cycles(&run.game, game_done - began);
         count_cycles(&run.sounds, sound_done - game_done);
