@@ -79,6 +79,12 @@ static inline const uint8_t *rom_run_at(const RomRun *run, uint32_t at, uint32_t
     return i < run->length && length <= run->length - i ? run->bytes + i : NULL;
 }
 
+/* `length` of the cartridge's bytes from `at` on, read straight on into the
+ * next bank as a long pointer's reads go (where rom_data, a transfer, wraps
+ * in its bank), where one resource holds them all: in place, taking none of
+ * their reads' time. NULL where none does, and the reader reads by rom_read8. */
+const uint8_t *rom_bytes_on(uint32_t at, uint32_t length);
+
 /* The packed stream starting at `at` as the resources' source keeps it
  * unpacked already (data/assets.h, AssetUnpacked), or NULL where it keeps
  * none: no time taken, the reader charges what unpacking it would have. */

@@ -43,6 +43,11 @@ void au_sample_define(AuVoices *v, uint8_t sample, const uint8_t *brr, uint16_t 
 void au_sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte) { v->ops->sample_write(v, sample, at, byte); }
 void au_sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte) { v->ops->sample_memory_write(v, at, byte); }
 
+void au_sample_memory_send(AuVoices *v, uint16_t at, PfData bytes, uint16_t length)
+{
+    v->ops->sample_memory_send(v, at, bytes, length);
+}
+
 void au_sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length)
 {
     v->ops->sample_memory_move(v, to, from, length);

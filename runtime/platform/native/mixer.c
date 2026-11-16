@@ -529,6 +529,14 @@ static void sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte)
 
 static void sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte) { put(mixer(v), at, byte); }
 
+static void sample_memory_send(AuVoices *v, uint16_t at, PfData bytes, uint16_t length)
+{
+    for (uint16_t i = 0; i < length; i++) {
+        const uint8_t *byte = pf_data_pointer(bytes, i);
+        put(mixer(v), (uint16_t)(at + i), byte ? *byte : 0);
+    }
+}
+
 /* Whole pages up from the first, then the rest down from its last byte, as
  * the original's receiver moves them: which order decides what an overlapping
  * move leaves. */
@@ -570,7 +578,7 @@ static const AuVoicesOps mixer_ops = {
     start, set_sample, set_envelope, set_gain, set_pitch, set_volume, key_on, key_off, hold, output,
     master_volume, noise_clock, muted, reset, noise_voices, pitch_modulation, echo_voices, echo_volume,
     echo_feedback, echo_filter, echo_delay, echo_buffer, echo_writes, sample_define, sample_write,
-    sample_memory_write, sample_memory_move, sample_place, voice_settings, mix_settings
+    sample_memory_write, sample_memory_send, sample_memory_move, sample_place, voice_settings, mix_settings
 };
 
 AuVoices *mixer_voices(Mixer *m)

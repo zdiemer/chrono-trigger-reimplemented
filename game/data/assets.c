@@ -271,6 +271,16 @@ RomRun rom_run_from(uint32_t at)
     return run;
 }
 
+const uint8_t *rom_bytes_on(uint32_t at, uint32_t length)
+{
+    RomRun run = rom_run_from(at);
+    if (!run.bytes || length <= run.length)
+        return run.bytes;
+    /* on into the next bank: a resource holds its bytes there straight after */
+    RomRun next = rom_run_from(at + run.length);
+    return next.bytes == run.bytes + run.length && length - run.length <= next.length ? run.bytes : NULL;
+}
+
 const AssetUnpacked *rom_unpacked(uint32_t at)
 {
     AssetId id = asset_containing(at);

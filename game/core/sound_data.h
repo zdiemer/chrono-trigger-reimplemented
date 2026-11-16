@@ -243,15 +243,9 @@ static inline uint32_t sound_block_data(const GameState *g, uint16_t id)
 
 static inline uint16_t sound_block_length(const GameState *g, uint16_t id) { return rom_read16(g, sound_block_data(g, id)); }
 
-/* A sample block's BRR bytes read in order, as a song's load sends them:
- * found once, then read where they are (rom.h's RomRun), rather than the
- * block's place looked up again for each of its thousands of bytes. */
-static inline RomRun sound_block_bytes(const GameState *g, uint16_t id) { return rom_run_from(sound_block_data(g, id) + 2); }
-
-static inline uint8_t sound_block_bytes_byte(const GameState *g, const RomRun *bytes, uint16_t i)
-{
-    return rom_run_read8(g, bytes, bytes->at + i);
-}
+/* Where a sample block's BRR bytes start: a song's load reads them on from
+ * there, into the next bank where a block crosses one (blocks 12, 33, 48). */
+static inline uint32_t sound_block_bytes_at(const GameState *g, uint16_t id) { return sound_block_data(g, id) + 2; }
 
 static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
 {

@@ -654,6 +654,39 @@ static void sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte)
     written(mixer(v), at, byte);
 }
 
+/* The packed block the cartridge holds at `source`, `length` bytes long, or
+ * the blocks' count where none is. */
+static uint16_t block_from(uint32_t source, uint16_t length)
+{
+    for (uint16_t k = 0; k < packed->blocks; k++)
+        if (packed_block(k)->source == source && packed_block(k)->length == length)
+            return k;
+    return packed->blocks;
+}
+
+/* A song's sample block, sent whole from the cartridge: known by where it
+ * comes from, which the packing step listed with it, with none of its bytes
+ * read. A run the packing step didn't list is taken a byte at a time. */
+static void sample_memory_send(AuVoices *v, uint16_t at, PfData bytes, uint16_t length)
+{
+    Mixer *m = mixer(v);
+    if (m->watch)
+        for (uint16_t i = 0; i < length; i++)
+            put(m, (uint16_t)(at + i));
+    if (!packed)
+        return;
+    uint16_t k = block_from(bytes.addr, length);
+    if (k < packed->blocks) {
+        know_block(m, at, k);
+        start_run(m, (uint16_t)(at + length));
+        return;
+    }
+    for (uint16_t i = 0; i < length; i++) {
+        const uint8_t *byte = pf_data_pointer(bytes, i);
+        written(m, (uint16_t)(at + i), byte ? *byte : 0);
+    }
+}
+
 /* The known blocks moved go where they are moved to, and what was there is
  * forgotten. */
 static void sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length)
@@ -695,7 +728,7 @@ static const AuVoicesOps gba_ops = {
     start, set_sample, set_envelope, set_gain, set_pitch, set_volume, keys_on, keys_off, hold, output,
     master_volume, noise_clock, muted, reset, noise_voices, pitch_modulation, echo_voices, echo_volume,
     echo_feedback, echo_filter, echo_delay, echo_buffer, echo_writes, sample_define, sample_write,
-    sample_memory_write, sample_memory_move, sample_place, voice_settings, mix_settings
+    sample_memory_write, sample_memory_send, sample_memory_move, sample_place, voice_settings, mix_settings
 };
 
 AuVoices *mixer_voices(Mixer *m)

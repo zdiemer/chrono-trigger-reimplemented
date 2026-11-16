@@ -3,11 +3,13 @@ converted from the cartridge's BRR to 8-bit PCM when the cartridge is packed
 (pack.py), so that the GBA plays them from the cartridge and never decodes
 BRR as it plays (docs/PLATFORM.md, "The GBA build, as built", "The sound").
 
-The sound driver writes a sample into sound memory a byte at a time, so the
-mixer knows a sample by what it writes: each block the driver can write (the
+The sound driver sends a song's sample block into sound memory whole, and
+writes the boot's samples a byte at a time, so the mixer knows a sample by
+where it comes from or by what it writes: each block the driver can write (the
 songs' sample blocks 1-62, and the boot's block of its own samples) is listed
-with its length and a hash of its bytes, and the samples it holds, each from
-where it starts in the block. A sample is decoded as the S-DSP plays it: from
+with its length, a hash of its bytes and the bus address the SNES cartridge
+holds them at, and the samples it holds, each from where it starts in the
+block. A sample is decoded as the S-DSP plays it: from
 its start to its last block, which a sample that ends without looping
 doesn't play, then the loop's blocks again from where it loops, decoded
 again with the samples before them as they are when the sample comes round
@@ -15,8 +17,8 @@ again with the samples before them as they are when the sample comes round
 fill 8 bits, its peak kept for the mixer to scale it back.
 
 The table (mixer.h's MixerSamples): a count of blocks, a count of
-samples, where the noise is, then each block, shortest first (its length, its hash, its first sample and
-how many), then each sample (where it starts in its block, where it loops in
+samples, where the noise is, then each block, shortest first (its length, its hash, where the
+cartridge holds it, its first sample and how many), then each sample (where it starts in its block, where it loops in
 its PCM or none, its PCM's place in the table and its length, its peak), then
 the PCM, and last the noise: the S-DSP's noise generator's whole sequence,
 which a voice played as noise plays as a sample.
@@ -28,7 +30,7 @@ BLOCK_BYTES = 9
 NO_LOOP = 0xFFFFFFFF
 SAMPLE_BLOCKS = 62
 HEAD = struct.Struct("<HHI")
-BLOCK = struct.Struct("<IIHH")
+BLOCK = struct.Struct("<IIIHH")
 SAMPLE = struct.Struct("<HHIIIHH")
 
 
@@ -125,8 +127,9 @@ def word(data, at):
 
 
 def blocks(cartridge, rows, bus_to_offset):
-    """Each block the driver writes into sound memory: its bytes, and each
-    sample in it as (where it starts, the byte its loop starts at)."""
+    """Each block the driver writes into sound memory: its bytes, each
+    sample in it as (where it starts, the byte its loop starts at), and the
+    bus address the SNES cartridge holds its bytes at."""
     by_name = {r.name: r for r in rows}
 
     def row(name):
@@ -140,13 +143,13 @@ def blocks(cartridge, rows, bus_to_offset):
         bus = pointers[3 * k] | pointers[3 * k + 1] << 8 | pointers[3 * k + 2] << 16
         at = bus_to_offset(bus)
         length = word(cartridge, at)
-        out.append((cartridge[at + 2:at + 2 + length], [(0, word(loops, 2 * k))]))
+        out.append((cartridge[at + 2:at + 2 + length], [(0, word(loops, 2 * k))], bus + 2))
     boot, directory, program = row("sound_boot_samples"), row("sound_boot_directory"), row("sound_program_byte")
     samples_at = word(program, 0x15 + 2 * 2)       # where the boot puts its samples (sound_boot_block_to)
     boot_bytes = boot[2:2 + word(boot, 0)]
     entries = [(word(directory, 2 + 4 * i), word(directory, 4 + 4 * i)) for i in range(word(directory, 0) // 4)]
     out.append((boot_bytes, sorted({(s - samples_at, l - s) for s, l in entries
-                                    if 0 <= s - samples_at < len(boot_bytes)})))
+                                    if 0 <= s - samples_at < len(boot_bytes)}), by_name["sound_boot_samples"].at + 2))
     return out
 
 
@@ -154,10 +157,10 @@ def table(cartridge, rows, bus_to_offset):
     """The mixer's table of the samples, as bytes."""
     found = sorted(blocks(cartridge, rows, bus_to_offset), key=lambda b: len(b[0]))   # shortest first
     block_rows, sample_rows, pcm = [], [], bytearray()
-    sample_count = sum(len(s) for _, s in found)
+    sample_count = sum(len(s) for _, s, _ in found)
     pcm_base = HEAD.size + BLOCK.size * len(found) + SAMPLE.size * sample_count
-    for data, samples in found:
-        block_rows.append(BLOCK.pack(len(data), fnv1a(data), len(sample_rows), len(samples)))
+    for data, samples, source in found:
+        block_rows.append(BLOCK.pack(len(data), fnv1a(data), source, len(sample_rows), len(samples)))
         for start, loop in samples:
             decoded, loop_at = decode(data, start, start + loop if loop is not None else None)
             bytes8, peak = to_pcm8(decoded)

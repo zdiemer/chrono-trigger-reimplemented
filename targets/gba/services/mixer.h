@@ -7,9 +7,10 @@
  *
  * The driver plays as it does natively, and what it reads back of the voices
  * and the mix (their settings) is what it set, masked as the native mixer
- * masks it. The samples it writes into sound memory are known by their
- * bytes: the packing step (targets/gba/host/samples.py) lists each block the
- * driver can write with a hash of it, and the samples in it already
+ * masks it. The samples it writes into sound memory are known by where they
+ * come from or by their bytes: the packing step (targets/gba/host/samples.py)
+ * lists each block the driver can write with where the SNES cartridge holds
+ * it and a hash of it, and the samples in it already
  * converted to 8-bit PCM, which the voices play from the cartridge. Only
  * the driver's own sample, which it rewrites as it plays, is decoded here.
  *
@@ -35,6 +36,7 @@ typedef struct {
 } MixerSamples;
 typedef struct {
     uint32_t length, hash;         /* the block's bytes as the driver writes them */
+    uint32_t source;               /* where the SNES cartridge holds them, a bus address */
     uint16_t first, count;         /* its samples */
 } MixerSampleBlock;
 typedef struct {

@@ -98,7 +98,8 @@ platform services' backends. Nothing here is included from `game/`.
     `--fast-rom` asks for the cartridge's faster waits, `--bios` puts in
     the logo a GBA checks (Building and running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
-    the pack, their loops kept, each listed by its block's length and hash.
+    the pack, their loops kept, each listed by its block's length, hash
+    and place in the SNES cartridge.
   - `streams.py`: the cartridge's packed streams unpacked for the pack, by
     the game's own steps, each with the counts its unpacking's time comes
     from; the game copies one in rather than unpacking it, where the place
