@@ -1393,9 +1393,9 @@ mode 0's four tiled layers and its sprites:
   of each word, or a fill, through a port that doesn't remap puts each byte
   straight at its place, stepping the address as the port does, rather
   than through the port a byte at a time (the game's frame in
-  `gato-battle` 1.05 GBA frames to 1.02). Maps a line effect shows part of the way down (the field's
-  dialog, whose two layers show one map as their own) are converted for
-  their layer into room the GBA has spare.
+  `gato-battle` 1.05 GBA frames to 1.02). Maps a line effect shows part of
+  the way down (the field's dialog, whose two layers show one map as their
+  own) are converted for their layer into room the GBA has spare.
 - **Tiles** live in caches, one for each set of tiles: a window of 1,024
   tiles from a 16 KiB block of the GBA's background VRAM, whose places no
   map takes are handed out to the tiles the maps name as they name them,
@@ -1414,25 +1414,45 @@ mode 0's four tiled layers and its sprites:
   converting its every unit as well was a sixth of a scene's first
   picture's work).
   A cache whose window the rooms took so much of that another has more
-  places free starts afresh in that one, and the picture is black until
-  the frame's lines are set. Started afresh at every layout, the caches
-  gave the tiles new places the maps still on screen didn't name yet, for
-  the frames the layout took: watched as a player sees them in mGBA
-  (`mgba_run --watch`) against ct_native, `new-game` showed Crono's room in
-  stray tiles for ten GBA frames as Mom's first words opened their window,
-  and the dialog window's in stray tiles each time the caches filled
-  (issue #503). A layout counts the free places a byte of their bits at a
-  time and reads the maps' entries two at a time, which took the layouts
-  at a scene's start from about 1.3 million cycles to 1.0 million. With
-  that and the caches' units left alone, the black while a scene's first
-  picture is made (a cache started afresh) went from 17-21 GBA frames to
-  14-18 at the attract sequence's scene changes, and from 19 to 14 as the
-  curtain opens on Crono's room (issue #519); it is still a quarter of a
-  second, most of it the maps' and the tiles' conversion (2-3 million
-  cycles). The five movies take 2,048, 8,543, 28,227, 15,300 and 8,559 GBA
-  frames against 2,090, 8,644, 28,402, 15,433 and 8,737 (`title-start`,
-  `new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`). The first colour, the backdrop, is each line's own, set
-  with its registers.
+  places free starts afresh in that one, and the picture is hidden, black,
+  while that layout's picture is made: started afresh at every layout, the
+  caches gave the tiles new places the maps still on screen didn't name
+  yet, and `new-game` showed Crono's room in stray tiles as Mom's first
+  words opened their window (issue #503). Its frame is shown whole from
+  the next vertical blank, the line counter's interrupt setting its first
+  line's registers there, rather than from the next picture's, which a
+  scene's loading frames put off by a dozen GBA frames and more.
+- **A layout's work** is what the picture stops for, so it is kept short.
+  Sampled only while a layout's picture is made (`mgba_run`'s sampler kept
+  to a flag the program sets), it was the maps' conversion, a unit at a
+  time from the cartridge, and the tiles'. Now each map entry's place is
+  looked up where its cache keeps it, from fast RAM (`convert_map`), a
+  block's units of a map one after another there (`convert_map_units`: a
+  call from the cartridge for each unit cost more than its work), the
+  tile's place given from the cartridge only where it has none
+  (`slot_for`). What a block of VRAM is for is worked out once for its 16
+  units (`convert_block`), and a block with nothing to convert, a scene's
+  tiles none of which has a place yet, is passed over. The sprites' tiles
+  are converted again only where their tables moved, rather than all
+  16 KiB at every layout. A cache's tiles are converted from fast RAM with
+  a nibble's table there (the byte's table in work RAM took longer to read
+  than the rest of the work); the sprites' keep the byte's, since fast RAM's
+  code called from the cartridge a tile at a time took the five movies
+  longer. A layout notes its maps' priorities a kilobyte at a time from fast
+  RAM, and finds free places and room a byte or a word of places at a time.
+  The heaviest picture a layout makes in `title-start`, `new-game`,
+  `gato-battle`, `events-jetbike-race` and `menus-sweep` went from 13.81,
+  20.46, 20.46, 18.35 and 16.36 GBA frames to 6.31, 7.19, 7.93, 10.07 and
+  6.83, the five movies from 2,002, 8,544, 28,282, 15,611 and 9,042 GBA
+  frames to 1,926, 8,252, 27,299, 15,243 and
+  8,579, their end states ct_native's. Watched against the 240x160 view,
+  which shows no black there, the black at the attract sequence's scene
+  changes (game frames 3925, 6641, 9448, 9568 and 9954) went from 18, 17,
+  18, 22 and 45 GBA frames to 5, 5, 7, 8 and 7, and as the curtain opens on
+  Crono's room from 32 to none. Fast RAM keeps 600 bytes free, work RAM 536
+  above its floor.
+- **The backdrop**, the first colour, is each line's own, set with its
+  registers.
 - **Sprites**: the SNES's two tables of tiles one under the other in the
   GBA's sprite VRAM (its two-dimensional layout, 32 tiles a row, so that a
   sprite's rows are 16 names apart on both), and the sprite table converted
