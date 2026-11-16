@@ -109,13 +109,17 @@ platform services' backends. Nothing here is included from `game/`.
     movie or from commands on stdin (Driving it, below); with a movie,
     `--wav` and `--stream` write the GBA's sound as WAV files, and
     `--watch` every picture the GBA shows over a run of the game's frames,
-    as a player sees them at the GBA's speed.
+    as a player sees them at the GBA's speed, and `--record` every GBA
+    frame's picture with the game's frame it shows, for the census.
   - `run.py`: the check. It builds the runner against libmgba and zlib,
     has ct_native write the script records, packs `ct.gba` with them
     (`--no-script-records` without), plays the movie in ct_native with its time model's
     decisions written, has the runner play it on `ct.gba` from the save RAM
     the movie starts from with those decisions replayed, and fails where the
     two end states' CRCs differ.
+  - `census.py`: the census of what a player sees go wrong (The census,
+    below): every GBA frame's picture against ct_native's, and the
+    stretches where pictures come late or are left out.
 
 ## Controls
 
@@ -188,13 +192,49 @@ that many frames; `--profile FILE` writes each function's share of where the
 processor was as the movie played. CI builds the program (the
 `gba-arm-none-eabi` job); with no cartridge it doesn't play it.
 
+## The census
+
+`census.py` finds the glitches and the stutter a player sees, so that fixes
+come from a list rather than from play:
+
+    python3 targets/gba/host/census.py --mgba <mgba prefix> --program build/gba/ct_gba.bin \
+        --ct-native build/main/ct_native --out <dir outside the repo>
+
+For each movie (`--movies`; by default the six the GBA's milestones name and
+the gate's movies under 6,000 frames) ct_native plays it at the GBA's view
+(`--view 240x160`), writing every frame's picture and its decisions, and the
+runner plays it on `ct.gba` with the decisions replayed, writing every GBA
+frame's picture with the game's frame the driver put on the screen last
+(the drive box's `shown`). Each GBA frame must show that frame's picture
+exactly, compared at the GBA's 5 bits a channel (and through the colour
+profile, `--colours`); a GBA frame that doesn't is a mismatch: `torn` (its
+lines from that frame and the one before), `frame` (a whole frame early or
+late), `colour` (off by at most two steps of 31: fades, colour math) or
+`picture` (anything else). Mismatches close in time and on the screen make
+a cluster, ranked by its pixels summed over the GBA frames that show it,
+with a PNG of its worst frame: ct_native's, the GBA's, and where they
+differ. From the same records, every game frame over two GBA frames and
+every picture left out, grouped into stretches ranked by the GBA frames they
+cost, and every hang (two seconds with no game frame begun).
+
+`--hand` runs play without ct_native's decisions, the GBA's own time
+deciding its frames as on hardware: five minutes of power-on with no input
+(`attract-idle`) and a pad script from the title through a new game's naming
+to a walk in Crono's room (`new-game-by-hand`). These check the pacing and
+hangs, and list as leads the pictures ct_native shows nowhere within 600
+frames, against its picture with the most lines the same.
+
+It writes `census.md` and `census.json` and the PNGs to `--out`; its working
+files (about 100 KB a frame) go in `--out`'s `work/`, deleted movie by movie
+unless `--keep`. The whole census takes about half an hour.
+
 ## Driving it
 
 `mgba_run` drives `ct.gba` from outside as `tools/movies/driver.py` drives
 `ct_native --drive`; `run.py` builds it into the program's directory (on
 Windows, with mGBA's `bin` on `PATH` to run it):
 
-    mgba_run ct.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR] [--decisions FILE]
+    mgba_run ct.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE] [--watch FROM TO DIR] [--record FILE] [--stall N] [--decisions FILE]
     mgba_run ct.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
 
 `--sav` is the SRAM to start from, held in memory and never written back.
