@@ -62,8 +62,14 @@ typedef struct {
     int16_t column_end;                         /* the column's screen X past its last dot, or 0 */
 } Bands;
 
+/* A band of the original's lines from `top` to `end`, below the last: one
+ * that would start above where the last ended starts there, so that the
+ * view shows the original's lines in their order (a target that draws its
+ * picture down the original's lines can show no line twice). */
 static void band(Bands *b, int top, int end)
 {
+    if (b->count && top < b->top[b->count - 1] + b->lines[b->count - 1])
+        top = b->top[b->count - 1] + b->lines[b->count - 1];
     if (b->count < VID_VIEW_PANELS - 2 && end > top) {
         b->top[b->count] = (int16_t)top;
         b->lines[b->count++] = (uint8_t)(end - top);

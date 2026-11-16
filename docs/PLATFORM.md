@@ -920,7 +920,12 @@ made in `game/` as presentation and never as a rule:
   name's window, every row of letters with most of the blank lines between
   them left out (the cursor's row with room for its hand), and the letters'
   window's foot. While the first naming's instructions are up, they are
-  kept whole in their place. The world map is framed at its middle.
+  kept whole in their place. A band starts no higher than where the last
+  ended, so that the view shows the original's lines in their order: with
+  the cursor on the last row, the row's room for its hand ran a line into
+  the foot's band, and the GBA, which draws its lines down the original's,
+  showed the camera's view of the naming screen instead of its bands until
+  the cursor left the row (issue #520). The world map is framed at its middle.
 
 `tools/wide_check.py --view 240x160` plays the gate movies at 256x224 and
 240x160 and compares the whole end state: all 59 end the same. The long
@@ -1515,6 +1520,26 @@ mode 0's four tiled layers and its sprites:
   out again; a frame the layout was made in works them out. Where the tables
   change every frame (a battle's, the jet bike race's), one frame in sixteen
   tries again, since keeping each frame's reads costs more than it saves.
+  A frame's picture is shown all from one vertical blank
+  (`show_the_frame`): its changes are worked out into one end of their
+  table while the lines show the last frame's from the other, its sprites
+  are kept aside (768 bytes of work RAM) and copied into the GBA's sprite table
+  then, and the first line's registers are set and the line effects' DMA
+  armed there too. A frame whose work runs on past the vertical blank it
+  began in (the naming screen's, as the cursor moves down a row) is shown
+  from the next picture's, the last frame's staying whole until then, unless
+  it shows the same as the last; before, the GBA showed such a frame's
+  sprites over the last frame's lines for a frame (the hand on the row
+  below while the bands still made room for it on the row above, issue
+  #520). A frame with more changes than the other end of the table has
+  room for (the jet bike race's, up to 160) takes the shown frame's places
+  as before. Watched in mGBA as the naming screen's cursor moves over every
+  letter, every frame matches `ct_native --view 240x160` but for the
+  shading; the five movies take 2,091, 8,665, 28,570, 15,477 and 8,801 GBA
+  frames against 2,090, 8,644, 28,402, 15,433 and 8,737 (`title-start`,
+  `new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`), and
+  fast RAM 144 bytes more. With the title's copies (above) too, work RAM
+  keeps 29,240 bytes free, 568 above its floor.
   A line effect that sets the mode down the picture (the jet bike race's
   scenery in mode 1 above its track in Mode 7) has the layout made for the
   mode the lines other than Mode 7 show (mode 2 where any shows it), not the
