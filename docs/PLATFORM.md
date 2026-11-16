@@ -1443,7 +1443,16 @@ mode 0's four tiled layers and its sprites:
   than through the port a byte at a time (the game's frame in
   `gato-battle` 1.05 GBA frames to 1.02). Maps a line effect shows part of
   the way down (the field's dialog, whose two layers show one map as their
-  own) are converted for their layer into room the GBA has spare.
+  own) are converted for their layer into room the GBA has spare: seven
+  of them, a map a band shows cut taking no more than six and giving its
+  place up to one a line shows whole. With six, the battles that keep three
+  layers' maps for the field and three for the window left the third
+  layer's second map out (`attract-demo`'s Magus castle battles, where it
+  holds the candles' flames), and its lines showed whatever the GBA's VRAM
+  held there, a window's border in rows down the whole battle; the
+  census's cluster there (frames 6644-7254 and 17680-18424) fell from 6.6
+  and 6.8 million pixels to 2.5 and 2.8, what is left the flames' tint, a
+  colour the fixed colour adds that the GBA's blending can't (issue #554).
 - **Tiles** live in caches, one for each set of tiles: a window of 1,024
   tiles from a 16 KiB block of the GBA's background VRAM, whose places no
   map takes are handed out to the tiles the maps name as they name them,
