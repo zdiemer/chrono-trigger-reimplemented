@@ -1850,7 +1850,10 @@ mode 0's four tiled layers and its sprites:
   The table of line effects' maps holds nine: a battle's line effects show
   six and the cut takes three more, which a table of six left no room for
   (the window shown whole, 16 dots right of ct_native's, its gauges past
-  the screen's edge).
+  the screen's edge). A band that cuts a map notes its cut copy alone, the
+  map whole only where the copy found no room: the whole map, shown by no
+  line, was left out by each layout and noted again, a layout a frame in
+  the battle's menus.
 - **The bands** are worked out a run of lines at a time, between the lines
   where a panel starts or ends or a band passes the SNES's first or last
   line, rather than a line at a time: at the title that took the picture

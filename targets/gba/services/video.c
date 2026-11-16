@@ -3717,12 +3717,18 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
     uint16_t size = (uint16_t)((b.map_w == 64 ? 1 : 0) | (b.map_h == 64 ? 2 : 0));
     uint16_t at = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
     bool own = at == l->map_byte && bytes == l->map_bytes;
-    if (!own)
+    /* a band that cuts the map shows its cut copy, and the map whole only
+     * where the copy found no room: noted whole otherwise, it would be shown
+     * by no line, left out by the next layout and noted again, a layout a
+     * frame (the battle's menus) */
+    bool cuts = band->cut_dots && b.map_w == 32 && band->cut_dots % 8 == 0;
+    const LineMap *cut_copy = cuts ? line_map(n, at, true) : NULL;
+    if (!own && (!cuts || (cut_copy && cut_copy->gba_byte == NO_PLACE)))
         note_line_map(n, at, bytes, NO_CUT);
-    else if (!l->own_map)
+    else if (own && !l->own_map)
         snes.settings_changed = true;   /* left out by the last layout: the next has it */
     const LineMap *lm = line_map(n, at, false);
-    if (band->cut_dots && b.map_w == 32 && band->cut_dots % 8 == 0) {
+    if (cuts) {
         uint8_t cut = (uint8_t)(((band->cut_at + band->left + hofs) / 8 % 32) | band->cut_dots / 8 << CUT_COLUMNS_SHIFT);
         LineMap *cut_map = line_map(n, at, true);
         if (!cut_map) {
