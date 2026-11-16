@@ -1463,7 +1463,29 @@ mode 0's four tiled layers and its sprites:
   in a frame it changed (sizes, flips, palette, position). Each sprite finds
   the band its top or foot is in from a table of the SNES's lines made once
   for the frame's sprites, and the size setting's two sizes become the
-  GBA's shapes once a frame, not for each of the 128.
+  GBA's shapes once a frame, not for each of the 128. A sprite whose foot
+  runs past the SNES's last line finds it at the top, where its head is
+  above the screen (Crono's feet at the top of the attract demo's Guardia
+  forest, missing before).
+  The tiles are on two pages, the first 16 and the last 16 of each GBA row
+  (`turn_the_sprite_page`): a picture converts the tiles that changed onto
+  the page not shown, with those the other page took last, and its sprites
+  name that page, so the page turns as its sprite table is copied in. Before,
+  the tiles were converted in place as the picture was made, and a picture
+  shown a GBA frame late (`show_the_frame`) showed the last frame's sprites
+  in the new frame's tiles: an object's pieces moved about for a frame each
+  time its frame changed (issue #550). Matched against `ct_native --view
+  240x160` a GBA picture at a time (colours at the SNES's five bits, dots
+  that differ in most pictures, a panel's style or the colour math, set
+  aside): `gato-battle` 9600-9900, Crono and Mom in his house, 25 of 302
+  pictures differed, now none; `new-game` 6900-7199, Crono walking, 19 of
+  309, now none; `attract-demo` 4880-5030, 84 of 174, now 25, all at its
+  fades; `events-jetbike-race` 3000-3150, 75 of 180, now 14, Marle hidden
+  by the sprite mask (issue #560). The five movies and `attract-demo` end as
+  ct_native's in 1,918, 8,010, 26,120, 14,504, 8,265 and 34,962 GBA frames
+  against 1,919, 7,999, 26,066, 14,386, 8,228 and 34,806 (the tiles that
+  change converted twice); work RAM keeps 384 bytes above its floor (the
+  pages' two 64-byte masks), fast RAM as it was.
 - **Priority**: each SNES tile stands in front of or behind the sprites by
   its map entry's priority bit, where a GBA layer has one priority. A layer
   whose map has tiles of both is split across two GBA layers, as many as
