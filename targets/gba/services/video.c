@@ -2325,13 +2325,39 @@ static int sprite_slot(uint32_t byte)
     return (int)(((unsigned)table * 16 + tile / 16) * 32 + tile % 16);
 }
 
+/* A map's units in a block (`units`, a bit each, from `first`), each with
+ * its priorities noted for layer `n` (note_priorities'; none where n is
+ * past the fourth) and, where `l` is a layer, converted for it into `to`
+ * and `front_to` as convert_map does, each place, or NO_PLACE, stepping
+ * with the units. From fast RAM, the block's units one after another: a
+ * call there and back for each unit of a scene's maps cost more than the
+ * call's work. */
+ARM_CODE __attribute__((noinline)) static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte,
+                                                                 bool added, const Layer *l, uint32_t to, uint32_t front_to)
+{
+    for (; units; units >>= 1, first += UNIT_BYTES) {
+        if (units & 1) {
+            if (n < 4)
+                note_priorities(n, first, map_byte, added);
+            if (l)
+                convert_map(first, l, to, front_to);
+        }
+        if (to != NO_PLACE)
+            to += UNIT_BYTES;
+        if (front_to != NO_PLACE)
+            front_to += UNIT_BYTES;
+    }
+}
+
 /* The units of a block of VRAM the game changed (`units`, a bit each, the
  * first unit's lowest), each as what the settings make it. What a block is
  * for (the maps, line maps and caches it holds; every one starts on a
  * block) is worked out once for its 16 units: a scene's first picture
  * converts some thousand units, and working it out for each was a fifth of
- * that picture's work. Each unit's work is done in the order it was, its
- * maps' entries naming their tiles before its own tiles are converted. */
+ * that picture's work. Its maps' units are converted a map at a time,
+ * naming their tiles, before its own tiles are converted again: the places
+ * a map's tiles are given may follow another order than a unit at a time
+ * did, and the picture is the same. */
 static void convert_block(unsigned k, uint32_t units)
 {
     uint32_t block = (uint32_t)k * BLOCK_BYTES;
@@ -2366,6 +2392,36 @@ static void convert_block(unsigned k, uint32_t units)
     int sprites = role & SPRITE_TILES ? sprite_slot(block) : -1;   /* its first sprite tile's place */
     if (!line_maps && !owner && !tiled && sprites < 0 && !plane && !offsets && !copied_from)
         return;   /* tiles none of which has a place yet, as a scene's are as it loads */
+    for (unsigned j = 0; j < line_maps; j++) {
+        const LineMap *lm = shown_maps[j];
+        uint32_t offset = (block - lm->byte) & (VRAM_BYTES - 1);
+        if (lm->cut != NO_CUT) {
+            for (unsigned i = 0; i < 16; i++)
+                if (units >> i & 1)
+                    convert_cut_row(lm, (offset + i * UNIT_BYTES) / 64);
+            continue;
+        }
+        /* a shared copy is its owner's, converted as its map */
+        bool front_shared = lm->shared && map_layer(block)->split;
+        bool own_copy = !lm->shared || (lm->front_byte != NO_PLACE && !front_shared);
+        convert_map_units(block, units, lm->layer, lm->byte, true, own_copy ? &layers[lm->layer] : NULL,
+                          lm->shared ? NO_PLACE : lm->gba_byte + offset,
+                          lm->front_byte != NO_PLACE && !front_shared ? lm->front_byte + offset : NO_PLACE);
+        /* tiles in front where its split layer had none: the next layout
+         * gives them their copy */
+        for (unsigned i = 0; lm->front_byte == NO_PLACE && layers[lm->layer].split && i < 16; i++)
+            if (units >> i & 1 && has_tiles_in_front(block + i * UNIT_BYTES, UNIT_BYTES))
+                snes.settings_changed = true;
+    }
+    if (owner) {
+        for (unsigned n = 0; n < 4; n++)
+            if (own_maps >> n & 1)
+                convert_map_units(block, units, n, layers[n].map_byte, false, NULL, NO_PLACE, NO_PLACE);
+        uint32_t front = owner->front_byte + ((block - owner->map_byte) & (VRAM_BYTES - 1));
+        convert_map_units(block, units, 4, 0, false, owner, block, owner->split ? front : NO_PLACE);
+        if (owner->overlaid)
+            convert_map_units(block, units, 4, 0, false, owner, NO_PLACE, front);
+    }
     for (unsigned i = 0; units; i++, units >>= 1) {
         if (!(units & 1))
             continue;
@@ -2375,33 +2431,6 @@ static void convert_block(unsigned k, uint32_t units)
             convert_plane_unit(first);
         if (copied_from)
             copied.stale = offsets_written = true;
-        for (unsigned j = 0; j < line_maps; j++) {
-            const LineMap *lm = shown_maps[j];
-            uint32_t offset = (first - lm->byte) & (VRAM_BYTES - 1);
-            if (lm->cut != NO_CUT) {
-                convert_cut_row(lm, offset / 64);
-                continue;
-            }
-            note_priorities(lm->layer, first, lm->byte, true);
-            /* a shared copy is its owner's, converted as its map */
-            bool front_shared = lm->shared && map_layer(first)->split;
-            if (!lm->shared || (lm->front_byte != NO_PLACE && !front_shared))
-                convert_map(first, &layers[lm->layer], lm->shared ? NO_PLACE : lm->gba_byte + offset,
-                            lm->front_byte != NO_PLACE && !front_shared ? lm->front_byte + offset : NO_PLACE);
-            /* tiles in front where its split layer had none: the next layout
-             * gives them their copy */
-            if (lm->front_byte == NO_PLACE && layers[lm->layer].split && has_tiles_in_front(first, UNIT_BYTES))
-                snes.settings_changed = true;
-        }
-        if (owner) {
-            for (unsigned n = 0; n < 4; n++)
-                if (own_maps >> n & 1)
-                    note_priorities(n, first, layers[n].map_byte, false);
-            uint32_t front = owner->front_byte + ((first - owner->map_byte) & (VRAM_BYTES - 1));
-            convert_map(first, owner, first, owner->split ? front : NO_PLACE);
-            if (owner->overlaid)
-                convert_map(first, owner, NO_PLACE, front);
-        }
         for (unsigned c = 0; tiled >> c; c++) {
             const Cache *cache = &caches[c];
             if (!(tiled >> c & 1))

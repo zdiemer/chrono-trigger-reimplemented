@@ -54,3 +54,4 @@
 *(.text.name_map_tiles .text.name_map_tiles.*)
 *(.text.note_priorities .text.note_priorities.*)
 *(.text.convert_tile .text.convert_tile.*)
+*(.text.convert_map_units .text.convert_map_units.*)
