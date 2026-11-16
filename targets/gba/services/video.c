@@ -4484,10 +4484,16 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
             DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
         }
     } else if (by_line && (raised & IRQ_HBLANK) && line < GBA_LINES) {
-        while (next_change < changes && change_line[shown_place(next_change)] <= line)
-            next_change++;
-        if (next_change < changes && change_line[shown_place(next_change)] == line + 1)
-            set_line(&change_registers[shown_place(next_change++)]);
+        /* the change for the next line; or, where the interrupt came late
+         * (another handler ran on past this line's blank), the last of
+         * those it passed, so that a band shows its own lines from here
+         * rather than the last band's through to the next change (the
+         * naming's rows a gap's six lines low, as the cursor moved) */
+        unsigned passed = changes;
+        while (next_change < changes && change_line[shown_place(next_change)] <= line + 1)
+            passed = next_change++;
+        if (passed < changes)
+            set_line(&change_registers[shown_place(passed)]);
         if (!(next_change < changes && change_line[shown_place(next_change)] == line + 2))
             await_change();
     }
