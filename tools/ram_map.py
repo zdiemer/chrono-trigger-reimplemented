@@ -1485,6 +1485,46 @@ def render_backing(m, flat=False):
     ]
     if flat:
         out += [
+            "void wram_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count)",
+            "{",
+            "    uint32_t from = at - WORK_RAM;",
+            "    if (from >= WORK_RAM_BYTES || count > WORK_RAM_BYTES - from) {",
+            "        for (uint32_t k = 0; k < count; k++)",
+            "            bytes[k] = r8(g, at + k);",
+            "        return;",
+            "    }",
+            "    if (!peeking)",
+            "        state_host_game_access(g, 8u * count);",
+            "    vars_host_read_span(state_host_vars_const(g), at, bytes, count);",
+            "}",
+            "void wram_write_span(GameState *g, uint32_t at, const uint8_t *bytes, uint32_t count)",
+            "{",
+            "    uint32_t from = at - WORK_RAM;",
+            "    if (from >= WORK_RAM_BYTES || count > WORK_RAM_BYTES - from) {",
+            "        for (uint32_t k = 0; k < count; k++)",
+            "            w8(g, at + k, bytes[k]);",
+            "        return;",
+            "    }",
+            "    if (!peeking)",
+            "        state_host_game_access(g, 8u * count);",
+            "    vars_host_write_span(state_host_vars(g), at, bytes, count);",
+            "}",
+        ]
+    else:
+        out += [
+            "void wram_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count)",
+            "{",
+            "    for (uint32_t k = 0; k < count; k++)",
+            "        bytes[k] = r8(g, at + k);",
+            "}",
+            "void wram_write_span(GameState *g, uint32_t at, const uint8_t *bytes, uint32_t count)",
+            "{",
+            "    for (uint32_t k = 0; k < count; k++)",
+            "        w8(g, at + k, bytes[k]);",
+            "}",
+        ]
+    if flat:
+        out += [
             "",
             "/* An accessor's own bytes, every one of which an owner keeps: read and",
             "   written where work RAM keeps them, the whole value's time at once. `top`",

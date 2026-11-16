@@ -87,6 +87,16 @@ uint8_t wram_read8(const GameState *g, uint32_t at) { return r8(g, at); }
 uint16_t wram_read16(const GameState *g, uint32_t at) { return r16(g, at); }
 void wram_write8(GameState *g, uint32_t at, uint8_t v) { w8(g, at, v); }
 void wram_write16(GameState *g, uint32_t at, uint16_t v) { w16(g, at, v); }
+void wram_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count)
+{
+    for (uint32_t k = 0; k < count; k++)
+        bytes[k] = r8(g, at + k);
+}
+void wram_write_span(GameState *g, uint32_t at, const uint8_t *bytes, uint32_t count)
+{
+    for (uint32_t k = 0; k < count; k++)
+        w8(g, at + k, bytes[k]);
+}
 
 /* ---- page kinds ------------------------------------------------------------------------ */
 
