@@ -1939,19 +1939,20 @@ where its copy (`put_span`) takes 228 bytes.
 sent its samples a byte at a time, and the mixer hashed each byte to find
 the packed block they made (`written`): about a third of the map load at
 `gato-battle` frame 11580 and most of the title's song load. The voices now
-take a run (`au_sample_memory_send`, a `PfData` from `rom_data`), which a
-song's load sends a block at a time, charging the reads of its bytes as
-reading them did (`sound_block_bytes`); the native mixer puts the bytes in
+take a run (`au_sample_memory_send`), which a song's load sends a block at
+a time, the block's bytes in place (`rom_bytes_on`, read on into the next
+bank as the original's reads go, where blocks 12, 33 and 48 cross one),
+charging the reads of its bytes as reading them did; the native mixer puts the bytes in
 place one after another as before, and the GBA's knows the block from the
 run's address, which the packing step lists with each block
 (`host/samples.py`), and reads none of it. The title's song load (the gap
 before game frame 90) fell from 35 GBA frames to under 5 and the map load
 at `gato-battle` frame 11580 from 69 to 34; the heaviest frames are 43, 43,
 49, 46 and 51 GBA frames against 43, 43, 69, 46 and 51, and the movies take
-2,002, 8,548, 28,292, 15,608 and 9,041 GBA frames against 2,034, 8,599,
+2,002, 8,544, 28,282, 15,611 and 9,042 GBA frames against 2,034, 8,599,
 28,485, 15,770 and 9,080 (`title-start`, `new-game`, `gato-battle`,
 `events-jetbike-race`, `menus-sweep`), each ending as ct_native does. The
-pack grows by 764 bytes (13,824,832 in all), and fast RAM gains 496 bytes,
+pack grows by 508 bytes (13,824,576 in all), and fast RAM gains 496 bytes,
 the hashing's loop gone from it.
 
 **Measured** (2026-11-14, mGBA 0.10.5):

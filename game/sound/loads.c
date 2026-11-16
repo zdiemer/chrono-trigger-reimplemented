@@ -23,6 +23,7 @@
  * sets of effects, and one sample block loaded in place of the song's first
  * instrument. The field also asks for a set by leaving word of it for the
  * next song, which brings it. */
+#include "charge.h"
 #include "core/sound_data.h"
 #include "sound/driver.h"
 
@@ -118,10 +119,20 @@ static uint8_t first_free_place(const SoundSamples *p)
     return place;
 }
 
-/* A block's sample, `length` bytes, into sound memory at `at`. */
+/* A block's sample, `length` bytes, into sound memory at `at`: sent whole
+ * where the cartridge's bytes are at hand, with the time the original takes
+ * reading each of them, or else read and written a byte at a time. */
 static void write_sample(SoundDriver *d, uint16_t at, uint16_t block, uint16_t length)
 {
-    au_sample_memory_send(d->voices, at, sound_block_bytes(d->game, block, length), length);
+    uint32_t from = sound_block_bytes_at(d->game, block);
+    const uint8_t *bytes = rom_bytes_on(from, length);
+    if (bytes) {
+        charge_rom_accesses((GameState *)d->game, length);
+        au_sample_memory_send(d->voices, at, (PfData){ .addr = from, .ptr = bytes }, length);
+    } else {
+        for (uint16_t i = 0; i < length; i++)
+            au_sample_memory_write(d->voices, (uint16_t)(at + i), rom_read8(d->game, from + i));
+    }
     d->bytes_sent += length;
 }
 

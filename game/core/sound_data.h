@@ -14,7 +14,6 @@
 
 #include <stdbool.h>
 
-#include "charge.h"
 #include "rom.h"
 
 /* The SPC700 driver goes up in six blocks: block k is at $C7:(the word at
@@ -244,14 +243,9 @@ static inline uint32_t sound_block_data(const GameState *g, uint16_t id)
 
 static inline uint16_t sound_block_length(const GameState *g, uint16_t id) { return rom_read16(g, sound_block_data(g, id)); }
 
-/* A sample block's first `length` BRR bytes as one run, as a song's load
- * sends them into sound memory whole (audio.h, au_sample_memory_send), with
- * the time the original takes reading each of them from the cartridge. */
-static inline PfData sound_block_bytes(const GameState *g, uint16_t id, uint16_t length)
-{
-    charge_rom_accesses((GameState *)g, length);
-    return rom_data(sound_block_data(g, id) + 2, length);
-}
+/* Where a sample block's BRR bytes start: a song's load reads them on from
+ * there, into the next bank where a block crosses one (blocks 12, 33, 48). */
+static inline uint32_t sound_block_bytes_at(const GameState *g, uint16_t id) { return sound_block_data(g, id) + 2; }
 
 static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
 {
