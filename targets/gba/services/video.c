@@ -2364,6 +2364,8 @@ static void convert_block(unsigned k, uint32_t units)
             first_tile[c] = (uint16_t)(((block - caches[c].char_byte) & (VRAM_BYTES - 1)) >> tile_shift(caches[c].bpp));
         }
     int sprites = role & SPRITE_TILES ? sprite_slot(block) : -1;   /* its first sprite tile's place */
+    if (!line_maps && !owner && !tiled && sprites < 0 && !plane && !offsets && !copied_from)
+        return;   /* tiles none of which has a place yet, as a scene's are as it loads */
     for (unsigned i = 0; units; i++, units >>= 1) {
         if (!(units & 1))
             continue;
