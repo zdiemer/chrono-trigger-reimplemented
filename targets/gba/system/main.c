@@ -37,11 +37,13 @@
 #include "system/keypad.h"
 
 /* The pack after the program (pack.py): the catalogue's resources in its
- * order, and the sound's samples. */
+ * order, the sound's samples, and the colours' table where it was packed
+ * with a profile that changes them. */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
     uint32_t samples_at;           /* services/mixer.h, MixerSamples */
+    uint32_t colours_at;           /* services/video.h, gba_video_use_colours; 0: none */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
 
@@ -271,6 +273,7 @@ int main(void)
     *canary() = CANARY;
     pf.save.bytes = state_host_sram(g);
     vid_host_start(&pf, read_game, g);
+    gba_video_use_colours(head->colours_at ? (const uint16_t *)((const uint8_t *)head + head->colours_at) : NULL);
     mixer_use_samples((const MixerSamples *)((const uint8_t *)head + head->samples_at));
     SoundNative *sound = sound_native_create(g, &pf);
     if (!sound) {
