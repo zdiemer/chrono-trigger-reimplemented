@@ -2248,6 +2248,7 @@ static inline __attribute__((always_inline)) uint32_t entry_in(Cache *c, uint32_
 
 static uint32_t high_palettes(const Layer *l) { return l->bpp == 2 ? HIGH_PALETTES : 0; }
 
+/* A map entry as the GBA's, for a layer. */
 static uint16_t map_entry(uint16_t e, const Layer *l)
 {
     return (uint16_t)entry_in(&caches[l->cache], e, high_palettes(l));
