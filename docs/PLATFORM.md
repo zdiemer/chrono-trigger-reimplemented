@@ -887,11 +887,14 @@ made in `game/` as presentation and never as a rule:
   and shuts from its middle as the screen's band does. The game's text,
   timing and inputs are unchanged.
 - **A battle** (`battle/camera.c`) keeps the battle window's 48 lines whole
-  at the view's foot, with two of its columns cut from inside a window so
+  at the view's foot, or at its top where the window's arrangement lays it
+  out at the screen's top (lines 8-55 rather than 160-207: the attract
+  demo's battle in Magus's castle, which showed only the window's last line
+  before, issue #552), with two of its columns cut from inside a window so
   both borders show. The two cut are the middle pair that holds no text and
   sits in the frames' repeating pattern, found again only where the frames'
   rows change or text comes into them (the view's memory keeps them). The camera centres the box round
-  the combatants in the fight in the 112 lines above.
+  the combatants in the fight in the view's other 112 lines.
 - **The menus** (`menu/camera.c`). Their screens keep within 224 dots
   across, which fit, and run up to 200 lines down, of which the view shows
   160. Each is laid out again as runs of its lines (a table a screen):

@@ -1,9 +1,11 @@
 /* Battle: a smaller view's camera (core/view_framing.h).
  *
  * A battle is fought on the field's screen, the combatants wherever they
- * stand on it, and the battle window across its foot. A smaller view keeps
- * the window whole at its own foot, narrower (below), and frames the
- * combatants in the lines above it: the middle of the box round every combatant that is in the
+ * stand on it, and the battle window across its foot, or across its top
+ * where the player moved it there (or a demo battle starts it there, as the
+ * attract demo's in Magus's castle does). A smaller view keeps the window
+ * whole at its own foot or top, narrower (below), and frames the combatants
+ * in the lines beside it: the middle of the box round every combatant that is in the
  * fight and drawn, or the screen's middle while none is. */
 #include "battle/camera.h"
 
@@ -16,9 +18,16 @@
 
 #include <string.h>
 
-/* The window's lines on the screen, as its line tables lay it out: 48 lines
- * from line 160, above the screen's last 16. */
-enum { WINDOW_TOP = 160, WINDOW_LINES = 48 };
+/* The window's lines on the screen, as its line tables lay it out in each of
+ * its two arrangements (battle/frame.c): 48 lines from line 160, above the
+ * screen's last 16, or from line 8, below its first 8. */
+enum { WINDOW_BELOW = 160, WINDOW_ABOVE = 8, WINDOW_LINES = 48 };
+
+/* The arrangement the line handler applied last: the first lays the window
+ * out at the top (the attract demo's battle in Magus's castle), the second
+ * at the foot (the opening's battles). */
+static bool window_above(const GameState *g) { return !(battle_alternate_latched(g) & 1); }
+
 /* A combatant's point is at its feet; the box takes its middle. */
 enum { MIDDLE_ABOVE_THE_FEET = 16 };
 
@@ -154,16 +163,20 @@ void battle_frame_the_view(GameState *g, Platform *pf)
     if (!vid_view_is_smaller(view))
         return;
     uint32_t mark = charge_uncounted_begin(g);
-    int16_t window_at = (int16_t)(view.height - WINDOW_LINES);
+    bool above = window_above(g);
+    int16_t window_top = above ? WINDOW_ABOVE : WINDOW_BELOW;
+    int16_t window_at = above ? 0 : (int16_t)(view.height - WINDOW_LINES);
     VidBg text;
     int cut = -1, cut_dots = VID_ORIGINAL_VIEW_WIDTH - view.width;
-    if (cut_dots == CUT_COLUMNS * COLUMN_DOTS && vid_layer_last_shown(pf, VID_BG3, WINDOW_TOP + 1, &text))
+    if (cut_dots == CUT_COLUMNS * COLUMN_DOTS && vid_layer_last_shown(pf, VID_BG3, (uint16_t)(window_top + 1), &text))
         cut = the_cut(pf, text.char_base);
     if (cut >= 0)
-        view_keep_lines_cut(pf, WINDOW_TOP, WINDOW_LINES, window_at, (int16_t)(cut * COLUMN_DOTS), (uint16_t)cut_dots);
+        view_keep_lines_cut(pf, window_top, WINDOW_LINES, window_at, (int16_t)(cut * COLUMN_DOTS), (uint16_t)cut_dots);
     else
-        view_keep_lines(pf, WINDOW_TOP, WINDOW_LINES, window_at);
-    ViewLines open = { 0, (uint16_t)window_at, WINDOW_TOP, WINDOW_TOP + WINDOW_LINES };
+        view_keep_lines(pf, window_top, WINDOW_LINES, window_at);
+    /* the combatants framed in the view's other lines, clear of the window's */
+    ViewLines open = { (int16_t)(above ? WINDOW_LINES : 0), (uint16_t)(view.height - WINDOW_LINES), window_top,
+                       (int16_t)(window_top + WINDOW_LINES) };
     view_centre_on(pf, the_combatants_middle(g), open);
     charge_uncounted_end(g, mark);
 }
