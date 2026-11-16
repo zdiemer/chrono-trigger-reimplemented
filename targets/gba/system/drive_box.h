@@ -38,6 +38,7 @@ typedef struct {
     uint32_t written;    /* the runner's: frames of pads put in the ring, all told */
     uint32_t taken;      /* the driver's: frames begun, all told */
     uint32_t waiting;    /* the driver's: 1 while it is between frames with the ring empty */
+    uint32_t shown;      /* the driver's: the frame whose picture it put on the screen last, counted from 1 */
     uint32_t command, address, length;
     uint32_t pads[DRIVE_RING];   /* frame n's at n % DRIVE_RING: the first controller's low, the second's high */
     uint8_t bytes[DRIVE_BYTES];
