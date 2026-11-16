@@ -34,7 +34,8 @@ platform services' backends. Nothing here is included from `game/`.
 - `system/`: the driver and what the C library and the runtime need.
   - `main.c`: the driver. One frame of the game a turn of its loop, as
     ct_native's: the pads, `tm_host_frame`, the sound player's frame, then
-    the picture in the vertical blank. Asked by a runner, it reports the frames and lag
+    the picture in the vertical blank, or none where the frame ran late
+    (never two frames in a row). Asked by a runner, it reports the frames and lag
     frames, a CRC-32 of work RAM and save RAM as `ct_native --end-state`
     writes them, each part's GBA frames of work a frame, the arena and the
     stacks' deepest use.
@@ -61,9 +62,9 @@ platform services' backends. Nothing here is included from `game/`.
     decides itself: ct_native's decisions replayed where a runner put them
     in the cartridge, the GBA's own time and line counter otherwise.
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, nine
-    slots in fast RAM (the game's main thread's 3 KiB, and 1.5 KiB for each of the
-    menus' eight tasks, which can all run at once), each
-    with a guard, and no snapshots.
+    slots in fast RAM (the game's main thread's 2.5 KiB, and 1 KiB for each of the
+    menus' eight tasks, which can all run at once, sized from the movie
+    library's deepest use), each with a guard, and no snapshots.
 - `services/`: the platform services' backends, one per service.
   - `cartridge_save.c`, `cartridge_save.h`: the cartridge's SRAM. The
     SNES's 8 KiB save at its start, as the .srm has it, is the game's save
