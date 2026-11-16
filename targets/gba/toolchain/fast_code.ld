@@ -30,7 +30,6 @@
 *(.text.vars_host_fill_span .text.vars_host_fill_span.*)
 *(.text.sprite_table_set_byte .text.sprite_table_set_byte.*)
 *(.text.vid_send_palette .text.vid_send_palette.*)
-*(.text.cycles_now .text.cycles_now.*)
 *(.text.w8 .text.w8.*)
 *(.text.offset_row .text.offset_row.*)
 *(.text.r16 .text.r16.*)
