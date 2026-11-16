@@ -314,10 +314,13 @@ static void load_the_graphics(GameState *g, Platform *pf)
 {
     load_the_sprite_pages(g);
     TIMED_AS(g, 0xC22D70, send_staged(pf, SPRITE_TILES_VRAM, STAGING, SPRITE_PAGES * BLOCK_BYTES));
+    tm_let_frames_pass(pf);
     load_the_party_sprites(g);
     TIMED_AS(g, 0xC22D70, send_staged(pf, PARTY_TILES_VRAM, PARTY_TILES, PARTY_SPRITES_BYTES));
+    tm_let_frames_pass(pf);
     overworld_load_the_map_tiles(g);
     TIMED_AS(g, 0xC22D70, send_staged(pf, MAP_TILES_VRAM, STAGING, MAP_TILE_BLOCKS * BLOCK_BYTES));
+    tm_let_frames_pass(pf);
     load_named(g, RECORD_TOP_LAYER_TILES, OVERWORLD_MAP_GRAPHICS, STAGING);
     TIMED_AS(g, 0xC22D70, send_staged(pf, TOP_LAYER_TILES_VRAM, STAGING, BLOCK_BYTES));
     load_named(g, RECORD_TOP_LAYER_TILEMAP, OVERWORLD_TOP_LAYER_TILEMAPS, STAGING);
@@ -394,7 +397,9 @@ enum { LAND_PLANE = 0, OVER_THE_LAND = 1 };
 static void draw_the_map(GameState *g, Platform *pf)
 {
     menu_map_redraw_plane(g, pf, LAND_PLANE);
+    tm_let_frames_pass(pf);
     menu_map_redraw_plane(g, pf, OVER_THE_LAND);
+    tm_let_frames_pass(pf);
 }
 
 /* ---- The overworld's own state ------------------------------------------------------------- */
@@ -470,14 +475,18 @@ static void load_the_world_map(GameState *g, Platform *pf)
     start_the_overworld_afresh(g);
     note_the_record(g);
     load_the_graphics(g, pf);
+    tm_let_frames_pass(pf);
     load_the_tile_groups(g);
     load_the_maps(g);
+    tm_let_frames_pass(pf);
     load_the_ground(g);
     load_the_regions(g);
     load_the_places(g);
     load_the_scene_script(g);
+    tm_let_frames_pass(pf);
     load_the_scene_graphics(g);
     clear_the_sign_buffer(g);
+    tm_let_frames_pass(pf);
     draw_the_map(g, pf);
     TIMED_AS(g, 0xC204D9, (void)menu_start_script(g, SCENE_SCRIPT, MENU_ORDINARY_SLOT));
 }

@@ -371,7 +371,7 @@ class Var:
 
     KEYS = {"name", "addr", "size", "count", "stride", "index", "page", "dp",
             "subsystem", "meaning", "source", "field", "rows", "row_stride", "unchecked", "reuses", "host_module", "host_alias", "host_blob", "elements",
-            "overlays", "same_value"}
+            "overlays", "same_value", "runs"}
 
     def __init__(self, raw, pages):
         where = "var %r" % raw.get("name")
@@ -510,6 +510,13 @@ class Var:
         # A variable some marked scaffolding reaches out of range on purpose
         # (a `leave_stray_*` write the gate needs): it gets a second, unchecked
         # pair of accessors, and says why.
+        # A table of rows a port writes a run of a row at a time (a map's tile
+        # maps unpacked): it gets set_<name>_run and fill_<name>_run beside
+        # its pair, which the flat state writes in one go.
+        self.runs = raw.get("runs", False)
+        if self.runs not in (False, True) or (self.runs and (self.rows is None or self.fields)):
+            raise MapError("%s: runs marks a table of rows written a run at a time" % where)
+
         self.unchecked = raw.get("unchecked")
         if self.unchecked is not None:
             if not (isinstance(self.unchecked, str) and self.unchecked.strip()):
@@ -1131,6 +1138,25 @@ class Accessor:
             out.append((self.type + " v", "v"))
         return out
 
+    def runs(self):
+        """Whether the accessor has a run pair: a table of rows the map says
+        is written a run of a row at a time."""
+        return self.var.runs and self.table and not self.unchecked
+
+    def run_signature(self, fill):
+        """set_<name>_run, `count` bytes from `v` along a row from `column` on;
+        or fill_<name>_run, `count` of one byte."""
+        args = ", ".join(["GameState *g"] + [d for d, _ in self.params(False)]
+                         + ["uint8_t v" if fill else "const uint8_t *v", "unsigned count"])
+        return "void %s_%s_run(%s)" % ("fill" if fill else "set", self.name, args)
+
+    def run_each(self, fill):
+        """A run as that many set_ calls, a byte at a time."""
+        args = [a for _, a in self.params(False)]
+        args[-1] = "column + k"
+        return "for (unsigned k = 0; k < count; k++) set_%s(g, %s, %s);" % (self.name, ", ".join(args),
+                                                                          "v" if fill else "v[k]")
+
     def signature(self, write):
         state = "GameState *g" if write else "const GameState *g"
         args = ", ".join([state] + [d for d, _ in self.params(write)])
@@ -1239,6 +1265,9 @@ def accessors(m):
         for a in group:
             take(a.name, names, "accessor")
             take("set_" + a.name, names, "accessor")
+            if a.runs():
+                take("set_" + a.name + "_run", names, "accessor")
+                take("fill_" + a.name + "_run", names, "accessor")
             if a.bytes_const:
                 take(a.bytes_const, consts, "constant")
             if a.rows_const:
@@ -1340,6 +1369,11 @@ def render_vars_header(m):
                     out.append("enum { %s = %d, %s = %d };" % (a.rows_const, a.var.rows, a.columns_const, a.size))
                 out.append("%s;" % a.signature(False))
                 out.append("%s;" % a.signature(True))
+                if a.runs():
+                    out += comment("`count` bytes along a row from `column` on, as that many set_%s's: "
+                                   "from `v`, or each `v` (fill)." % a.name)
+                    out.append("%s;" % a.run_signature(False))
+                    out.append("%s;" % a.run_signature(True))
     out += ["", "#endif", ""]
     return "\n".join(out)
 
@@ -1357,7 +1391,9 @@ def render_backing(m, flat=False):
             " * as the original's one byte; a build whose state must fit the original's",
             " * memory (the GBA's) uses it. The storage is the backing's",
             " * (vars_host_init, vars_host_read8, vars_host_write8). */",
-            "#ifdef CT_FLAT_STATE"]
+            "#ifdef CT_FLAT_STATE",
+            "#include <string.h>",
+            ""]
     else:
         out = [
             "/* Native state accessors and their address views, generated for game/vars.h",
@@ -1563,6 +1599,7 @@ def render_backing(m, flat=False):
             if group[0].var.host_owner and not flat:
                 for a in group:
                     out += render_host_accessor(a, ids, ov)
+                    out += render_runs(a, None)
                 continue
             for a in group:
                 w = width_of(a) * 8
@@ -1588,8 +1625,40 @@ def render_backing(m, flat=False):
                         if bad:
                             body = "if (%s) { %s%s } %s" % (bad, by_address, " return;" if write else "", body)
                     out.append("%s { %s%s }" % (a.signature(write), checks, body))
+                if flat and direct and a.runs():
+                    top = max(addr for base in a.var.bases() for addr in accessor_bytes(a, base + a.offset))
+                    out += render_runs(a, (bad, top, ids[a.var.name]))
+                else:
+                    out += render_runs(a, None)
     out += ["", "#endif", ""]
     return "\n".join(out)
+
+
+def render_runs(a, flat):
+    """An accessor's run pair (Accessor.runs): a byte at a time through its
+    set_ accessor; or, in the flat state, where an owner keeps every byte
+    (`flat`: the accessor's out-of-range test, its last byte and its checks'
+    id), checked once and written in one go where the run's bytes lie
+    together, each byte's time as set_'s."""
+    if not a.runs():
+        return []
+    out = []
+    for fill in (False, True):
+        each = a.run_each(fill)
+        if flat is None:
+            out.append("%s { %s }" % (a.run_signature(fill), each))
+            continue
+        bad, top, id_ = flat
+        name = ("fill_" if fill else "set_") + a.name + "_run"
+        checks = "".join("IN_RANGE(g, %d, \"%s\", \"%s\", %s, %s); " % (id_, name, what, arg, limit)
+                         for arg, limit, what in a.bounds())
+        apart = "count == 0 || column + count > %du" % a.size + (" || " + bad if bad else "")
+        first = "kept(g, %s, 0x%06Xu)" % (a.address(), top)
+        last = "kept(g, %s + count - 1u, 0x%06Xu)" % (a.address(), top)
+        put = "memset(p, v, count);" if fill else "memcpy(p, v, count);"
+        out.append("%s { %sif (%s) { %s return; } uint8_t *p = %s; if (%s != p + count - 1u) { %s return; } "
+                   "timed(g, 8u * count); %s }" % (a.run_signature(fill), checks, apart, each, first, last, each, put))
+    return out
 
 
 def flat_owned(a, ov):

@@ -412,7 +412,7 @@ static void test_second_layer_wave(void)
 int main(void)
 {
     test_second_layer_wave();
-    TmHostProgram program = { game_main, game_vblank, game_line, NULL, NULL, NULL, NULL, NULL, NULL };
+    TmHostProgram program = { game_main, game_vblank, game_line, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     tm_host_start(&pf, &program, 12345);
 
     /* frame 1: no handlers yet; the main thread turns them on, and the line
@@ -468,7 +468,7 @@ int main(void)
 
     /* a wait from the task resumes the task, not the main thread */
     static Platform tasks;
-    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&tasks, &with_tasks, 1);
     for (int i = 0; i < 3; i++) {
@@ -480,7 +480,7 @@ int main(void)
 
     /* the screen brought back: a frame with no handlers, then they come on */
     static Platform back;
-    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL, NULL, NULL, NULL, NULL, NULL };
+    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&back, &bring_back, 1);
     for (int i = 0; i < 3; i++) {
@@ -495,7 +495,7 @@ int main(void)
      * number of frames is that many; the VRAM a send names gets its bytes,
      * the address wrapping round */
     static Platform asking;
-    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     vid_host_start(&asking, NULL, NULL);
     tm_host_start(&asking, &ask, 1);
@@ -514,7 +514,7 @@ int main(void)
     /* three frames and a clock owed: three lag frames, in which the handler
      * runs and the main thread doesn't */
     static Platform lagging;
-    TmHostProgram lag = { lagging_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL };
+    TmHostProgram lag = { lagging_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&lagging, &lag, 1);
     for (int i = 0; i < 6; i++) {
@@ -528,7 +528,7 @@ int main(void)
     /* the same, its decisions kept, then replayed to a program that keeps no
      * time: the same frames, the same lag */
     static Platform keeping, replaying;
-    TmHostProgram keep = { lagging_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, keep_decision };
+    TmHostProgram keep = { lagging_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, keep_decision, NULL };
     tm_host_start(&keeping, &keep, 1);
     for (int i = 0; i < 6; i++)
         tm_host_frame(&keeping);
@@ -537,7 +537,7 @@ int main(void)
         if (kept_kinds[k] == TM_HOST_LAGS)
             lag_decisions++, lags += kept_decisions[k];
     CHECK(lag_decisions == 6 && lags == 3, "a lag decision a frame, three of them lags (%u, %u)", lag_decisions, lags);
-    TmHostProgram replaying_program = { lagging_main, asking_vblank, NULL, NULL, NULL, NULL, NULL, replay_decision, NULL };
+    TmHostProgram replaying_program = { lagging_main, asking_vblank, NULL, NULL, NULL, NULL, NULL, replay_decision, NULL, NULL };
     order_len = 0;
     tm_host_start(&replaying, &replaying_program, 1);
     for (int i = 0; i < 6; i++) {
@@ -552,7 +552,7 @@ int main(void)
     /* the same three frames sat out where the main thread stands: it goes on
      * in the third frame after, where it was; a quarter frame stays owed */
     static Platform sitting;
-    TmHostProgram sit = { sitting_out_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL };
+    TmHostProgram sit = { sitting_out_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     tm_host_start(&sitting, &sit, 1);
     for (int i = 0; i < 5; i++) {
@@ -565,7 +565,7 @@ int main(void)
 
     /* the handlers' time comes off the frame the main thread's work has */
     static Platform beside;
-    TmHostProgram busy = { beside_handlers_main, busy_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL };
+    TmHostProgram busy = { beside_handlers_main, busy_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     game_owes = 0;
     tm_host_start(&beside, &busy, 1);
@@ -579,7 +579,7 @@ int main(void)
 
     /* what was done with the handler off passes with it off */
     static Platform setting_up;
-    TmHostProgram setup = { setting_up_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL };
+    TmHostProgram setup = { setting_up_main, asking_vblank, NULL, NULL, lagging_owed, NULL, NULL, NULL, NULL, NULL };
     order_len = 0;
     game_owes = 0;
     tm_host_start(&setting_up, &setup, 1);
@@ -591,7 +591,7 @@ int main(void)
     CHECK(strcmp(order, "M||e|VM|") == 0, "the setup's frames pass before the handler is on: %s", order);
 
     static Platform charges;
-    TmHostProgram charged = { beside_charges_main, charging_handler, charging_handler, NULL, NULL, NULL, NULL, NULL, NULL };
+    TmHostProgram charged = { beside_charges_main, charging_handler, charging_handler, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     tm_host_start(&charges, &charged, 1);
     for (unsigned frame = 0; frame < 6; frame++)
         tm_host_frame(&charges);
@@ -601,7 +601,7 @@ int main(void)
 
     static Platform transfers;
     vid_host_start(&transfers, dma_read, NULL);
-    TmHostProgram dma = { dma_main, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+    TmHostProgram dma = { dma_main, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     tm_host_start(&transfers, &dma, 1);
     for (unsigned frame = 0; frame < 6; frame++)
         tm_host_frame(&transfers);
@@ -612,7 +612,7 @@ int main(void)
     vid_host_stop(&transfers);
 
     static Platform budget;
-    TmHostProgram budgets = { budget_main, charging_handler, charging_handler, NULL, lagging_owed, NULL, NULL, NULL, NULL };
+    TmHostProgram budgets = { budget_main, charging_handler, charging_handler, NULL, lagging_owed, NULL, NULL, NULL, NULL, NULL };
     game_owes = 0;
     tm_host_start(&budget, &budgets, 1);
     tm_host_frame(&budget);

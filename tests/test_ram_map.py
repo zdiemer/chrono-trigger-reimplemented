@@ -644,6 +644,21 @@ class TestAccessors(unittest.TestCase):
                       'return r8(g, 0x7E3000u + (uint32_t)layer * 0x40u + (uint32_t)row * 0x100u + column); }',
                       ram_map.render_backing(m))
 
+    def test_a_table_written_in_runs_has_a_run_pair(self):
+        m = self.load(var("maps", 'addr = "7E:3000"\nsize = 0x40\ncount = 3\nstride = 0x40\nindex = "layer"\n'
+                                  'rows = 64\nrow_stride = 0x100\nruns = true'))
+        h = ram_map.render_vars_header(m)
+        for line in ("void set_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, "
+                     "const uint8_t *v, unsigned count);",
+                     "void fill_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, "
+                     "uint8_t v, unsigned count);"):
+            with self.subTest(line=line):
+                self.assertIn(line, h)
+        self.assertIn("for (unsigned k = 0; k < count; k++) set_maps(g, layer, row, column + k, v[k]);",
+                      ram_map.render_backing(m))
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("flag", 'addr = "7E:1000"\nruns = true'))
+
     def test_the_interface_has_no_layout(self):
         """No address, offset or stride reaches game/vars.h: that is the point of it."""
         m = self.load(var("facing", 'addr = "7E:1100"\nsize = 2\ncount = 4\nstride = 2\nindex = "object slot"'))

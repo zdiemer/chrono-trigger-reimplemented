@@ -407,7 +407,8 @@ int main(void)
     }
     /* no time of the original's kept: the frames decided by the runner's
      * decisions or the GBA's own time (system/frames.h) */
-    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, NULL, NULL, NULL, frames_decide, NULL },
+    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, NULL, NULL, NULL, frames_decide, NULL,
+                                         frames_pass },
                   1);
     direct_sound_start(mixer_fill);
     bool driven = drive_open();

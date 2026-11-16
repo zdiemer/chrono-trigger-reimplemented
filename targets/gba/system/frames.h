@@ -28,6 +28,11 @@ bool frames_replayed(void);
 void frames_game_took(uint32_t cycles);
 /* TmHostProgram.decide. */
 bool frames_decide(void *ctx, TmHostDecision what, uint16_t line);
+/* TmHostProgram.passes: in the GBA's own time, a load whose main thread has
+ * run a whole GBA frame goes on in the next, the sound and the picture kept
+ * going; replaying the runner's decisions, never (ct_native's frames go by
+ * where its load ends). */
+bool frames_pass(void *ctx);
 /* The runner's decisions replayed so far, and how many it gave (the
  * report: a movie played to its end replays every one). Asked for more than
  * it gave, the program stops, saying at which frame. */

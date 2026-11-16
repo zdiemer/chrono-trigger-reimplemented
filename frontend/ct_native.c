@@ -1138,7 +1138,7 @@ int main(int argc, char **argv)
         return 2;
     }
     tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed,
-                                         lag_log ? lagged : NULL, NULL, decisions_path ? decided : NULL }, 1);
+                                         lag_log ? lagged : NULL, NULL, decisions_path ? decided : NULL, NULL }, 1);
     NativeDriver driver = {
         .game = g, .pf = &pf, .sound = sound, .picture = &picture,
         .movie = movie_path ? &movie : NULL, .pack = pack_bytes, .sram_path = sram_path,

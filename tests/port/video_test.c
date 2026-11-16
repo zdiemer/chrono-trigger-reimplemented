@@ -195,7 +195,7 @@ static void handler_uploads(uint16_t line)
 {
     Platform pf = {0};
     vid_host_start(&pf, NULL, NULL);
-    TmHostProgram program = { .main_thread = picture_main, .line = picture_line, .ctx = &line };
+    TmHostProgram program = { .main_thread = picture_main, .line = picture_line, .ctx = &line, NULL };
     tm_host_start(&pf, &program, 1);
     tm_host_frame(&pf);
     const VidFrame *f = vid_host_picture(&pf);

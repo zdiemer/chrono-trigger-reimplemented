@@ -262,6 +262,7 @@ bool field_enter_the_location(GameState *g, Platform *pf)
         TIMED_AS(g, entering[step].routine, done = entering[step].run(g, pf));
         if (!done)
             return false;
+        tm_let_frames_pass(pf);
     }
     return true;
 }
