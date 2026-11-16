@@ -31,6 +31,7 @@
 #include "system/debug_log.h"
 #include "system/drive.h"
 #include "system/fiber.h"
+#include "system/frames.h"
 #include "system/interrupts.h"
 #include "system/keypad.h"
 
@@ -94,8 +95,6 @@ static void read_game(void *ctx, uint32_t addr, uint8_t *out, uint32_t len) { st
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
 static void run_line(Platform *pf, void *ctx) { program_line(ctx, pf); }
-static uint32_t take_owed(void *ctx) { return state_host_take_owed(ctx); }
-static void game_accessed(void *ctx, uint32_t clocks) { state_host_game_access(ctx, clocks); }
 
 enum { WORK_RAM = 0x7E0000, WORK_RAM_BYTES = 0x20000 };
 
@@ -189,6 +188,9 @@ static void report(void *ctx)
     const Run *run = ctx;
     fprintf(stderr, "ct_gba: %u frame(s); %u lag frame(s)\n", (unsigned)run->frames,
             (unsigned)tm_host_lag_frames(run->pf));
+    if (frames_replayed())
+        fprintf(stderr, "ct_gba: %u of the runner's decisions replayed%s\n", (unsigned)frames_decisions_taken(),
+                frames_decisions_ran_out() ? ", and more asked for than it gave" : "");
     if (run->frames) {
         report_cycles(&run->game, run->frames);
         report_cycles(&run->sounds, run->frames);
@@ -245,7 +247,10 @@ int main(void)
                 (unsigned)sound_native_bytes(), (unsigned)arena_used());
         abort();
     }
-    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, take_owed, game_accessed, NULL }, 1);
+    /* no time of the original's kept: the frames decided by the runner's
+     * decisions or the GBA's own time (system/frames.h) */
+    tm_host_start(&pf, &(TmHostProgram){ run_main_thread, run_vblank, run_line, g, NULL, NULL, NULL, frames_decide, NULL },
+                  1);
     direct_sound_start(mixer_fill);
     bool driven = drive_open();
     fprintf(stderr, "ct_gba: playing, the pads from %s\n", driven ? "the runner" : "the keypad");
@@ -256,6 +261,9 @@ int main(void)
     run.g = g, run.pf = &pf;
     static Keypad keypad;
     cycles_start();
+    frames_start(driven);
+    fprintf(stderr, "ct_gba: the game's frames decided by %s\n",
+            frames_replayed() ? "the runner's decisions" : "the GBA's own time");
     for (;;) {
         uint32_t pads = driven ? drive_next_pads(g, report, &run) : keypad_buttons(&keypad, keypad_held());
         in_host_set(&pf, 0, (uint16_t)pads);
@@ -263,6 +271,7 @@ int main(void)
         uint32_t began = cycles_now();
         tm_host_frame(&pf);
         uint32_t game_done = cycles_now();
+        frames_game_took(game_done - began);
         sound_native_frame(sound);
         uint32_t sound_done = cycles_now();
         gba_video_await_blank();

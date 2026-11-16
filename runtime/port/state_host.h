@@ -115,7 +115,11 @@ uint32_t state_host_take_owed(GameState *g);
  * priced with the rest of its stretch's. */
 static inline void state_host_game_access(const GameState *g, uint32_t clocks)
 {
+#ifdef CT_UNTIMED
+    (void)g, (void)clocks;   /* no time model (state_host.c) */
+#else
     state_host_head(g)->account.raw_bus += clocks;
+#endif
 }
 /* The clocks a cartridge read takes, which a read through a pointer the
  * data holds takes too, into RAM as into the cartridge. */

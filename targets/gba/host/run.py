@@ -11,8 +11,11 @@ or lib/libmgba.so): MSYS2's mingw-w64-x86_64-mgba package, installed or only
 unpacked, or a build of mGBA. The runner (targets/gba/host/mgba_run.c) is built
 with the host's C compiler into the program's directory. The GBA build is
 packed first (targets/gba/host/pack.py) from the staged cartridge as ct.gba,
-the one ROM a player plays too; the runner feeds it the movie's pads, and the
-save RAM the movie starts from goes in as its .sav. With
+the one ROM a player plays too. ct_native plays the movie first and writes
+what its time model decides of the game's frames (`--decisions`), which the
+GBA build, keeping no time of the original's, replays
+(targets/gba/system/frames.h); the runner feeds it the movie's pads and the
+decisions, and the save RAM the movie starts from goes in as its .sav. With
 `--profile FILE`, the runner samples where the processor is as the movie
 plays and FILE gets each function's share of the samples, the largest first.
 With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
@@ -29,7 +32,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import zlib
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -138,9 +140,21 @@ def main(argv=None):
     movie_text = args.movie.read_text(encoding="utf-8")
     frames = re.search(r"^# frames (\d+)", movie_text, re.M).group(1)
     srm = starting_save(movie_text)
+    decisions = out_dir / (args.movie.stem + ".decisions")
+    end = out_dir / (args.movie.stem + ".end")
+    command = [str(args.ct_native), "--rom", str(args.rom), "--headless", "--mute", "--movie", str(args.movie),
+               "--frames", frames, "--end-state", str(end), "--decisions", str(decisions)]
+    if srm:
+        command += ["--sram", str(srm)]
+    native = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if native.returncode or not end.exists() or not decisions.exists():
+        print(native.stderr)
+        print("run: ct_native didn't play the movie")
+        return 2
+    state = end.read_bytes()
     env = dict(os.environ)
     env["PATH"] = str(args.mgba.resolve() / "bin") + os.pathsep + env.get("PATH", "")
-    command = [str(exe), str(image), "--movie", str(args.movie), "--frames", frames]
+    command = [str(exe), str(image), "--movie", str(args.movie), "--frames", frames, "--decisions", str(decisions)]
     if srm:
         sav = out_dir / (args.movie.stem + ".sav")
         sav.write_bytes(gba_save(srm))
@@ -163,18 +177,6 @@ def main(argv=None):
     if gba.returncode or not found:
         print("run: the GBA build didn't reach its end")
         return 1
-    with tempfile.TemporaryDirectory(prefix="gba-") as scratch:
-        end = pathlib.Path(scratch) / "end.bin"
-        command = [str(args.ct_native), "--rom", str(args.rom), "--headless", "--mute", "--movie", str(args.movie),
-                   "--frames", frames, "--end-state", str(end)]
-        if srm:
-            command += ["--sram", str(srm)]
-        native = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-        if native.returncode or not end.exists():
-            print(native.stderr)
-            print("run: ct_native didn't play the movie")
-            return 2
-        state = end.read_bytes()
     whole, sram = "%08X" % zlib.crc32(state), "%08X" % zlib.crc32(state[0x20000:])
     same = (found.group(1), found.group(2)) == (whole, sram)
     print("run: ct_native ends with end state crc32 %s, save RAM crc32 %s: %s" % (

@@ -1034,7 +1034,9 @@ Two pieces of what looked like bookkeeping are the game's, and stay:
 
 - **The time model** (`state_host_game_access`, the `TIMED_AS` scopes): a
   build that charges no time shows no picture in any movie, since the game's
-  frames and lag frames are made from it.
+  frames and lag frames are made from it. Only its decisions reach the game,
+  though, and a build can take them from elsewhere: the GBA's keeps no time
+  (`CT_UNTIMED`) and replays ct_native's ("The GBA build, as built").
 - **The overlays' last writer** (`overlay_writer`, `vars_host_claim`): the
   address view answers a read of shared bytes from the owner that wrote them
   last, and the video uploads, saves and end states read by address. A build
@@ -1245,6 +1247,47 @@ controls, and how to build it, drive it and play a movie in mGBA against
 ct_native's end state (`host/run.py`). The C sound driver plays as it does
 natively; the GBA's own mixer (`services/mixer.c`) plays its voices (below,
 "The sound").
+
+**The game's frames without the time model** (issue #513). The time model
+reaches the game only through what it decides of the game's frames, in
+order (`TmHostDecision`, platform/native/host.h): whether the main thread
+sits a frame out (a lag frame), whether it stops in the middle of its work
+to go on in the next frame (`tm_host_sit_out_owed`), and whether a budget
+has time left in the frame (`tm_frame_time_left`). The same decisions in the
+same order make the same game. The GBA build keeps none of the original's
+time (`CT_UNTIMED`): the accessors count no accesses, a `TIMED_AS` scope is
+its statement, the charges are empty (runtime/port/state_host.c), and the
+time model's rows aren't in the program. Its host decides instead
+(`TmHostProgram.decide`, `system/frames.c`):
+
+- **Driven with a movie, it replays ct_native's decisions.** `ct_native
+  --decisions FILE` writes them as its time model makes them, a bit each
+  (`TmHostProgram.decided`); `host/run.py` has ct_native play the movie
+  first, and `mgba_run --decisions` puts the file in the cartridge far past
+  the program and its pack (`DRIVE_DECISIONS_AT`), where the driver finds
+  it when a runner drives. The GBA then plays ct_native's frames exactly,
+  lag frames and all, so a movie's end state checks the GBA against
+  ct_native as before: `title-start`, `new-game`, `gato-battle`,
+  `events-jetbike-race` and `menus-sweep` end as ct_native's with 1,991,
+  19,431, 126,559, 38,407 and 6,585 decisions replayed.
+- **Played by hand, the GBA's own time decides**, as the SNES's beam did.
+  Where the game's part of a frame (its handlers and main thread, not the
+  picture or the mixing, which the SNES's own processors did) runs past a
+  GBA frame, what it ran over is owed, and the frames after sit it out a
+  whole frame at a time; the main thread stops where it stands once it has
+  run a whole GBA frame; and a budget has time left while the GBA's line
+  counter, read as the SNES's lines (160 drawn as 225, the vertical blank's
+  68 as 37), is inside its window. The game's state then differs from
+  ct_native's where the GBA's speed differs from the SNES's, as a slower
+  SNES's would; what the game does with a frame doesn't. Driven with no
+  decisions (`mgba_run --drive`, a movie without them), it decides so too.
+
+In mGBA the game's frame falls from 0.53, 0.72, 1.02, 1.11 and 0.69 GBA
+frames to 0.51, 0.61, 0.83, 0.95 and 0.62, and the movies from 2,214,
+11,181, 43,752, 24,352 and 11,173 GBA frames to 2,177, 9,851, 36,163,
+21,573 and 10,542 (1.7-17.3% fewer); the program from 1.92 to 1.72 MB.
+`new-game` played by hand to its 7,200th frame lags 392 frames against
+ct_native's 244.
 
 **Input, saves and driving.** The driver gives the game the keypad through
 the input service (`in_host_set`), as the desktop drivers give it their
