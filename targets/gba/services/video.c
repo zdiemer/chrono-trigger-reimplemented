@@ -2731,6 +2731,20 @@ static const Band *band_in_its_column(int x, int top, unsigned h, const Band *fo
     return b ? b : column_band_showing(top + (int)h - 1, x, row);
 }
 
+/* The sprites as the GBA's sprite table has them, kept aside until the
+ * frame's picture is shown whole (show_the_frame, below), and whether they
+ * changed since. */
+static uint16_t sprites_shown[SPRITES * 3];   /* each sprite's first three attributes */
+static bool sprites_aside;
+
+static void set_sprite(uint16_t *to, unsigned attribute, uint16_t value)
+{
+    if (to[attribute] != value) {
+        to[attribute] = value;
+        sprites_aside = true;
+    }
+}
+
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
  * panel shows none. */
 static void present_sprites(void)
@@ -2761,7 +2775,7 @@ static void present_sprites(void)
         unsigned large = (high >> 1) & 1;
         unsigned w = sized[large].w, h = sized[large].h;
         uint16_t shape = sized[large].shape, size = sized[large].size;
-        volatile uint16_t *to = &OAM[n * 4];
+        uint16_t *to = &sprites_shown[n * 3];
         int top = (e[1] + 1) & 0xFF;
         unsigned k = band_of_row[top];
         if (!k)
@@ -2772,7 +2786,7 @@ static void present_sprites(void)
             b = band_in_its_column(x, top, h, b, &row);
         int gx = b ? band_x(b, x) : GBA_VIEW_WIDTH, gy = b ? ((e[1] - row + b->at) & 0xFF) : 0;
         if (!b || !sized[large].fits || gx <= -(int)w || gx >= GBA_VIEW_WIDTH) {
-            to[0] = 0x0200;   /* hidden */
+            set_sprite(to, 0, 0x0200);   /* hidden */
             continue;
         }
         uint8_t priority = order->sprite[(e[3] >> 4) & 3];
@@ -2785,9 +2799,9 @@ static void present_sprites(void)
         sprites_mask |= mask;
         uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
         uint16_t tile = (uint16_t)((name >> 4) * 32 + (name & 15));
-        to[0] = (uint16_t)(gy | (mask ? OBJ_WINDOW : 0) | shape << 14);
-        to[1] = (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14);
-        to[2] = (uint16_t)(tile | priority << 10 | ((e[3] >> 1) & 7) << 12);
+        set_sprite(to, 0, (uint16_t)(gy | (mask ? OBJ_WINDOW : 0) | shape << 14));
+        set_sprite(to, 1, (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14));
+        set_sprite(to, 2, (uint16_t)(tile | priority << 10 | ((e[3] >> 1) & 7) << 12));
     }
 }
 
@@ -2871,12 +2885,39 @@ static void fill_the_strengths(void)
 }
 
 /* The frame's changes down the picture: the first line's registers, then
- * each line whose registers differ from the line above's. */
+ * each line whose registers differ from the line above's. One table holds
+ * two frames' changes, one from each end: the lines show the last frame's
+ * from one end while the next frame's are worked out from the other, and
+ * the next are shown from the vertical blank after they are made (the
+ * frame's picture, below). A frame whose work ran on past the vertical
+ * blank then shows the last frame's changes whole rather than half of
+ * each, as the naming screen's rows did on the frame the cursor moved down
+ * a row. A frame with more changes than the other end has room for (the
+ * jet bike race's, up to 160) takes the shown frame's places too, as
+ * before. */
 static LineRegisters change_registers[GBA_LINES];
 static uint8_t change_line[GBA_LINES];
 static volatile uint8_t changes;
 static uint8_t next_change;       /* the interrupts' place in the changes */
 static volatile bool by_line;     /* whether the interrupts set the changes' registers */
+static uint8_t shown_end;   /* the end the shown changes are kept from: 0 the first place up, 1 the last down */
+static uint8_t made_end;    /* and the end the frame being made keeps its changes from */
+/* The shown change k's place, (k ^ flip) + add: k from the first place
+ * up, or 159 - k from the last down (~k + 160), in a few instructions for
+ * the interrupts. */
+static uint32_t shown_flip, shown_add;
+
+static inline unsigned change_place(uint8_t end, unsigned k) { return end ? GBA_LINES - 1 - k : k; }
+static inline unsigned shown_place(unsigned k) { return (k ^ shown_flip) + shown_add; }
+static inline LineRegisters *made_change(unsigned k) { return &change_registers[change_place(made_end, k)]; }
+static inline uint8_t *made_line(unsigned k) { return &change_line[change_place(made_end, k)]; }
+
+static void show_from_end(uint8_t end)
+{
+    shown_end = end;
+    shown_flip = end ? ~0u : 0;
+    shown_add = end ? GBA_LINES : 0;
+}
 
 /* The registers the line effects change, as they stand. */
 typedef struct {
@@ -4143,7 +4184,7 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_
  * the vertical blank once the frame has no more. */
 __attribute__((target("arm"), section(".iwram"))) static void await_change(void)
 {
-    uint16_t line = next_change < changes ? (uint16_t)(change_line[next_change] - 1) : GBA_LINES;
+    uint16_t line = next_change < changes ? (uint16_t)(change_line[shown_place(next_change)] - 1) : GBA_LINES;
     DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | line << 8);
 }
 
@@ -4157,7 +4198,7 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
     uint16_t line = VCOUNT;
     if (by_line && (raised & IRQ_VCOUNT)) {
         if (line >= GBA_LINES) {
-            set_line(&change_registers[0]);
+            set_line(&change_registers[shown_place(0)]);
             arm_the_lines();
             next_change = 1;
             await_change();
@@ -4166,11 +4207,11 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
             DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
         }
     } else if (by_line && (raised & IRQ_HBLANK) && line < GBA_LINES) {
-        while (next_change < changes && change_line[next_change] <= line)
+        while (next_change < changes && change_line[shown_place(next_change)] <= line)
             next_change++;
-        if (next_change < changes && change_line[next_change] == line + 1)
-            set_line(&change_registers[next_change++]);
-        if (!(next_change < changes && change_line[next_change] == line + 2))
+        if (next_change < changes && change_line[shown_place(next_change)] == line + 1)
+            set_line(&change_registers[shown_place(next_change++)]);
+        if (!(next_change < changes && change_line[shown_place(next_change)] == line + 2))
             await_change();
     }
     REG_IF = raised;
@@ -4240,9 +4281,9 @@ static uint8_t black_bands_above(unsigned at, uint8_t count, uint8_t *next, uint
         if (!bands[*next].black)
             continue;
         LineRegisters black = nothing_shown(layers_enabled);
-        if (count < GBA_LINES && (count == 0 || memcmp(&black, &change_registers[count - 1], sizeof black) != 0)) {
-            change_registers[count] = black;
-            change_line[count++] = bands[*next].at;
+        if (count < GBA_LINES && (count == 0 || memcmp(&black, made_change(count - 1u), sizeof black) != 0)) {
+            *made_change(count) = black;
+            *made_line(count++) = bands[*next].at;
         }
     }
     return count;
@@ -4473,7 +4514,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 bool blended = (touched & CHANGED_MATH) && (st.fixed_color != shown.fixed_color ||
                                                             memcmp(&st.math, &shown.math, sizeof st.math) != 0);
                 if (scrolled || blended) {
-                    r = change_registers[count - 1];
+                    r = *made_change(count - 1u);
                     again = true;
                 }
                 if (scrolled) {
@@ -4488,8 +4529,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                     shown.fixed_color = st.fixed_color;
                     /* the strength alone changed: a step, not a change */
                     LineRegisters same = r;
-                    same.bldy = change_registers[count - 1].bldy;
-                    if (!scrolled && memcmp(&same, &change_registers[count - 1], sizeof same) == 0) {
+                    same.bldy = made_change(count - 1u)->bldy;
+                    if (!scrolled && memcmp(&same, made_change(count - 1u), sizeof same) == 0) {
                         set_strength((unsigned)at, r.bldy);
                         strength_steps = true;
                         again = false;
@@ -4505,9 +4546,9 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 memcpy(&shown, &st, sizeof st);
                 again = true;
             }
-            if (again && count < GBA_LINES && (count == 0 || memcmp(&r, &change_registers[count - 1], sizeof r) != 0)) {
-                change_registers[count] = r;
-                change_line[count++] = (uint8_t)at;
+            if (again && count < GBA_LINES && (count == 0 || memcmp(&r, made_change(count - 1u), sizeof r) != 0)) {
+                *made_change(count) = r;
+                *made_line(count++) = (uint8_t)at;
                 set_strength((unsigned)at, r.bldy);
             }
             touched = 0;
@@ -4544,6 +4585,103 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
     return count;
 }
 
+/* The frame's picture shown, all of it from one vertical blank: its sprites
+ * (present_sprites keeps them aside until then), its changes and the first
+ * line's registers, the line effects' DMA armed. A frame whose work ran on
+ * past the vertical blank is shown from the one the next picture is made
+ * in, the last frame's staying whole until then, so that no frame the GBA
+ * shows has this frame's sprites over the last frame's lines (the naming
+ * screen's hand on a row the bands didn't show yet) or the changes of both
+ * at once; one that shows what the last showed, as most do, takes the
+ * GBA's frame as it stands. A frame of one change sets it alone; one of
+ * more has the interrupts set the rest, line by line. */
+static bool frame_differs(bool made, uint8_t count)
+{
+    if (sprites_aside)
+        return true;
+    if (plane_dma != plane_shown || strength_dma != strength_steps)
+        return true;
+    if (!made)
+        return false;
+    if (count != changes || count * 2u > GBA_LINES)
+        return true;
+    for (unsigned k = 0; k < count; k++)
+        if (change_line[change_place(shown_end, k)] != *made_line(k) ||
+            memcmp(&change_registers[change_place(shown_end, k)], made_change(k), sizeof(LineRegisters)) != 0)
+            return true;
+    return false;
+}
+
+static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
+static uint8_t pending_count;
+
+/* The frame's picture shown from here, with the interrupts off. */
+static void frame_shown(bool made, uint8_t count)
+{
+    if (made)
+        show_from_end(made_end);
+    changes = count;
+    plane_dma = plane_shown;
+    strength_dma = strength_steps;
+    if (sprites_aside) {
+        for (unsigned n = 0; n < SPRITES; n++)
+            for (unsigned a = 0; a < 3; a++)
+                OAM[n * 4 + a] = sprites_shown[n * 3 + a];
+        sprites_aside = false;
+    }
+    WIN0V = GBA_LINES;
+    WIN1V = GBA_LINES;
+    set_line(&change_registers[shown_place(0)]);
+    arm_the_lines();
+    if (count == 1) {
+        by_line = false;
+        REG_IE = (uint16_t)(REG_IE & ~(IRQ_VCOUNT | IRQ_HBLANK));
+        DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
+        return;
+    }
+    if (!by_line) {
+        gba_interrupt_handler(IRQ_VCOUNT | IRQ_HBLANK, on_line);
+        DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_VCOUNT_IRQ);
+        REG_IF = IRQ_VCOUNT | IRQ_HBLANK;
+        REG_IE = (uint16_t)(REG_IE | IRQ_VCOUNT | IRQ_HBLANK);
+        by_line = true;
+    }
+    next_change = 1;
+    await_change();
+}
+
+static void show_the_frame(bool made, uint8_t count)
+{
+    bool late = VCOUNT < GBA_LINES, differs = late && frame_differs(made, count);
+    REG_IME = 0;
+    if (!late) {
+        frame_shown(made, count);
+    } else if (!differs) {
+        if (made)
+            show_from_end(made_end);
+        sprites_aside = false;
+    } else {
+        /* shown as the next picture's vertical blank begins */
+        pending_made = made;
+        pending_count = count;
+        show_pending = true;
+    }
+    REG_IME = 1;
+}
+
+/* A frame's picture made after the vertical blank it was to be shown from,
+ * shown from the vertical blank the next picture is made in: before it, for
+ * a frame whose lines stand are the last frame's. */
+static void show_the_pending_frame(void)
+{
+    if (!show_pending)
+        return;
+    REG_IME = 0;
+    frame_shown(pending_made, pending_count);
+    show_pending = false;
+    REG_IME = 1;
+}
+
 /* The frame's lines, and the GBA's registers set for them. A frame that
  * starts from what the last one did, its tables unchanged, makes the same
  * changes and leaves the registers as it did: those stand, unworked. */
@@ -4561,6 +4699,7 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
     lines_from(&from, &pf->video, layers_enabled);
     LineState st;
     uint8_t count;
+    bool made = false;   /* whether the frame's changes were worked out, rather than the last frame's kept */
     bool may_stand = last_stands && !laid_out && !asked_anew && !offsets_written;
     asked_anew = offsets_written = false;
     if (!may_stand)
@@ -4575,6 +4714,8 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
         if (may_stand)
             lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
         st = from.st;
+        made_end = shown_end ^ 1;
+        made = true;
         copied.fresh = false;
         count = work_out_lines(&pf->video, &st, layers_enabled);
         if (plane_shown)
@@ -4588,9 +4729,6 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
         if (worked_out < 2)
             worked_out++;
     }
-    changes = count;
-    plane_dma = plane_shown;
-    strength_dma = strength_steps;
     /* What the effects leave stands, as the SNES's registers do. */
     snes.windows = st.windows;
     snes.math = st.math;
@@ -4601,27 +4739,7 @@ static void present_lines(Platform *pf, uint16_t layers_enabled, bool laid_out)
         snes.bg[n].hofs = st.hofs[n], snes.bg[n].vofs = st.vofs[n];
     snes.m7 = st.m7;
     snes.m7_latch = st.m7_latch;
-    WIN0V = GBA_LINES;
-    WIN1V = GBA_LINES;
-    if (count == 1) {
-        if (by_line) {
-            by_line = false;
-            REG_IE = (uint16_t)(REG_IE & ~(IRQ_VCOUNT | IRQ_HBLANK));
-            DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
-        }
-        set_line(&change_registers[0]);
-        arm_the_lines();
-        return;
-    }
-    if (!by_line) {
-        gba_interrupt_handler(IRQ_VCOUNT | IRQ_HBLANK, on_line);
-        next_change = count;
-        DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | DISPSTAT_VCOUNT_IRQ | GBA_LINES << 8);
-        REG_IF = IRQ_VCOUNT | IRQ_HBLANK;
-        REG_IE = (uint16_t)(REG_IE | IRQ_VCOUNT | IRQ_HBLANK);
-        REG_IME = 1;
-        by_line = true;
-    }
+    show_the_frame(made, count);
 }
 
 /* The picture hidden, black, until this frame's lines are set: while a
@@ -4645,6 +4763,7 @@ static void hide_the_picture(void)
 
 void gba_video_present(Platform *pf)
 {
+    show_the_pending_frame();
     /* Tiles that found no place have the caches started afresh: a second
      * on where a tile missed since the layout, eight where only the layout's
      * own misses stand (starting afresh from the same maps misses the same

@@ -138,6 +138,13 @@ static const uint8_t *resource_bytes(AssetId id)
     return held[id % HELD].bytes;
 }
 
+const uint8_t *asset_form(AssetForm form, AssetId id, uint32_t *length)
+{
+    if (!source || !source->form)
+        return NULL;
+    return source->form(source->ctx, (uint8_t)form, id, length);
+}
+
 /* The resource a read by address found last in each 4 KiB of the cartridge,
  * with where it lies and the store's bytes for it, so that the next read in
  * it finds its byte with one comparison: what asset_containing and

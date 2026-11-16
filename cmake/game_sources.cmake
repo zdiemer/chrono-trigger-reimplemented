@@ -35,6 +35,7 @@ set(CT_GAME_SOURCES
   game/event/movement.c
   game/event/party.c
   game/event/properties.c
+  game/event/records.c
   game/event/screen.c
   game/event/sound.c
   game/event/story.c

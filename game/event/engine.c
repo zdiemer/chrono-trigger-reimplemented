@@ -23,11 +23,14 @@
 #include "event/calls.h"
 #include "event/event_data.h"
 #include "event/party.h"
+#include "event/records.h"
 #include "event/variables.h"
 
 #include "charge.h"
 #include "core/program.h"
 #include "port/vars_ram.h"
+
+#include <string.h>
 
 /* ---- The table, by opcode ------------------------------------------------------------- */
 
@@ -119,21 +122,42 @@ static bool member_named(const GameState *g, uint8_t place, bool may_be_absent)
  * through the bank; the port refuses one that would leave it. */
 enum { LAST_BIT_READ = 0xDF, LAST_CLEAR_BIT_READ = 0xD7 };
 
+/* Whether an operand names what its kind says, whatever the game's state:
+ * an object one of the tables', a place of the party's, a bit the tables
+ * hold, a word inside the story memory. */
+static bool names_what_it_can(const EventArg *arg, uint16_t operand)
+{
+    switch (arg->kind) {
+    case ARG_OBJECT: return field_names_object((uint8_t)operand);
+    case ARG_MEMBER:
+    case ARG_MEMBER_OBJECT:
+    case ARG_MEMBER_PRESENT: return a_place((uint8_t)operand);
+    case ARG_BIT: return operand <= LAST_BIT_READ;
+    case ARG_ALL_BUT_BIT: return operand <= LAST_CLEAR_BIT_READ;
+    case ARG_STORY_WORD: return story_holds(operand, AS_WORD);
+    default: return true;
+    }
+}
+
+/* ... and whether it does in this state: a party member's place is one the
+ * party can be read at, and holds the member the command takes. */
+static bool names_it_now(const GameState *g, const EventOpcode *row, EventArgKind kind, uint8_t operand)
+{
+    switch (kind) {
+    case ARG_MEMBER: return member_place_readable(g, (PartyPlace)(operand >> 1));
+    case ARG_MEMBER_OBJECT:
+    case ARG_MEMBER_PRESENT: return member_named(g, operand, row->member_may_be_absent);
+    default: return true;
+    }
+}
+
 /* Whether one of the command's operands names what its kind says. */
 static bool names_what_it_says(const GameState *g, const EventOpcode *row, const EventArg *arg, uint16_t at)
 {
     if (arg->kind == ARG_STORY_WORD)   /* the word the command reads is in the story memory */
-        return story_holds(script_word(g, (uint16_t)(at + arg->operand)), AS_WORD);
+        return names_what_it_can(arg, script_word(g, (uint16_t)(at + arg->operand)));
     uint8_t operand = script_byte(g, (uint16_t)(at + arg->operand));
-    switch (arg->kind) {
-    case ARG_OBJECT: return field_names_object(operand);
-    case ARG_MEMBER: return a_place(operand) && member_place_readable(g, (PartyPlace)(operand >> 1));
-    case ARG_MEMBER_OBJECT:
-    case ARG_MEMBER_PRESENT: return member_named(g, operand, row->member_may_be_absent);
-    case ARG_BIT: return operand <= LAST_BIT_READ;
-    case ARG_ALL_BUT_BIT: return operand <= LAST_CLEAR_BIT_READ;
-    default: return true;
-    }
+    return names_what_it_can(arg, operand) && names_it_now(g, row, arg->kind, operand);
 }
 
 /* How the row decodes parameter `p`. */
@@ -182,31 +206,90 @@ bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 
 /* ---- Running a command -------------------------------------------------------------------- */
 
-static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
+/* The bytes a command's operands are read from: the script's, or a copy of
+ * the command's own (a builder's, event_record_read). */
+typedef struct {
+    const GameState *g;
+    uint16_t at;
+    const uint8_t *command;
+} CommandBytes;
+
+static uint8_t command_byte(const CommandBytes *b, uint8_t k)
 {
-    uint16_t operand = (uint16_t)(at + arg->operand);
+    return b->command ? b->command[k] : script_byte(b->g, (uint16_t)(b->at + k));
+}
+
+static uint16_t command_word(const CommandBytes *b, uint8_t k)
+{
+    return b->command ? (uint16_t)(b->command[k] | b->command[k + 1] << 8) : script_word(b->g, (uint16_t)(b->at + k));
+}
+
+/* What a parameter's operand bytes say, the same every time the command
+ * runs: its value, or where the kind reads the game's state, the operand it
+ * reads it by. */
+static uint32_t read_operand(const CommandBytes *b, const EventArg *arg)
+{
+    uint8_t n = arg->operand;
     switch (arg->kind) {
     case ARG_CONSTANT: return arg->constant;
-    case ARG_BYTE: return script_byte(g, operand);
-    case ARG_BYTE_PLUS_ONE: return (uint8_t)(script_byte(g, operand) + 1);
-    case ARG_BITS: return (uint32_t)(script_byte(g, operand) >> arg->shift) & arg->constant;
-    case ARG_WORD: return script_word(g, operand);
-    case ARG_WORD_BITS: return (uint32_t)(script_word(g, operand) >> arg->shift) & arg->constant;
-    case ARG_ADDRESS: return script_word(g, operand) | (uint32_t)script_byte(g, (uint16_t)(operand + 2)) << 16;
-    case ARG_VARIABLE: return script_byte(g, operand);
-    case ARG_VARIABLE_BYTE: return variable_byte(g, script_byte(g, operand));
-    case ARG_VARIABLE_WORD: return variable_word(g, script_byte(g, operand));
-    case ARG_OBJECT: return field_linked_object(field_link_stored(script_byte(g, operand)));
-    case ARG_SELF: return object_current(g);
-    case ARG_MEMBER: return (PartyPlace)(script_byte(g, operand) >> 1);
-    case ARG_MEMBER_OBJECT: return member_object(g, (PartyPlace)(script_byte(g, operand) >> 1));
-    case ARG_MEMBER_PRESENT: return place_taken(g, (PartyPlace)(script_byte(g, operand) >> 1));
-    case ARG_STORY_WORD: return story_word(g, script_word(g, operand));
-    case ARG_STORY_PROGRESS: return story_progress(g);
-    case ARG_BIT: return bit_mask(g, script_byte(g, operand));
-    case ARG_ALL_BUT_BIT: return bit_clear_mask(g, script_byte(g, operand));
+    case ARG_BYTE:
+    case ARG_VARIABLE:
+    case ARG_VARIABLE_BYTE:
+    case ARG_VARIABLE_WORD:
+    case ARG_MEMBER_OBJECT:
+    case ARG_MEMBER_PRESENT:
+    case ARG_BIT:
+    case ARG_ALL_BUT_BIT: return command_byte(b, n);
+    case ARG_BYTE_PLUS_ONE: return (uint8_t)(command_byte(b, n) + 1);
+    case ARG_BITS: return (uint32_t)(command_byte(b, n) >> arg->shift) & arg->constant;
+    case ARG_WORD:
+    case ARG_STORY_WORD: return command_word(b, n);
+    case ARG_WORD_BITS: return (uint32_t)(command_word(b, n) >> arg->shift) & arg->constant;
+    case ARG_ADDRESS: return command_word(b, n) | (uint32_t)command_byte(b, (uint8_t)(n + 2)) << 16;
+    case ARG_OBJECT: return field_linked_object(field_link_stored(command_byte(b, n)));
+    case ARG_MEMBER: return (PartyPlace)(command_byte(b, n) >> 1);
     default: return 0;
     }
+}
+
+/* The bytes of the command, from its opcode, that a parameter's operand
+ * takes up to. */
+static uint8_t operand_end(const EventArg *arg)
+{
+    switch (arg->kind) {
+    case ARG_CONSTANT:
+    case ARG_SELF:
+    case ARG_STORY_PROGRESS: return 1;
+    case ARG_WORD:
+    case ARG_WORD_BITS:
+    case ARG_STORY_WORD: return (uint8_t)(arg->operand + 2);
+    case ARG_ADDRESS: return (uint8_t)(arg->operand + 3);
+    default: return (uint8_t)(arg->operand + 1);
+    }
+}
+
+/* A parameter's value, from what its operand said: the game's state looked
+ * up where its kind reads it. */
+static uint32_t looked_up(const GameState *g, EventArgKind kind, uint32_t read)
+{
+    switch (kind) {
+    case ARG_VARIABLE_BYTE: return variable_byte(g, (uint8_t)read);
+    case ARG_VARIABLE_WORD: return variable_word(g, (uint8_t)read);
+    case ARG_SELF: return object_current(g);
+    case ARG_MEMBER_OBJECT: return member_object(g, (PartyPlace)(read >> 1));
+    case ARG_MEMBER_PRESENT: return place_taken(g, (PartyPlace)(read >> 1));
+    case ARG_STORY_WORD: return story_word(g, (StoryOffset)read);
+    case ARG_STORY_PROGRESS: return story_progress(g);
+    case ARG_BIT: return bit_mask(g, (uint8_t)read);
+    case ARG_ALL_BUT_BIT: return bit_clear_mask(g, (uint8_t)read);
+    default: return read;
+    }
+}
+
+static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
+{
+    const CommandBytes bytes = { g, at, NULL };
+    return looked_up(g, arg->kind, read_operand(&bytes, arg));
 }
 
 /* A formation's place: the top bits of its column and row say the way it
@@ -401,15 +484,124 @@ static uint8_t operand_copy_work(uint8_t opcode)
     }
 }
 
+/* The decoded command performed, and where the script goes on. */
+static EventStep performed(GameState *g, const EventOpcode *row, uint16_t at, const EventCommand *c)
+{
+    charge_accesses(g, operand_copy_work(row->opcode));
+    EventFlow flow = row->run(g, c);
+    if (flow.kind == FLOW_JUMP)
+        charge_accesses(g, 2); /* the selected jump distance */
+    return event_follow(g, row, at, flow);
+}
+
 EventStep event_perform(GameState *g, Platform *pf, const EventOpcode *row, uint16_t at)
 {
     EventCommand c;
     decode_into(&c, g, pf, row, at);
-    charge_accesses(g, operand_copy_work(row->opcode));
-    EventFlow flow = row->run(g, &c);
-    if (flow.kind == FLOW_JUMP)
-        charge_accesses(g, 2); /* the selected jump distance */
-    return event_follow(g, row, at, flow);
+    return performed(g, row, at, &c);
+}
+
+/* ---- Commands read ahead (event/records.h) ----------------------------------------------------- */
+
+/* The command decoded from its record, where the port runs it in this
+ * state: as event_runs_here and decode_into, with what its bytes say taken
+ * from the record. False where it doesn't, and the engine looks at the
+ * command's bytes itself. */
+static bool decoded_from_record(EventCommand *c, const GameState *g, Platform *pf, const EventOpcode *row, uint16_t at,
+                                const EventRecord *record)
+{
+    if (!object_current_is_one(g))
+        return false;
+    *c = (EventCommand){ .self = object_current(g), .at = at, .platform = pf };
+    NamedParameters named = named_parameters(row);
+    const uint32_t *values = record->value;
+    for (const uint8_t *p = named.first; p != named.end; p++, values++) {
+        EventArgKind kind = (EventArgKind)(*values >> EVENT_RECORD_KIND_SHIFT);
+        uint32_t read = *values & EVENT_RECORD_VALUE_BITS;
+        /* a member's place was read halved, as the command takes it */
+        if (!names_it_now(g, row, kind, (uint8_t)(kind == ARG_MEMBER ? read << 1 : read)))
+            return false;
+        uint32_t value = looked_up(g, kind, read);
+        switch ((EventParameter)*p) {
+#define TAKE_PARAMETER(type, name) \
+        case EVENT_PARAMETER_##name: c->name = (type)value; break;
+        EVENT_PARAMETERS(TAKE_PARAMETER)
+#undef TAKE_PARAMETER
+        default: break;
+        }
+    }
+#define DECODE_RECORD(type, name) c->name = decode_##type(g, &row->name, at);
+    EVENT_RECORD_PARAMETERS(DECODE_RECORD)
+#undef DECODE_RECORD
+    return !row->accepts || row->accepts(g, c);
+}
+
+unsigned event_record_read(const uint8_t *command, uint16_t available, EventRecord *out)
+{
+    const EventOpcode *row = event_opcode(command[0]);
+    if (!row || !row->run)
+        return 0;
+#define DECODES_A_RECORD(type, name) || row->name.kind != ARG_NONE
+    if (0 EVENT_RECORD_PARAMETERS(DECODES_A_RECORD))
+        return 0;
+#undef DECODES_A_RECORD
+    NamedParameters named = named_parameters(row);
+    uint8_t bytes = 1;
+    for (const uint8_t *p = named.first; p != named.end; p++) {
+        uint8_t end = operand_end(row_arg(row, (EventParameter)*p));
+        bytes = end > bytes ? end : bytes;
+    }
+    if (bytes > EVENT_RECORD_BYTES || bytes > available)
+        return 0;
+    const CommandBytes from = { NULL, 0, command };
+    uint8_t values = 0;
+    for (const uint8_t *p = named.first; p != named.end; p++) {
+        const EventArg *arg = row_arg(row, (EventParameter)*p);
+        uint16_t operand = arg->kind == ARG_STORY_WORD ? command_word(&from, arg->operand)
+                           : operand_end(arg) > 1 ? command_byte(&from, arg->operand) : 0;
+        uint32_t read = read_operand(&from, arg);
+        if (!names_what_it_can(arg, operand) || read > EVENT_RECORD_VALUE_BITS)
+            return 0;
+        out->value[values++] = (uint32_t)arg->kind << EVENT_RECORD_KIND_SHIFT | read;
+    }
+    out->opcode = command[0];
+    out->bytes = bytes;
+    out->values = values;
+    out->unused = 0;
+    memset(out->made_from, 0, sizeof out->made_from);
+    memcpy(out->made_from, command, bytes);
+    return EVENT_RECORD_HEAD + 4u * values;
+}
+
+uint32_t event_records_language(void)
+{
+    static uint32_t language;
+    if (language)
+        return language;
+    uint32_t h = 0x811C9DC5u;
+#define MIX(v) (h = (h ^ (uint32_t)(v)) * 0x01000193u)
+    MIX(EVENT_PARAMETER_COUNT), MIX(EVENT_RECORD_BYTES), MIX(EVENT_RECORD_HEAD), MIX(EVENT_RECORD_KIND_SHIFT);
+    for (unsigned op = 0; op < OPCODES; op++) {
+        const EventOpcode *row = event_opcode((uint8_t)op);
+        MIX(row != NULL);
+        if (!row)
+            continue;
+        MIX(row->run != NULL), MIX(row->length), MIX(row->member_may_be_absent);
+        /* a row that decodes a record of the language's has no records */
+#define DECODES_A_RECORD(type, name) || row->name.kind != ARG_NONE
+        MIX(0 EVENT_RECORD_PARAMETERS(DECODES_A_RECORD));
+#undef DECODES_A_RECORD
+        /* the parameters it names, and how (the rest decode nothing): a few
+         * a row, so that the GBA works it out in a moment as a script loads */
+        NamedParameters named = named_parameters(row);
+        for (const uint8_t *p = named.first; p != named.end; p++) {
+            const EventArg *arg = row_arg(row, (EventParameter)*p);
+            MIX(*p), MIX(arg->kind), MIX(arg->operand), MIX(arg->constant), MIX(arg->shift);
+        }
+    }
+#undef MIX
+    language = h | 1u;   /* never 0, which is not worked out yet */
+    return language;
 }
 
 /* ---- Turns ------------------------------------------------------------------------------ */
@@ -590,11 +782,23 @@ static UndecodedCommand undecoded_command_for(uint8_t opcode)
     }
 }
 
+static uint32_t handler_of(const GameState *g, uint8_t opcode) { return HANDLERS_BANK | command_handler(g, opcode); }
+
 static bool run_command(GameState *g, Platform *pf, uint16_t at, EventStep *step)
 {
     uint8_t opcode = script_byte(g, at);
     const EventOpcode *row = event_opcode(opcode);
-    uint32_t handler = HANDLERS_BANK | command_handler(g, opcode);
+    const EventRecord *record = row && row->run ? event_record_at(g, at, opcode) : NULL;
+    if (record) {
+        EventCommand c;
+        vars_peek(g, true);
+        bool runs_here = decoded_from_record(&c, g, pf, row, at, record);
+        vars_peek(g, false);
+        if (runs_here) {
+            TIMED_AS(g, handler_of(g, opcode), *step = performed(g, row, at, &c));
+            return true;
+        }
+    }
     UndecodedCommand undecoded = undecoded_command_for(opcode);
     /* whether the port runs it is the program's question, not the game's
      * work: it takes none of the original's time (port/vars_ram.h) */
@@ -603,14 +807,14 @@ static bool run_command(GameState *g, Platform *pf, uint16_t at, EventStep *step
     vars_peek(g, false);
     if (row && !row->run && undecoded && runs_here) {
         bool goes_on = false;
-        TIMED_AS(g, handler, goes_on = undecoded(g, pf, at, step));
+        TIMED_AS(g, handler_of(g, opcode), goes_on = undecoded(g, pf, at, step));
         return goes_on;
     }
     if (!row || !row->run || !runs_here) {
-        program_breaks_a_contract(g, handler, row ? "an event command outside its contract" : "an invalid event opcode");
+        program_breaks_a_contract(g, handler_of(g, opcode),
+                                  row ? "an event command outside its contract" : "an invalid event opcode");
         return false;
     }
-    TIMED_AS(g, handler, *step = event_perform(g, pf, row, at));
+    TIMED_AS(g, handler_of(g, opcode), *step = event_perform(g, pf, row, at));
     return true;
 }
-

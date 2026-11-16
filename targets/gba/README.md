@@ -90,8 +90,11 @@ platform services' backends. Nothing here is included from `game/`.
   - `pack.py`: the packing step, the seed of the builder (issue #421). It
     verifies the player's cartridge, cuts the catalogue's resources from it,
     and appends them to the program with a directory the driver indexes in
-    place, and with `--profile`, the colours' table. The program is code
-    only; the packed `.gba` is never committed.
+    place, with `--profile`, the colours' table, and with
+    `--event-records`, the locations' event scripts read a command at a
+    time, which `ct_native --event-records FILE` works out from the same
+    cartridge (game/event/records.h). The program is code only; the packed
+    `.gba` is never committed.
     `--fast-rom` asks for the cartridge's faster waits, `--bios` puts in
     the logo a GBA checks (Building and running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
@@ -103,7 +106,8 @@ platform services' backends. Nothing here is included from `game/`.
     `--watch` every picture the GBA shows over a run of the game's frames,
     as a player sees them at the GBA's speed.
   - `run.py`: the check. It builds the runner against libmgba and zlib,
-    packs `ct.gba`, plays the movie in ct_native with its time model's
+    has ct_native write the event records, packs `ct.gba` with them
+    (`--no-event-records` without), plays the movie in ct_native with its time model's
     decisions written, has the runner play it on `ct.gba` from the save RAM
     the movie starts from with those decisions replayed, and fails where the
     two end states' CRCs differ.
@@ -134,7 +138,9 @@ installed or only unpacked, or a build of mGBA) and a staged cartridge
 
     cmake -S targets/gba -B build/gba -G Ninja -DCMAKE_TOOLCHAIN_FILE=<repo>/targets/gba/toolchain/toolchain.cmake
     cmake --build build/gba
-    python3 targets/gba/host/pack.py --program build/gba/ct_gba.bin --out build/gba/ct.gba
+    build/main/ct_native --rom roms/ct-usa.sfc --headless --event-records build/gba/event.records
+    python3 targets/gba/host/pack.py --program build/gba/ct_gba.bin --out build/gba/ct.gba \
+        --event-records build/gba/event.records
 
 `ct.gba` is the game: open it in mGBA, or put it on a flash cart, and play.
 
