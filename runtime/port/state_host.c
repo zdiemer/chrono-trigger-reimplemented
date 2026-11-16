@@ -423,6 +423,13 @@ void wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 
 void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v)
 {
+    /* a word of two bytes the same is a fill of bytes, which work RAM's
+     * banks take a run at a time (the battle's memory cleared on the way
+     * in, 32 KiB, was half a second of the GBA's frame a word at a time) */
+    if ((uint8_t)v == (uint8_t)(v >> 8)) {
+        wram_fill8(g, at, 2 * words, (uint8_t)v);
+        return;
+    }
     for (uint32_t i = 0; i < words; i++) {
         state_host_write8(g, in_bank(at, 2 * i), (uint8_t)v);
         state_host_write8(g, in_bank(at, 2 * i + 1), (uint8_t)(v >> 8));

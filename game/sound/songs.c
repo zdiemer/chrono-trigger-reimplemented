@@ -20,6 +20,7 @@
  * percussion at $F120. */
 #include <string.h>
 
+#include "charge.h"
 #include "core/sound_data.h"
 #include "sound/driver.h"
 
@@ -51,8 +52,8 @@ uint16_t sound_memory_word(SoundDriver *d, uint16_t at)
 static void load_effect_set(SoundDriver *d, uint8_t set)
 {
     uint16_t length = sound_effect_set_length(d->game, set);
-    for (uint16_t i = 0; i < length && SOUND_EFFECTS + i < SOUND_SEQUENCES_END; i++)
-        d->sequences[SOUND_EFFECTS - SOUND_SEQUENCES + i] = sound_effect_set_byte(d->game, set, i);
+    uint16_t room = SOUND_SEQUENCES_END - SOUND_EFFECTS;
+    sound_effect_set_bytes(d->game, set, &d->sequences[SOUND_EFFECTS - SOUND_SEQUENCES], length < room ? length : room);
     d->bytes_sent += length;
 }
 
@@ -73,9 +74,12 @@ void sound_load_effects(SoundDriver *d, uint8_t set)
 static void load_song(SoundDriver *d, uint8_t song)
 {
     uint16_t length = sound_song_length(d->game, song);
-    uint16_t loaded = (uint16_t)(3 * (length / 3 + 1));
-    for (uint16_t i = 0; i < loaded && SOUND_SEQUENCES + i < SOUND_SEQUENCES_END; i++)
-        d->sequences[i] = sound_song_byte(d->game, song, i);
+    uint16_t loaded = (uint16_t)(3 * (length / 3 + 1)), room = SOUND_SEQUENCES_END - SOUND_SEQUENCES;
+    uint16_t sent = loaded < room ? loaded : room;
+    sound_song_bytes(d->game, song, d->sequences, sent);
+    /* timed as when each byte was read with the song's pointer again (its
+     * three bytes), as the time model was measured */
+    charge_rom_accesses((GameState *)d->game, 3u * (sent - 1u));
     for (uint8_t i = 0; i < sizeof d->percussion; i++)
         d->percussion[i] = sound_song_percussion_byte(d->game, song, i);
     d->bytes_sent += loaded + sizeof d->percussion;

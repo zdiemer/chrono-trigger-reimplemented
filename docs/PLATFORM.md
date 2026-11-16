@@ -1243,6 +1243,26 @@ went from 0.64 to 0.54 GBA frames in `title-start`, 0.79 to 0.77 in
 `new-game`, 1.07 to 1.06 in `gato-battle` and 1.16 to 1.11 in
 `events-jetbike-race`.
 
+A battle's way in was the GBA's heaviest game frame, the original's own
+pause (ct_native lags 29-30 frames there too) done in one GBA frame of
+work: 28-30 GBA frames in each of `attract-demo`'s battles (game frames
+3884, 6598, 9413, 14933, 17649, 20462; issue #550) and 46 in
+`gato-battle`'s. Its three largest parts now run as spans:
+`wram_fill16` of a word of two bytes the same is `wram_fill8` (the
+battle's 32 KiB cleared on the way in, `battle/from_field.c`); the flat
+state's fill sets runs of eight bytes owners keep whole at once
+(`vars_flat_host.c`, `fill_owned`); and the sound driver reads a song's
+sequence and an effect set from the cartridge as a run (`rom_read_span`),
+each byte still timed as a cartridge read, the song's with the three reads
+of its pointer each byte was read with before, so ct_native's lag frames
+are as they were (1,133 in `attract-demo`'s first 10,000). Each battle's
+way in fell to under 17 GBA frames; the heaviest of `attract-demo` are now
+its location loads (24 GBA frames at 7537 and 18586), and the movies take
+1,899, 7,981, 25,980, 14,197, 8,198 and 34,595 GBA frames (`title-start`,
+`new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`,
+`attract-demo`) against 1,919, 7,999, 26,066, 14,386, 8,228 and 34,806,
+`gato-battle`'s heaviest frame 39 against 46.
+
 ### The GBA build, as built
 
 `ct_gba` is the game on the GBA, with its picture and its sound: the
