@@ -207,12 +207,14 @@ runner plays it on `ct.gba` with the decisions replayed, writing every GBA
 frame's picture with the game's frame the driver put on the screen last
 (the drive box's `shown`). Each GBA frame must show that frame's picture
 exactly, compared at the GBA's 5 bits a channel (and through the colour
-profile, `--colours`); a GBA frame that doesn't is a mismatch: `torn` (its
-lines from that frame and the one before), `frame` (a whole frame early or
-late), `colour` (off by at most two steps of 31: fades, colour math) or
-`picture` (anything else). Mismatches close in time and on the screen make
-a cluster, ranked by its pixels summed over the GBA frames that show it,
-with a PNG of its worst frame: ct_native's, the GBA's, and where they
+profile, `--colours`). Where a GBA frame doesn't, its mismatch is `torn`
+(its lines from that frame and the one before), `frame` (a whole frame early
+or late), or split by how far its pixels are off: `colour` (at most 8 steps
+of 31 on every channel: gradients, colour math, fades made another way) and
+`picture` (the rest: what is drawn wrong or not at all). Mismatches of a kind
+close in time, each mostly in the screen's 8-pixel cells of the one before,
+make a cluster, ranked by its pixels summed over the GBA frames that show
+it, with a PNG of its worst frame: ct_native's, the GBA's, and where they
 differ. From the same records, every game frame over two GBA frames and
 every picture left out, grouped into stretches ranked by the GBA frames they
 cost, and every hang (two seconds with no game frame begun).
@@ -226,7 +228,7 @@ frames, against its picture with the most lines the same.
 
 It writes `census.md` and `census.json` and the PNGs to `--out`; its working
 files (about 100 KB a frame) go in `--out`'s `work/`, deleted movie by movie
-unless `--keep`. The whole census takes about half an hour.
+unless `--keep`. With numpy it compares faster; it doesn't need it.
 
 ## Driving it
 

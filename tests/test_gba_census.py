@@ -48,39 +48,66 @@ class CompareTest(unittest.TestCase):
         self.assertIsNone(census.compare(bytes(picture()), bytes(picture())))
 
     def test_where_it_differs(self):
+        for way in (census.compare_slowly, census.compare_arrays) if census.numpy else (census.compare_slowly,):
+            self.where_it_differs(way)
+
+    def test_both_ways_the_same(self):
+        if not census.numpy:
+            self.skipTest("no numpy")
+        import random
+        rng = random.Random(5)
+        a = picture((4, 4, 4))
+        for _ in range(40):
+            x, y = rng.randrange(230), rng.randrange(150)
+            paint(a, x, y, x + rng.randrange(9), y + rng.randrange(9), (rng.randrange(32), rng.randrange(32), 3))
+        b = bytearray(a)
+        for _ in range(40):
+            x, y = rng.randrange(230), rng.randrange(150)
+            paint(b, x, y, x + rng.randrange(9), y + rng.randrange(9), (rng.randrange(32), 7, rng.randrange(32)))
+        self.assertEqual(census.compare_slowly(bytes(a), bytes(b), W, H), census.compare_arrays(bytes(a), bytes(b), W, H))
+
+    def where_it_differs(self, compare):
         a = picture()
-        b = paint(picture(), 10, 20, 12, 21, (3, 0, 0))
-        d = census.compare(bytes(a), bytes(b))
+        b = paint(picture(), 10, 20, 12, 21, (20, 0, 0))
+        d = compare(bytes(b), bytes(a), W, H)["picture"]   # the GBA shows a square ct_native doesn't
         self.assertEqual(d["pixels"], 6)
         self.assertEqual(d["box"], [10, 20, 12, 21])
-        self.assertEqual(d["steps"], 3)
+        self.assertEqual(d["steps"], 20)
         self.assertEqual(d["cells"], [(20 // 8) * 30 + 1])
+
+    def kinds(self, gba, native, before):
+        found = census.mismatches_of(gba, native, before, None, census.compare(gba, native))
+        return [(kind, part["pixels"]) for kind, part in found]
 
     def test_kinds(self):
         native = bytes(paint(picture(), 0, 0, 239, 79, (10, 10, 10)))
         before = bytes(picture())
         # every line the frame's or the one before's: torn
         torn = bytes(paint(picture(), 0, 40, 239, 79, (10, 10, 10)))
-        self.assertEqual(census.kind_of(torn, native, before, None, census.compare(torn, native)), "torn")
+        self.assertEqual(self.kinds(torn, native, before), [("torn", 240 * 40)])
         # the whole picture the frame before's
-        self.assertEqual(census.kind_of(before, native, before, None, census.compare(before, native)), "frame")
-        # off by a step of colour
+        self.assertEqual(self.kinds(before, native, before), [("frame", 240 * 80)])
+        # a step off: shade
         dim = bytes(paint(picture(), 0, 0, 239, 79, (9, 10, 10)))
-        self.assertEqual(census.kind_of(dim, native, before, None, census.compare(dim, native)), "colour")
-        # anything else
-        wrong = bytes(paint(bytearray(native), 100, 100, 110, 110, (31, 0, 0)))
-        self.assertEqual(census.kind_of(wrong, native, before, None, census.compare(wrong, native)), "picture")
+        self.assertEqual(self.kinds(dim, native, before), [("colour", 240 * 80)])
+        # and a stray square on top of it, whose colour is elsewhere on its lines unchanged
+        stray = bytes(paint(bytearray(dim), 100, 100, 110, 110, (31, 0, 0)))
+        self.assertEqual(self.kinds(stray, native, before), [("picture", 121), ("colour", 240 * 80)])
+        # more than SHADE_STEPS off
+        far = bytes(paint(bytearray(dim), 0, 0, 9, 0, (10, 10, 10 - census.SHADE_STEPS - 1)))
+        self.assertEqual(self.kinds(far, native, before), [("picture", 10), ("colour", 240 * 80 - 10)])
 
 
-def mismatch(frame, box, pixels=10, kind="picture"):
-    return {"frame": frame, "gba": frame + 100, "box": box, "pixels": pixels, "cells": [0], "steps": 5, "kind": kind}
+
+def mismatch(frame, box, pixels=10, kind="picture", cells=(0,)):
+    return {"frame": frame, "gba": frame + 100, "box": box, "pixels": pixels, "cells": list(cells), "steps": 5, "kind": kind}
 
 
 class ClusterTest(unittest.TestCase):
-    def test_close_in_time_and_place(self):
+    def test_close_in_time_and_cells(self):
         clusters = census.cluster([
             mismatch(10, [0, 0, 7, 7]), mismatch(12, [4, 4, 9, 9], pixels=50),
-            mismatch(13, [200, 150, 239, 159]),          # elsewhere on the screen
+            mismatch(13, [200, 150, 239, 159], cells=(599,)),   # elsewhere on the screen
             mismatch(40, [0, 0, 7, 7]),                  # later than the gap
             mismatch(41, [0, 0, 7, 7], kind="colour"),   # another kind
         ])
@@ -89,6 +116,7 @@ class ClusterTest(unittest.TestCase):
         self.assertEqual(clusters[0]["visibility"], 60)
         self.assertEqual(clusters[0]["box"], [0, 0, 9, 9])
         self.assertEqual(clusters[0]["worst"]["frame"], 12)
+        self.assertEqual(clusters[0]["typical"]["frame"], 12)
 
 
 class PacingTest(unittest.TestCase):

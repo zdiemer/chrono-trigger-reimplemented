@@ -13,20 +13,22 @@ every GBA frame shows (`--record`), with the game's frame the driver put on
 the screen last. Each GBA frame's picture must be that game frame's picture
 in ct_native exactly, but for the GBA's 15-bit colour (both are compared at 5
 bits a channel) and the colour profile the cartridge was packed with. A GBA
-frame that differs is a mismatch, of one of these kinds:
+frame that differs has mismatches of these kinds:
 
 - `torn`: each line is that frame's or the frame before's (or after's): the
   picture changed while the GBA drew it.
 - `frame`: the whole picture is the frame before's or after's.
-- `colour`: the same picture with its colours off by at most COLOUR_STEPS
-  steps of 31 (fades, colour math).
-- `picture`: anything else.
+- `colour`: the pixels at most SHADE_STEPS steps of 31 from ct_native's on
+  every channel: a gradient, colour math or a fade made another way.
+- `picture`: the rest of the differing pixels: what is drawn wrong or not
+  at all.
 
-Mismatches of a kind close in time (GAP game frames) and in place on the
-screen go into one cluster, ranked by how visible it is: the differing
+Mismatches of a kind close in time (GAP game frames), each mostly in the
+cells of the one before, go into one cluster, ranked by how visible it is: the differing
 pixels summed over the GBA frames that show them (its size times its
-duration). Each cluster gets a PNG of its worst frame: ct_native's, the
-GBA's and the differing pixels in white.
+duration). Each cluster gets a PNG of its typical frame (the median of its
+pixels): ct_native's, the GBA's and the differing pixels, the picture's
+white and the shade's grey.
 
 Pacing. From the same records, each game frame's GBA frames (from the GBA
 frame it began in to the one the next began in) and whether its picture was
@@ -60,6 +62,11 @@ import sys
 import time
 import zlib
 
+try:                 # optional: the same comparison, faster where most of a picture differs
+    import numpy
+except ImportError:
+    numpy = None
+
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.insert(0, str(HERE))
@@ -68,9 +75,8 @@ import run  # noqa: E402
 
 WIDTH, HEIGHT = 240, 160       # the GBA's screen
 CELL = 8                       # the screen's cells, for where a mismatch is
-COLOUR_STEPS = 2               # a `colour` mismatch's largest difference, of 31
+SHADE_STEPS = 8                # a shade's largest difference, of 31 (compare())
 GAP = 10                       # game frames between mismatches of one cluster
-NEAR = 16                      # pixels between a cluster's box and a mismatch it takes
 SLOW = 2                       # GBA frames a game frame may take
 STRETCH = 30                   # game frames between slow frames of one stretch
 HANG = 120                     # GBA frames with no game frame begun: two seconds
@@ -200,37 +206,83 @@ def colour_profile(name):
 # ---- Comparing ---------------------------------------------------------------------------------
 
 def compare(a, b, width=WIDTH, height=HEIGHT):
-    """Where two pictures of 5-bit pixels differ: None where they don't, else the
-    differing pixels, their box (x0, y0, x1, y1, inclusive), the cells
-    (CELL-pixel squares, numbered across then down) and the largest step on a
-    channel."""
+    """Where two pictures of 5-bit pixels differ, None where they don't. A
+    differing pixel is shade where it is at most SHADE_STEPS steps from its
+    colour in `b` on every channel (a gradient, colour math or a fade made
+    another way); the rest are the picture's. Each part (None
+    where it has no pixels): its pixels, their box (x0, y0, x1, y1, inclusive),
+    the cells (CELL-pixel squares, numbered across then down) and the largest
+    step on a channel; and the two together as `all`."""
     if a == b:
         return None
-    stride, span = width * 3, CELL * 3
+    if numpy is not None:
+        return compare_arrays(a, b, width, height)
+    return compare_slowly(a, b, width, height)
+
+
+class Part:
+    """A part of a comparison, gathered a pixel at a time."""
+
+    def __init__(self):
+        self.pixels = self.steps = 0
+        self.x0 = self.y0 = 1 << 30
+        self.x1 = self.y1 = -1
+        self.cells = set()
+
+    def add(self, x, y, steps, columns):
+        self.pixels += 1
+        self.x0, self.x1, self.y0, self.y1 = min(self.x0, x), max(self.x1, x), min(self.y0, y), max(self.y1, y)
+        self.cells.add((y // CELL) * columns + x // CELL)
+        self.steps = max(self.steps, steps)
+
+    def made(self):
+        if not self.pixels:
+            return None
+        return {"pixels": self.pixels, "box": [self.x0, self.y0, self.x1, self.y1], "cells": sorted(self.cells),
+                "steps": self.steps}
+
+
+def parts(picture, shade, everything):
+    return {"picture": picture.made(), "shade": shade.made(), "all": everything.made()}
+
+
+def compare_slowly(a, b, width, height):
+    """compare() in Python alone."""
+    stride = width * 3
     columns = (width + CELL - 1) // CELL
-    pixels = most = 0
-    x0 = y0 = 1 << 30
-    x1 = y1 = -1
-    cells = set()
+    picture, shade, everything = Part(), Part(), Part()
     for y in range(height):
         row = y * stride
         if a[row:row + stride] == b[row:row + stride]:
             continue
-        for column in range(columns):
-            at = row + column * span
-            end = min(at + span, row + stride)
-            sa, sb = a[at:end], b[at:end]
-            if sa == sb:
+        mine = [a[i:i + 3] for i in range(row, row + stride, 3)]
+        theirs = [b[i:i + 3] for i in range(row, row + stride, 3)]
+        for x, (m, t) in enumerate(zip(mine, theirs)):
+            if m == t:
                 continue
-            cells.add((y // CELL) * columns + column)
-            for i in range(0, end - at, 3):
-                if sa[i:i + 3] != sb[i:i + 3]:
-                    pixels += 1
-                    x = column * CELL + i // 3
-                    x0, x1 = min(x0, x), max(x1, x)
-                    y0, y1 = min(y0, y), max(y1, y)
-                    most = max(most, abs(sa[i] - sb[i]), abs(sa[i + 1] - sb[i + 1]), abs(sa[i + 2] - sb[i + 2]))
-    return {"pixels": pixels, "box": [x0, y0, x1, y1], "cells": sorted(cells), "steps": most}
+            steps = max(abs(m[0] - t[0]), abs(m[1] - t[1]), abs(m[2] - t[2]))
+            (shade if steps <= SHADE_STEPS else picture).add(x, y, steps, columns)
+            everything.add(x, y, steps, columns)
+    return parts(picture, shade, everything)
+
+
+def compare_arrays(a, b, width, height):
+    """compare() with numpy, the same."""
+    x = numpy.frombuffer(a, numpy.uint8).reshape(height, width, 3).astype(numpy.int32)
+    y = numpy.frombuffer(b, numpy.uint8).reshape(height, width, 3).astype(numpy.int32)
+    steps = numpy.abs(x - y).max(axis=2)
+    differs = steps > 0
+    is_shade = differs & (steps <= SHADE_STEPS)
+    columns = (width + CELL - 1) // CELL
+
+    def part(where):
+        ys, xs = numpy.nonzero(where)
+        if not len(xs):
+            return None
+        return {"pixels": int(len(xs)), "box": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())],
+                "cells": [int(c) for c in numpy.unique((ys // CELL) * columns + xs // CELL)],
+                "steps": int(steps[where].max())}
+    return {"picture": part(differs & ~is_shade), "shade": part(is_shade), "all": part(differs)}
 
 
 def lines_from(picture, sources, width=WIDTH, height=HEIGHT):
@@ -244,52 +296,53 @@ def lines_from(picture, sources, width=WIDTH, height=HEIGHT):
     return out
 
 
-def kind_of(gba, native, before, after, difference):
-    """What a mismatching GBA picture is (the module's kinds), given ct_native's
-    picture of its frame and of the frames either side."""
+def mismatches_of(gba, native, before, after, difference):
+    """A mismatching GBA picture's mismatches, given ct_native's picture of its
+    frame and of the frames either side: (kind, part) pairs, the module's kinds."""
     if gba == before or gba == after:
-        return "frame"
+        return [("frame", difference["all"])]
     lines = lines_from(gba, [native, before, after])
     if -1 not in lines and any(i > 0 for i in lines):
-        return "torn"
-    if difference["steps"] <= COLOUR_STEPS:
-        return "colour"
-    return "picture"
+        return [("torn", difference["all"])]
+    return [(kind, difference[part]) for kind, part in (("picture", "picture"), ("colour", "shade")) if difference[part]]
 
 
 # ---- Clusters ----------------------------------------------------------------------------------
 
-def near(box, other, margin=NEAR):
-    return not (other[0] > box[2] + margin or other[2] < box[0] - margin or
-                other[1] > box[3] + margin or other[3] < box[1] - margin)
+def alike(cells, other):
+    """Two mismatches' cells are mostly the same: half the smaller set's in both."""
+    return len(cells & other) * 2 >= min(len(cells), len(other))
 
 
 def cluster(mismatches, gap=GAP):
     """Mismatches (dicts with frame, gba, kind and compare()'s fields, in the
-    GBA's order) gathered into clusters: one kind, close in game frames and on
-    the screen. Each cluster: its kind, first and last game frame, GBA frames,
-    pixels summed (its visibility), box, cells, largest step and worst
-    mismatch; the most visible first."""
+    GBA's order) gathered into clusters: one kind, close in game frames, and
+    each mismatch mostly in the cells of the one before it. Each cluster: its kind, first and last game frame, GBA frames,
+    pixels summed (its visibility), box, cells, largest step, and its worst
+    and typical (the median of its pixels) mismatches; the most visible first."""
     open_, done = [], []
     for m in mismatches:
+        cells = set(m["cells"])
         found = None
         for c in open_:
-            if c["kind"] == m["kind"] and m["frame"] - c["last"] <= gap and near(c["box"], m["box"]):
+            if c["kind"] == m["kind"] and m["frame"] - c["last"] <= gap and alike(c["recent"], cells):
                 found = c
                 break
         if found is None:
             found = {"kind": m["kind"], "first": m["frame"], "last": m["frame"], "gba_frames": 0, "visibility": 0,
-                     "box": list(m["box"]), "cells": set(), "steps": 0, "worst": m}
+                     "box": list(m["box"]), "cells": set(), "steps": 0, "worst": m, "members": []}
             open_.append(found)
         found["last"] = max(found["last"], m["frame"])
         found["gba_frames"] += 1
         found["visibility"] += m["pixels"]
         b = found["box"]
         found["box"] = [min(b[0], m["box"][0]), min(b[1], m["box"][1]), max(b[2], m["box"][2]), max(b[3], m["box"][3])]
-        found["cells"].update(m["cells"])
+        found["cells"].update(cells)
+        found["recent"] = cells
         found["steps"] = max(found["steps"], m["steps"])
         if m["pixels"] > found["worst"]["pixels"]:
             found["worst"] = m
+        found["members"].append(m)
         still = []
         for c in open_:
             (still if m["frame"] - c["last"] <= gap else done).append(c)
@@ -297,6 +350,9 @@ def cluster(mismatches, gap=GAP):
     done += open_
     for c in done:
         c["cells"] = len(c["cells"])
+        del c["recent"]
+        members = sorted(c.pop("members"), key=lambda m: m["pixels"])
+        c["typical"] = members[len(members) // 2]
     return sorted(done, key=lambda c: (-c["visibility"], c["first"]))
 
 
@@ -453,16 +509,19 @@ def gba_run(args, movie, frames, record, srm, work, decisions=None, stall=None):
     return done.returncode, done.stdout
 
 
-def picture_png(path, native, gba, difference_only=None):
-    """ct_native's picture, the GBA's and their differing pixels in white, side by side."""
-    blank = bytes(WIDTH * HEIGHT * 3)
-    native = native or blank
+def picture_png(path, native, gba):
+    """ct_native's picture, the GBA's, and where they differ, side by side: the
+    picture's pixels white and the shade's grey (compare())."""
+    native = native or bytes(WIDTH * HEIGHT * 3)
     rows = []
     stride = WIDTH * 3
     for y in range(HEIGHT):
         a, b = native[y * stride:(y + 1) * stride], gba[y * stride:(y + 1) * stride]
-        diff = b"".join(b"\xff\xff\xff" if a[i:i + 3] != b[i:i + 3] else b"\0\0\0" for i in range(0, stride, 3))
-        rows.append(eight_bits(a) + b"\x40\x40\x40" * 4 + eight_bits(b) + b"\x40\x40\x40" * 4 + diff)
+        diff = []
+        for i in range(0, stride, 3):
+            steps = max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
+            diff.append(b"\0\0\0" if not steps else b"\x60\x60\x60" if steps <= SHADE_STEPS else b"\xff\xff\xff")
+        rows.append(eight_bits(a) + b"\x40\x40\x40" * 4 + eight_bits(b) + b"\x40\x40\x40" * 4 + b"".join(diff))
     png_write(path, WIDTH * 3 + 8, HEIGHT, b"".join(rows))
 
 
@@ -493,13 +552,10 @@ def census_movie(args, name, work):
         key = (number, zlib.crc32(theirs))
         if key not in seen:
             difference = compare(mine, theirs)
-            if difference:
-                difference["kind"] = kind_of(mine, theirs, native.get(shown - 1), native.get(shown + 1), difference)
-            seen[key] = difference
-        difference = seen[key]
-        if difference:
-            m = dict(difference, frame=shown, gba=gba_frame, picture=number)
-            mismatches.append(m)
+            seen[key] = mismatches_of(mine, theirs, native.get(shown - 1), native.get(shown + 1),
+                                      difference) if difference else []
+        for kind, part in seen[key]:
+            mismatches.append(dict(part, kind=kind, frame=shown, gba=gba_frame, picture=number))
     clusters = cluster(mismatches)
     took, left_out, hangs = pacing(index)
     result = {
@@ -510,11 +566,12 @@ def census_movie(args, name, work):
         "left_out": len(left_out), "slow_frames": sum(1 for t in took.values() if t > SLOW),
     }
     for rank, c in enumerate(clusters):
-        w = c.pop("worst")
-        entry = dict(c, worst_frame=w["frame"], worst_gba_frame=w["gba"], worst_pixels=w["pixels"])
+        w, typical = c.pop("worst"), c.pop("typical")
+        entry = dict(c, worst_frame=w["frame"], worst_pixels=w["pixels"], typical_frame=typical["frame"],
+                     typical_gba_frame=typical["gba"], typical_pixels=typical["pixels"])
         if rank < args.pngs:
-            png = args.out / ("%s-%03d-%s-%d.png" % (name, rank + 1, c["kind"], w["frame"]))
-            picture_png(png, native.get(w["frame"]), gba.get(w["picture"]))
+            png = args.out / ("%s-%03d-%s-%d.png" % (name, rank + 1, c["kind"], typical["frame"]))
+            picture_png(png, native.get(typical["frame"]), gba.get(typical["picture"]))
             entry["png"] = png.name
         result["clusters"].append(entry)
     gba.close()
@@ -577,7 +634,7 @@ def census_hand(args, name, work):
             continue
         difference = compare(gba.get(number), native.get(frame))
         if difference:
-            unmatched.append(dict(difference, kind="unmatched", frame=shown, gba=gba_frame, picture=number,
+            unmatched.append(dict(difference["all"], kind="unmatched", frame=shown, gba=gba_frame, picture=number,
                                   offset=frame - shown))
     clusters = cluster(unmatched)
     took, left_out, hangs = pacing(index)
@@ -589,11 +646,12 @@ def census_hand(args, name, work):
         "hangs": hangs, "left_out": len(left_out), "slow_frames": sum(1 for t in took.values() if t > SLOW),
     }
     for rank, c in enumerate(clusters):
-        w = c.pop("worst")
-        entry = dict(c, worst_frame=w["frame"], worst_gba_frame=w["gba"], worst_pixels=w["pixels"], offset=w["offset"])
+        w, typical = c.pop("worst"), c.pop("typical")
+        entry = dict(c, worst_frame=w["frame"], worst_pixels=w["pixels"], typical_frame=typical["frame"],
+                     typical_gba_frame=typical["gba"], typical_pixels=typical["pixels"], offset=typical["offset"])
         if rank < args.pngs:
-            png = args.out / ("%s-%03d-%s-%d.png" % (name, rank + 1, c["kind"], w["frame"]))
-            picture_png(png, native.get(w["frame"] + w["offset"]), gba.get(w["picture"]))
+            png = args.out / ("%s-%03d-%s-%d.png" % (name, rank + 1, c["kind"], typical["frame"]))
+            picture_png(png, native.get(typical["frame"] + typical["offset"]), gba.get(typical["picture"]))
             entry["png"] = png.name
         result["clusters"].append(entry)
     gba.close()
@@ -616,12 +674,12 @@ def report(results, top=40):
                          ("Played by hand: pictures ct_native showed nowhere near (leads)", ("unmatched",))):
         ranked = [rc for rc in rows if rc[1]["kind"] in kinds]
         lines += ["## %s: %d cluster(s)" % (title, len(ranked)), "",
-                  "| # | run | kind | game frames | GBA frames | pixels summed | box (x0,y0-x1,y1) | steps | PNG |",
-                  "|---|---|---|---|---|---|---|---|---|"]
+                  "| # | run | kind | game frames | GBA frames | pixels summed | typical pixels | box (x0,y0-x1,y1) | steps | PNG |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
         for i, (name, c) in enumerate(ranked[:top]):
             b = c["box"]
-            lines.append("| %d | %s | %s | %d-%d | %d | %d | %d,%d-%d,%d | %d | %s |" % (
-                i + 1, name, c["kind"], c["first"], c["last"], c["gba_frames"], c["visibility"],
+            lines.append("| %d | %s | %s | %d-%d | %d | %d | %d | %d,%d-%d,%d | %d | %s |" % (
+                i + 1, name, c["kind"], c["first"], c["last"], c["gba_frames"], c["visibility"], c["typical_pixels"],
                 b[0], b[1], b[2], b[3], c["steps"], c.get("png", "")))
         if len(ranked) > top:
             lines.append("")
