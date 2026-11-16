@@ -1993,6 +1993,8 @@ static bool line_splits_in_this_scene(uint8_t had)
     return line_split_ok;
 }
 
+static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, bool added);
+
 /* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
  * places their maps take, the layers split by priority with their copies of
  * tiles in front, and their tiles' caches, each with the window the most
@@ -2078,12 +2080,12 @@ static uint8_t lay_out(bool pruned)
     memset(units_in_front, 0, sizeof units_in_front);
     memset(units_behind, 0, sizeof units_behind);
     for (unsigned n = 0; n < 4; n++)
-        for (uint32_t at = 0; layers[n].shown && layers[n].own_map && at < layers[n].map_bytes; at += UNIT_BYTES)
-            note_priorities(n, (layers[n].map_byte + at) & (VRAM_BYTES - 1), layers[n].map_byte, false);
+        if (layers[n].shown && layers[n].own_map)
+            note_map_priorities(n, layers[n].map_byte, layers[n].map_bytes, false);
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         const LineMap *lm = &snes.line_maps[m];
-        for (uint32_t at = 0; lm->cut == NO_CUT && layers[lm->layer].shown && at < lm->bytes; at += UNIT_BYTES)
-            note_priorities(lm->layer, (lm->byte + at) & (VRAM_BYTES - 1), lm->byte, true);
+        if (lm->cut == NO_CUT && layers[lm->layer].shown)
+            note_map_priorities(lm->layer, lm->byte, lm->bytes, true);
     }
     split_wanted = layers_to_split(split_wanted);
     /* The line effects' maps and the maps cut, each where the GBA has room
@@ -2332,7 +2334,7 @@ static int sprite_slot(uint32_t byte)
  * with the units. From fast RAM, the block's units one after another: a
  * call there and back for each unit of a scene's maps cost more than the
  * call's work. */
-ARM_CODE __attribute__((noinline)) static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte,
+ARM_CODE __attribute__((noinline, noclone)) static void convert_map_units(uint32_t first, uint32_t units, unsigned n, uint32_t map_byte,
                                                                  bool added, const Layer *l, uint32_t to, uint32_t front_to)
 {
     for (; units; units >>= 1, first += UNIT_BYTES) {
@@ -2346,6 +2348,17 @@ ARM_CODE __attribute__((noinline)) static void convert_map_units(uint32_t first,
             to += UNIT_BYTES;
         if (front_to != NO_PLACE)
             front_to += UNIT_BYTES;
+    }
+}
+
+/* A map's units' priorities noted for layer `n` (its own map, or a line
+ * effect's `added` to it), a kilobyte of the map at a time. A map starts on
+ * a screen's 2 KiB, so no kilobyte runs past VRAM's end. */
+static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, bool added)
+{
+    for (uint32_t at = 0; at < bytes; at += 32 * UNIT_BYTES) {
+        uint32_t units = bytes - at >= 32 * UNIT_BYTES ? 0xFFFFFFFFu : (1u << (bytes - at) / UNIT_BYTES) - 1;
+        convert_map_units((map_byte + at) & (VRAM_BYTES - 1), units, n, map_byte, added, NULL, NO_PLACE, NO_PLACE);
     }
 }
 

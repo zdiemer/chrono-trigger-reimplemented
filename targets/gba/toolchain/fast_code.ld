@@ -50,7 +50,6 @@
 /* A layout's work, which the picture stops for (services/video.c, ARM): a
  * scene's first picture converts its maps' thousands of entries and names
  * their tiles. */
-*(.text.convert_map .text.convert_map.*)
 *(.text.name_map_tiles .text.name_map_tiles.*)
 *(.text.note_priorities .text.note_priorities.*)
 *(.text.convert_tile .text.convert_tile.*)
