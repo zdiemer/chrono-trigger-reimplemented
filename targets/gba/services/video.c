@@ -1167,14 +1167,30 @@ static void convert_4bpp(volatile uint32_t *to, const uint8_t *tile)
         to[y] = packed_row(tile[2 * y], tile[2 * y + 1], tile[16 + 2 * y], tile[16 + 2 * y + 1]);
 }
 
-static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
+/* A nibble of a bitplane's byte spread out as spread[] spreads a byte: in
+ * fast RAM beside the code that reads it, for the tiles a layout gives
+ * places, hundreds at a scene's first picture. */
+static const uint32_t nibble_dots[16] __attribute__((section(".iwram.nibble_dots"))) = {
+    0x00000u, 0x01000u, 0x00100u, 0x01100u, 0x00010u, 0x01010u, 0x00110u, 0x01110u,
+    0x00001u, 0x01001u, 0x00101u, 0x01101u, 0x00011u, 0x01011u, 0x00111u, 0x01111u,
+};
+
+static inline __attribute__((always_inline)) uint32_t plane_dots(uint32_t byte)
+{
+    return nibble_dots[byte >> 4] | nibble_dots[byte & 15] << 16;
+}
+
+ARM_CODE __attribute__((noinline)) static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
 {
     volatile uint32_t *to = BG_VRAM + (c->block * 512u + slot) * 8u;
-    uint32_t at = c->char_byte + tile * tile_bytes(c->bpp);
-    for (unsigned y = 0; y < 8; y++) {
-        const uint8_t *row = &snes.vram[(at + 2 * y) & (VRAM_BYTES - 1)];
-        const uint8_t *high = &snes.vram[(at + 16 + 2 * y) & (VRAM_BYTES - 1)];
-        to[y] = c->bpp == 4 ? packed_row(row[0], row[1], high[0], high[1]) : packed_row(row[0], row[1], 0, 0);
+    const uint8_t *row = &snes.vram[(c->char_byte + tile * tile_bytes(c->bpp)) & (VRAM_BYTES - 1)];
+    bool deep = c->bpp == 4;
+#pragma GCC unroll 1
+    for (unsigned y = 0; y < 8; y++, row += 2) {
+        uint32_t dots = plane_dots(row[0]) | plane_dots(row[1]) << 1;
+        if (deep)
+            dots |= plane_dots(row[16]) << 2 | plane_dots(row[17]) << 3;
+        to[y] = dots;
     }
 }
 
