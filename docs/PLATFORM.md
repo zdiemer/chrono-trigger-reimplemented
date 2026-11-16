@@ -1805,9 +1805,11 @@ GBA's own time deciding the game's frames), `new-game` showed 345 pictures
 in the same blank as the one before (of 5,900), now none: its pictures
 apart 0, 4,676, 507, 517 and 185 GBA frames (0, 1, 2, 3, 4) against 345,
 4,329, 496, 533 and 183. The game's frames no longer run ahead of the GBA's,
-so the movies take longer in mGBA, replaying ct_native's decisions:
-`new-game` 9,064 GBA frames against 8,623, `gato-battle` 30,495 against
-29,856, ending as ct_native's. The gaps left are the game's own long frames
+so the movies take longer in mGBA, replaying ct_native's decisions
+(`title-start`, `new-game`, `gato-battle`, `events-jetbike-race`,
+`menus-sweep`): 2,219, 9,030, 30,318, 16,831 and 9,345 GBA frames against
+2,140, 8,580, 29,625, 16,580 and 9,229 (1.3-5.2% more), each ending as
+ct_native's. The gaps left are the game's own long frames
 (below): a frame of the game that takes 20-226 GBA frames, as a map, a
 menu or a battle loads, and a layout's picture of up to 28.
 
