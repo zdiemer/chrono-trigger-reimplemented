@@ -1772,6 +1772,11 @@ static bool plane_room;        /* the layout keeps the GBA's first 32 KiB for th
 static bool plane_refused;     /* a layer's map lies where the plane would */
 static bool plane_on_lines;    /* a line of the last frame showed Mode 7 */
 static volatile void *plane_table;   /* the table of the plane's lines, in background VRAM; NULL: no room */
+/* The table the frame shown reads its plane's lines from: the last frame's
+ * stays where it is until this one is shown, though a layout gave its room
+ * back (the title's pendulum, a part of the plane, fell apart through the
+ * layout that left Mode 7). */
+static volatile void *shown_plane_table;
 /* the GBA's 160 lines and the blank after them, 16 bytes each (checked by PlaneLine's assert) */
 enum { PLANE_TABLE_BYTES = (160 + 1) * 16, PLANE_TABLE_PLACES = (PLANE_TABLE_BYTES + 31) / 32 };
 
@@ -4442,11 +4447,12 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_
 {
     DMA0CNT = 0;
     DMA3CNT = 0;
-    if (plane_dma && plane_table) {
-        const volatile uint32_t *first = (const volatile uint32_t *)&plane_lines[0];
+    if (plane_dma && shown_plane_table) {
+        const volatile PlaneLine *lines = (const volatile PlaneLine *)shown_plane_table;
+        const volatile uint32_t *first = (const volatile uint32_t *)&lines[0];
         for (unsigned w = 0; w < sizeof(PlaneLine) / 4; w++)
             BG2_PLANE[w] = first[w];
-        DMA0SAD = (uint32_t)&plane_lines[1];
+        DMA0SAD = (uint32_t)&lines[1];
         DMA0DAD = (uint32_t)BG2_PLANE;
         DMA0CNT = DMA_PLANE;
     }
@@ -4903,6 +4909,7 @@ static void frame_shown(bool made, uint8_t count, bool at_blank)
         show_from_end(made_end);
     changes = count;
     plane_dma = plane_shown;
+    shown_plane_table = plane_table;
     strength_dma = strength_steps;
     if (sprites_aside) {
         for (unsigned n = 0; n < SPRITES; n++)
@@ -4927,7 +4934,12 @@ static void frame_shown(bool made, uint8_t count, bool at_blank)
     }
     set_line(&change_registers[shown_place(0)]);
     arm_the_lines();
-    if (count == 1) {
+    /* one change and no line DMA: nothing to do at each blank. The line
+     * DMA is armed again at every vertical blank, since a game frame can
+     * run on for several GBA frames before the next picture: left running,
+     * it read on past its table (the title's pendulum, a part of the
+     * plane, fell apart through the frame that left Mode 7). */
+    if (count == 1 && !plane_dma && !strength_dma) {
         by_line = false;
         REG_IE = (uint16_t)(REG_IE & ~(IRQ_VCOUNT | IRQ_HBLANK));
         DISPSTAT = (uint16_t)(DISPSTAT & 0x00FF & ~(DISPSTAT_HBLANK_IRQ | DISPSTAT_VCOUNT_IRQ));
