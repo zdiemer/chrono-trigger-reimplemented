@@ -26,7 +26,7 @@ static uint32_t taken, frames_decided;
  * own; the GBA's picture and mixing are the driver's, so only the game's part
  * of a frame counts. */
 enum { MOST_OWED = 8 * GBA_FRAME_CYCLES };
-static uint32_t owed, main_began;
+static uint32_t owed, game_began, main_began;
 static bool sat_out;
 
 void frames_start(bool driven)
@@ -34,6 +34,8 @@ void frames_start(bool driven)
     const Decisions *d = (const Decisions *)(uintptr_t)DRIVE_DECISIONS_AT;
     replayed = driven && d->mark == DRIVE_DECISIONS_MARK ? d : NULL;
 }
+
+void frames_game_begins(void) { game_began = cycles_now(); }
 
 void frames_game_took(uint32_t cycles)
 {
@@ -60,27 +62,22 @@ static bool next_replayed(void)
     return yes;
 }
 
-/* The GBA's line counter as the SNES's: its 160 lines drawn as the SNES's
- * 225, its vertical blank's 68 as the SNES's 37 after them. */
-#define VCOUNT (*(volatile uint16_t *)0x04000006)
-enum { GBA_LINES = 160, GBA_FRAME_LINES = 228, SNES_DRAWN_LINES = TIME_VBLANK_LINE };
-
-static uint32_t snes_line(void)
-{
-    uint32_t v = VCOUNT;
-    if (v < GBA_LINES)
-        return v * SNES_DRAWN_LINES / GBA_LINES;
-    return SNES_DRAWN_LINES + (v - GBA_LINES) * (TIME_FRAME_LINES - SNES_DRAWN_LINES) / (GBA_FRAME_LINES - GBA_LINES);
-}
-
 /* The budget's window as the time model has it (timing.c): open from line
- * 240 through the frame's start to `line`, and shut once the main thread's
- * work has run into the next frame. */
+ * 240 through the frame's start to `line`, and shut once the game's part of
+ * the frame has run into the next. The SNES's frame starts at its vertical
+ * blank with the handlers; the GBA's game starts wherever the driver gets to
+ * it after the last picture, so the line the frame has reached is the game's
+ * time in it so far, a GBA frame read as the SNES's 262 lines from the
+ * vertical blank. Read from the GBA's line counter, a frame that started
+ * late, after a heavy picture, had no time at all: the field's scripts and
+ * animations (field/script_turns.c, field/frames.c) fell behind what a scene
+ * waits on, and the attract demo stood for ever in Magus's castle (issue
+ * #553). */
 static bool time_left_at(uint32_t elapsed, uint16_t line)
 {
     if (elapsed >= GBA_FRAME_CYCLES)
         return false;
-    uint32_t phase = snes_line();
+    uint32_t phase = (TIME_VBLANK_LINE + elapsed * TIME_FRAME_LINES / GBA_FRAME_CYCLES) % TIME_FRAME_LINES;
     return phase >= TIME_BUDGET_REOPENS_LINE || phase < line;
 }
 
@@ -117,7 +114,7 @@ bool frames_decide(void *ctx, TmHostDecision what, uint16_t line)
         sat_out = true;
         return true;
     case TM_HOST_TIME_LEFT:
-        return time_left_at(now - main_began, line);
+        return time_left_at(now - game_began, line);
     }
     return false;
 }

@@ -431,6 +431,7 @@ int main(void)
         in_host_set(&pf, 0, (uint16_t)pads);
         in_host_set(&pf, 1, (uint16_t)(pads >> 16));
         uint32_t began = cycles_now();
+        frames_game_begins();
         tm_host_frame(&pf);
         uint32_t game_done = cycles_now();
         frames_game_took(game_done - began);
