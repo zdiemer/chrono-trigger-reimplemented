@@ -99,9 +99,12 @@ static void set_high_bits(GameState *g, uint16_t at, uint8_t bits)
 enum { FAR_LEFT_OF_THE_SCREEN = -128, NINE_BITS_ROUND = 0x200 };
 static int16_t whole_x(int16_t x) { return (int16_t)(x < FAR_LEFT_OF_THE_SCREEN ? x + NINE_BITS_ROUND : x); }
 
+/* An entry's bytes, in the table's order. */
+enum { ENTRY_X, ENTRY_Y, ENTRY_TILE, ENTRY_ATTRIBUTES };
+
 /* Write an object's sprites into its range: their high table bits at the
- * range's high table cursor, and their entries from its next entry; and move
- * the range on past them. */
+ * range's high table cursor, and their entries from its next entry, streamed
+ * through the port in one piece; and move the range on past them. */
 static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, unsigned count)
 {
     uint16_t high = range_high(g, range);
@@ -118,13 +121,17 @@ static void write_sprites(GameState *g, unsigned range, const Sprite *sprites, u
     uint16_t entry = range_next(g, range);
     hw_port_seek_address(g, (uint16_t)(entry + FIELD_SPRITE_TABLE_ADDRESS));
     set_range_next(g, range, (uint16_t)(entry + count * OAM_ENTRY));
+    uint8_t entries[MOST_SPRITES * OAM_ENTRY];
     for (unsigned n = 0; n < count; n++) {
-        hw_port_write(g, vid_oam_x_low(sprites[n].x));
-        hw_port_write(g, sprites[n].y);
-        hw_port_write(g, sprites[n].tile);
-        hw_port_write(g, sprites[n].attributes);
-        sprite_table_place(g, entry / OAM_ENTRY + n, whole_x(sprites[n].x), sprites[n].y);
+        uint8_t *e = &entries[n * OAM_ENTRY];
+        e[ENTRY_X] = vid_oam_x_low(sprites[n].x);
+        e[ENTRY_Y] = sprites[n].y;
+        e[ENTRY_TILE] = sprites[n].tile;
+        e[ENTRY_ATTRIBUTES] = sprites[n].attributes;
     }
+    hw_port_write_span(g, entries, (uint16_t)(count * OAM_ENTRY));
+    for (unsigned n = 0; n < count; n++)
+        sprite_table_place(g, entry / OAM_ENTRY + n, whole_x(sprites[n].x), sprites[n].y);
     charge_accesses(g, 1); /* the completed sprite count */
 }
 
