@@ -123,10 +123,11 @@ typedef struct {
     uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
 } LineMap;
 enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5 };
-/* The maps kept for the lines, beside the layers' own: a map a band shows
- * cut takes no more than CUT_LINE_MAPS of them, leaving room for a map a
- * line shows whole. */
-enum { LINE_MAPS = 7, CUT_LINE_MAPS = 6 };
+/* The maps kept for the lines, beside the layers' own (a battle's six, and
+ * the three its window cut to the view takes): a map a band shows cut takes
+ * no more than CUT_LINE_MAPS of them, leaving room for a map a line shows
+ * whole. */
+enum { LINE_MAPS = 10, CUT_LINE_MAPS = 9 };
 
 typedef struct {
     uint8_t vram[VRAM_BYTES] __attribute__((aligned(4)));
@@ -1973,6 +1974,7 @@ static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
  * layer's own (bit n) and each line map (bit LINE_MAPS_SHOWN + m). */
 enum { LINE_MAPS_SHOWN = 4 };
 static uint16_t maps_shown IN_FAST_RAM;
+_Static_assert(LINE_MAPS_SHOWN + LINE_MAPS <= 16, "a bit of maps_shown each");
 
 /* Whether background VRAM has room left for the copies of tiles in front
  * that the line effects' maps of layers split by them alone would take,
