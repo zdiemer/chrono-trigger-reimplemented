@@ -1867,7 +1867,11 @@ Approximated, or not shown yet (issue #483):
   the GBA has layers to spare: the field, with three layers that have them,
   splits one, and mode 0 none. Mode 1's third layer in front, where the mode
   puts it in front of every sprite, is in front of every layer but the
-  sprites of the lowest priority show in front of its tiles behind too. A
+  sprites of the lowest priority show in front of its tiles behind too.
+  With no tiles in front it stands behind the first two, as on the SNES,
+  even where only the lines show its map: the light circles 12,000 BC's
+  cave and Lucca's house keep on it out of sight covered both rooms, and
+  the End of Time's lamp lit its floor in streaks. A
   split takes its copies' room from the tile caches.
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it.
