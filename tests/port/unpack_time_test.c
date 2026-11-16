@@ -26,6 +26,11 @@ uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at)
     (void)run;
     return rom_read8(g, at);
 }
+const AssetUnpacked *rom_unpacked(uint32_t at)
+{
+    (void)at;
+    return NULL;
+}
 
 static uint32_t unpack(unsigned length, bool direct, bool entry, uint32_t destination)
 {

@@ -359,6 +359,19 @@ void hw_port_write(GameState *g, uint8_t v)
     g->port = (g->port + 1) & PORT_MASK;
 }
 
+void hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count)
+{
+    state_host_game_access(g, (uint32_t)count * IO_ACCESS_CLOCKS);
+    /* to $7F's end, then round to $7E's start (a count is under a bank) */
+    uint32_t room = PORT_MASK + 1u - g->port;
+    if (count > room) {
+        vars_host_write_span(&g->head.vars, 0x7E0000u + g->port, bytes, room);
+        bytes += room, count = (uint16_t)(count - room), g->port = 0;
+    }
+    vars_host_write_span(&g->head.vars, 0x7E0000u + g->port, bytes, count);
+    g->port = (g->port + count) & PORT_MASK;
+}
+
 /* The byte the original leaves below the port: no register, nothing to keep. */
 void hw_port_leave_spill(GameState *g, uint8_t low) { (void)g, (void)low; }
 
@@ -417,6 +430,23 @@ void wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v)
 enum { WORK_RAM = 0x7E0000, WORK_RAM_SPAN = 0x20000 };
 static uint32_t through_the_port(uint32_t at, uint32_t i) { return WORK_RAM + (at + i) % WORK_RAM_SPAN; }
 
+bool wram_put_unpacked(GameState *g, const uint8_t *from, uint32_t at, uint32_t bytes)
+{
+#ifdef CT_FLAT_STATE
+    /* work RAM as the original lays it out: a run of it in pages owners
+     * keep whole reads back what is written there */
+    if (!bytes || !in_work_ram_banks(at) || (at & 0xFFFF) + bytes >= BANK_BYTES ||
+        !vars_flat_wholly_owned((at & 0xFFFFFF) - WORK_RAM, bytes))
+        return false;
+    vars_host_write_span(&g->head.vars, at & 0xFFFFFF, from, bytes);
+    return true;
+#else
+    /* the typed state's owners are the records', which it doesn't answer for a run */
+    (void)g, (void)from, (void)at, (void)bytes;
+    return false;
+#endif
+}
+
 void wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 {
     /* to $7F's end, then round to $7E's start */
@@ -437,10 +467,22 @@ void wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes)
     }
 }
 
-void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
+/* A copy that reaches past work RAM's own banks or runs round one, a byte at
+ * a time by address: seldom made, kept apart from wram_copy, which runs from a
+ * small target's fast memory. */
+__attribute__((noinline)) static void copy_by_address(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
 {
     for (uint32_t i = 0; i < bytes; i++)
         state_host_write8(g, in_bank(to, i), state_host_read8(g, in_bank(from, i)));
+}
+
+void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
+{
+    if (in_work_ram_banks(from) && in_work_ram_banks(to) && (from & 0xFFFF) + bytes <= BANK_BYTES &&
+        (to & 0xFFFF) + bytes <= BANK_BYTES)
+        vars_host_copy_span(&g->head.vars, from & 0xFFFFFF, to & 0xFFFFFF, bytes);
+    else
+        copy_by_address(g, from, to, bytes);
 }
 
 /* ---- Time: what the frame-level time model charges ------------------------------------------- *

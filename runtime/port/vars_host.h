@@ -3906,6 +3906,25 @@ uint8_t *vars_host_cold(void);
 /* Whether the map gives the address an owner: bytes no owner keeps read 0
  * and drop writes, as the typed state's address view does. */
 bool vars_flat_owned(uint32_t addr);
+/* The same for every byte, a bit each from $7E:0000's lowest; and for the
+ * eight bytes from `at` (bytes from $7E:0000) rounded down to eight: a
+ * run's owners looked up a byte of the map at a time. */
+extern const uint8_t vars_flat_owned_bits[0x20000 / 8];
+static inline uint8_t vars_flat_owners(uint32_t at)
+{
+    return vars_flat_owned_bits[(at & 0x1FFFFu) >> 3];
+}
+/* Whether owners keep every one of the `len` bytes (one or more) from `at`
+ * (bytes from $7E:0000, inside work RAM), looked up 256 bytes at a time: a
+ * page with any byte no owner keeps answers false for all of its bytes. */
+extern const uint8_t vars_flat_whole_pages[0x20000 / 256 / 8];
+static inline bool vars_flat_wholly_owned(uint32_t at, uint32_t len)
+{
+    for (uint32_t page = at >> 8; page <= (at + len - 1u) >> 8; page++)
+        if (!(vars_flat_whole_pages[page >> 3] >> (page & 7) & 1u))
+            return false;
+    return true;
+}
 #else
 typedef struct {
     VarsHostBattle battle;
@@ -4464,5 +4483,11 @@ void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_
 /* `len` bytes of work RAM from `addr` set to `value`, as vars_host_write8
  * writes each (none where no owner keeps one), in one call: a fill by address. */
 void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len);
+/* `len` bytes from `addr` written from `in`, as vars_host_write8 writes each. */
+void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len);
+/* `len` bytes copied from `from` to `to` a byte at a time from the first, as
+ * vars_host_read8 and vars_host_write8 move each: where the two overlap, a
+ * byte read is one the copy has already written. */
+void vars_host_copy_span(VarsHost *h, uint32_t from, uint32_t to, uint32_t len);
 
 #endif

@@ -68,6 +68,22 @@ typedef struct {
 } RomRun;
 RomRun rom_run_from(uint32_t at);
 uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at);
+/* rom_run_read8's `length` bytes from `at` where the run holds them all,
+ * taking none of their reads' time: for a reader that goes on through a
+ * stream and charges the reads it made this way together (charge.h,
+ * charge_rom_accesses). NULL where the run doesn't, and the reader reads by
+ * rom_run_read8. */
+static inline const uint8_t *rom_run_at(const RomRun *run, uint32_t at, uint32_t length)
+{
+    uint32_t i = at - run->at;
+    return i < run->length && length <= run->length - i ? run->bytes + i : NULL;
+}
+
+/* The packed stream starting at `at` as the resources' source keeps it
+ * unpacked already (data/assets.h, AssetUnpacked), or NULL where it keeps
+ * none: no time taken, the reader charges what unpacking it would have. */
+const AssetUnpacked *rom_unpacked(uint32_t at);
+static inline const uint8_t *rom_unpacked_bytes(const AssetUnpacked *u) { return (const uint8_t *)(u + 1); }
 
 /* A named graphics accessor's transfer, with no game-time charge. Validates
  * every cartridge byte, including a transfer that wraps inside its bank.
