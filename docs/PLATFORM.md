@@ -1453,8 +1453,38 @@ mode 0's four tiled layers and its sprites:
   which shows no black there, the black at the attract sequence's scene
   changes (game frames 3925, 6641, 9448, 9568 and 9954) went from 18, 17,
   18, 22 and 45 GBA frames to 5, 5, 7, 8 and 7, and as the curtain opens on
-  Crono's room from 32 to none. Fast RAM keeps 600 bytes free, work RAM 536
-  above its floor.
+  Crono's room from 32 to none.
+- **Layouts the lines ask for** are made before the frame is shown. A
+  layout's lines are worked out before its maps are converted, and a frame
+  whose lines name a map the layout hasn't (a line effect's, a dialog
+  window's), or another mode, is laid out again then and there rather than
+  in the next frame, which converted the scene a second time under the
+  picture shown (the dialog window's first row in stray tiles as the
+  opening's narration and Mom's dialog opened). A layout converts again only
+  the maps it put somewhere else than the last did, those of a cache that
+  started afresh or lost a place, or all of them where tiles had missed: a
+  line effect's map coming in beside the scene's converts that map alone. A
+  line map whose tiles in front found no room for their copy doesn't ask
+  for a layout each frame (Gato's battle was laid out, and black, a dozen
+  GBA frames a frame). A layout made only because tiles missed keeps a
+  cache whose tiles still fit its window rather than starting it afresh
+  where another has more room, which hid the picture (the attract
+  sequence's battle blinked black at 9954). And where the game darkens the
+  screen a second time in a frame with no light between, it is black at
+  once, rather than the last picture staying up through the frame's work
+  and the layout's (the title's last frame, in the new scene's colours, as A
+  was pressed while it drew in). Watched again, the black at the attract
+  sequence's scene changes went from 5, 5, 7, 8 and 7 GBA frames to 0, 0, 6,
+  0 and 0, the pictures the 240x160 view shows there; the opening's first
+  narration (game frames 5100-5120) shows 21 black GBA frames where it
+  showed 15 and then the window's first row in stray tiles for 7 (ct_native
+  shows 5 black): its two layouts, the panel's and then the window's map,
+  come two game frames apart and are each a few GBA frames of work. The five
+  movies took 1,924, 8,085, 26,487, 14,921 and 8,580 GBA frames (from 1,926,
+  8,074, 26,448, 14,967 and 8,563), their heaviest picture 5.79, 7.31,
+  8.97, 10.16 and 7.84, every end state ct_native's. Fast RAM keeps 616
+  bytes free, work RAM 352 above its floor (the maps' places kept from the
+  last layout take 160 bytes).
 - **The backdrop**, the first colour, is each line's own, set with its
   registers.
 - **Sprites**: the SNES's two tables of tiles one under the other in the
