@@ -28,8 +28,10 @@ bool frames_replayed(void);
 void frames_game_took(uint32_t cycles);
 /* TmHostProgram.decide. */
 bool frames_decide(void *ctx, TmHostDecision what, uint16_t line);
-/* Decisions replayed so far, and whether they ran out (the report). */
+/* The runner's decisions replayed so far, and how many it gave (the
+ * report: a movie played to its end replays every one). Asked for more than
+ * it gave, the program stops, saying at which frame. */
 uint32_t frames_decisions_taken(void);
-bool frames_decisions_ran_out(void);
+uint32_t frames_decisions_given(void);
 
 #endif

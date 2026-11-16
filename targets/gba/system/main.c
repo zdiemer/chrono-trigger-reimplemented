@@ -215,9 +215,11 @@ static void report(void *ctx)
     const Run *run = ctx;
     fprintf(stderr, "ct_gba: %u frame(s); %u lag frame(s)\n", (unsigned)run->frames,
             (unsigned)tm_host_lag_frames(run->pf));
-    if (frames_replayed())
-        fprintf(stderr, "ct_gba: %u of the runner's decisions replayed%s\n", (unsigned)frames_decisions_taken(),
-                frames_decisions_ran_out() ? ", and more asked for than it gave" : "");
+    if (frames_replayed() && frames_decisions_taken() == frames_decisions_given())
+        fprintf(stderr, "ct_gba: %u of the runner's decisions replayed\n", (unsigned)frames_decisions_taken());
+    else if (frames_replayed())
+        fprintf(stderr, "ct_gba: the runner's decisions unread: %u of %u replayed\n", (unsigned)frames_decisions_taken(),
+                (unsigned)frames_decisions_given());
     if (run->frames) {
         report_cycles(&run->game, run->frames);
         report_cycles(&run->sounds, run->frames);

@@ -1,6 +1,9 @@
 /* The game's frames on the GBA (system/frames.h). */
 #include "system/frames.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "platform/time_model.h"
 #include "system/debug_log.h"
 #include "system/drive_box.h"
@@ -14,8 +17,7 @@ typedef struct {
 } Decisions;
 
 static const Decisions *replayed;
-static uint32_t taken;
-static bool ran_out;
+static uint32_t taken, frames_decided;
 
 /* The GBA's own time: what the game's frames have run past their GBA
  * frame and not yet sat out, where the main thread's part of this frame
@@ -42,15 +44,16 @@ void frames_game_took(uint32_t cycles)
 
 bool frames_replayed(void) { return replayed != NULL; }
 uint32_t frames_decisions_taken(void) { return taken; }
-bool frames_decisions_ran_out(void) { return ran_out; }
+uint32_t frames_decisions_given(void) { return replayed ? replayed->count : 0; }
 
-/* The next of the runner's decisions; past the last, the game goes on as if
- * nothing lagged, and the report says so. */
+/* The next of the runner's decisions. Past the last, the game would no
+ * longer be ct_native's: the program stops there, saying where. */
 static bool next_replayed(void)
 {
     if (taken >= replayed->count) {
-        ran_out = true;
-        return false;
+        fprintf(stderr, "ct_gba: the runner's %u decisions ran out at frame %u\n", (unsigned)replayed->count,
+                (unsigned)frames_decided);
+        abort();
     }
     bool yes = (replayed->bits[taken / 8] >> (taken % 8)) & 1;
     taken++;
@@ -84,6 +87,8 @@ static bool time_left_at(uint32_t elapsed, uint16_t line)
 bool frames_decide(void *ctx, TmHostDecision what, uint16_t line)
 {
     (void)ctx;
+    if (what == TM_HOST_LAGS)
+        frames_decided++;
     if (replayed)
         return next_replayed();
     uint32_t now = cycles_now();

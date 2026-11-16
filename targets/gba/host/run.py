@@ -177,6 +177,9 @@ def main(argv=None):
     if gba.returncode or not found:
         print("run: the GBA build didn't reach its end")
         return 1
+    if "decisions unread" in gba.stdout or "decisions replayed" not in gba.stdout:
+        print("run: the GBA build didn't replay ct_native's decisions to the movie's end")
+        return 1
     whole, sram = "%08X" % zlib.crc32(state), "%08X" % zlib.crc32(state[0x20000:])
     same = (found.group(1), found.group(2)) == (whole, sram)
     print("run: ct_native ends with end state crc32 %s, save RAM crc32 %s: %s" % (
