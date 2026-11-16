@@ -1284,12 +1284,26 @@ time model's rows aren't in the program. Its host decides instead
   picture or the mixing, which the SNES's own processors did) runs past a
   GBA frame, what it ran over is owed, and the frames after sit it out a
   whole frame at a time; the main thread stops where it stands once it has
-  run a whole GBA frame; and a budget has time left while the GBA's line
-  counter, read as the SNES's lines (160 drawn as 225, the vertical blank's
-  68 as 37), is inside its window. The game's state then differs from
+  run a whole GBA frame; and a budget has time left while the game's time
+  so far in the frame, a GBA frame read as the SNES's 262 lines from its
+  vertical blank, is inside its window. The game's state then differs from
   ct_native's where the GBA's speed differs from the SNES's, as a slower
   SNES's would; what the game does with a frame doesn't. Driven with no
   decisions (`mgba_run --drive`, a movie without them), it decides so too.
+  The window was first read from the GBA's line counter, which a frame
+  starting late (after a heavy picture, at line 0-60 rather than in the
+  vertical blank) found already shut: the field's scripts and animations
+  ran a few turns a frame where the original runs a dozen, and the attract
+  demo, left on the title, panned past Magus's castle into unbuilt tiles
+  and stood for ever in its hall with no party (issue #553).
+  `host/run.py --own-time` plays a movie so and checks that the GBA goes
+  through the same places as ct_native in the same order (`ct_native
+  --locations`, the GBA's `location_id` read every 8 frames, the last
+  allowed to differ): `attract-demo` through its 50 and `new-game` its 6,
+  where before the attract stopped at its 13th. What remains differs where the
+  GBA is slower than the SNES: the field's script turns in the castle's pan
+  cost the GBA about ten times the original's share of the window, and the
+  gargoyle's tiles are drawn some 35 frames after the pan reaches them (issue #555).
 
 In mGBA, with a late frame's picture left out (`Pictures`, below) and the
 fibers' stacks sized from the library as before, the movies (`title-start`,

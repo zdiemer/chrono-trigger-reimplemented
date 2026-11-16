@@ -30,6 +30,14 @@ late. With `--fast-rom`, the ROM is packed with the cartridge's faster waits
 ROM gets the logo the BIOS checks (pack.py) and the runner starts the GBA in
 that BIOS, which checks it, rather than in mGBA's own, which starts the program
 at once. Nothing is played aloud.
+
+With `--own-time`, the GBA plays the movie as it plays by hand instead, its
+own time deciding the game's frames (targets/gba/system/frames.h), so its
+state isn't ct_native's; the check is that it goes through the same places
+in the same order (`ct_native --locations`), the location read every few
+frames, with at most the last differing where the two stand at the end. A
+scene that waits on its scripts' timing and goes astray in the GBA's time
+(the attract demo's Magus's castle, issue #553) fails it.
 """
 import argparse
 import bisect
@@ -51,6 +59,10 @@ SRAM_CRC = re.compile(r"^# sram crc32 ([0-9A-Fa-f]{8})", re.M)
 SRAM_MARK = b"CTSV"     # targets/gba/services/cartridge_save.c's: the SRAM holds a save
 GBA_SRAM_BYTES = 0x8000
 END = re.compile(r"^ct_gba: end state crc32 ([0-9A-F]{8}), save RAM crc32 ([0-9A-F]{8})", re.M)
+LOCATION = re.compile(r"^location: frame \d+ \$([0-9A-F]{3})", re.M)
+LOCATION_ID = 0x7E0100  # location_id (re/ram.toml), its low nine bits the place
+LOCATION_BITS = 0x1FF
+LOCATION_EVERY = 8      # frames between the GBA's reads, under the shortest stay the attract demo makes (19)
 
 
 def runner(prefix, out_dir):
@@ -122,6 +134,62 @@ def profile(elf, samples, out):
             f.write("%6.2f%% %9d %s\n" % (100.0 * count / max(total, 1), count, name))
 
 
+def places(seen):
+    """Locations as entered, a stay counted once however often it was read."""
+    order = []
+    for location in seen:
+        if not order or order[-1] != location:
+            order.append(location)
+    return order
+
+
+def own_time(args, exe, image, env, frames, srm, out_dir):
+    """The movie played in the GBA's own time: the same places as ct_native's, in order."""
+    command = [str(args.ct_native), "--rom", str(args.rom), "--headless", "--mute", "--movie", str(args.movie),
+               "--frames", frames, "--locations"]
+    if srm:
+        command += ["--sram", str(srm)]
+    native = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if native.returncode:
+        print(native.stderr)
+        print("run: ct_native didn't play the movie")
+        return 2
+    expected = places(int(m, 16) for m in LOCATION.findall(native.stderr))
+    command = [str(exe), str(image), "--drive"]
+    if srm:
+        sav = out_dir / (args.movie.stem + ".sav")
+        sav.write_bytes(gba_save(srm))
+        command += ["--sav", str(sav)]
+    asks = []
+    for frame in list(range(LOCATION_EVERY, int(frames), LOCATION_EVERY)) + [int(frames)]:
+        asks += ["movie %s %d" % (args.movie, frame), "peek %06X 2" % LOCATION_ID]
+    gba = subprocess.run(command, input="\n".join(asks + ["quit"]) + "\n", stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, text=True, env=env)
+    answers = gba.stdout.split("\n")
+    seen = []
+    for ask, answer in zip(asks, answers):
+        if not answer.startswith("ok"):
+            print("run: the GBA build stopped at %s: %s" % (ask, answer))
+            return 1
+        if ask.startswith("peek"):
+            word = bytes.fromhex(answer.split()[1])
+            seen.append((word[0] | word[1] << 8) & LOCATION_BITS)
+    if len(seen) * 2 != len(asks):
+        print("run: the GBA build stopped after %d of %d reads" % (len(seen), len(asks) // 2))
+        return 1
+    got = places(seen)
+    common = min(len(got), len(expected))
+    same = got[:common] == expected[:common] and abs(len(got) - len(expected)) <= 1
+    print("run: ct_native goes through %d places, the GBA in its own time %d: %s" % (
+        len(expected), len(got), "the same" if same else "DIFFERENT"))
+    if not same:
+        apart = next((i for i in range(common) if got[i] != expected[i]), common)
+        print("run: from place %d, ct_native %s, the GBA %s" % (
+            apart, " ".join("$%03X" % p for p in expected[apart:apart + 6]),
+            " ".join("$%03X" % p for p in got[apart:apart + 6])))
+    return 0 if same else 1
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--mgba", type=pathlib.Path, required=True, help="mGBA's install prefix")
@@ -144,6 +212,8 @@ def main(argv=None):
                     help="pack without the scripts read ahead (pack.py --script-records)")
     ap.add_argument("--bios", type=pathlib.Path, metavar="FILE",
                     help="your own dump of the GBA's BIOS: the ROM gets its logo and the GBA starts in it")
+    ap.add_argument("--own-time", action="store_true",
+                    help="play in the GBA's own time, as by hand, and check the places it goes through")
     args = ap.parse_args(argv)
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
@@ -163,6 +233,10 @@ def main(argv=None):
     movie_text = args.movie.read_text(encoding="utf-8")
     frames = re.search(r"^# frames (\d+)", movie_text, re.M).group(1)
     srm = starting_save(movie_text)
+    env = dict(os.environ)
+    env["PATH"] = str(args.mgba.resolve() / "bin") + os.pathsep + env.get("PATH", "")
+    if args.own_time:
+        return own_time(args, exe, image, env, frames, srm, out_dir)
     decisions = out_dir / (args.movie.stem + ".decisions")
     end = out_dir / (args.movie.stem + ".end")
     command = [str(args.ct_native), "--rom", str(args.rom), "--headless", "--mute", "--movie", str(args.movie),
@@ -175,8 +249,6 @@ def main(argv=None):
         print("run: ct_native didn't play the movie")
         return 2
     state = end.read_bytes()
-    env = dict(os.environ)
-    env["PATH"] = str(args.mgba.resolve() / "bin") + os.pathsep + env.get("PATH", "")
     command = [str(exe), str(image), "--movie", str(args.movie), "--frames", frames, "--decisions", str(decisions)]
     if srm:
         sav = out_dir / (args.movie.stem + ".sav")
