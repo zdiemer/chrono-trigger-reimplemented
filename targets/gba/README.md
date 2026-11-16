@@ -37,7 +37,8 @@ platform services' backends. Nothing here is included from `game/`.
     the picture in the vertical blank, or none where the frame ran late
     (never two frames in a row). Asked by a runner, it reports the frames and lag
     frames, a CRC-32 of work RAM and save RAM as `ct_native --end-state`
-    writes them, each part's GBA frames of work a frame, the arena and the
+    writes them, each part's GBA frames of work a frame, the pictures'
+    pacing (how many GBA frames apart they are, and the longest gaps), the arena and the
     stacks' deepest use.
   - `keypad.c`, `keypad.h`: the keypad as the SNES controller (Controls,
     below): the driver's bindings, given to the game through `in_host_set`.
