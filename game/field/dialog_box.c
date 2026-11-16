@@ -158,15 +158,21 @@ typedef struct {
     int last;   /* the last with ink, -1 for none */
 } Drawn;
 
-/* Where the line's ink starts and ends, false where it has none. */
+/* Where the line's ink starts and ends, false where it has none: the blank
+ * columns at either side passed over a column at a time. */
 static bool ink_span(const uint8_t ink[COLUMNS], int *start, int *end)
 {
-    *start = 0;
-    while (*start < LINE_DOTS && !inked(ink, *start))
-        (*start)++;
-    if (*start == LINE_DOTS)
+    unsigned first = 0, last = COLUMNS;
+    while (first < COLUMNS && !ink[first])
+        first++;
+    if (first == COLUMNS)
         return false;
-    *end = LINE_DOTS;
+    while (!ink[last - 1])
+        last--;
+    *start = (int)(first * TILE_DOTS);
+    while (!inked(ink, *start))
+        (*start)++;
+    *end = (int)(last * TILE_DOTS);
     while (!inked(ink, *end - 1))
         (*end)--;
     return true;
@@ -561,6 +567,8 @@ ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView
     unsigned row = dialog_text_row(g) % DIALOG_TEXT_LINES;
     unsigned read = !same ? 0xF : (sending ? 1u << row : 0) | (sent.row_due < DIALOG_TEXT_LINES ? 1u << sent.row_due : 0);
     uint32_t changed[DIALOG_TEXT_LINES] = { 0 };   /* the columns whose dots changed, a bit each */
+    uint32_t any_changed = 0;
+    bool inked_as_sent = true;   /* no line's ink moved */
     TileReader t = { .chars = text_layer.char_base, .line = NO_LINE };
     for (unsigned line = 0; line < DIALOG_TEXT_LINES; line++) {
         if (!(read >> line & 1))
@@ -568,14 +576,24 @@ ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView
         uint8_t ink[COLUMNS];
         uint16_t sums[COLUMNS];
         line_ink(pf, &t, line, ink, sums);
-        for (unsigned column = 0; column < COLUMNS; column++)
+        for (unsigned column = 0; column < COLUMNS; column++) {
+            if (ink[column] != sent.ink[line][column])
+                inked_as_sent = false;
             if (ink[column] != sent.ink[line][column] || sums[column] != sent.sums[line][column])
                 changed[line] |= 1u << column;
+        }
+        any_changed |= changed[line];
         memcpy(sent.ink[line], ink, sizeof ink);
         memcpy(sent.sums[line], sums, sizeof sums);
     }
+    /* The page is set again only where a line's ink moved since it was set:
+     * the game types a glyph a frame at most, and a page that waits for the
+     * player stays as it is. */
     Page page;
-    set_the_page((const uint8_t(*)[COLUMNS])sent.ink, may_join, &page);
+    if (same && inked_as_sent)
+        page = sent.page;
+    else
+        set_the_page((const uint8_t(*)[COLUMNS])sent.ink, may_join, &page);
     unsigned first, lines = lines_shown(g, &page, view, &first);
 
     /* The window opens and shuts from its middle, as far as the screen's
@@ -597,7 +615,8 @@ ViewLines field_lay_out_the_dialog_box(const GameState *g, Platform *pf, VidView
                 send_the_line(pf, &t, window_line(&page, first, k), k, text_layer.char_base);
             send_the_text_map(pf, &page, first, lines, looks);
             send_the_frame(pf, lines);
-        } else {
+        } else if (any_changed) {
+            /* with no dot changed, the page and its lines are what was sent */
             for (unsigned k = 0; k < lines; k++)
                 send_the_changes(pf, &t, window_line(&sent.page, sent.first, k), window_line(&page, first, k), k,
                                  changed, text_layer.char_base, looks);
