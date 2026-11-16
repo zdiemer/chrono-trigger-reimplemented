@@ -1695,6 +1695,25 @@ Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #
   sample at its level, not the S-DSP's output; the game never turns the
   meter on.
 
+**A picture left out where the frame runs late** (`system/main.c`,
+`Pictures`). A frame's picture is due at the vertical blank a GBA frame
+after the last picture's. Where the game's frame and the sound driver's end
+past it, the driver leaves that frame's picture out and starts the next
+frame at once, so the game catches up on the GBA's time rather than waiting
+for the next blank and then converting; never two in a row, so the picture
+shown is at most one game frame behind. Nothing the game does depends on
+its picture: the picture is made from the video memory the game's calls
+leave, a picture left out leaves its changes for the next, and the view's
+framing reads only what the game's frames set. The movies end as ct_native's
+and their lag frames are the same. In mGBA, the GBA frames over the movie
+and the pictures left out (`title-start`, `new-game`, `gato-battle`,
+`events-jetbike-race`, `menus-sweep`): 2,180, 9,753, 35,849, 19,109 and
+9,943 against 2,214, 11,181, 43,752, 24,352 and 11,173 (1.5-21.5% fewer),
+with 68, 1,668, 8,157, 3,678 and 1,657 of 1,800, 7,200, 21,600, 9,400 and
+6,424 pictures left out (4-39%). Where the game keeps the GBA's time no
+picture is left out. Allowing two in a row took `gato-battle` to 34,523 and
+`events-jetbike-race` to 17,147, with half the pictures left out.
+
 **Measured** (2026-11-14, mGBA 0.10.5):
 
 | What | On the GBA |
