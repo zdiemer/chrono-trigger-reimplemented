@@ -15,6 +15,7 @@
 #ifndef CT_GAME_WRAM_H
 #define CT_GAME_WRAM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "state.h"
@@ -45,6 +46,12 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
  * the buffer cleared, and the transfer's time kept in the state's work
  * account. `bytes` is a count: 65536 is a full bank. */
 void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
+
+/* `bytes` of a stream the resources keep unpacked (rom.h, rom_unpacked)
+ * written from `at`, short of its bank's end, where each of them reads back
+ * as it is written, every byte having an owner (true); false, and nothing
+ * written, where the state can't take them so. None of the port's own time. */
+bool wram_put_unpacked(GameState *g, const uint8_t *from, uint32_t at, uint32_t bytes);
 
 /* A run of work RAM written as the work RAM port writes it: from `at` (a
  * 17-bit place in both banks), running on from bank $7E into $7F and round

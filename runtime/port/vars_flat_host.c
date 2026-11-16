@@ -95,4 +95,76 @@ void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len
         addr += n, len -= n;
     }
 }
+
+/* How far the storage runs on unbroken from `at` (bytes from $7E:0000): to
+ * the cold top, or within it to work RAM's end, the cold top's pages being
+ * one run of its own memory too (vars_host_init). */
+static uint32_t run_from(uint32_t at)
+{
+    return at < VARS_FLAT_COLD_FROM ? VARS_FLAT_COLD_FROM - at : WORK_RAM_BYTES - at;
+}
+
+/* A span written where it is kept: as one copy, a word at a time where it
+ * can, where both ends are ordinary memory and don't overlap; otherwise a
+ * byte at a time from the first, as the cold top's memory takes them and so
+ * that a copy over itself reads what it wrote. */
+static void put_bytes(volatile uint8_t *to, const volatile uint8_t *in, uint32_t n, bool in_words)
+{
+    uintptr_t from = (uintptr_t)in, at = (uintptr_t)to;
+    if (in_words && (at + n <= from || from + n <= at)) {
+        memcpy((uint8_t *)to, (const uint8_t *)in, n);
+        return;
+    }
+    for (uint32_t i = 0; i < n; i++)
+        to[i] = in[i];
+}
+
+/* A span that reaches past one of the storage's runs or a byte no owner
+ * keeps: only the owned bytes, as vars_host_write8 has it. Seldom written,
+ * kept apart from put_span, which runs from a small target's fast memory. */
+__attribute__((noinline)) static void write_owned_bytes(VarsHost *h, uint32_t at, const volatile uint8_t *in, uint32_t len)
+{
+    for (; len && at < WORK_RAM_BYTES; at++, in++, len--)
+        if (vars_flat_owners(at) >> (at & 7u) & 1u)
+            *vars_flat_byte(h, at) = *in;
+}
+
+/* `len` bytes from `in` written from `at` (bytes from $7E:0000); `in` is in
+ * ordinary memory where `in_words` says so, not the cold top's. Most spans
+ * lie in one of the storage's runs, in pages owners keep whole, and go
+ * straight in. */
+__attribute__((noinline)) static void put_span(VarsHost *h, uint32_t at, const volatile uint8_t *in, uint32_t len, bool in_words)
+{
+    if (!len || at >= WORK_RAM_BYTES)
+        return;
+    if (len <= run_from(at) && vars_flat_wholly_owned(at, len))
+        put_bytes(vars_flat_byte(h, at), in, len, in_words && at < VARS_FLAT_COLD_FROM);
+    else
+        write_owned_bytes(h, at, in, len);
+}
+
+void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len)
+{
+    put_span(h, addr - WORK_RAM, in, len, true);
+}
+
+/* A copy whose source runs past one of the storage's runs, a byte at a time. */
+static void copy_bytes(VarsHost *h, uint32_t from, uint32_t to, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; i++) {
+        uint8_t value = 0;
+        vars_host_read8(h, from + i, &value);
+        vars_host_write8(h, to + i, value);
+    }
+}
+
+/* From a source in one of the storage's runs, written as the span it is. */
+void vars_host_copy_span(VarsHost *h, uint32_t from, uint32_t to, uint32_t len)
+{
+    uint32_t source = from - WORK_RAM;
+    if (source < WORK_RAM_BYTES && len <= run_from(source))
+        put_span(h, to - WORK_RAM, vars_flat_byte(h, source), len, source < VARS_FLAT_COLD_FROM);
+    else
+        copy_bytes(h, from, to, len);
+}
 #endif

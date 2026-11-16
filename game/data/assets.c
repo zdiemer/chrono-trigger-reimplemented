@@ -271,6 +271,16 @@ RomRun rom_run_from(uint32_t at)
     return run;
 }
 
+const AssetUnpacked *rom_unpacked(uint32_t at)
+{
+    AssetId id = asset_containing(at);
+    if (id == ASSET_NONE || cartridge_address(at) != asset_catalogue[id].at || left_untyped(id))
+        return NULL;
+    uint32_t length = 0;
+    const AssetUnpacked *u = (const AssetUnpacked *)asset_form(ASSET_FORM_UNPACKED, id, &length);
+    return u && length >= sizeof *u && length - sizeof *u >= u->length ? u : NULL;
+}
+
 uint8_t rom_run_read8(const GameState *g, const RomRun *run, uint32_t at)
 {
     uint32_t i = at - run->at;

@@ -15,7 +15,13 @@
  * Literals go out through the work RAM port, and a reference copies inside
  * the destination's bank of work RAM, then points the port after what it
  * copied: so what the port leaves pointing at is where unpacking stopped.
- * The unpacked length is kept for the callers (decompress_length).
+ * The unpacked length is kept for the callers (decompress_length). Literals
+ * in a row go out as the run of the stream's bytes they are, and a reference
+ * as one copy.
+ *
+ * Where the resources' source keeps the stream unpacked already (a target's
+ * cartridge, packed so), its bytes go in at once instead, with the time
+ * unpacking them takes and the port left where unpacking leaves it.
  *
  * The cells the original keeps its place in as it works ($0309-$0316), which
  * nothing else reads, it doesn't keep at all. */
@@ -36,15 +42,21 @@ typedef struct {
     const GameState *g;
     uint8_t bank;
     uint16_t at;
-    RomRun run;   /* the store's bytes the stream reads on through */
+    RomRun run;       /* the store's bytes the stream reads on through */
+    uint32_t taken;   /* the reads of them, whose time is charged at the end */
 } Stream;
 
-static uint8_t stream_byte(const Stream *in, uint16_t ahead)
+static uint8_t stream_byte(Stream *in, uint16_t ahead)
 {
-    return rom_run_read8(in->g, &in->run, ((uint32_t)in->bank << 16) + in->at + ahead);
+    uint32_t at = ((uint32_t)in->bank << 16) + in->at + ahead;
+    const uint8_t *byte = rom_run_at(&in->run, at, 1);
+    if (!byte)
+        return rom_run_read8(in->g, &in->run, at);
+    in->taken++;
+    return *byte;
 }
 
-static uint16_t stream_word(const Stream *in, uint16_t ahead)
+static uint16_t stream_word(Stream *in, uint16_t ahead)
 {
     return (uint16_t)(stream_byte(in, ahead) | stream_byte(in, (uint16_t)(ahead + 1)) << 8);
 }
@@ -58,10 +70,13 @@ typedef struct {
 
 enum { LONG_RUNS = 0xC0 };   /* the first header's bits that make a reference's length five bits */
 
-static Reference reference_at(const Stream *in, bool long_runs)
+/* The high byte is read twice, for the length and as the word's, as the
+ * time it was calibrated at has it. */
+static Reference reference_at(Stream *in, bool long_runs)
 {
     uint8_t high = stream_byte(in, 1);
-    uint16_t word = stream_word(in, 0);
+    uint16_t word = (uint16_t)(stream_byte(in, 0) | high << 8);
+    in->taken++;
     return long_runs ? (Reference){ word & 0x07FF, (uint8_t)(high >> 3) }
                      : (Reference){ word & 0x0FFF, (uint8_t)(high >> 4) };
 }
@@ -79,11 +94,30 @@ static void put_literal(Output *out, uint8_t v)
     out->at++;
 }
 
+/* `count` literals in a row, `ahead` bytes on in the stream, out through the
+ * port as the run of the stream's bytes they are, where the stream's store
+ * holds them all (true); otherwise the caller puts them a byte at a time. */
+static bool put_literal_run(Stream *in, uint16_t ahead, Output *out, uint8_t count)
+{
+    const uint8_t *bytes = rom_run_at(&in->run, ((uint32_t)in->bank << 16) + in->at + ahead, count);
+    if (!bytes)
+        return false;
+    hw_port_write_span(out->g, bytes, count);
+    in->taken += count;
+    out->at = (uint16_t)(out->at + count);
+    return true;
+}
+
+/* A reference's run copied forward, so a run longer than its distance
+ * repeats what it has just written. The original reads and writes each byte,
+ * two accesses a byte, which the copy takes none of. */
 static void copy_run(Output *out, Reference r)
 {
     uint16_t from = (uint16_t)(out->at - r.distance);
-    for (unsigned n = r.length_less_three + 3u; n > 0; n--, from++, out->at++)
-        wram_write8(out->g, out->bank | out->at, wram_read8(out->g, out->bank | from));
+    unsigned length = r.length_less_three + 3u;
+    wram_copy(out->g, out->bank | from, out->bank | out->at, length);
+    charge_accesses(out->g, 2 * length);
+    out->at = (uint16_t)(out->at + length);
     hw_port_seek_address(out->g, out->at);
 }
 
@@ -132,7 +166,7 @@ enum { FIRST_LENGTH_BYTES = 2, HEADER_BYTES = 3, BITS_IN_A_CONTROL = 8, HEADER_B
  * stream whose headers cycle cannot make the check run forever. */
 static bool stream_fits(const GameState *g, uint32_t from, uint16_t capacity)
 {
-    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES), rom_run_from(from) };
+    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES), rom_run_from(from), 0 };
     uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
     uint16_t segment_end = (uint16_t)(in.at + first_length);
     bool long_runs = rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
@@ -191,10 +225,72 @@ bool unpack_stream_fits(GameState *g, uint32_t from, uint16_t capacity)
     return fits;
 }
 
-static uint16_t unpack(GameState *g, Counts *n)
+/* A control byte's items, `count` of them after it, a bit each from the
+ * lowest: what most of the unpacking's time goes to. */
+static void unpack_items(Stream *in, Output *out, uint8_t control, uint8_t count, bool long_runs, Counts *n)
+{
+    in->at++;
+    while (count) {
+        if (control & 1) {
+            n->references++;
+            copy_run(out, reference_at(in, long_runs));
+            in->at += 2;
+            control >>= 1, count--;
+            continue;
+        }
+        uint8_t literals = 1;
+        while (literals < count && !(control >> literals & 1))
+            literals++;
+        if (put_literal_run(in, 0, out, literals)) {
+            in->at += literals;
+        } else {
+            for (uint8_t k = 0; k < literals; k++, in->at++)
+                put_literal(out, stream_byte(in, 0));
+        }
+        control >>= literals, count -= literals;
+    }
+}
+
+/* A control byte of 0: the eight literals after it. */
+static void unpack_eight_literals(Stream *in, Output *out)
+{
+    if (!put_literal_run(in, 1, out, BITS_IN_A_CONTROL))
+        for (uint16_t k = 1; k <= BITS_IN_A_CONTROL; k++)
+            put_literal(out, stream_byte(in, k));
+    in->at += 1 + BITS_IN_A_CONTROL;
+}
+
+/* A stream the resources keep unpacked already (rom.h, rom_unpacked: a
+ * target's cartridge made so when it was packed) goes in as the bytes it
+ * unpacks to, where the place it unpacks to takes them as they are. Its
+ * time is unpacking's, from the counts kept with it: the stream's reads (its
+ * first length and its runs' flag besides), a port write a literal, a seek a
+ * reference and the reference's bytes read and written; and the port is left
+ * after it, as unpacking leaves it. */
+enum { FIRST_READS = FIRST_LENGTH_BYTES + 1, A_SEEK_S_ACCESSES = 2 };
+
+static bool put_unpacked(GameState *g, uint32_t from, uint32_t to, Counts *n, uint16_t *length)
+{
+    const AssetUnpacked *u = rom_unpacked(from);
+    uint32_t bank = (to >> 16) & 1 ? 0x7F0000u : 0x7E0000u;
+    if (!u || !wram_put_unpacked(g, rom_unpacked_bytes(u), bank | (uint16_t)to, u->length))
+        return false;
+    *n = (Counts){ u->turns, u->segments, u->controls, u->references, u->items };
+    charge_rom_accesses(g, FIRST_READS + u->reads);
+    charge_io_accesses(g, u->literals + A_SEEK_S_ACCESSES * u->references);
+    charge_accesses(g, 2 * u->reference_bytes);
+    hw_port_seek(g, (uint16_t)(to + u->length), (uint8_t)(to >> 16));   /* the seek unpacking starts with, to its end */
+    *length = u->length;
+    return true;
+}
+
+static uint16_t unpack_to_work_ram(GameState *g, Counts *n)
 {
     uint32_t from = decompress_source(g), to = decompress_dest(g);
-    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES), rom_run_from(from) };
+    uint16_t unpacked;
+    if (put_unpacked(g, from, to, n, &unpacked))
+        return unpacked;
+    Stream in = { g, (uint8_t)(from >> 16), (uint16_t)(from + FIRST_LENGTH_BYTES), rom_run_from(from), 0 };
     uint16_t first_length = (uint16_t)(rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
     uint16_t segment_end = (uint16_t)(in.at + first_length);
     uint8_t bits_left = BITS_IN_A_CONTROL;
@@ -216,33 +312,15 @@ static uint16_t unpack(GameState *g, Counts *n)
         }
         uint8_t control = stream_byte(&in, 0);
         if (!control) {
-            for (uint16_t k = 1; k <= BITS_IN_A_CONTROL; k++)
-                put_literal(&out, stream_byte(&in, k));
-            in.at += 1 + BITS_IN_A_CONTROL;
+            unpack_eight_literals(&in, &out);
             continue;
         }
         n->controls++;
-        in.at++;
-        bool reference = control & 1;
-        control >>= 1;
-        for (;; n->items++) {
-            if (reference) {
-                n->references++;
-                copy_run(&out, reference_at(&in, long_runs));
-                in.at += 2;
-            } else {
-                put_literal(&out, stream_byte(&in, 0));
-                in.at++;
-            }
-            if (--bits_left == 0) {
-                n->items++;
-                bits_left = BITS_IN_A_CONTROL;
-                break;
-            }
-            reference = control & 1;
-            control >>= 1;
-        }
+        n->items += bits_left;
+        unpack_items(&in, &out, control, bits_left, long_runs, n);
+        bits_left = BITS_IN_A_CONTROL;
     }
+    charge_rom_accesses(g, in.taken);
     return (uint16_t)(out.at - (uint16_t)to);
 }
 
@@ -253,7 +331,7 @@ static uint16_t unpack_timed_as(GameState *g, uint32_t routine, uint32_t besides
 {
     Counts n = { 0 };
     uint32_t mark = charge_retired_begin(g);
-    uint16_t length = unpack(g, &n);
+    uint16_t length = unpack_to_work_ram(g, &n);
     set_decompress_length(g, length);
     charge_retired_end(g, mark, routine, besides);
     charge_retired_end(g, charge_retired_begin(g), THE_UNPACKER, original_accesses(&n));

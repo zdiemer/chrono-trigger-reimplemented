@@ -8,10 +8,14 @@ committed.
         --out build/gba/ct.gba
 
 The pack after the program (targets/gba/system/main.c, PackHead): "CTGB", the
-catalogue's version and its count, where the sound's samples are and where the
-colours' table is; then each resource's place and length, in the catalogue's
-order; then the resources, the sound's samples converted to 8-bit PCM
-(samples.py), and with a --profile other than `original`, the colours' table:
+catalogue's version and its count, where the sound's samples are, where the
+colours' table is and where the unpacked streams' table is; then each
+resource's place and length, in the catalogue's order; then the resources, the
+sound's samples converted to 8-bit PCM (samples.py), the packed streams
+unpacked (streams.py: for each resource, where its record is from the table's
+start, or 0; then the records, each the counts of unpacking it and the bytes it
+unpacks to), and with
+a --profile other than `original`, the colours' table:
 each of the 32,768 BGR555 colours as the GBA shows it (services/video.c). The
 `port-style` profile brightens the colours for a GBA's screen, darker than a
 television: a gamma of 0.7 on each channel, then 15% more saturation around
@@ -43,9 +47,10 @@ from tools import assets, rom  # noqa: E402
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import samples  # noqa: E402
+import streams  # noqa: E402
 
 ALIGN = 256          # main.c's: the pack starts at the program's end rounded up
-HEAD = struct.Struct("<4sIIIII")
+HEAD = struct.Struct("<4sIIIIII")
 RECORDS_HEAD = struct.Struct("<4sII")   # the event records' (frontend/event_records.h)
 ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
@@ -70,6 +75,28 @@ def resources(cartridge):
         at = assets.bus_to_offset(row.at)
         out.append(cartridge[at:at + row.end - row.at + 1])
     return out
+
+
+def unpacked_streams(cartridge):
+    """The packed streams unpacked (streams.py): a word for each resource of
+    the catalogue, where its record is from the table's start or 0, then the
+    records, each on a word."""
+    rows = assets.load()
+    places, records = [], bytearray()
+    first = 4 * len(rows)
+    for row in rows:
+        kept = None
+        if row.codec.startswith("lz"):
+            def read(addr, row=row):
+                return cartridge[assets.bus_to_offset(addr)] if row.at <= addr <= row.end else None
+            kept = streams.unpack(read, row.at)
+        if kept is None:
+            places.append(0)
+            continue
+        records += bytes(-len(records) % 4)
+        places.append(first + len(records))
+        records += kept[1] + kept[0]
+    return struct.pack("<%dI" % len(places), *places) + bytes(records)
 
 
 def sound_samples(cartridge):
@@ -134,6 +161,9 @@ def pack(program, cartridge, fast_rom=False, profile="original", logo=None, reco
     body += bytes(-(table + len(body)) % 4)
     samples_at = table + len(body)
     body += sound_samples(cartridge)
+    body += bytes(-(table + len(body)) % 4)
+    unpacked_at = table + len(body)
+    body += unpacked_streams(cartridge)
     colours_at = 0
     colours = colour_table(profile)
     if colours is not None:
@@ -145,7 +175,8 @@ def pack(program, cartridge, fast_rom=False, profile="original", logo=None, reco
         body += bytes(-(table + len(body)) % 4)
         records_at = table + len(body)
         body += records
-    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at, colours_at, records_at)
+    out += HEAD.pack(b"CTGB", catalogue_version(), len(parts), samples_at, colours_at, records_at,
+                     unpacked_at)
     for at, length in entries:
         out += ENTRY.pack(at, length)
     out += body

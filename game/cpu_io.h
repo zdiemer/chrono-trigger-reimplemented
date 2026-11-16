@@ -57,6 +57,9 @@ void hw_port_seek_address(GameState *g, uint16_t at);
 void hw_port_seek_bank(GameState *g, uint8_t bank);
 uint8_t hw_port_read(GameState *g);
 void hw_port_write(GameState *g, uint8_t v);
+/* `count` bytes written through the port one after another, as that many
+ * hw_port_write's: the cursor and the time where they leave them. */
+void hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count);
 /* A 16-bit store at the address just below the port sends its high byte
  * through the port and leaves its low byte on the sound CPU's port 3, which
  * that address mirrors (no message: the driver reads port 3 only after a

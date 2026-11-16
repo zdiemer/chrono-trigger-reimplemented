@@ -43,7 +43,9 @@
 *(.text.next_of .text.next_of.*)
 *(.text.event_script_byte .text.event_script_byte.*)
 *(.text.r8 .text.r8.*)
-/* The unpacker (game/data/decompress.c): not every frame's, but a map's, a
- * menu's or a battle's load unpacks tens of KiB with it, a byte at a time,
- * and from the cartridge it stopped the game for GBA frames on end */
-*(.text.unpack_timed_as .text.unpack_timed_as.*)
+/* A packed stream the cartridge keeps unpacked goes into work RAM in one
+ * copy (game/data/decompress.c, put_unpacked; host/streams.py): memcpy's
+ * where it can, and a byte at a time into the cold top's SRAM, where a
+ * menu's load unpacks its graphics. The unpacker itself, which the streams
+ * kept unpacked leave little to do, runs from the cartridge. */
+*(.text.put_span .text.put_span.*)

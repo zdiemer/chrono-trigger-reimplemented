@@ -38,14 +38,16 @@
 
 /* The pack after the program (pack.py): the catalogue's resources in its
  * order, the sound's samples, the colours' table where it was packed with a
- * profile that changes them, and the event scripts read a command at a time
- * where it was packed with them. */
+ * profile that changes them, the event scripts read a command at a time
+ * where it was packed with them, and the packed streams unpacked
+ * (host/streams.py). */
 typedef struct {
     char magic[4];
     uint32_t catalogue, count;
     uint32_t samples_at;           /* services/mixer.h, MixerSamples */
     uint32_t colours_at;           /* services/video.h, gba_video_use_colours; 0: none */
     uint32_t records_at;           /* the event records (game/event/records.h); 0: none */
+    uint32_t unpacked_at;          /* a word a resource: where its AssetUnpacked is from there, or 0 */
 } PackHead;
 typedef struct { uint32_t at, length; } PackEntry;
 /* The event records: "CTER", the catalogue's version and its count, then
@@ -102,9 +104,22 @@ static const uint8_t *pack_resource(void *ctx, AssetId id, uint32_t *length)
     return (const uint8_t *)head + e->at;
 }
 
+static const uint8_t *pack_unpacked(const PackHead *head, AssetId id, uint32_t *length)
+{
+    const uint8_t *table = (const uint8_t *)head + head->unpacked_at;
+    uint32_t at = id < head->count ? ((const uint32_t *)table)[id] : 0;
+    if (!at)
+        return NULL;
+    const AssetUnpacked *u = (const AssetUnpacked *)(table + at);
+    *length = sizeof *u + u->length;
+    return table + at;
+}
+
 static const uint8_t *pack_form(void *ctx, uint8_t form, AssetId id, uint32_t *length)
 {
     const PackHead *head = ctx;
+    if (form == ASSET_FORM_UNPACKED)
+        return pack_unpacked(head, id, length);
     if (form != ASSET_FORM_EVENT_RECORDS || !head->records_at)
         return NULL;
     const RecordsHead *records = (const RecordsHead *)((const uint8_t *)head + head->records_at);

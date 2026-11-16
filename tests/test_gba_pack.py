@@ -1,6 +1,7 @@
 """The GBA cartridge's packing (targets/gba/host/pack.py), with no cartridge: the
 pack's head and directory as targets/gba/system/main.c reads them, and the header's
-complement check; and the sound's samples converted from BRR (targets/gba/host/samples.py)."""
+complement check; the sound's samples converted from BRR (targets/gba/host/samples.py);
+and a packed stream unpacked as the game unpacks it (targets/gba/host/streams.py)."""
 import importlib.util
 import os
 import pathlib
@@ -12,20 +13,22 @@ spec = importlib.util.spec_from_file_location("gba_pack", ROOT / "targets/gba/ho
 pack = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pack)
 samples = pack.samples
+streams = pack.streams
 
 
 class PackTest(unittest.TestCase):
     def test_layout(self):
         resources = [b"\x01\x02\x03", b"", b"\x04" * 9]
-        saved = pack.resources, pack.sound_samples
+        saved = pack.resources, pack.sound_samples, pack.unpacked_streams
+        pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: resources), (lambda cartridge: b"SAMPLES")
         try:
             program = bytes(0x1F0)
             image, base = pack.pack(program, b"")
         finally:
-            pack.resources, pack.sound_samples = saved
+            pack.resources, pack.sound_samples, pack.unpacked_streams = saved
         self.assertEqual(base, 0x200)                    # the program's end rounded up to 256
-        magic, version, count, samples_at, colours_at, records_at = pack.HEAD.unpack_from(image, base)
+        magic, version, count, samples_at, colours_at, records_at, unpacked_at = pack.HEAD.unpack_from(image, base)
         self.assertEqual(colours_at, 0)                  # the original's colours: no table
         self.assertEqual(records_at, 0)                  # no event records: every command from its bytes
         self.assertEqual((magic, version, count), (b"CTGB", pack.catalogue_version(), 3))
@@ -35,12 +38,15 @@ class PackTest(unittest.TestCase):
             self.assertEqual(image[base + at:base + at + length], data)
         self.assertEqual(samples_at % 4, 0)
         self.assertEqual(image[base + samples_at:base + samples_at + 7], b"SAMPLES")
+        self.assertEqual(unpacked_at % 4, 0)
+        self.assertEqual(image[base + unpacked_at:base + unpacked_at + 8], b"UNPACKED")
         self.assertEqual(image[0xA0:0xA9], pack.TITLE)
         self.assertEqual((sum(image[0xA0:0xBD]) + 0x19 + image[0xBD]) & 0xFF, 0)
 
     def test_fast_rom(self):
         # the options word after the header, which start.s reads for the cartridge's waits
-        saved = pack.resources, pack.sound_samples
+        saved = pack.resources, pack.sound_samples, pack.unpacked_streams
+        pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: []), (lambda cartridge: b"")
         try:
             plain, _ = pack.pack(bytes(0x1F0), b"")
@@ -48,21 +54,22 @@ class PackTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 pack.pack(b"\xff" * 0x1F0, b"")     # no options word where start.s keeps it
         finally:
-            pack.resources, pack.sound_samples = saved
+            pack.resources, pack.sound_samples, pack.unpacked_streams = saved
         self.assertEqual(plain[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], bytes(4))
         self.assertEqual(fast[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], pack.FAST_ROM.to_bytes(4, "little"))
         self.assertEqual(plain[:pack.OPTIONS_AT], fast[:pack.OPTIONS_AT])
 
     def test_logo(self):
         # the logo goes at $04-$9F, from the player's BIOS; without one it stays blank
-        saved = pack.resources, pack.sound_samples
+        saved = pack.resources, pack.sound_samples, pack.unpacked_streams
+        pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: []), (lambda cartridge: b"")
         try:
             blank, _ = pack.pack(bytes(0x1F0), b"")
             logo = bytes(range(1, pack.LOGO_BYTES + 1))
             marked, _ = pack.pack(bytes(0x1F0), b"", logo=logo)
         finally:
-            pack.resources, pack.sound_samples = saved
+            pack.resources, pack.sound_samples, pack.unpacked_streams = saved
         self.assertEqual(blank[pack.LOGO_AT:pack.LOGO_AT + pack.LOGO_BYTES], bytes(pack.LOGO_BYTES))
         self.assertEqual(marked[pack.LOGO_AT:pack.LOGO_AT + pack.LOGO_BYTES], logo)
         self.assertEqual(marked[0xA0:], blank[0xA0:])    # the logo is outside the complement's bytes
@@ -79,23 +86,25 @@ class PackTest(unittest.TestCase):
     def test_event_records(self):
         # the event records ct_native writes, after the rest, a word apart
         records = b"CTER" + bytes(8) + b"RECORDS"
-        saved = pack.resources, pack.sound_samples
+        saved = pack.resources, pack.sound_samples, pack.unpacked_streams
+        pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: [b"\x01"]), (lambda cartridge: b"SAMPLES")
         try:
             image, base = pack.pack(bytes(0x1F0), b"", records=records)
         finally:
-            pack.resources, pack.sound_samples = saved
+            pack.resources, pack.sound_samples, pack.unpacked_streams = saved
         records_at = pack.HEAD.unpack_from(image, base)[5]
         self.assertEqual(records_at % 4, 0)
         self.assertEqual(image[base + records_at:base + records_at + len(records)], records)
 
     def test_port_style(self):
-        saved = pack.resources, pack.sound_samples
+        saved = pack.resources, pack.sound_samples, pack.unpacked_streams
+        pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: [b""]), (lambda cartridge: b"SAMPLES")
         try:
             image, base = pack.pack(bytes(0x1F0), b"", profile="port-style")
         finally:
-            pack.resources, pack.sound_samples = saved
+            pack.resources, pack.sound_samples, pack.unpacked_streams = saved
         colours_at = pack.HEAD.unpack_from(image, base)[4]
         self.assertEqual(colours_at % 4, 0)
         table = image[base + colours_at:base + colours_at + 2 * pack.COLOURS]
@@ -141,3 +150,27 @@ class SamplesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def reader(stream, at=0xC00000):
+    return lambda addr: stream[addr - at] if 0 <= addr - at < len(stream) else None
+
+
+class StreamsTest(unittest.TestCase):
+    def test_unpack(self):
+        # no first segment; a header of two items ending at 9; a control of a
+        # literal then a reference one back, three long; then the end
+        stream = bytes([0, 0, 2, 9, 0, 2, 0x42, 1, 0, 0])
+        out, record = streams.unpack(reader(stream), 0xC00000)
+        self.assertEqual(out, b"B" * 4)
+        length, _, turns, segments, controls, references, items, reads, literals, reference_bytes =             streams.RECORD.unpack(record)
+        self.assertEqual((length, turns, segments, controls, references, items), (4, 3, 1, 1, 1, 2))
+        # the header and its word, the control, the literal, the reference's
+        # two bytes and its high byte again, the last header
+        self.assertEqual((reads, literals, reference_bytes), (9, 1, 3))
+
+    def test_kept_only_on_its_own(self):
+        # a reference before anything is written reads what was there before
+        self.assertIsNone(streams.unpack(reader(bytes([0, 0, 1, 7, 0, 1, 1, 0, 0])), 0xC00000))
+        # a stream that reads past its resource
+        self.assertIsNone(streams.unpack(reader(bytes([0, 0, 2, 9, 0, 2, 0x42])), 0xC00000))

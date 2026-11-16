@@ -99,6 +99,10 @@ platform services' backends. Nothing here is included from `game/`.
     the logo a GBA checks (Building and running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
     the pack, their loops kept, each listed by its block's length and hash.
+  - `streams.py`: the cartridge's packed streams unpacked for the pack, by
+    the game's own steps, each with the counts its unpacking's time comes
+    from; the game copies one in rather than unpacking it, where the place
+    it goes takes it as it is (game/data/decompress.c).
   - `mgba_run.c`: the runner, the GBA's `ct_native --drive`: `ct.gba` in
     mGBA's core with no window and nothing played aloud, its pads from a
     movie or from commands on stdin (Driving it, below); with a movie,

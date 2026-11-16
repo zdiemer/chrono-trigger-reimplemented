@@ -47891,6 +47891,21 @@ void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len
         vars_host_write8(h, addr + i, value);
 }
 
+void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; i++)
+        vars_host_write8(h, addr + i, in[i]);
+}
+
+void vars_host_copy_span(VarsHost *h, uint32_t from, uint32_t to, uint32_t len)
+{
+    for (uint32_t i = 0; i < len; i++) {
+        uint8_t value = 0;
+        vars_host_read8(h, from + i, &value);
+        vars_host_write8(h, to + i, value);
+    }
+}
+
 void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)
 {
     for (unsigned i = 0; i < bytes; i++) {

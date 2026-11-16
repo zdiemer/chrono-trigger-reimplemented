@@ -1635,13 +1635,21 @@ def render_flat_owners(m):
             bits[(addr - 0x7E0000) >> 3] |= 1 << (addr & 7)
     out = ["", "/* ---- the bytes no owner keeps -------------------------------------------------------- */", "",
            "/* A bit for each byte of work RAM, from $7E:0000: set where an owner keeps it. */",
-           "static const uint8_t owned[0x20000 / 8] = {"]
+           "const uint8_t vars_flat_owned_bits[0x20000 / 8] = {"]
     out += ["    " + ", ".join("0x%02X" % b for b in bits[at:at + 16]) + "," for at in range(0, len(bits), 16)]
+    whole = [0] * (0x20000 // 256 // 8)
+    for page in range(0x20000 // 256):
+        if all(b == 0xFF for b in bits[page * 32:page * 32 + 32]):
+            whole[page >> 3] |= 1 << (page & 7)
+    out += ["};", "",
+            "/* A bit for each 256 bytes of work RAM, from $7E:0000: set where owners keep every byte. */",
+            "const uint8_t vars_flat_whole_pages[0x20000 / 256 / 8] = {"]
+    out += ["    " + ", ".join("0x%02X" % b for b in whole[at:at + 16]) + "," for at in range(0, len(whole), 16)]
     out += ["};", "",
             "bool vars_flat_owned(uint32_t addr)",
             "{",
             "    uint32_t at = addr - 0x7E0000u;",
-            "    return at < 0x20000u && (owned[at >> 3] >> (at & 7) & 1u);",
+            "    return at < 0x20000u && (vars_flat_owned_bits[at >> 3] >> (at & 7) & 1u);",
             "}", "",
             "/* One byte for every owner: no last writer to keep, no crossing to count. */",
             "void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)",
@@ -2041,6 +2049,25 @@ def render_host_header(m):
             "/* Whether the map gives the address an owner: bytes no owner keeps read 0",
             " * and drop writes, as the typed state's address view does. */",
             "bool vars_flat_owned(uint32_t addr);",
+            "/* The same for every byte, a bit each from $7E:0000's lowest; and for the",
+            " * eight bytes from `at` (bytes from $7E:0000) rounded down to eight: a",
+            " * run's owners looked up a byte of the map at a time. */",
+            "extern const uint8_t vars_flat_owned_bits[0x20000 / 8];",
+            "static inline uint8_t vars_flat_owners(uint32_t at)",
+            "{",
+            "    return vars_flat_owned_bits[(at & 0x1FFFFu) >> 3];",
+            "}",
+            "/* Whether owners keep every one of the `len` bytes (one or more) from `at`",
+            " * (bytes from $7E:0000, inside work RAM), looked up 256 bytes at a time: a",
+            " * page with any byte no owner keeps answers false for all of its bytes. */",
+            "extern const uint8_t vars_flat_whole_pages[0x20000 / 256 / 8];",
+            "static inline bool vars_flat_wholly_owned(uint32_t at, uint32_t len)",
+            "{",
+            "    for (uint32_t page = at >> 8; page <= (at + len - 1u) >> 8; page++)",
+            "        if (!(vars_flat_whole_pages[page >> 3] >> (page & 7) & 1u))",
+            "            return false;",
+            "    return true;",
+            "}",
             "#else"]
     out += ["typedef struct {"]
     for module, _ in groups:
@@ -2092,6 +2119,12 @@ def render_host_header(m):
             "/* `len` bytes of work RAM from `addr` set to `value`, as vars_host_write8",
             " * writes each (none where no owner keeps one), in one call: a fill by address. */",
             "void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len);",
+            "/* `len` bytes from `addr` written from `in`, as vars_host_write8 writes each. */",
+            "void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len);",
+            "/* `len` bytes copied from `from` to `to` a byte at a time from the first, as",
+            " * vars_host_read8 and vars_host_write8 move each: where the two overlap, a",
+            " * byte read is one the copy has already written. */",
+            "void vars_host_copy_span(VarsHost *h, uint32_t from, uint32_t to, uint32_t len);",
             "", "#endif", ""]
     return "\n".join(out)
 
@@ -2432,6 +2465,17 @@ def render_host_backing(m):
     out += ["void vars_host_fill_span(VarsHost *h, uint32_t addr, uint8_t value, uint32_t len)", "{",
             "    for (uint32_t i = 0; i < len; i++)",
             "        vars_host_write8(h, addr + i, value);",
+            "}", ""]
+    out += ["void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len)", "{",
+            "    for (uint32_t i = 0; i < len; i++)",
+            "        vars_host_write8(h, addr + i, in[i]);",
+            "}", ""]
+    out += ["void vars_host_copy_span(VarsHost *h, uint32_t from, uint32_t to, uint32_t len)", "{",
+            "    for (uint32_t i = 0; i < len; i++) {",
+            "        uint8_t value = 0;",
+            "        vars_host_read8(h, from + i, &value);",
+            "        vars_host_write8(h, to + i, value);",
+            "    }",
             "}", ""]
     out += ["void vars_host_claim(VarsHost *h, uint32_t addr, unsigned bytes, unsigned place)", "{"]
     if ov.shared:

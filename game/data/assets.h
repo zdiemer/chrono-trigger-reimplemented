@@ -66,8 +66,22 @@ typedef struct {
 
 /* The forms a source may keep a resource worked out ahead in, beside the
  * cartridge's own: a location's event script read a command at a time
- * (event/records.h). The game runs the same without them. */
-typedef enum { ASSET_FORM_EVENT_RECORDS } AssetForm;
+ * (event/records.h); a packed stream unpacked (AssetUnpacked). The game runs
+ * the same without them. */
+typedef enum { ASSET_FORM_EVENT_RECORDS, ASSET_FORM_UNPACKED } AssetForm;
+
+/* A packed stream (a resource of an `lz` codec) unpacked ahead
+ * (ASSET_FORM_UNPACKED; the GBA's packing step, targets/gba/host/streams.py):
+ * what unpacking it comes to, by the game's own steps (data/decompress.c),
+ * then the `length` bytes it unpacks to. A source keeps one only for a
+ * stream whose unpacking reads nothing but its own resource and nothing
+ * from before where it writes. */
+typedef struct {
+    uint16_t length, unused;
+    uint32_t turns, segments, controls, references, items;   /* decompress.c's Counts */
+    uint32_t reads;              /* of the stream's bytes, after its first length and its runs' flag */
+    uint32_t literals, reference_bytes;
+} AssetUnpacked;
 
 /* The resource `id` in `form` from the source, setting *length, or NULL
  * where the source keeps none. */
