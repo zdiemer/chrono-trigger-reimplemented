@@ -121,8 +121,9 @@ static uint8_t first_free_place(const SoundSamples *p)
 /* A block's sample, `length` bytes, into sound memory at `at`. */
 static void write_sample(SoundDriver *d, uint16_t at, uint16_t block, uint16_t length)
 {
+    RomRun bytes = sound_block_bytes(d->game, block);
     for (uint16_t i = 0; i < length; i++)
-        au_sample_memory_write(d->voices, (uint16_t)(at + i), sound_block_byte(d->game, block, i));
+        au_sample_memory_write(d->voices, (uint16_t)(at + i), sound_block_bytes_byte(d->game, &bytes, i));
     d->bytes_sent += length;
 }
 
