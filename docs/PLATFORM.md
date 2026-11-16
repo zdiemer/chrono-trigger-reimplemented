@@ -1284,8 +1284,8 @@ time model's rows aren't in the program. Its host decides instead
 
 In mGBA the game's frame falls from 0.53, 0.72, 1.02, 1.11 and 0.69 GBA
 frames to 0.51, 0.61, 0.83, 0.95 and 0.62, and the movies from 2,214,
-11,181, 43,752, 24,352 and 11,173 GBA frames to 2,177, 9,851, 36,163,
-21,573 and 10,542 (1.7-17.3% fewer); the program from 1.92 to 1.72 MB.
+11,181, 43,752, 24,352 and 11,173 GBA frames to 2,177, 9,868, 36,237,
+21,896 and 10,641 (1.7-17.2% fewer); the program from 1.92 to 1.72 MB.
 `new-game` played by hand to its 7,200th frame lags 392 frames against
 ct_native's 244.
 
