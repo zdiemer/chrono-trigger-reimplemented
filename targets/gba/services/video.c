@@ -1225,6 +1225,7 @@ static uint8_t text_mode(void) { return lines_text_mode != NO_MODE ? lines_text_
  * and those of the maps its line effects show in its place (the field's
  * layers, whose own maps no line shows), added to them. */
 enum { MAP_UNITS = 4 * SCREEN_BYTES / UNIT_BYTES, PRIORITY_BIT = 0x2000, NO_BLOCK = 0xFF };
+#define PRIORITY_BITS 0x20002000u   /* the priority of a word's two map entries */
 static uint32_t units_in_front[4][MAP_UNITS / 32], units_behind[4][MAP_UNITS / 32];
 /* The layers the last layout was asked to split, a bit each, and above
  * them (OVERLAY_SHIFT) the one asked to have its tiles in front shown again. */
@@ -1237,13 +1238,13 @@ static void note_priorities(unsigned n, uint32_t first, uint32_t map_byte, bool 
     uint32_t unit = ((first - map_byte) & (VRAM_BYTES - 1)) / UNIT_BYTES, bit = 1u << (unit % 32);
     if (unit >= MAP_UNITS)
         return;
-    bool front = false, behind = false;
-    for (uint32_t i = 1; i < UNIT_BYTES; i += 2) {
-        if (snes.vram[first + i] & (PRIORITY_BIT >> 8))
-            front = true;
-        else
-            behind = true;
-    }
+    /* the unit's 16 entries a word (two entries) at a time: an entry's
+     * priority is its high byte's bit */
+    const uint32_t *words = (const uint32_t *)(const void *)&snes.vram[first];
+    uint32_t any = 0, all = ~0u;
+    for (unsigned w = 0; w < UNIT_BYTES / 4; w++)
+        any |= words[w], all &= words[w];
+    bool front = any & PRIORITY_BITS, behind = (all & PRIORITY_BITS) != PRIORITY_BITS;
     uint32_t *in_front = &units_in_front[n][unit / 32], *in_behind = &units_behind[n][unit / 32];
     uint32_t f = front ? *in_front | bit : added ? *in_front : *in_front & ~bit;
     uint32_t b = behind ? *in_behind | bit : added ? *in_behind : *in_behind & ~bit;
@@ -1432,8 +1433,9 @@ static uint16_t gba_layer_bits(uint16_t snes_bits)
 /* Whether a map has an entry in front of the sprites. */
 static bool has_tiles_in_front(uint32_t byte, uint32_t bytes)
 {
-    for (uint32_t i = 1; i < bytes; i += 2)
-        if (snes.vram[(byte + i) & (VRAM_BYTES - 1)] & (PRIORITY_BIT >> 8))
+    const uint32_t *words = (const uint32_t *)(const void *)snes.vram;
+    for (uint32_t i = 0; i < bytes; i += 4)
+        if (words[((byte + i) & (VRAM_BYTES - 1)) / 4] & PRIORITY_BITS)
             return true;
     return false;
 }
@@ -1603,14 +1605,24 @@ static void convert_plane_unit(uint32_t first)
     }
 }
 
+/* The places free from `first` (a multiple of 8) up to `end`, counted a byte
+ * of the bits at a time: a layout counts a window's free places a dozen
+ * times over, and a place at a time that was half the work of the layouts
+ * at a scene's start. */
+static unsigned free_places(uint32_t first, uint32_t end)
+{
+    unsigned used = 0;
+    for (uint32_t k = first / 8; k < end / 8; k++)
+        used += (unsigned)__builtin_popcount(taken[k]);
+    return (unsigned)(end - first) - used;
+}
+
 /* The places free in the cache window from char block `block`, and the
  * window with the most. */
 static unsigned free_in_window(uint8_t block)
 {
-    unsigned free = 0;
-    for (uint32_t place = block * 512u; place < block * 512u + CACHE_TILES && place < PLACES; place++)
-        free += !is_taken(place);
-    return free;
+    uint32_t first = block * 512u, end = first + CACHE_TILES < PLACES ? first + CACHE_TILES : PLACES;
+    return free_places(first, end);
 }
 
 static uint8_t roomiest_window(void)
@@ -1642,6 +1654,19 @@ static unsigned cache_for(const Layer *l, uint8_t had)
     return CACHES;
 }
 
+/* The tiles a map `bytes` long from `from` names, into `bits` (a bit each),
+ * a word (two entries) at a time: maps start on a screen's 2 KiB. */
+static void name_map_tiles(uint32_t *bits, uint32_t from, uint32_t bytes)
+{
+    const uint32_t *words = (const uint32_t *)(const void *)snes.vram;
+    for (uint32_t i = 0; i < bytes; i += 4) {
+        uint32_t pair = words[((from + i) & (VRAM_BYTES - 1)) / 4];
+        unsigned low = pair & (CACHE_TILES - 1), high = pair >> 16 & (CACHE_TILES - 1);
+        bits[low / 32] |= 1u << (low % 32);
+        bits[high / 32] |= 1u << (high % 32);
+    }
+}
+
 /* The tiles each cache's maps name (the layers' own maps and the line
  * effects' that the layout keeps), a bit each; and the places in each
  * cache's window the drawn panel's maps name (`placed`, a bit each), whose
@@ -1668,12 +1693,7 @@ static void name_the_tiles(uint32_t named[CACHES][CACHE_TILES / 32], uint32_t pl
         if (!l->shown || (!lm && !l->own_map))
             continue;
         uint32_t from = lm ? lm->byte : l->map_byte, bytes = lm ? lm->bytes : l->map_bytes;
-        uint32_t *bits = named[l->cache];
-        for (uint32_t i = 0; i < bytes; i += 2) {
-            uint32_t at = (from + i) & (VRAM_BYTES - 1);
-            unsigned tile = (unsigned)(snes.vram[at] | snes.vram[at + 1] << 8) & (CACHE_TILES - 1);
-            bits[tile / 32] |= 1u << (tile % 32);
-        }
+        name_map_tiles(named[l->cache], from, bytes);
     }
 }
 
@@ -1741,14 +1761,9 @@ static bool line_splits_fit(uint8_t had)
         if (lm && lm->gba_byte != NO_PLACE && !lm->shared && (split_wanted >> lm->layer & 1) && !l->own_map &&
             has_tiles_in_front(lm->byte, lm->bytes))
             copies += bytes / 32;
-        for (uint32_t i = 0; i < bytes; i += 2) {
-            uint32_t at = (from + i) & (VRAM_BYTES - 1);
-            unsigned tile = (unsigned)(snes.vram[at] | snes.vram[at + 1] << 8) & (CACHE_TILES - 1);
-            named[l->cache][tile / 32] |= 1u << (tile % 32);
-        }
+        name_map_tiles(named[l->cache], from, bytes);
     }
-    for (uint32_t place = 0; place < PLACES; place++)
-        free += !is_taken(place);
+    free = free_places(0, PLACES);
     /* each cache's tiles in its window (the one it had, or the roomiest),
      * the copies going low into the first; and all of them in what is free */
     for (unsigned c = 0; c < CACHES; c++) {
@@ -1982,19 +1997,19 @@ static uint8_t lay_out(bool pruned)
     return kept;
 }
 
-/* What a layout leaves to convert: every unit but those that hold only the
- * tiles of caches it kept (`kept`, a bit each), which are already where
- * they were, and VRAM no role names, but the plane's. A layout converted all
- * of VRAM, tiles and all: ten GBA frames and more of work, through which the
- * GBA showed the last frame's lines over maps half converted. */
-static void layout_changed(uint8_t kept)
+/* What a layout leaves to convert: the maps, the sprites' tiles, and the
+ * plane's VRAM. The caches' tiles are converted as the maps name them:
+ * those of a cache kept are where they were, and one started afresh names
+ * none yet. A layout converted all of VRAM, tiles and all: ten GBA frames
+ * and more of work, through which the GBA showed the last frame's lines
+ * over maps half converted; then every unit of each cache started afresh
+ * too, 1,024 a cache that named nothing, a sixth of a scene's first
+ * picture's work (the black as Crono's room's curtain opens). */
+static void layout_changed(void)
 {
     for (unsigned k = 0; k < BLOCKS; k++) {
         uint32_t byte = (uint32_t)k * BLOCK_BYTES;
         bool convert = (roles[k] & (MAP | LINE_MAP | SPRITE_TILES)) || (plane_room && byte < PLANE_BYTES);
-        for (unsigned c = 0; c < CACHES && !convert; c++)
-            convert = (roles[k] & TILES) && caches[c].used && !(kept >> c & 1) &&
-                      within(byte, caches[c].char_byte, CACHE_TILES * tile_bytes(caches[c].bpp));
         if (convert)
             for (uint32_t u = byte / UNIT_BYTES; u < (byte + BLOCK_BYTES) / UNIT_BYTES; u++)
                 snes.changed[u / 32] |= 1u << (u % 32);
@@ -3335,7 +3350,12 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
 static void line_blending(LineRegisters *r, const LineState *st)
 {
     r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
-    r->bldy = (uint16_t)small_quotient((15u - st->brightness) * 16, 15);
+    /* the SNES's brightness b scales a colour by b/15, the GBA's darkening
+     * by y to (16 - y)/16: y the nearest to 16 (15 - b)/15, which at the
+     * dimmest steps of a fade is half as bright as rounding down (the stray
+     * tiles of a scene loading under its fade showed through at twice the
+     * brightness ct_native shows its picture) */
+    r->bldy = (uint16_t)small_quotient((15u - st->brightness) * 16 + 7, 15);
     r->bldalpha = 0;
     r->backdrop = shown(backdrop(st));
     const VidColorMath *m = &st->math;
@@ -4294,7 +4314,7 @@ void gba_video_present(Platform *pf)
                 hide_the_picture();
                 break;
             }
-        layout_changed(kept);
+        layout_changed();
         snes.settings_changed = false;
     }
     for (unsigned w = 0; w < UNITS / 32; w++) {

@@ -1403,8 +1403,11 @@ mode 0's four tiled layers and its sprites:
   in the window it had, with the places of the tiles its maps still name
   and of those the drawn panel's maps show, but those its maps and rooms
   take; the others' places it gives back. What the GBA shows stays as it
-  was while the layout's work goes on, and a layout converts the maps, the
-  sprites' tiles and the caches it starts afresh rather than all of VRAM.
+  was while the layout's work goes on, and a layout converts the maps and
+  the sprites' tiles rather than all of VRAM; a cache's tiles are converted
+  as the maps name them (one started afresh names none until then, and
+  converting its every unit as well was a sixth of a scene's first
+  picture's work).
   A cache whose window the rooms took so much of that another has more
   places free starts afresh in that one, and the picture is black until
   the frame's lines are set. Started afresh at every layout, the caches
@@ -1413,7 +1416,17 @@ mode 0's four tiled layers and its sprites:
   (`mgba_run --watch`) against ct_native, `new-game` showed Crono's room in
   stray tiles for ten GBA frames as Mom's first words opened their window,
   and the dialog window's in stray tiles each time the caches filled
-  (issue #503). The first colour, the backdrop, is each line's own, set
+  (issue #503). A layout counts the free places a byte of their bits at a
+  time and reads the maps' entries two at a time, which took the layouts
+  at a scene's start from about 1.3 million cycles to 1.0 million. With
+  that and the caches' units left alone, the black while a scene's first
+  picture is made (a cache started afresh) went from 17-21 GBA frames to
+  14-18 at the attract sequence's scene changes, and from 19 to 14 as the
+  curtain opens on Crono's room (issue #519); it is still a quarter of a
+  second, most of it the maps' and the tiles' conversion (2-3 million
+  cycles). The five movies take 2,048, 8,543, 28,227, 15,300 and 8,559 GBA
+  frames against 2,090, 8,644, 28,402, 15,433 and 8,737 (`title-start`,
+  `new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`). The first colour, the backdrop, is each line's own, set
   with its registers.
 - **Sprites**: the SNES's two tables of tiles one under the other in the
   GBA's sprite VRAM (its two-dimensional layout, 32 tiles a row, so that a
@@ -1519,7 +1532,11 @@ mode 0's four tiled layers and its sprites:
   scenery in mode 1 above its track in Mode 7) has the layout made for the
   mode the lines other than Mode 7 show (mode 2 where any shows it), not the
   mode set. The SNES's two windows are the GBA's two; its brightness is the
-  GBA's fade to black.
+  GBA's fade to black, by the sixteenths nearest it: rounded down, a fade's
+  dimmest steps showed at twice ct_native's brightness, and with them the
+  stray tiles of a scene loading under its fade (four GBA frames at the
+  opening's first narration, two at several of the attract sequence's
+  scene changes).
 - **Mode 2's moved columns**: in mode 2 the SNES scrolls each column of the
   first two layers by its own offsets, from two rows of the third layer's
   map, which the mode doesn't show. The menus use it to scroll a list a line
