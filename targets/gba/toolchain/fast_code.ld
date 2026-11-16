@@ -43,3 +43,7 @@
 *(.text.next_of .text.next_of.*)
 *(.text.event_script_byte .text.event_script_byte.*)
 *(.text.r8 .text.r8.*)
+/* The unpacker (game/data/decompress.c): not every frame's, but a map's, a
+ * menu's or a battle's load unpacks tens of KiB with it, a byte at a time,
+ * and from the cartridge it stopped the game for GBA frames on end */
+*(.text.unpack_timed_as .text.unpack_timed_as.*)

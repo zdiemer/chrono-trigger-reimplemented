@@ -285,14 +285,20 @@ static void vram_take(uint32_t at, const uint8_t *bytes, uint32_t n)
     }
 }
 
+/* Whether words through the port go straight into VRAM's next bytes: a
+ * port that steps a word after the high byte, with no remapping. */
+static bool port_takes_words_in_order(void)
+{
+    return snes.port.remap == 0 && snes.port.step == 1 && snes.port.after_high;
+}
+
 /* `len` bytes of `src` through the VRAM port: words, low byte first (half
  * -1), or one byte of each word (half 0 the low, 1 the high). Words through
- * a port that steps a word after the high byte, with no remapping, go
- * straight into VRAM's next bytes. */
+ * a port that takes them in order go straight into VRAM's next bytes. */
 static void vram_put_bytes(PfData src, uint32_t len, int half)
 {
     uint32_t i = 0;
-    if (half < 0 && snes.port.remap == 0 && snes.port.step == 1 && snes.port.after_high) {
+    if (half < 0 && port_takes_words_in_order()) {
         while (len - i >= 2) {
             uint32_t at = (uint32_t)(snes.vram_addr & 0x7FFF) << 1;
             uint32_t n = (len - i) & ~1u;
@@ -314,6 +320,31 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
     }
 }
 
+/* `len` bytes of `fill` through the VRAM port as words. Through a port that
+ * takes them in order they are compared against VRAM and put a piece at a
+ * time, as a send's bytes are (vram_put_bytes), rather than a byte at a
+ * time: the menus clear all 64 KiB of VRAM as they open, which a byte at a
+ * time took several GBA frames. */
+static void vram_fill(uint8_t fill, uint32_t len)
+{
+    uint32_t i = 0;
+    if (port_takes_words_in_order()) {
+        memset(piece, fill, sizeof piece_words);
+        while (len - i >= 2) {
+            uint32_t at = (uint32_t)(snes.vram_addr & 0x7FFF) << 1;
+            uint32_t n = (len - i) & ~1u;
+            if (n > VRAM_BYTES - at)
+                n = VRAM_BYTES - at;
+            if (n > PIECE)
+                n = PIECE;
+            vram_take(at, piece + at % 4, n);
+            snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
+            i += n;
+        }
+    }
+    vram_put_run(NULL, fill, len - i, i, -1);
+}
+
 static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill, const VidVramPort *port)
 {
     if (port)
@@ -322,7 +353,7 @@ static void vram_upload(uint16_t vram_addr, PfData src, uint32_t len, bool fill,
         return;
     snes.vram_addr = vram_addr;
     if (fill) {
-        vram_put_run(NULL, data_byte(src, 0), len, 0, -1);
+        vram_fill(data_byte(src, 0), len);
         return;
     }
     vram_put_bytes(src, len, -1);
