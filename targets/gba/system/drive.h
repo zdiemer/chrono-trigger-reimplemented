@@ -13,5 +13,9 @@ bool drive_open(void);
  * second's high): the runner's next, waited for between frames, answering
  * what the runner asks meanwhile. `report` writes the driver's report. */
 uint32_t drive_next_pads(GameState *g, void (*report)(void *ctx), void *ctx);
+/* Tell a runner which of the game's frames the picture being put on the
+ * screen is (counted from 1), so that it can say what each GBA frame shows
+ * (host/census.py). */
+void drive_showing(uint32_t frame);
 
 #endif

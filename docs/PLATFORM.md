@@ -887,11 +887,14 @@ made in `game/` as presentation and never as a rule:
   and shuts from its middle as the screen's band does. The game's text,
   timing and inputs are unchanged.
 - **A battle** (`battle/camera.c`) keeps the battle window's 48 lines whole
-  at the view's foot, with two of its columns cut from inside a window so
+  at the view's foot, or at its top where the window's arrangement lays it
+  out at the screen's top (lines 8-55 rather than 160-207: the attract
+  demo's battle in Magus's castle, which showed only the window's last line
+  before, issue #552), with two of its columns cut from inside a window so
   both borders show. The two cut are the middle pair that holds no text and
   sits in the frames' repeating pattern, found again only where the frames'
   rows change or text comes into them (the view's memory keeps them). The camera centres the box round
-  the combatants in the fight in the 112 lines above.
+  the combatants in the fight in the view's other 112 lines.
 - **The menus** (`menu/camera.c`). Their screens keep within 224 dots
   across, which fit, and run up to 200 lines down, of which the view shows
   160. Each is laid out again as runs of its lines (a table a screen):
@@ -1243,6 +1246,26 @@ went from 0.64 to 0.54 GBA frames in `title-start`, 0.79 to 0.77 in
 `new-game`, 1.07 to 1.06 in `gato-battle` and 1.16 to 1.11 in
 `events-jetbike-race`.
 
+A battle's way in was the GBA's heaviest game frame, the original's own
+pause (ct_native lags 29-30 frames there too) done in one GBA frame of
+work: 28-30 GBA frames in each of `attract-demo`'s battles (game frames
+3884, 6598, 9413, 14933, 17649, 20462; issue #550) and 46 in
+`gato-battle`'s. Its three largest parts now run as spans:
+`wram_fill16` of a word of two bytes the same is `wram_fill8` (the
+battle's 32 KiB cleared on the way in, `battle/from_field.c`); the flat
+state's fill sets runs of eight bytes owners keep whole at once
+(`vars_flat_host.c`, `fill_owned`); and the sound driver reads a song's
+sequence and an effect set from the cartridge as a run (`rom_read_span`),
+each byte still timed as a cartridge read, the song's with the three reads
+of its pointer each byte was read with before, so ct_native's lag frames
+are as they were (1,133 in `attract-demo`'s first 10,000). Each battle's
+way in fell to under 17 GBA frames; the heaviest of `attract-demo` are now
+its location loads (24 GBA frames at 7537 and 18586), and the movies take
+1,899, 7,981, 25,980, 14,197, 8,198 and 34,595 GBA frames (`title-start`,
+`new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`,
+`attract-demo`) against 1,919, 7,999, 26,066, 14,386, 8,228 and 34,806,
+`gato-battle`'s heaviest frame 39 against 46.
+
 ### The GBA build, as built
 
 `ct_gba` is the game on the GBA, with its picture and its sound: the
@@ -1284,12 +1307,26 @@ time model's rows aren't in the program. Its host decides instead
   picture or the mixing, which the SNES's own processors did) runs past a
   GBA frame, what it ran over is owed, and the frames after sit it out a
   whole frame at a time; the main thread stops where it stands once it has
-  run a whole GBA frame; and a budget has time left while the GBA's line
-  counter, read as the SNES's lines (160 drawn as 225, the vertical blank's
-  68 as 37), is inside its window. The game's state then differs from
+  run a whole GBA frame; and a budget has time left while the game's time
+  so far in the frame, a GBA frame read as the SNES's 262 lines from its
+  vertical blank, is inside its window. The game's state then differs from
   ct_native's where the GBA's speed differs from the SNES's, as a slower
   SNES's would; what the game does with a frame doesn't. Driven with no
   decisions (`mgba_run --drive`, a movie without them), it decides so too.
+  The window was first read from the GBA's line counter, which a frame
+  starting late (after a heavy picture, at line 0-60 rather than in the
+  vertical blank) found already shut: the field's scripts and animations
+  ran a few turns a frame where the original runs a dozen, and the attract
+  demo, left on the title, panned past Magus's castle into unbuilt tiles
+  and stood for ever in its hall with no party (issue #553).
+  `host/run.py --own-time` plays a movie so and checks that the GBA goes
+  through the same places as ct_native in the same order (`ct_native
+  --locations`, the GBA's `location_id` read every 8 frames, the last
+  allowed to differ): `attract-demo` through its 50 and `new-game` its 6,
+  where before the attract stopped at its 13th. What remains differs where the
+  GBA is slower than the SNES: the field's script turns in the castle's pan
+  cost the GBA about ten times the original's share of the window, and the
+  gargoyle's tiles are drawn some 35 frames after the pan reaches them (issue #555).
 
 In mGBA, with a late frame's picture left out (`Pictures`, below) and the
 fibers' stacks sized from the library as before, the movies (`title-start`,
@@ -1506,7 +1543,29 @@ mode 0's four tiled layers and its sprites:
   in a frame it changed (sizes, flips, palette, position). Each sprite finds
   the band its top or foot is in from a table of the SNES's lines made once
   for the frame's sprites, and the size setting's two sizes become the
-  GBA's shapes once a frame, not for each of the 128.
+  GBA's shapes once a frame, not for each of the 128. A sprite whose foot
+  runs past the SNES's last line finds it at the top, where its head is
+  above the screen (Crono's feet at the top of the attract demo's Guardia
+  forest, missing before).
+  The tiles are on two pages, the first 16 and the last 16 of each GBA row
+  (`turn_the_sprite_page`): a picture converts the tiles that changed onto
+  the page not shown, with those the other page took last, and its sprites
+  name that page, so the page turns as its sprite table is copied in. Before,
+  the tiles were converted in place as the picture was made, and a picture
+  shown a GBA frame late (`show_the_frame`) showed the last frame's sprites
+  in the new frame's tiles: an object's pieces moved about for a frame each
+  time its frame changed (issue #550). Matched against `ct_native --view
+  240x160` a GBA picture at a time (colours at the SNES's five bits, dots
+  that differ in most pictures, a panel's style or the colour math, set
+  aside): `gato-battle` 9600-9900, Crono and Mom in his house, 25 of 302
+  pictures differed, now none; `new-game` 6900-7199, Crono walking, 19 of
+  309, now none; `attract-demo` 4880-5030, 84 of 174, now 25, all at its
+  fades; `events-jetbike-race` 3000-3150, 75 of 180, now 14, Marle hidden
+  by the sprite mask (issue #560). The five movies and `attract-demo` end as
+  ct_native's in 1,918, 8,010, 26,120, 14,504, 8,265 and 34,962 GBA frames
+  against 1,919, 7,999, 26,066, 14,386, 8,228 and 34,806 (the tiles that
+  change converted twice); work RAM keeps 384 bytes above its floor (the
+  pages' two 64-byte masks), fast RAM as it was.
 - **Priority**: each SNES tile stands in front of or behind the sprites by
   its map entry's priority bit, where a GBA layer has one priority. A layer
   whose map has tiles of both is split across two GBA layers, as many as
@@ -1950,6 +2009,25 @@ ct_native's. The gaps left are the game's own long frames
 as a map, a menu, a battle or a song loads (below, "Loads"), and a
 layout's picture of up to 28 GBA frames.
 
+**The census** (`host/census.py`, targets/gba/README.md). Every picture the
+GBA shows, as a player sees it at the GBA's speed, against ct_native's at
+the GBA's view for the game's frame the driver last put on the screen (the
+drive box's `shown`), at 5 bits a channel with no tolerance: a mismatch is
+torn, a whole frame off, off by at most 8 steps of 31 (`colour`) or drawn
+wrong (`picture`), and mismatches make clusters ranked by pixels times GBA
+frames; the same records give every game frame over 2 GBA frames, every
+picture left out and every hang. On main d9177e1d over 16 movies (110,000
+game frames, in about 14 minutes) every movie ends as ct_native's, nearly every
+GBA frame differs somewhere, and no run hangs, five minutes of the attract
+played by hand included. The largest clusters: the Fair drawn darker
+(`gato-battle` 11,685-18,648, issue #562), the gates' white circles (#561),
+the attract's clouds black (mode 2, issue #483), the battle windows laid out
+16 pixels right (#563), the End of Time's lamp in streaks (#564), the race's
+sky and racers (#565), the attract battles' missing sprites (#550), and the
+menus' and load screen's window shading (#554). The costliest stretches of
+pacing: the race (2,704 game frames in 6,165 GBA frames), the End of Time,
+and the attract's battles and the Ocean Palace's clouds (#550).
+
 **Loads** (issue #521). A frame in which a map, a menu, a battle or a song
 loads stops the picture for as long as it takes, and those were the GBA's
 longest frames: 123 GBA frames (two seconds) as the title's song loads,
@@ -2287,7 +2365,13 @@ the GBA's work. What changed, each measured over the four movies above:
   9% of all the GBA's work, at any speed. Now a line's registers are worked
   out only where what the line effects set has changed, and set only where
   they change, by two interrupts a change (the line counter's on the line
-  above, the horizontal blank's at its end). The line effects' tables are
+  above, the horizontal blank's at its end). Where the horizontal blank's
+  comes late, another handler having run on past the line, it sets the last
+  change it passed rather than skipping it: skipped, a band showed the band
+  above's lines down to the next change, and the naming screen's rows came
+  six lines low as the cursor moved (issue #520; a sweep of the cursor over
+  every letter now shows the rows where ct_native's 240x160 view does, but
+  a frame's lag as it changes row). The line effects' tables are
   read 32 bytes at a time, not a call a byte, and a slot's idle lines
   between transfers are passed over.
 - **Only what changed is converted.** VRAM is followed in 32-byte units
