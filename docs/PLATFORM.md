@@ -1431,7 +1431,24 @@ mode 0's four tiled layers and its sprites:
   the first's), is shown from that layer's copy rather than a copy of its
   own, which leaves the caches the room a split takes. A map a band shows
   cut isn't split: all of it stands where its layer would not split (the
-  battle's windows' text in front).
+  battle's windows' text in front). The field's layers show their line
+  effects' maps on every line and never their own, so which units have
+  tiles in front is taken from those maps too: counted from the own maps
+  alone, the field's first layer had none, wasn't split, and stood behind
+  the sprites, so walking down the stairs in Crono's house drew Mom and
+  Crono over the railing (issue #504). A layer split in its line effects'
+  maps alone has their copies of the tiles in front only where background
+  VRAM has room for them beside a place for each tile the maps name, each
+  cache's in its window (while Mom's dialog held the panel's room, the
+  copies left the caches short and the room showed holes); that is decided
+  by a scene's first layout and kept while the scene lasts, since a split
+  that came and went moved what the last frame's lines showed. The copies
+  go in from the bottom of background VRAM, after the caches have kept
+  their places and off the places the last layout's tiles had, so the
+  copies and the panel's room made from the top stay where they were. A
+  layout in which a tile a map still names lost its place to a map or a
+  room hides the picture while its work goes on, as one whose caches start
+  afresh does.
 - **Sprite masks**: where sprites overlap, the SNES shows the one first in
   its table and then sets that one's priority against the layers', where
   the GBA shows the one of the higher priority. The game masks with that:
