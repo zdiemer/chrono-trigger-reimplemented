@@ -63,7 +63,7 @@ platform services' backends. Nothing here is included from `game/`.
   - `frames.c`, `frames.h`: what the time model decides of the game's
     frames, which the GBA, keeping no time of the original's (`CT_UNTIMED`),
     decides itself: ct_native's decisions replayed where a runner put them
-    in the cartridge, the GBA's own time and line counter otherwise.
+    in the cartridge, the GBA's own time otherwise.
   - `fiber.c`, `fiber.h`, `switch.s`: runtime/port/fiber.h on the ARM, nine
     slots in fast RAM (the game's main thread's 2.5 KiB, and 1 KiB for each of the
     menus' eight tasks, which can all run at once, sized from the movie
@@ -115,7 +115,9 @@ platform services' backends. Nothing here is included from `game/`.
     (`--no-script-records` without), plays the movie in ct_native with its time model's
     decisions written, has the runner play it on `ct.gba` from the save RAM
     the movie starts from with those decisions replayed, and fails where the
-    two end states' CRCs differ.
+    two end states' CRCs differ. With `--own-time` it plays the movie as a
+    player would, the GBA's own time deciding, and fails where the GBA
+    doesn't go through the places ct_native does, in order.
 
 ## Controls
 
