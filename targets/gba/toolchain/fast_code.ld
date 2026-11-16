@@ -32,7 +32,6 @@
 *(.text.vid_send_palette .text.vid_send_palette.*)
 *(.text.cycles_now .text.cycles_now.*)
 *(.text.w8 .text.w8.*)
-*(.text.map_entry .text.map_entry.*)
 *(.text.offset_row .text.offset_row.*)
 *(.text.r16 .text.r16.*)
 *(.text.load_sprite_list .text.load_sprite_list.*)
@@ -48,3 +47,8 @@
  * menu's load unpacks its graphics. The unpacker itself, which the streams
  * kept unpacked leave little to do, runs from the cartridge. */
 *(.text.put_span .text.put_span.*)
+/* A layout's work, which the picture stops for (services/video.c, ARM): a
+ * scene's first picture converts its maps' thousands of entries and names
+ * their tiles. */
+*(.text.convert_map .text.convert_map.*)
+*(.text.name_map_tiles .text.name_map_tiles.*)
