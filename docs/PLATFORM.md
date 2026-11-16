@@ -1480,10 +1480,10 @@ mode 0's four tiled layers and its sprites:
   showed 15 and then the window's first row in stray tiles for 7 (ct_native
   shows 5 black): its two layouts, the panel's and then the window's map,
   come two game frames apart and are each a few GBA frames of work. The five
-  movies took 1,924, 8,204, 27,268, 15,195 and 8,580 GBA frames (from 1,926,
-  8,200, 27,236, 15,245 and 8,569), their heaviest picture 5.76, 7.31,
-  8.97, 10.25 and 7.84, every end state ct_native's. Fast RAM keeps 608
-  bytes free, work RAM 344 above its floor (the maps' places kept from the
+  movies took 1,924, 8,085, 26,487, 14,921 and 8,580 GBA frames (from 1,926,
+  8,074, 26,448, 14,967 and 8,563), their heaviest picture 5.79, 7.31,
+  8.97, 10.16 and 7.84, every end state ct_native's. Fast RAM keeps 616
+  bytes free, work RAM 352 above its floor (the maps' places kept from the
   last layout take 160 bytes).
 - **The backdrop**, the first colour, is each line's own, set with its
   registers.
