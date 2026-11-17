@@ -4085,6 +4085,33 @@ static bool behind(const LineRegisters *r, unsigned h, unsigned g)
     return ph > pg || (ph == pg && h > g);
 }
 
+/* The backdrop's colour that the blending adds to (or halves with) the
+ * colours shown to give the fixed colour's sum. With the cartridge's own
+ * colours that is the fixed colour itself. Packed with a colour profile
+ * (pack.py --profile), the GBA blends colours already shown, which a sum
+ * can't follow exactly: the colour taken is what the sum adds to a window's
+ * dark colours (BRIGHTENED_STRENGTH of 31, as the brightening is fitted),
+ * each channel's, so the shading steps by what it shows there rather than
+ * by its own colour shown, which a gamma brightens most for small
+ * colours. */
+static uint16_t added_colour(uint16_t fixed, bool half)
+{
+    if (!shown_colours)
+        return fixed;
+    const unsigned base = BRIGHTENED_STRENGTH;
+    uint16_t grey = (uint16_t)(base * 0x0421), sum = 0, out = 0;
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        unsigned k = fixed >> shift & 31;
+        sum |= (uint16_t)((half ? (base + k) / 2 : base + k > 31 ? 31 : base + k) << shift);
+    }
+    uint16_t was = shown(grey), now = shown(sum);
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        int w = was >> shift & 31, n = now >> shift & 31, add = half ? 2 * n - w : n - w;
+        out |= (uint16_t)((add < 0 ? 0 : add > 31 ? 31 : add) << shift);
+    }
+    return out;
+}
+
 static bool add_by_blending(LineRegisters *r, const LineState *st)
 {
     const VidColorMath *m = &st->math;
@@ -4105,7 +4132,7 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
         return true;
     r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
     r->bldalpha = half ? 0x0808 : 0x1010;
-    r->backdrop = shown(st->fixed_color);
+    r->backdrop = added_colour(st->fixed_color, half);
     return true;
 }
 
@@ -4170,6 +4197,44 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
  * Fair's ground, halved with its sub screen's light where the GBA can't
  * show it, stays as bright as natively rather than halved toward black.
  * The SNES's subtraction of a sub screen has no GBA counterpart. */
+/* The sub screen's own layers (those the main screen doesn't show: a
+ * room's light or the Millennial Fair's, the layers the sub screen adds to
+ * the math's layers) on a line whose math adds the sub screen: shown behind
+ * every layer, at the GBA's last priority, where the math's layers show,
+ * so that each lies under the math's tiles as the GBA's blending's second
+ * target, as the sub screen lies under the main screen on the SNES. What
+ * the math's layers show is the sub screen added to it; where another layer
+ * stands between them it shows unblended, and where no layer of the main
+ * screen covers it, it shows itself. Their GBA layers, a bit each; none where
+ * one of the math's layers already stands at the last priority after them. */
+static uint16_t sub_screens_own(const LineState *st)
+{
+    return (uint16_t)(st->sub_layers & ~st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+}
+
+static uint16_t show_the_sub_screens_own(LineRegisters *r, const LineState *st, uint16_t first)
+{
+    uint16_t own = (uint16_t)(line_layer_bits(st, sub_screens_own(st)) & 0xF);
+    for (unsigned g = 0; g < 4; g++)
+        if ((own >> g & 1) && !r->bgcnt[g])
+            own &= (uint16_t)~(1u << g);   /* a layer the line doesn't show (a split layer's front, no tiles there) */
+    for (unsigned g = 0; g < 4; g++)
+        for (unsigned h = g + 1; (own >> g & 1) && h < 4; h++)
+            if ((first >> h & 1) && (r->bgcnt[h] & 3) == 3)
+                return 0;
+    if (!own)
+        return 0;
+    for (unsigned g = 0; g < 4; g++)
+        if (own >> g & 1)
+            r->bgcnt[g] |= 3;
+    uint16_t *regions[] = { &r->winin, &r->winout };
+    for (unsigned k = 0; k < 2; k++)
+        for (unsigned shift = 0; shift < 16; shift += 8)
+            if (*regions[k] >> shift & first & 0xF)
+                *regions[k] |= (uint16_t)(own << shift);
+    return own;
+}
+
 static void line_blending(LineRegisters *r, const LineState *st)
 {
     r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
@@ -4185,7 +4250,8 @@ static void line_blending(LineRegisters *r, const LineState *st)
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
         uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | (m->half ? 0 : VID_BACK_BIT));
-        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
+        uint16_t own = show_the_sub_screens_own(r, st, line_layer_bits(st, first));
+        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | (line_layer_bits(st, second) | own) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
     } else if (!add_by_blending(r, st)) {
         fixed_shading(r, st);
@@ -5201,7 +5267,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
              * blending, a step of its strength alone no change at all. */
             bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
                          !((b->cut_dots || st.mode == 2 || split_wanted >> OVERLAY_SHIFT) && (touched & CHANGED_SCROLL)) &&
-                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn);
+                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn) &&
+                         !((touched & CHANGED_MATH) && (sub_screens_own(&st) || sub_screens_own(&shown)));
             LineRegisters r;
             /* a Mode 7 line's plane is its own table's, no change's */
             if (touched && cheap && st.mode == 7 && (touched & (CHANGED_PLANE | CHANGED_SCROLL))) {
