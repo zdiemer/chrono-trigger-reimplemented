@@ -1811,7 +1811,12 @@ mode 0's four tiled layers and its sprites:
   it is exact too, any colour: the GBA's blending of those layers with the
   backdrop at full weight (half where the SNES halves), the line's
   backdrop the fixed colour, adds each channel held at 31 as the SNES does
-  (`add_by_blending`). Its steps are changes rather than strength steps,
+  (`add_by_blending`). Packed with a colour profile, the GBA blends colours
+  already shown, so the backdrop takes what the sum adds to a window's dark
+  colours as shown (`added_colour`) rather than the fixed colour shown: in
+  `port-style` the census's colour mismatches then fall 23% in
+  `gato-battle` and `menus-sweep`, where the fixed colour shown had raised
+  them 2-6%. Its steps are changes rather than strength steps,
   about eight more a frame while a window shows. In the census (replayed,
   fast waits) the colour mismatches fell 24% in `gato-battle`, 30% in
   `menus-sweep`, 16% in `new-game`, 11% in `attract-demo` and 5% in
@@ -1947,10 +1952,20 @@ Approximated, or not shown yet (issue #483):
   with those: where the sub screen shows nothing the SNES adds the fixed
   colour unhalved, so the Millennial Fair's ground, halved with a sub screen
   of its own, stays as bright as natively (halved with the backdrop, the
-  whole Fair was drawn darker); a sub screen's
-  layers subtracted, a sub screen of its own and the colour window aren't
-  (colour math the colour window limits isn't done: the time warp shows its
-  waves without the glow).
+  whole Fair was drawn darker). The sub screen's own layers (those the main
+  screen doesn't show: the Fair's light, a room's light added to its floor)
+  are shown on such a line behind every layer, at the GBA's last priority,
+  where the math's layers show, as the blending's second target
+  (`show_the_sub_screens_own`): under the math's tiles they are added as on
+  the SNES; where another layer stands between them the tiles show
+  unblended, and where no main layer covers them they show themselves. In
+  the census (replayed, fast waits) `gato-battle`'s colour mismatches fell
+  4.6% and its picture mismatches 12%, what is left of the Fair's clusters
+  the dialog's shading, at no cost to measure; where the light layer moves,
+  it now shows a frame late in places (`gato-battle` 8697-8793 and
+  10164-10537, `frame` clusters). A sub screen's layers subtracted and the
+  colour window aren't (colour math the colour window limits isn't done:
+  the time warp shows its waves without the glow).
 - Mode 7: tile 0 outside the plane shows as nothing; EXTBG's second layer,
   the plane's mosaic and direct colour aren't shown; a frame whose plane's
   room was not yet made (the first frame a line shows Mode 7) shows its
