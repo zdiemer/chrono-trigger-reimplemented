@@ -3999,8 +3999,8 @@ ARM_CODE __attribute__((noinline)) static void table_unit(uint8_t bank, uint16_t
 }
 
 /* What of each slot's own table a frame's lines read: as many bytes from
- * its start (`bytes`; none for a slot that didn't run), whose hash, a byte
- * at a time, is `hash`. Kept by the bytes rather than by where they lie, so
+ * its start (`bytes`; none for a slot that didn't run), whose hash is
+ * `hash`. Kept by the bytes rather than by where they lie, so
  * that a table the game keeps two of and sets the slot to each in turn, as
  * it writes the other, stands where both say the same: the battles' windows
  * flip between two copies every few frames, which had their lines worked out
@@ -4012,7 +4012,7 @@ typedef struct {
 static TablesRead tables_read;
 
 /* The hash of what the slots' tables hold where the slots start now, as
- * many bytes of each as `bytes` says. */
+ * many bytes of each as `bytes` says, 32 at a time from each table's start. */
 static uint32_t tables_hash(const uint16_t bytes[8])
 {
     uint32_t h = FNV_START;
@@ -4029,8 +4029,7 @@ static uint32_t tables_hash(const uint16_t bytes[8])
                 snes.read(snes.ctx, bank | at, chunk, n);
             else
                 memset(chunk, 0, n);
-            for (unsigned k = 0; k < n; k++)
-                h = (h ^ chunk[k]) * FNV_PRIME;
+            h = hash_on(h, chunk, n);   /* chunks from the table's start: the same bytes, the same hash */
             at = (uint16_t)(at + n);
             left -= n;
         }
