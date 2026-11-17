@@ -718,6 +718,7 @@ def main(argv=None):
     ap.add_argument("--hand", nargs="*", default=list(HAND), choices=list(HAND), help="runs played by hand")
     ap.add_argument("--colours", choices=pack.PROFILES, default="original", help="the cartridge's colour profile")
     ap.add_argument("--fast-rom", action="store_true", help="pack with the cartridge's faster waits")
+    ap.add_argument("--fast-work-ram", action="store_true", help="pack with work RAM's faster wait")
     ap.add_argument("--pngs", type=int, default=50, help="PNGs a run, its most visible clusters first")
     ap.add_argument("--keep", action="store_true", help="keep the working files")
     args = ap.parse_args(argv)
@@ -732,7 +733,8 @@ def main(argv=None):
     if written.returncode or not records.exists():
         raise SystemExit("census: ct_native didn't write the script records")
     if pack.main(["--program", str(args.program), "--rom", str(args.rom), "--out", str(args.image), "--profile", args.colours,
-                  "--script-records", str(records)] + (["--fast-rom"] if args.fast_rom else [])):
+                  "--script-records", str(records)] + (["--fast-rom"] if args.fast_rom else [])
+                 + (["--fast-work-ram"] if args.fast_work_ram else [])):
         return 2
     results = []
     for kind, names, one in (("movie", args.movies, census_movie), ("hand", args.hand, census_hand)):

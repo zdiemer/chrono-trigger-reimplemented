@@ -30,7 +30,8 @@ platform services' backends. Nothing here is included from `game/`.
     inlined one away or didn't need a library's.
   - `start.s`: the cartridge's header and the processor's start: the
     cartridge's waits (3 and 1, with the prefetch, or 2 and 1 where the
-    packing step asked for them), the copies and zeroing, then `main`.
+    packing step asked for them, and work RAM's 1 wait where it asked for
+    that), the copies and zeroing, then `main`.
 - `system/`: the driver and what the C library and the runtime need.
   - `main.c`: the driver. One frame of the game a turn of its loop, as
     ct_native's: the pads, `tm_host_frame`, the sound player's frame, then
@@ -99,7 +100,8 @@ platform services' backends. Nothing here is included from `game/`.
     scripts read a command at a time, which `ct_native --script-records FILE`
     works out from the same cartridge (frontend/script_records.h). The program is code only; the packed
     `.gba` is never committed.
-    `--fast-rom` asks for the cartridge's faster waits, `--bios` puts in
+    `--fast-rom` asks for the cartridge's faster waits, `--fast-work-ram`
+    for work RAM's, `--bios` puts in
     the logo a GBA checks (Building and running, below).
   - `samples.py`: the sound's samples converted from BRR to 8-bit PCM at
     the mix's rate for the pack, low-passed, their loops kept and repeated
@@ -176,6 +178,13 @@ at 2 and 1; some cheap reproduction cartridges don't, and a ROM packed with
 it may crash or show garbage on them. It takes about 5% off the GBA's work a
 frame (docs/PLATFORM.md, "The GBA build, as built"); the game plays the
 same either way.
+
+`pack.py --fast-work-ram` (and `run.py`'s and `census.py`'s) sets the
+options word's second bit, which has the start put work RAM at 1 wait
+rather than 2 through the internal memory control register (`$0400:0800`).
+A GBA and a GBA SP take it; a GBA Micro, a DS in its GBA mode and some
+emulators don't, and a ROM packed with it may crash there. mGBA takes it.
+It takes 4-7% off the heaviest frames; the game plays the same either way.
 
 `pack.py --profile port-style` brightens the colours for a GBA's screen,
 which shows them darker than a television: a gamma of 0.7 on each channel,
