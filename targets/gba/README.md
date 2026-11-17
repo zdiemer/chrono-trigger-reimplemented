@@ -193,7 +193,14 @@ To check it against ct_native:
 
 `--shot FRAME=FILE.png` writes the GBA's picture once the game has played
 that many frames; `--profile FILE` writes each function's share of where the
-processor was as the movie played. CI builds the program (the
+processor was as the movie played, and with `--profile-frames FROM-TO[,FROM-TO]...`
+only while the game played those of its frames (both ends counted; one
+number is that frame alone), such as a location's load:
+
+    python3 targets/gba/host/run.py ... --movie movies/attract-demo.ctm --fast-rom \
+        --profile load.prof --profile-frames 2210
+
+CI builds the program (the
 `gba-arm-none-eabi` job); with no cartridge it doesn't play it.
 
 ## The census

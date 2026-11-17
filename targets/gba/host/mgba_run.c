@@ -3,6 +3,7 @@
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
+ *            [--sample-frames FROM-TO[,FROM-TO]...]
  *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR] [--record FILE] [--stall N]
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
  *
@@ -20,7 +21,9 @@
  * it with the GBA frames the movie took. With --samples, it notes where the
  * processor is every SAMPLE_CYCLES cycles as the movie plays and writes each
  * address it was seen at with its count (run.py's --profile names the
- * functions). With --wav, it writes what mGBA plays as the movie plays, in
+ * functions); with --sample-frames, only while the game plays one of the
+ * runs of its frames FROM to TO, both counted (a single FROM is the one
+ * frame): a load or a menu's opening by itself. With --wav, it writes what mGBA plays as the movie plays, in
  * the GBA's time, gaps and all where the game's frame was late; with
  * --stream, every sample the program queued (the sound's ring, which it
  * names in its log, services/direct_sound.h), one after another, as the GBA
@@ -58,6 +61,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -103,10 +107,77 @@ static uint32_t *rom_samples, *iwram_samples, *ewram_samples;
 static unsigned long other_samples;
 static struct mTimingEvent sampling_event;
 
+/* The runs of the game's frames sampled (--sample-frames); none, every frame. */
+enum { MAX_SAMPLED_RUNS = 16 };
+static struct { uint32_t from, to; } sampled_runs[MAX_SAMPLED_RUNS];
+static unsigned sampled_run_count;
+
+static uint32_t frames_played(void);
+
+static int frame_sampled(void)
+{
+    if (!sampled_run_count)
+        return 1;
+    uint32_t frame = frames_played();
+    for (unsigned i = 0; i < sampled_run_count; i++)
+        if (frame >= sampled_runs[i].from && frame <= sampled_runs[i].to)
+            return 1;
+    return 0;
+}
+
+/* A count in decimal at `text`: digits only, no sign or space before them,
+ * at most UINT32_MAX. Returns where it ends, or NULL where there is none. */
+static const char *decimal(const char *text, uint32_t *out)
+{
+    uint32_t n = 0;
+    const char *at = text;
+    for (; *at >= '0' && *at <= '9'; at++) {
+        uint32_t digit = (uint32_t)(*at - '0');
+        if (n > (UINT32_MAX - digit) / 10)
+            return NULL;
+        n = n * 10 + digit;
+    }
+    if (at == text)
+        return NULL;
+    *out = n;
+    return at;
+}
+
+/* An option's count, the whole word a decimal; 0 where it isn't. */
+static int count_option(const char *word, unsigned long *out)
+{
+    uint32_t n;
+    const char *end = decimal(word, &n);
+    if (!end || *end)
+        return 0;
+    *out = n;
+    return 1;
+}
+
+/* --sample-frames' runs, FROM-TO or FROM, a comma between them. */
+static int parse_sampled_runs(const char *text)
+{
+    while (*text) {
+        uint32_t from, to;
+        if (sampled_run_count == MAX_SAMPLED_RUNS || !(text = decimal(text, &from)))
+            return -1;
+        to = from;
+        if (*text == '-' && (!(text = decimal(text + 1, &to)) || to < from))
+            return -1;
+        sampled_runs[sampled_run_count].from = from;
+        sampled_runs[sampled_run_count++].to = to;
+        if (*text == ',')
+            text++;
+        else if (*text)
+            return -1;
+    }
+    return sampled_run_count ? 0 : -1;
+}
+
 static void sample(struct mTiming *timing, void *context, uint32_t late)
 {
     (void)context;
-    if (sampling) {
+    if (sampling && frame_sampled()) {
         uint32_t pc = (uint32_t)((struct ARMCore *)core->cpu)->gprs[ARM_PC];
         switch (pc >> 24) {
         case 8: case 9: rom_samples[(pc - 0x08000000u) / 2 % ROM_HALVES]++; break;
@@ -714,7 +785,7 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
-                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
+                                "[--shot FRAME FILE.png]... [--samples FILE] [--sample-frames FROM-TO[,FROM-TO]...] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
                                 "[--watch FROM TO DIR] [--record FILE] [--stall N] | --drive)\n";
     const char *movie = NULL, *bios = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
     const char *decisions_path = NULL, *pictures_path = NULL;
@@ -725,15 +796,20 @@ int main(int argc, char **argv)
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--movie") && i + 1 < argc)
             movie = argv[++i];
-        else if (!strcmp(argv[i], "--frames") && i + 1 < argc)
-            frames = strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--frames") && i + 1 < argc) {
+            if (!count_option(argv[++i], &frames))
+                argc = 0;
+        }
         else if (!strcmp(argv[i], "--bios") && i + 1 < argc)
             bios = argv[++i];
         else if (!strcmp(argv[i], "--sav") && i + 1 < argc)
             sav = argv[++i];
         else if (!strcmp(argv[i], "--samples") && i + 1 < argc)
             samples_path = argv[++i];
-        else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
+        else if (!strcmp(argv[i], "--sample-frames") && i + 1 < argc) {
+            if (parse_sampled_runs(argv[++i]))
+                argc = 0;
+        } else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
             wav_path = argv[++i];
         else if (!strcmp(argv[i], "--stream") && i + 1 < argc)
             stream_path = argv[++i];
@@ -741,17 +817,21 @@ int main(int argc, char **argv)
             decisions_path = argv[++i];
         else if (!strcmp(argv[i], "--record") && i + 1 < argc)
             pictures_path = argv[++i];
-        else if (!strcmp(argv[i], "--stall") && i + 1 < argc)
-            stall = strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--stall") && i + 1 < argc) {
+            if (!count_option(argv[++i], &stall))
+                argc = 0;
+        }
         else if (!strcmp(argv[i], "--drive"))
             driving = 1;
         else if (!strcmp(argv[i], "--watch") && i + 3 < argc) {
-            watch_from = strtoul(argv[++i], NULL, 10);
-            watch_to = strtoul(argv[++i], NULL, 10);
+            if (!count_option(argv[i + 1], &watch_from) || !count_option(argv[i + 2], &watch_to))
+                argc = 0;
+            i += 2;
             watch_dir = argv[++i];
         }
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc && count < MAX_SHOTS) {
-            shots[count].frame = strtoul(argv[++i], NULL, 10);
+            if (!count_option(argv[++i], &shots[count].frame))
+                argc = 0;
             shots[count++].path = argv[++i];
         } else
             argc = 0;
