@@ -80,6 +80,9 @@ platform services' backends. Nothing here is included from `game/`.
   - `units.s`: VRAM's 32-byte units taken a send at a time, ARM in fast
     RAM: each unit compared with what VRAM holds and stored only where it
     differs, the units that changed answered for the picture to convert.
+  - `tiles.s`: a SNES tile's bitplanes as the GBA's packed nibbles, ARM in
+    fast RAM, a word of the tile at a time with no table: the caches'
+    tiles and the sprites'.
   - `mixer.c`, `mixer.h`: the sound driver's voices played, in the native
     mixer's place (frontend/sound_native.c takes it through
     `SOUND_NATIVE_MIXER` and `SOUND_NATIVE_MIXER_PLAYS`): the packed samples
