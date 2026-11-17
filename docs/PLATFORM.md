@@ -1190,13 +1190,17 @@ and `events-jetbike-race` stay as they were (2,251 and 26,640 against 26,629).
 
 The cartridge's reads find their resource among those read lately: the last
 resource found in each 4 KiB of the cartridge (`asset_containing`), and the
-store's bytes for the last 16 resources asked for (`resource_bytes`). A read
+store's bytes for the last 16 resources asked for, each held with its row of
+the catalogue: where it lies, how long it is, whether it is left untyped
+(`held_resource`). A read
 by address keeps the two answers together, the resource it found last in
 each 4 KiB with where it lies and its bytes (`served`, `found`), so the next
 read in it is one comparison and a load; on the GBA that takes the game's
 frame from 0.65, 0.82, 1.11 and 1.20 GBA frames to 0.64, 0.79, 1.07 and 1.15
 (`title-start`, `new-game`, `gato-battle`, `events-jetbike-race`), with
-`served` and `resource_bytes` in fast RAM. A new
+`served` and `held_resource` in fast RAM. A run of the cartridge
+(`rom_run_from`) and a read of a resource by its id (`asset_read8`) are
+answered from the same, with no look at the catalogue in the cartridge. A new
 source (`assets_use`, which `ct_native --measure` also calls at each stay, so
 it counts each stay's resources afresh) asks again. A reader that goes on
 through the data from one address finds its run of the store's bytes once
