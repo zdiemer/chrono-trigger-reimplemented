@@ -105,6 +105,30 @@ uint8_t wram_read8(const GameState *g, uint32_t at) { return r8(g, at); }
 uint16_t wram_read16(const GameState *g, uint32_t at) { return r16(g, at); }
 void wram_write8(GameState *g, uint32_t at, uint8_t v) { w8(g, at, v); }
 void wram_write16(GameState *g, uint32_t at, uint16_t v) { w16(g, at, v); }
+void wram_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count)
+{
+    uint32_t from = at - WORK_RAM;
+    if (from >= WORK_RAM_BYTES || count > WORK_RAM_BYTES - from) {
+        for (uint32_t k = 0; k < count; k++)
+            bytes[k] = r8(g, at + k);
+        return;
+    }
+    if (!peeking)
+        state_host_game_access(g, 8u * count);
+    vars_host_read_span(state_host_vars_const(g), at, bytes, count);
+}
+void wram_write_span(GameState *g, uint32_t at, const uint8_t *bytes, uint32_t count)
+{
+    uint32_t from = at - WORK_RAM;
+    if (from >= WORK_RAM_BYTES || count > WORK_RAM_BYTES - from) {
+        for (uint32_t k = 0; k < count; k++)
+            w8(g, at + k, bytes[k]);
+        return;
+    }
+    if (!peeking)
+        state_host_game_access(g, 8u * count);
+    vars_host_write_span(state_host_vars(g), at, bytes, count);
+}
 
 /* An accessor's own bytes, every one of which an owner keeps: read and
    written where work RAM keeps them, the whole value's time at once. `top`

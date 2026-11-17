@@ -1330,10 +1330,18 @@ time model's rows aren't in the program. Its host decides instead
   through the same places as ct_native in the same order (`ct_native
   --locations`, the GBA's `location_id` read every 8 frames, the last
   allowed to differ): `attract-demo` through its 50 and `new-game` its 6,
-  where before the attract stopped at its 13th. What remains differs where the
-  GBA is slower than the SNES: the field's script turns in the castle's pan
-  cost the GBA about ten times the original's share of the window, and the
-  gargoyle's tiles are drawn some 35 frames after the pan reaches them (issue #555).
+  where before the attract stopped at its 13th. In the castle's pan the
+  gargoyle's tiles were drawn some 35 frames after the pan reached them
+  (issue #555): its frames are drawn from graphics built in bank $7F, a
+  word at a time through the state, and the frame builder's tile copy was
+  12.6% of the GBA's work over frames 5880-5990. A tile now goes in one
+  read and one write (`game/field/graphics.c`, `wram_read_span`,
+  `wram_write_span`, and from the cartridge `rom_read_span`, served in
+  one copy by `rom_cartridge_read_span`), each byte's time as before,
+  where its places neither leave the bank nor overlap; the copy falls to
+  0.9% and the frames' work over the window by 11%. Played so, the
+  gargoyle is drawn as the pan reaches it, the attract going through
+  ct_native's 50 places.
 
 In mGBA, with a late frame's picture left out (`Pictures`, below) and the
 fibers' stacks sized from the library as before, the movies (`title-start`,

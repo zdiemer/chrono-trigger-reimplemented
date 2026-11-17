@@ -293,6 +293,13 @@ static inline uint8_t field_sprite_graphics_rom_bank(uint8_t named)
 
 static inline uint16_t field_sprite_graphics_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
 
+/* `length` bytes of sprite tile graphics from `at` on, carried into the next
+ * bank as field_sprite_graphics_byte's, each timed as its read. */
+static inline void field_sprite_graphics_read(const GameState *g, uint32_t at, uint8_t *out, uint32_t length)
+{
+    rom_read_span(g, at, out, length);
+}
+
 static inline uint16_t field_animation_place(uint16_t table, uint8_t animation, uint8_t frame)
 {
     return (uint16_t)(table + animation * FIELD_FRAMES_A_ANIMATION + frame);

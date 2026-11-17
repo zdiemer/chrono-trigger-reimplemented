@@ -31,6 +31,10 @@ uint16_t wram_read16(const GameState *g, uint32_t at);
 uint8_t wram_data_read8(const GameState *g, uint32_t at);
 void wram_write8(GameState *g, uint32_t at, uint8_t v);
 void wram_write16(GameState *g, uint32_t at, uint16_t v);
+/* `count` bytes read from `at` on into `bytes`, as that many wram_read8's;
+ * and written from `bytes`, as that many wram_write8's. */
+void wram_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count);
+void wram_write_span(GameState *g, uint32_t at, const uint8_t *bytes, uint32_t count);
 
 /* Plain fills and copies, forward within the bank `at` is in (the offset
  * wraps, as the 65816's block move does). They take none of the port's own
