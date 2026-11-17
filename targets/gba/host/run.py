@@ -28,9 +28,9 @@ a location's load.
 With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
 every sample the program queued, without the gaps where its frames were
 late. With `--fast-rom`, the ROM is packed with the cartridge's faster waits
-(pack.py); with `--colours PROFILE`, with that profile's colours (pack.py's
---profile). With `--bios FILE`, the player's own dump of the GBA's BIOS, the
-ROM gets the logo the BIOS checks (pack.py) and the runner starts the GBA in
+(pack.py), with `--fast-work-ram` with work RAM's; with `--colours PROFILE`,
+with that profile's colours (pack.py's --profile). With `--bios FILE`, the
+player's own dump of the GBA's BIOS, the ROM gets the logo the BIOS checks (pack.py) and the runner starts the GBA in
 that BIOS, which checks it, rather than in mGBA's own, which starts the program
 at once. Nothing is played aloud.
 
@@ -211,6 +211,7 @@ def main(argv=None):
     ap.add_argument("--profile-frames", metavar="FROM-TO[,FROM-TO]...",
                     help="with --profile, sample only while the game plays these of its frames")
     ap.add_argument("--fast-rom", action="store_true", help="pack the ROM with the cartridge's faster waits (pack.py)")
+    ap.add_argument("--fast-work-ram", action="store_true", help="pack the ROM with work RAM's faster wait (pack.py)")
     ap.add_argument("--colours", choices=pack.PROFILES, default="original",
                     help="pack the ROM with this profile's colours (pack.py's --profile)")
     ap.add_argument("--no-script-records", action="store_true",
@@ -234,7 +235,8 @@ def main(argv=None):
             print("run: ct_native didn't write the script records")
             return 2
     if pack.main(["--program", str(args.program), "--rom", str(args.rom), "--out", str(image), "--profile", args.colours]
-                 + (["--fast-rom"] if args.fast_rom else []) + (["--bios", str(args.bios)] if args.bios else [])
+                 + (["--fast-rom"] if args.fast_rom else []) + (["--fast-work-ram"] if args.fast_work_ram else [])
+                 + (["--bios", str(args.bios)] if args.bios else [])
                  + ([] if args.no_script_records else ["--script-records", str(records)])):
         return 2
     movie_text = args.movie.read_text(encoding="utf-8")

@@ -451,8 +451,6 @@ static void oam_put(uint8_t v)
 
 /* ---- The host half ------------------------------------------------------------------------------ */
 
-static void fill_spread(void);
-
 /* The view (below, "The view"): the GBA's screen, framed by the game. */
 enum { GBA_VIEW_WIDTH = 240, GBA_VIEW_HEIGHT = 160 };
 
@@ -538,7 +536,6 @@ void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
     snes.settings_changed = snes.palette_written = snes.sprites_changed = true;
     view_aim = (VidAim){ (VID_ORIGINAL_VIEW_WIDTH - GBA_VIEW_WIDTH) / 2, (VID_ORIGINAL_VIEW_HEIGHT - GBA_VIEW_HEIGHT) / 2 };
     view_panel_count = 0;
-    fill_spread();
     DISPCNT = DISPCNT_FORCED_BLANK;
 }
 
@@ -1242,66 +1239,32 @@ static uint32_t sprite_table(unsigned table)
     return ((uint32_t)snes.obj.base << 1) + (table ? 0x2000u + ((uint32_t)snes.obj.name_select << 1) : 0);
 }
 
+/* A SNES tile, 2bpp (widened to 4bpp, its planes 2 and 3 clear) or 4bpp
+ * where `deep`, from `tile` (word-aligned) into the GBA's 4bpp tile at `to`
+ * (services/tiles.s, ARM in fast RAM): the caches' tiles, hundreds given
+ * their places at a scene's first picture, and the sprites' as they change.
+ * It reads the tile a word at a time and needs no table, where a row's
+ * planes were looked up a byte at a time in a kilobyte's table in work
+ * RAM. */
+void tile_to_gba(volatile uint32_t *to, const uint32_t *tile, uint32_t deep);
+
 /* A bitplane's byte spread out as the first bit of each of a row's eight
- * packed nibbles, its leftmost dot (the byte's top bit) in the lowest:
- * filled at the start, for the sprites' tiles and the panel's, converted a
- * few at a time from the cartridge, inline. In work RAM: fast RAM's
- * kilobyte does more as the line effects' code (toolchain/fast_code.ld). */
-static uint32_t spread[256];
-
-static void fill_spread(void)
-{
-    for (unsigned byte = 0; byte < 256; byte++) {
-        uint32_t row = 0;
-        for (unsigned x = 0; x < 8; x++)
-            row |= (uint32_t)((byte >> (7 - x)) & 1) << (4 * x);
-        spread[byte] = row;
-    }
-}
-
-/* A row of a SNES tile's four bitplanes as the GBA's packed nibbles. */
-static uint32_t packed_row(uint8_t p0, uint8_t p1, uint8_t p2, uint8_t p3)
-{
-    return spread[p0] | spread[p1] << 1 | spread[p2] << 2 | spread[p3] << 3;
-}
-
-static void convert_4bpp(volatile uint32_t *to, const uint8_t *tile)
-{
-    for (unsigned y = 0; y < 8; y++)
-        to[y] = packed_row(tile[2 * y], tile[2 * y + 1], tile[16 + 2 * y], tile[16 + 2 * y + 1]);
-}
-
-/* A nibble of a bitplane's byte spread out as spread[] spreads a byte, for
- * the caches' tiles, hundreds given their places at a scene's first
- * picture: in fast RAM beside the code that reads it, where reading
- * spread[] from work RAM took longer than the rest of a tile's conversion.
- * The sprites' tiles converted so too took the five movies longer, a tile
- * at a time between the cartridge's code and fast RAM's, so they keep
- * spread[]. */
-static const uint32_t nibble_dots[16] __attribute__((section(".iwram.nibble_dots"))) = {
+ * packed nibbles, its leftmost dot (the byte's top bit) in the lowest, a
+ * nibble of it at a time: for the drawn panel's tiles, a few as a dialog
+ * types, and the sprites' dots where they are looked at. */
+static const uint32_t nibble_dots[16] = {
     0x00000u, 0x01000u, 0x00100u, 0x01100u, 0x00010u, 0x01010u, 0x00110u, 0x01110u,
     0x00001u, 0x01001u, 0x00101u, 0x01101u, 0x00011u, 0x01011u, 0x00111u, 0x01111u,
 };
 
-/* A bitplane's byte as spread[] has it, from its two nibbles. */
-static inline __attribute__((always_inline)) uint32_t plane_dots(uint32_t byte)
-{
-    return nibble_dots[byte >> 4] | nibble_dots[byte & 15] << 16;
-}
+static uint32_t plane_dots(uint32_t byte) { return nibble_dots[byte >> 4] | nibble_dots[byte & 15] << 16; }
 
-/* A cache's tile, 2bpp (widened to 4bpp) or 4bpp, into its place. */
-ARM_CODE __attribute__((noinline)) static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
+/* A cache's tile, 2bpp (widened to 4bpp) or 4bpp, into its place. A tile
+ * starts on its size in VRAM, so a word. */
+static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
 {
-    volatile uint32_t *to = BG_VRAM + (c->block * 512u + slot) * 8u;
-    const uint8_t *row = &snes.vram[(c->char_byte + tile * tile_bytes(c->bpp)) & (VRAM_BYTES - 1)];
-    bool deep = c->bpp == 4;
-#pragma GCC unroll 1
-    for (unsigned y = 0; y < 8; y++, row += 2) {
-        uint32_t dots = plane_dots(row[0]) | plane_dots(row[1]) << 1;
-        if (deep)
-            dots |= plane_dots(row[16]) << 2 | plane_dots(row[17]) << 3;
-        to[y] = dots;
-    }
+    const uint8_t *from = &snes.vram[(c->char_byte + tile * tile_bytes(c->bpp)) & (VRAM_BYTES - 1)];
+    tile_to_gba(BG_VRAM + (c->block * 512u + slot) * 8u, (const uint32_t *)(const void *)from, c->bpp == 4);
 }
 
 /* A tile's place in its cache, given one (and the tile converted into it)
@@ -2642,7 +2605,7 @@ static bool turn_the_sprite_page(void)
             unsigned tile = w * 32 + b;
             uint32_t byte = (sprite_table(tile / 256) + (tile % 256) * 32) & (VRAM_BYTES - 1);
             unsigned place = (tile / PAGE_COLUMNS) * 32 + sprite_page * PAGE_COLUMNS + tile % PAGE_COLUMNS;
-            convert_4bpp(OBJ_VRAM + place * 8, &snes.vram[byte]);
+            tile_to_gba(OBJ_VRAM + place * 8, (const uint32_t *)(const void *)&snes.vram[byte], 1);
         }
     }
     return true;
@@ -2893,8 +2856,9 @@ static void panel_tile_taken(uint8_t bpp, uint16_t tile, const uint8_t *bytes)
     }
     volatile uint32_t *to = BG_VRAM + (uint32_t)(panel_room.run + 1 + k) * 8u;
     for (unsigned y = 0; y < 8; y++) {
-        uint32_t row = bpp == 4 ? packed_row(bytes[2 * y], bytes[2 * y + 1], bytes[16 + 2 * y], bytes[17 + 2 * y])
-                                : packed_row(bytes[2 * y], bytes[2 * y + 1], 0, 0);
+        uint32_t row = plane_dots(bytes[2 * y]) | plane_dots(bytes[2 * y + 1]) << 1;
+        if (bpp == 4)
+            row |= plane_dots(bytes[16 + 2 * y]) << 2 | plane_dots(bytes[17 + 2 * y]) << 3;
         to[y] = row;
     }
 }
@@ -3216,8 +3180,14 @@ static bool overlap(const Shown *a, const Shown *b)
 
 /* The GBA's screen in squares of 32 dots, each with the GBA priorities of
  * the sprites shown over it (a bit each), so that a sprite is looked for
- * among those before it in front of it only where one may be. */
-enum { SQUARE = 32, SQUARES_ACROSS = GBA_VIEW_WIDTH / SQUARE, SQUARES_DOWN = GBA_VIEW_HEIGHT / SQUARE };
+ * among those before it in front of it only where one may be. The last
+ * column is the screen's last 16 dots: with 7 columns a sprite at the right
+ * edge marked a byte past them, on the stack. */
+enum {
+    SQUARE = 32,
+    SQUARES_ACROSS = (GBA_VIEW_WIDTH + SQUARE - 1) / SQUARE,
+    SQUARES_DOWN = (GBA_VIEW_HEIGHT + SQUARE - 1) / SQUARE
+};
 typedef uint8_t Squares[SQUARES_DOWN][SQUARES_ACROSS];
 
 /* The priorities over the squares a sprite covers (`mark`: adding its own). */
@@ -3572,8 +3542,8 @@ static uint32_t sprite_dots(const uint8_t *e, unsigned w, unsigned h, unsigned l
     unsigned tile = (name & 0x100) | ((((name >> 4) + line / 8) & 15) << 4) | ((name + column) & 15);
     uint32_t at = sprite_table(tile >> 8) + (tile & 0xFF) * 32 + (line % 8) * 2;
     const uint8_t *v = snes.vram;
-    uint32_t dots = spread[v[at & (VRAM_BYTES - 1)] | v[(at + 1) & (VRAM_BYTES - 1)] | v[(at + 16) & (VRAM_BYTES - 1)] |
-                           v[(at + 17) & (VRAM_BYTES - 1)]];
+    uint32_t dots = plane_dots(v[at & (VRAM_BYTES - 1)] | v[(at + 1) & (VRAM_BYTES - 1)] | v[(at + 16) & (VRAM_BYTES - 1)] |
+                               v[(at + 17) & (VRAM_BYTES - 1)]);
     return e[3] & 0x40 ? nibbles_reversed(dots) : dots;
 }
 

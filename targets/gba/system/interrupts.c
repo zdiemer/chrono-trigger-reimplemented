@@ -16,8 +16,11 @@ static void (*handlers[SOURCES])(void);
  * interrupt taken meanwhile runs below them. The nested work's own stack.
  * Both start zeroed (start.s), so their deepest use is their lowest byte
  * that isn't zero, above a canary in their lowest word that a run past
- * their room writes over (gba_interrupt_stacks_whole). */
-enum { INTERRUPTS_STACK_BYTES = 192, NESTED_STACK_BYTES = 448 };
+ * their room writes over (gba_interrupt_stacks_whole). How deep the
+ * interrupts' goes depends on which handlers come inside which, so on the
+ * frame's timing: 152 bytes at most in the movies, until faster pictures
+ * took `menus-sweep` to 220, past the 192 it had. */
+enum { INTERRUPTS_STACK_BYTES = 256, NESTED_STACK_BYTES = 448 };
 static uint8_t interrupts_stack[INTERRUPTS_STACK_BYTES] __attribute__((section(".iwram_bss"), aligned(8)));
 static uint8_t nested_stack[NESTED_STACK_BYTES] __attribute__((section(".iwram_bss"), aligned(8)));
 
