@@ -1812,19 +1812,21 @@ mode 0's four tiled layers and its sprites:
   heaviest pictures). Lines whose registers are their own line's as well
   as their looks' (Mode 7's plane, a drawn panel, runs in front of a layer
   shown again) and lines showing a copy of moved columns aren't kept. The
-  heaviest of those pictures came down from 19.8 to 12.4 and 11.2 GBA
-  frames; the rest of their cost is the lines where the palace's edge
-  window also moves, each a new look. Over the attract sequence's two
-  Ocean Palace stretches of slow pictures (game frames 8,796-10,067 and
-  19,845-21,083) the census counts 2,469 and 2,427 GBA frames against
-  3,147 and 3,103, and its clusters' visibility falls 16% with no new
-  cluster but frames that moved by one; `attract-demo` takes 32,280 GBA
-  frames against 33,633, its pictures' 99th percentile under 4 GBA
-  frames against 10. The kept lines live on the driver's stack (3,178
-  bytes at most against 3,010), and the work stays out of the lines'
-  loop, which inlined took the menus and the race half a percent longer;
-  the five movies take 1,872, 7,748, 24,676, 12,849 and 7,749 GBA frames
-  against 1,872, 7,744, 24,669, 12,850 and 7,726.
+  heaviest of those pictures came down from about 20 GBA frames to 12;
+  the rest of their cost is the lines where the palace's edge window also
+  moves, each a new look. Over the attract sequence's two Ocean Palace
+  stretches of slow pictures (game frames 8,796-10,067 and 19,845-21,083)
+  the census counts 2,500 and 2,460 GBA frames against 3,161 and 3,119,
+  and its clusters' visibility falls 16%; what it finds new are frames
+  that moved by one and a strip at the screen's right edge for one GBA
+  frame as each scene opens. `attract-demo` takes 32,409 GBA frames
+  against 33,703, its heaviest picture 13.96 against 20.18 and its
+  pictures' 99th percentile under 4 GBA frames against 10.25. The kept
+  lines live on the driver's stack (3,162 bytes at most against 2,994),
+  and the work stays out of the lines' loop, which inlined took the menus
+  and the race half a percent longer; the five movies take 1,869, 7,746,
+  24,695, 12,881 and 7,789 GBA frames against 1,869, 7,745, 24,680,
+  12,889 and 7,736.
 - **Colour math with the fixed colour** (the sub screen added where it has
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at
