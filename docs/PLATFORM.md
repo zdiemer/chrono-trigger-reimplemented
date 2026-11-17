@@ -3124,6 +3124,70 @@ cycles). The loads' heaviest are copies bound by work RAM's bandwidth
 entries staged a byte pair at a time; the menu's opening, its tiles, a
 slot's sum read from SRAM and the sends.
 
+**The steady state** (issue #568). Past the loads, what keeps the GBA short
+of 60 pictures a second is the ordinary frame that runs into a second GBA
+frame. The report now counts the GBA frames each game frame's work fills:
+its game, its sound and the picture made in the blank before it, which
+takes the start of the same GBA frame. `run.py --profile-spans 2` samples
+only the game frames that took two GBA frames from their start to the
+next's. Over `gato-battle`'s such frames, a quarter of the samples were the
+driver waiting for a blank (the frame after a late one), and the rest was
+spread thin: the lines (`make_lines`, the transfers, their table reads and
+compares, 11%), the sprites (`present_sprites`, 4.7%), the field's sprite
+table (4%), the sound (5%), the menus' scripts and the reads through the
+accessors. Timed a part at a time, an ordinary battle picture took 16K
+cycles converting VRAM's changes, 18K the sprites and 58K the lines: a
+third of a GBA frame out of the next game frame's.
+
+Most of that touches nothing the GBA shows, so where the game frame ends
+before its blank the driver has it made then (`gba_video_prepare`,
+`services/video.c`, "The picture begun before the blank"): the sprites'
+tiles turned onto the page not shown, the sprites into the table kept
+aside, the lines into the changes and strengths the screen isn't reading
+(the strengths are now kept at two ends, as the changes are). The blank
+converts VRAM's changes and shows the picture; the lines stand unless the
+conversion noted new priorities in a map. Laid-out pictures, Mode 7's
+plane, mode 2's columns and copied columns are made whole in the blank as
+before, and a picture is begun only where the time left, with an eighth of
+a GBA frame of the blank's own, holds the longest one lately: one that ran
+past the blank's lines would wait a GBA frame. The pictures' due blank is
+now taken from the line count where the picture's making began inside the
+blank, rather than from where it began, which drifted the pictures off the
+GBA's frames. `offset_row` left fast RAM for the room: since #609 it runs
+once a frame at most.
+
+With `--fast-rom` (and `--fast-work-ram`), main against this, each end
+state as ct_native's; the share of game frames whose work fills one, two,
+three or more GBA frames:
+
+| Movie | Speed | Pictures a second | 1 / 2 / 3 / 4+ GBA frames |
+|---|---|---|---|
+| `new-game` | 93.6% (94.4%), the same | 47.0 → 47.8 (47.8 → 48.7) | 81.1 / 17.8 / 0.6 / 0.5% → 82.8 / 16.3 / 0.5 / 0.5% |
+| `gato-battle` | 89.0% → 88.8% (89.8%, the same) | 41.0 → 41.9 (41.7 → 42.9) | 73.7 / 22.8 / 2.1 / 1.4% → 76.6 / 19.9 / 2.0 / 1.6% |
+| `attract-demo` | 72.6% (73.6%), the same | 33.4 → 33.8 (34.0 → 34.5) | 71.1 / 16.8 / 5.3 / 6.8% → 71.8 / 15.3 / 6.4 / 6.5% |
+| `menus-sweep` | 88.1% → 87.6% (89.2% → 89.0%) | 41.3 → 42.7 (44.8 → 44.6) | 79.9 / 13.2 / 5.5 / 1.3% → 81.3 / 11.6 / 5.7 / 1.3% |
+| `events-jetbike-race` | 76.1% → 75.8% (76.6% → 76.5%) | 31.0 → 32.4 (33.3 → 33.8) | 63.7 / 20.1 / 10.8 / 5.4% → 66.1 / 17.7 / 11.5 / 4.7% |
+
+A census of the seven movies finds 2,249 clusters against 2,257 and the
+pictures left out fall in all but `title-start` (`gato-battle` 5,684 to
+4,823, `attract-demo` 5,804 to 5,158); four picture clusters overlap none of
+main's, each 1-3 GBA frames of 11-36 pixels at an edge. `run.py --own-time`
+finds the attract's 50 places. Fast RAM keeps 648 bytes spare and work RAM
+is 336 bytes above its floor.
+
+Two leads didn't pay. Reading the lines' tables where the game keeps them
+(`gba_video_read_in_place`) rather than through `read_game` saved little:
+the transfers read each byte several times, and from work RAM rather than
+the fast RAM copy. A battle's second layout, a frame or two after its
+first, as its lines name a map the first lacked (`gato-battle` 13848 and
+13850, 0.9M then 1.4M cycles), costs as much keeping the caches' windows:
+the new map's tiles take places that send the scene's tiles to new ones.
+The largest steady cost left is a battle whose line effects run all eight
+slots indirect (`gato-battle` 19313-21239): working its lines out takes
+1.2-1.4 GBA frames a picture for 15 changes, about 40 lines visited,
+41 transfers applied and some 590 passed over, 123 table reads, so every
+other picture is left out.
+
 ## Scene map fills
 
 `vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving

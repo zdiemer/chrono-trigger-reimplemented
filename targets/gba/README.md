@@ -215,6 +215,13 @@ number is that frame alone), such as a location's load:
     python3 targets/gba/host/run.py ... --movie movies/attract-demo.ctm --fast-rom \
         --profile load.prof --profile-frames 2210
 
+and with `--profile-spans SPAN` only in the game's frames that took SPAN GBA
+frames from their start to the next's (more than SPAN - 1): `2` samples the
+ordinary frames that run into a second GBA frame, apart from the loads.
+The program's report counts the GBA frames each game frame's work fills
+(its game, its sound and the picture made in the blank before it), and the
+pictures begun before their blank (`services/video.c`).
+
 CI builds the program (the
 `gba-arm-none-eabi` job); with no cartridge it doesn't play it.
 

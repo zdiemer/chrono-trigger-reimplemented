@@ -3,7 +3,7 @@
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
- *            [--sample-frames FROM-TO[,FROM-TO]...]
+ *            [--sample-frames FROM-TO[,FROM-TO]...] [--sample-spans SPAN]
  *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR] [--record FILE] [--stall N]
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
  *
@@ -23,7 +23,10 @@
  * address it was seen at with its count (run.py's --profile names the
  * functions); with --sample-frames, only while the game plays one of the
  * runs of its frames FROM to TO, both counted (a single FROM is the one
- * frame): a load or a menu's opening by itself. With --wav, it writes what mGBA plays as the movie plays, in
+ * frame): a load or a menu's opening by itself; with --sample-spans, only in
+ * the game's frames that took SPAN GBA frames from their start to the next's
+ * (more than SPAN - 1, at most SPAN): the ordinary frames that miss a
+ * picture, say, apart from the loads. With --wav, it writes what mGBA plays as the movie plays, in
  * the GBA's time, gaps and all where the game's frame was late; with
  * --stream, every sample the program queued (the sound's ring, which it
  * names in its log, services/direct_sound.h), one after another, as the GBA
@@ -114,6 +117,28 @@ static unsigned sampled_run_count;
 
 static uint32_t frames_played(void);
 
+/* --sample-spans: a frame's samples held until it ends, and kept where it
+ * took that many GBA frames; 0, every frame's. */
+enum { SPAN_SAMPLES_HELD = 1 << 14 };
+static uint32_t sampled_span, *span_held, span_held_count, span_frame;
+
+static void sample_at(uint32_t pc);
+
+static void hold_span_sample(uint32_t pc)
+{
+    uint32_t frame = frames_played();
+    if (frame != span_frame) {
+        uint64_t cycles = (uint64_t)span_held_count * SAMPLE_CYCLES;
+        if (cycles > (uint64_t)(sampled_span - 1) * GBA_FRAME_CYCLES && cycles <= (uint64_t)sampled_span * GBA_FRAME_CYCLES)
+            for (uint32_t i = 0; i < span_held_count; i++)
+                sample_at(span_held[i]);
+        span_held_count = 0;
+        span_frame = frame;
+    }
+    if (span_held_count < SPAN_SAMPLES_HELD)
+        span_held[span_held_count++] = pc;
+}
+
 static int frame_sampled(void)
 {
     if (!sampled_run_count)
@@ -174,17 +199,25 @@ static int parse_sampled_runs(const char *text)
     return sampled_run_count ? 0 : -1;
 }
 
+static void sample_at(uint32_t pc)
+{
+    switch (pc >> 24) {
+    case 8: case 9: rom_samples[(pc - 0x08000000u) / 2 % ROM_HALVES]++; break;
+    case 3: iwram_samples[pc % 0x8000u / 2]++; break;
+    case 2: ewram_samples[pc % 0x40000u / 2]++; break;
+    default: other_samples++; break;
+    }
+}
+
 static void sample(struct mTiming *timing, void *context, uint32_t late)
 {
     (void)context;
     if (sampling && frame_sampled()) {
         uint32_t pc = (uint32_t)((struct ARMCore *)core->cpu)->gprs[ARM_PC];
-        switch (pc >> 24) {
-        case 8: case 9: rom_samples[(pc - 0x08000000u) / 2 % ROM_HALVES]++; break;
-        case 3: iwram_samples[pc % 0x8000u / 2]++; break;
-        case 2: ewram_samples[pc % 0x40000u / 2]++; break;
-        default: other_samples++; break;
-        }
+        if (sampled_span)
+            hold_span_sample(pc);
+        else
+            sample_at(pc);
     }
     mTimingSchedule(timing, &sampling_event, SAMPLE_CYCLES - (int32_t)late);
 }
@@ -680,7 +713,8 @@ static int start_samples(void)
     rom_samples = calloc(ROM_HALVES, sizeof *rom_samples);
     iwram_samples = calloc(IWRAM_HALVES, sizeof *iwram_samples);
     ewram_samples = calloc(EWRAM_HALVES, sizeof *ewram_samples);
-    if (!rom_samples || !iwram_samples || !ewram_samples)
+    span_held = calloc(SPAN_SAMPLES_HELD, sizeof *span_held);
+    if (!rom_samples || !iwram_samples || !ewram_samples || !span_held)
         return -1;
     sampling_event = (struct mTimingEvent){ .callback = sample, .name = "mgba_run samples", .priority = 0x100 };
     mTimingSchedule(core->timing, &sampling_event, SAMPLE_CYCLES);
@@ -785,7 +819,7 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
-                                "[--shot FRAME FILE.png]... [--samples FILE] [--sample-frames FROM-TO[,FROM-TO]...] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
+                                "[--shot FRAME FILE.png]... [--samples FILE] [--sample-frames FROM-TO[,FROM-TO]...] [--sample-spans SPAN] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
                                 "[--watch FROM TO DIR] [--record FILE] [--stall N] | --drive)\n";
     const char *movie = NULL, *bios = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
     const char *decisions_path = NULL, *pictures_path = NULL;
@@ -809,6 +843,11 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--sample-frames") && i + 1 < argc) {
             if (parse_sampled_runs(argv[++i]))
                 argc = 0;
+        } else if (!strcmp(argv[i], "--sample-spans") && i + 1 < argc) {
+            unsigned long span;
+            if (!count_option(argv[++i], &span) || !span)
+                argc = 0;
+            sampled_span = (uint32_t)span;
         } else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
             wav_path = argv[++i];
         else if (!strcmp(argv[i], "--stream") && i + 1 < argc)

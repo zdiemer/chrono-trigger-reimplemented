@@ -2609,6 +2609,23 @@ static uint8_t sprite_page;                              /* the page the sprites
 
 static void sprite_tile_changed(int tile) { tiles_changed[tile / 32] |= 1u << (tile % 32); }
 
+/* Whether the sprites' tiles the game sent since the last picture were
+ * taken already, before the vertical blank (take_the_sprite_tiles_sent):
+ * the conversion of VRAM's changes leaves them. */
+static bool sprite_tiles_taken;
+
+static void take_the_sprite_tiles_sent(void)
+{
+    for (unsigned k = 0; k < BLOCKS; k++) {
+        uint32_t units = snes.changed[k / 2] >> (k % 2 * 16) & 0xFFFF;
+        int sprites = units && roles[k] & SPRITE_TILES ? sprite_tile((uint32_t)k * BLOCK_BYTES) : -1;
+        for (unsigned i = 0; sprites >= 0 && units; i++, units >>= 1)
+            if (units & 1)
+                sprite_tile_changed(sprites + (int)i);
+    }
+    sprite_tiles_taken = true;
+}
+
 /* The tiles that changed onto the page not shown, which the sprites then
  * name. False where none changed. */
 static bool turn_the_sprite_page(void)
@@ -2784,7 +2801,7 @@ static void convert_block(unsigned k, uint32_t units)
             tiled |= (uint8_t)(1u << c);
             first_tile[c] = (uint16_t)(((block - caches[c].char_byte) & (VRAM_BYTES - 1)) >> tile_shift(caches[c].bpp));
         }
-    int sprites = role & SPRITE_TILES ? sprite_tile(block) : -1;   /* its first sprite tile */
+    int sprites = role & SPRITE_TILES && !sprite_tiles_taken ? sprite_tile(block) : -1;   /* its first sprite tile */
     if (!line_maps && !owner && !tiled && sprites < 0 && !plane && !offsets && !copied_from)
         return;   /* tiles none of which has a place yet, as a scene's are as it loads */
     for (unsigned j = 0; j < line_maps; j++) {
@@ -3550,22 +3567,27 @@ static bool plane_shown;                         /* whether a line of the frame 
  * fixed colour changes it every few lines (the dialog's shading, the race's
  * fog) and nothing else changes: DMA copies each line's in the horizontal
  * blank above it, rather than a change (and an interrupt) each step. A line
- * no change or step sets has the one above's. */
-static uint16_t line_strength[GBA_LINES + 1];
+ * no change or step sets has the one above's. The strengths are kept two
+ * frames' worth, as the changes are (below): the shown frame's at the end
+ * its changes are kept from, which DMA reads as the screen is drawn, and
+ * the frame being made's at the other. */
+static uint16_t line_strength[2][GBA_LINES + 1];
 static uint8_t strength_set[(GBA_LINES + 7) / 8];
 static bool strength_steps;   /* whether a line's strength isn't its change's */
+static uint8_t shown_end, made_end;   /* (The changes kept at two ends, below) */
 
 static void set_strength(unsigned at, uint16_t bldy)
 {
-    line_strength[at] = bldy;
+    line_strength[made_end][at] = bldy;
     strength_set[at / 8] |= (uint8_t)(1u << (at % 8));
 }
 
 static void fill_the_strengths(void)
 {
+    uint16_t *strength = line_strength[made_end];
     for (unsigned at = 1; at <= GBA_LINES; at++)
         if (at == GBA_LINES || !(strength_set[at / 8] >> (at % 8) & 1))
-            line_strength[at] = line_strength[at - 1];
+            strength[at] = strength[at - 1];
 }
 
 /* The frame's changes down the picture: the first line's registers, then
@@ -3584,8 +3606,9 @@ static uint8_t change_line[GBA_LINES];
 static volatile uint8_t changes;
 static uint8_t next_change;       /* the interrupts' place in the changes */
 static volatile bool by_line;     /* whether the interrupts set the changes' registers */
-static uint8_t shown_end;   /* the end the shown changes are kept from: 0 the first place up, 1 the last down */
-static uint8_t made_end;    /* and the end the frame being made keeps its changes from */
+/* shown_end: the end the shown changes are kept from, 0 the first place
+ * up and 1 the last down; made_end: the end the frame being made keeps its
+ * changes from (above, with the strengths). */
 /* The shown change k's place, (k ^ flip) + add: k from the first place
  * up, or 159 - k from the last down (~k + 160), in a few instructions for
  * the interrupts. */
@@ -3593,8 +3616,19 @@ static uint32_t shown_flip, shown_add;
 
 static inline unsigned change_place(uint8_t end, unsigned k) { return end ? GBA_LINES - 1 - k : k; }
 static inline unsigned shown_place(unsigned k) { return (k ^ shown_flip) + shown_add; }
-static inline LineRegisters *made_change(unsigned k) { return &change_registers[change_place(made_end, k)]; }
-static inline uint8_t *made_line(unsigned k) { return &change_line[change_place(made_end, k)]; }
+/* The changes the frame being made has room for: all the places, but
+ * where it is made before the vertical blank (The picture begun before the
+ * blank, below), while the screen still reads the shown frame's, those
+ * the shown frame's leave. One past them goes to a spare place and isn't
+ * shown: its frame is made again in the blank. */
+static uint8_t made_room = GBA_LINES;
+static LineRegisters spare_registers;
+static uint8_t spare_line;
+static inline LineRegisters *made_change(unsigned k)
+{
+    return k < made_room ? &change_registers[change_place(made_end, k)] : &spare_registers;
+}
+static inline uint8_t *made_line(unsigned k) { return k < made_room ? &change_line[change_place(made_end, k)] : &spare_line; }
 
 static void show_from_end(uint8_t end)
 {
@@ -5509,6 +5543,7 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
 static const uint32_t DMA_PLANE = 0xA6600000u | sizeof(PlaneLine) / 4;
 static const uint32_t DMA_STRENGTH = 0xA2400000u | 1;
 static volatile bool plane_dma, strength_dma;
+static const uint16_t *shown_strengths;   /* the shown frame's, which DMA reads */
 __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_lines(void)
 {
     DMA0CNT = 0;
@@ -5523,8 +5558,9 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void arm_the_
         DMA0CNT = DMA_PLANE;
     }
     if (strength_dma) {
-        BLDY = line_strength[0];
-        DMA3SAD = (uint32_t)&line_strength[1];
+        const uint16_t *strength = shown_strengths;
+        BLDY = strength[0];
+        DMA3SAD = (uint32_t)&strength[1];
         DMA3DAD = (uint32_t)&BLDY;
         DMA3CNT = DMA_STRENGTH;
     }
@@ -6015,6 +6051,7 @@ static void frame_shown(bool made, uint8_t count, bool at_blank, uint32_t frame)
     plane_dma = plane_shown;
     shown_plane_table = plane_table;
     strength_dma = strength_steps;
+    shown_strengths = line_strength[shown_end];
     if (sprites_aside) {
         for (unsigned n = 0; n < SPRITES; n++)
             for (unsigned a = 0; a < 3; a++)
@@ -6290,6 +6327,7 @@ static void lay_out_again(bool keep_windows)
         hide_the_picture();
     layout_changed(kept, missed);
     snes.settings_changed = false;
+    sprite_tiles_taken = false;   /* the layout's sprite tiles converted again with the rest */
 }
 
 /* VRAM's changes since the last picture converted, and the palettes. */
@@ -6310,11 +6348,22 @@ static void convert_the_changes(bool laid_out)
         looks_made_from++;   /* the layers' maps or tiles or the sprites' tiles (Sprites raised) */
     if (turn_the_sprite_page())
         snes.sprites_changed = true;
+    sprite_tiles_taken = false;
     if (laid_out)
         layout_misses = misses;
     if (snes.palette_written) {
         present_palettes();
         snes.palette_written = false;
+    }
+}
+
+/* The sprites made again where they or the bands changed, or where what an
+ * overlapping sprite's look was made from did. */
+static void present_sprites_where_changed(void)
+{
+    if (snes.sprites_changed || (sprites_overlap && looks_last_made_from != looks_made_from)) {
+        present_sprites();
+        snes.sprites_changed = false;
     }
 }
 
@@ -6341,10 +6390,7 @@ static uint16_t arrange_the_layers(bool laid_out)
         last_bands = banded;
         snes.sprites_changed = true;
     }
-    if (snes.sprites_changed || (sprites_overlap && looks_last_made_from != looks_made_from)) {
-        present_sprites();
-        snes.sprites_changed = false;
-    }
+    present_sprites_where_changed();
     uint16_t layers_enabled = 0;
     for (unsigned n = 0; n < 4; n++)
         if (layers[n].shown)
@@ -6388,16 +6434,78 @@ static void black_where_nothing_shows(Platform *pf)
 
 void gba_video_tell_shown(void (*shown)(uint32_t frame)) { tell_shown = shown; }
 
+/* Tiles that found no place have the caches started afresh: a second on
+ * where a tile missed since the layout, eight where only the layout's own
+ * misses stand (starting afresh from the same maps misses the same tiles,
+ * and a layout is about ten GBA frames' work). The GBA frames a picture
+ * waits for it. */
+static uint16_t frames_to_restart(void) { return misses > layout_misses ? 60 : 480; }
+
+/* ---- The picture begun before the blank ----------------------------------------------------------
+ *
+ * A frame's picture is made in the vertical blank after its game frame,
+ * and what it takes there comes out of the next game frame's GBA frame: a
+ * battle's lines and sprites, about a third of a GBA frame, put a fifth of
+ * its game frames past one. Most of it touches nothing the GBA shows: the
+ * lines are worked out into the change tables and strengths the screen
+ * isn't reading (made_end; a frame whose changes would reach the shown
+ * frame's places is made again in the blank), the sprites into the table
+ * kept aside, and the sprites' tiles converted onto the page the shown
+ * sprites don't name. So where the
+ * game frame leaves time before the blank, the driver has those made then
+ * (gba_video_prepare), and the blank converts VRAM's changes, which the
+ * shown picture reads, and shows the picture. VRAM's changes are converted
+ * from the SNES's video memory, which the lines read too, so the lines
+ * made before them stand; but where the conversion noted new priorities in
+ * a map (the GBA's layers assigned again), the lines are worked out again,
+ * and the sprites where what their looks are made from changed. Pictures
+ * that are laid out, show Mode 7's plane (whose lines' table the screen
+ * reads as it draws), mode 2's columns or a layer's columns copied (made
+ * from the GBA's converted maps), or wait on a picture shown late, are
+ * made whole in the blank as before. */
+typedef struct {
+    bool ready, made;
+    uint8_t count;
+    LineState left;
+} Prepared;
+static Prepared prepared;
+
+bool gba_video_prepare(Platform *pf)
+{
+    prepared.ready = false;
+    bool restart = misses && frames_since_layout + 1u >= frames_to_restart();
+    if (show_pending || picture_hidden || !usage_known || layout_wanted(restart) || laid_out_mode == 2 || plane_room ||
+        plane_dma || copied.made || strips.made)
+        return false;
+    take_the_sprite_tiles_sent();
+    if (turn_the_sprite_page())
+        snes.sprites_changed = true;
+    made_room = (uint8_t)(GBA_LINES - changes);
+    prepared.count = make_lines(pf, arrange_the_layers(false), false, &prepared.made, &prepared.left);
+    prepared.ready = !prepared.made || prepared.count <= made_room;
+    made_room = GBA_LINES;
+    /* lines that had no room are worked out again in the blank, whole:
+     * not kept as the last frame's, which the shown frame's are */
+    if (!prepared.ready)
+        asked_anew = true;
+    return prepared.ready;
+}
+
+/* Whether the lines made before the blank stand after VRAM's changes are
+ * converted: the conversion noted no map's priorities changed, and moved no
+ * column's offsets or copy. */
+static bool prepared_stands(void) { return !priorities_noted && !offsets_written && !copied.stale; }
+
 void gba_video_present(Platform *pf, uint32_t frame)
 {
     show_the_pending_frame();
     made_frame = frame;
-    /* Tiles that found no place have the caches started afresh: a second
-     * on where a tile missed since the layout, eight where only the layout's
-     * own misses stand (starting afresh from the same maps misses the same
-     * tiles, and a layout is about ten GBA frames' work). */
-    bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
-    bool keep_windows = !settings_ask_for_a_layout(), laid_out = layout_wanted(restart), made;
+    bool restart = misses && ++frames_since_layout >= frames_to_restart();
+    /* lines made before the blank that ask for a layout have it after
+     * VRAM's changes are converted, as lines made in the blank do */
+    bool ready = prepared.ready;
+    prepared.ready = false;
+    bool keep_windows = !settings_ask_for_a_layout(), laid_out = !ready && layout_wanted(restart), made;
     LineState left;
     uint8_t count;
     for (unsigned pass = 0;; pass++) {
@@ -6412,8 +6520,14 @@ void gba_video_present(Platform *pf, uint32_t frame)
             copied.made = strips.made = false;   /* made from maps not converted yet */
         }
         convert_the_changes(laid_out);
-        uint16_t layers_enabled = arrange_the_layers(laid_out);
-        count = make_lines(pf, layers_enabled, laid_out, &made, &left);
+        if (ready && pass == 0 && prepared_stands()) {
+            present_sprites_where_changed();
+            made = prepared.made, count = prepared.count, left = prepared.left;
+        } else {
+            if (ready && pass == 0)
+                asked_anew = true;   /* the lines made before the blank aren't the shown frame's to keep */
+            count = make_lines(pf, arrange_the_layers(laid_out), laid_out, &made, &left);
+        }
         if (pass == 1 || !layout_wanted(false))
             break;
         laid_out = true;
@@ -6424,6 +6538,8 @@ void gba_video_present(Platform *pf, uint32_t frame)
 }
 
 size_t gba_video_bytes(void) { return sizeof snes; }
+
+unsigned gba_video_lines_into_blank(void) { return VCOUNT >= GBA_LINES ? VCOUNT - GBA_LINES : 0; }
 
 /* The picture is made in the vertical blank, so that no frame the GBA shows
  * has half of one picture and half of the next. */

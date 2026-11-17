@@ -4,6 +4,7 @@
 #ifndef CT_GBA_VIDEO_H
 #define CT_GBA_VIDEO_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -13,11 +14,19 @@
  * the screen, or from the next vertical blank where it was made too late
  * for this one. */
 void gba_video_present(Platform *pf, uint32_t frame);
+/* What of the next picture can be made before the vertical blank, without
+ * touching what the GBA shows (services/video.c, "The picture begun before
+ * the blank"): made where the frame's picture allows, and false where it is
+ * made whole in the blank. Between the game's frame and the blank its
+ * picture is shown from, with nothing changing the game's video between. */
+bool gba_video_prepare(Platform *pf);
 /* `shown` told the frame whose picture goes on the screen, as it goes on
  * (drive_showing). */
 void gba_video_tell_shown(void (*shown)(uint32_t frame));
 /* Waits for the vertical blank, where the driver makes the picture. */
 void gba_video_await_blank(void);
+/* How many of its lines the vertical blank has gone through; 0 outside it. */
+unsigned gba_video_lines_into_blank(void);
 /* The colours as the GBA shows them: a table of the 32,768 BGR555 colours'
  * own (the pack's, pack.py --profile), or NULL for the colours as they are. */
 void gba_video_use_colours(const uint16_t *colours);
