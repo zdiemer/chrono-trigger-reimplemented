@@ -3896,6 +3896,44 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
  * Fair's ground, halved with its sub screen's light where the GBA can't
  * show it, stays as bright as natively rather than halved toward black.
  * The SNES's subtraction of a sub screen has no GBA counterpart. */
+/* The sub screen's own layers (those the main screen doesn't show: a
+ * room's light or the Millennial Fair's, the layers the sub screen adds to
+ * the math's layers) on a line whose math adds the sub screen: shown behind
+ * every layer, at the GBA's last priority, where the math's layers show,
+ * so that each lies under the math's tiles as the GBA's blending's second
+ * target, as the sub screen lies under the main screen on the SNES. What
+ * the math's layers show is the sub screen added to it; where another layer
+ * stands between them it shows unblended, and where no layer of the main
+ * screen covers it, it shows itself. Their GBA layers, a bit each; none where
+ * one of the math's layers already stands at the last priority after them. */
+static uint16_t sub_screens_own(const LineState *st)
+{
+    return (uint16_t)(st->sub_layers & ~st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+}
+
+static uint16_t show_the_sub_screens_own(LineRegisters *r, const LineState *st, uint16_t first)
+{
+    uint16_t own = (uint16_t)(line_layer_bits(st, sub_screens_own(st)) & 0xF);
+    for (unsigned g = 0; g < 4; g++)
+        if ((own >> g & 1) && !r->bgcnt[g])
+            own &= (uint16_t)~(1u << g);   /* a layer the line doesn't show (a split layer's front, no tiles there) */
+    for (unsigned g = 0; g < 4; g++)
+        for (unsigned h = g + 1; (own >> g & 1) && h < 4; h++)
+            if ((first >> h & 1) && (r->bgcnt[h] & 3) == 3)
+                return 0;
+    if (!own)
+        return 0;
+    for (unsigned g = 0; g < 4; g++)
+        if (own >> g & 1)
+            r->bgcnt[g] |= 3;
+    uint16_t *regions[] = { &r->winin, &r->winout };
+    for (unsigned k = 0; k < 2; k++)
+        for (unsigned shift = 0; shift < 16; shift += 8)
+            if (*regions[k] >> shift & first & 0xF)
+                *regions[k] |= (uint16_t)(own << shift);
+    return own;
+}
+
 static void line_blending(LineRegisters *r, const LineState *st)
 {
     r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
@@ -3911,7 +3949,8 @@ static void line_blending(LineRegisters *r, const LineState *st)
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
         uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | (m->half ? 0 : VID_BACK_BIT));
-        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
+        uint16_t own = show_the_sub_screens_own(r, st, line_layer_bits(st, first));
+        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | (line_layer_bits(st, second) | own) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
     } else {
         fixed_shading(r, st);
@@ -4922,7 +4961,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
              * blending, a step of its strength alone no change at all. */
             bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
                          !((b->cut_dots || st.mode == 2 || split_wanted >> OVERLAY_SHIFT) && (touched & CHANGED_SCROLL)) &&
-                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn);
+                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn) &&
+                         !((touched & CHANGED_MATH) && (sub_screens_own(&st) || sub_screens_own(&shown)));
             LineRegisters r;
             /* a Mode 7 line's plane is its own table's, no change's */
             if (touched && cheap && st.mode == 7 && (touched & (CHANGED_PLANE | CHANGED_SCROLL))) {

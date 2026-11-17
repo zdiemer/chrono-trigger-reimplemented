@@ -1905,10 +1905,20 @@ Approximated, or not shown yet (issue #483):
   with those: where the sub screen shows nothing the SNES adds the fixed
   colour unhalved, so the Millennial Fair's ground, halved with a sub screen
   of its own, stays as bright as natively (halved with the backdrop, the
-  whole Fair was drawn darker); a sub screen's
-  layers subtracted, a sub screen of its own and the colour window aren't
-  (colour math the colour window limits isn't done: the time warp shows its
-  waves without the glow).
+  whole Fair was drawn darker). The sub screen's own layers (those the main
+  screen doesn't show: the Fair's light, a room's light added to its floor)
+  are shown on such a line behind every layer, at the GBA's last priority,
+  where the math's layers show, as the blending's second target
+  (`show_the_sub_screens_own`): under the math's tiles they are added as on
+  the SNES; where another layer stands between them the tiles show
+  unblended, and where no main layer covers them they show themselves. In
+  the census (replayed, fast waits) `gato-battle`'s colour mismatches fell
+  4.6% and its picture mismatches 12%, what is left of the Fair's clusters
+  the dialog's shading, at no cost to measure; where the light layer moves,
+  it now shows a frame late in places (`gato-battle` 8697-8793 and
+  10164-10537, `frame` clusters). A sub screen's layers subtracted and the
+  colour window aren't (colour math the colour window limits isn't done:
+  the time warp shows its waves without the glow).
 - Mode 7: tile 0 outside the plane shows as nothing; EXTBG's second layer,
   the plane's mosaic and direct colour aren't shown; a frame whose plane's
   room was not yet made (the first frame a line shows Mode 7) shows its
