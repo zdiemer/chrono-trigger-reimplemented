@@ -1665,8 +1665,11 @@ mode 0's four tiled layers and its sprites:
   every fourth line looked at). Else it is the GBA's sprite window, inside
   which a line shows no sprites. The overlaps are looked for only where a
   32-dot square of the screen has a sprite in front of it, at most 16 looks
-  a frame, and a sprite and the lines that stand as they were keep their
-  last look. Masked alone (until 2026-11-16), Crono stepping out of the
+  a frame. A look is kept with the sprite in the GBA's sprite table (its
+  second attribute's unused bits 9-11: that it was looked at, and the
+  priority the table doesn't show) and stands while the sprite, both
+  priorities, the lines shown and video memory stay as they were; a sprite
+  masked past the budget has no look and is looked at again. Masked alone (until 2026-11-16), Crono stepping out of the
   time gate's light showed as the room the light's window cuts away
   (`events-end-of-time-gate` 4473-4714, 368,065 dots summed, now 62,025),
   and Marle was missing beside him in the hall before the jet bike race

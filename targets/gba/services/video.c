@@ -3099,18 +3099,32 @@ static void set_sprite(uint16_t *to, unsigned attribute, uint16_t value)
 enum { RAISES_LOOKED_AT = 16, RAISED_WIDEST = 32, LINES_A_LOOK = 4, LINE_LOOKED_AT = 1 };
 static bool raise_shows_more(const uint8_t *e, int x, int y, unsigned w, unsigned h, uint8_t from, uint8_t to);
 static bool sprites_overlap IN_FAST_RAM;   /* the sprites looked at again as the lines change under them */
-static uint8_t lines_made IN_FAST_RAM, lines_looked_at IN_FAST_RAM;   /* counts of the lines shown that changed */
+/* Counts of the changes to what the looks are made from: the lines shown,
+ * and video memory (the layers' maps and tiles, the sprites' tiles). */
+static uint8_t looks_made_from IN_FAST_RAM, looks_last_made_from IN_FAST_RAM;
 
-/* Whether a sprite behind one later (of priority `front`) shown as it is
- * now was raised or masked when the sprites were last made, and if so
- * which (`raised`): with the lines unchanged since, it stands. */
-static bool was_looked_at(const uint16_t *shown_as, const uint16_t attributes[3], uint8_t front, bool *raised)
+/* A look's result kept with the sprite in the GBA's sprite table, in its
+ * second attribute's bits 9-11, which a sprite not rotated leaves unused:
+ * that it was looked at, and the priority the table doesn't show, its own
+ * where it was raised (to `front`, its third attribute's), `front` where
+ * it was masked (at its own). */
+enum { LOOKED = 0x0800, LOOK_PRIORITY_SHIFT = 9, LOOK_BITS = 0x0E00 };
+
+static uint16_t look_kept(uint8_t other_priority) { return (uint16_t)(LOOKED | other_priority << LOOK_PRIORITY_SHIFT); }
+
+/* Whether a sprite of priority `own` behind one later of priority `front`,
+ * shown as it is now, was looked at when the sprites were last made with
+ * the same priorities, and if so whether it was raised (`raised`): with
+ * what the looks are made from unchanged since, the look stands. A sprite
+ * masked without a look, past the budget, has none. */
+static bool was_looked_at(const uint16_t *shown_as, const uint16_t attributes[3], uint8_t own, uint8_t front, bool *raised)
 {
-    if ((shown_as[0] & ~OBJ_WINDOW) != attributes[0] || shown_as[1] != attributes[1] ||
-        (shown_as[2] & ~(3u << 10)) != attributes[2])
+    if ((shown_as[0] & ~OBJ_WINDOW) != attributes[0] || (shown_as[1] & ~LOOK_BITS) != attributes[1] ||
+        (shown_as[2] & ~(3u << 10)) != attributes[2] || !(shown_as[1] & LOOKED))
         return false;
-    *raised = (shown_as[2] >> 10 & 3) == front && !(shown_as[0] & OBJ_WINDOW);
-    return *raised || (shown_as[0] & OBJ_WINDOW);
+    unsigned shown_priority = shown_as[2] >> 10 & 3, kept = shown_as[1] >> LOOK_PRIORITY_SHIFT & 3;
+    *raised = !(shown_as[0] & OBJ_WINDOW);
+    return *raised ? shown_priority == front && kept == own : shown_priority == own && kept == front;
 }
 
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
@@ -3121,8 +3135,8 @@ static void present_sprites(void)
     Squares squares;
     unsigned count = 0;
     unsigned looked = 0;
-    bool lines_stand = lines_looked_at == lines_made;   /* since the sprites were last looked at */
-    lines_looked_at = lines_made;
+    bool looks_stand = looks_last_made_from == looks_made_from;   /* since the sprites were last looked at */
+    looks_last_made_from = looks_made_from;
     memset(squares, 0, sizeof squares);
     sprites_mask = false;
     sprites_overlap = false;
@@ -3179,14 +3193,18 @@ static void present_sprites(void)
                                    (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14),
                                    (uint16_t)(tile | ((e[3] >> 1) & 7) << 12) };
         bool mask = false;
+        uint16_t look = 0;
         if (front < priority) {
             bool raised = false;
             sprites_overlap = true;
-            bool known = lines_stand && was_looked_at(to, attributes, front, &raised);
+            bool known = looks_stand && was_looked_at(to, attributes, priority, front, &raised);
             if (!known && looked < RAISES_LOOKED_AT) {
                 looked++;
                 raised = raise_shows_more(e, here.x, here.y, w, h, priority, front);
+                known = true;
             }
+            if (known)
+                look = look_kept(raised ? priority : front);
             if (raised)
                 priority = here.priority = front;
             mask = !raised;
@@ -3195,7 +3213,7 @@ static void present_sprites(void)
         shown[count++] = here;
         sprites_mask |= mask;
         set_sprite(to, 0, (uint16_t)(attributes[0] | (mask ? OBJ_WINDOW : 0)));
-        set_sprite(to, 1, attributes[1]);
+        set_sprite(to, 1, (uint16_t)(attributes[1] | look));
         set_sprite(to, 2, (uint16_t)(attributes[2] | priority << 10));
     }
 }
@@ -5238,7 +5256,7 @@ static void frame_shown(bool made, uint8_t count, bool at_blank)
 {
     if (made) {
         if (lines_differ(count))
-            lines_made++;
+            looks_made_from++;
         show_from_end(made_end);
     }
     changes = count;
@@ -5490,14 +5508,18 @@ static void lay_out_again(bool keep_windows)
 /* VRAM's changes since the last picture converted, and the palettes. */
 static void convert_the_changes(bool laid_out)
 {
+    uint32_t written = 0;
     for (unsigned w = 0; w < UNITS / 32; w++) {
         uint32_t units = snes.changed[w];
+        written |= units;
         if (units & 0xFFFF)
             convert_block(2 * w, units & 0xFFFF);
         if (units >> 16)
             convert_block(2 * w + 1, units >> 16);
         snes.changed[w] = 0;
     }
+    if (written)
+        looks_made_from++;   /* the layers' maps or tiles or the sprites' tiles (Sprites raised) */
     if (turn_the_sprite_page())
         snes.sprites_changed = true;
     if (laid_out)
@@ -5531,7 +5553,7 @@ static uint16_t arrange_the_layers(bool laid_out)
         last_bands = banded;
         snes.sprites_changed = true;
     }
-    if (snes.sprites_changed || (sprites_overlap && lines_looked_at != lines_made)) {
+    if (snes.sprites_changed || (sprites_overlap && looks_last_made_from != looks_made_from)) {
         present_sprites();
         snes.sprites_changed = false;
     }
