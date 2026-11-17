@@ -2766,7 +2766,14 @@ port is read ahead three-eighths as often. Together with `--fast-work-ram`
 10.27, `gato-battle` 11580 14.28. `attract-demo`'s heaviest game frame
 went from 11.78 to 10.99, its heaviest picture from 12.29 to 12.02, and the
 whole movie from 31,701 GBA frames to 31,140. Its heaviest frames are now
-pictures, not the game's work (issue #568).
+pictures, not the game's work (issue #568). `run.py --own-time attract-demo`
+goes through ct_native's 50 places with either packing. A census of
+`title-start`, `new-game`, `gato-battle`, `menus-sweep` and `attract-demo`
+(`--fast-rom`, against the same without `--fast-work-ram` or the unpacking's
+change) finds 1,279 picture clusters rather than 1,267. The 38 with no
+cluster beside them in the base run each last 1-3 GBA frames: an edge of
+the top lines or one frame of the title's clock, a picture shown a GBA
+frame earlier or later than before. Fast RAM and work RAM are as they were.
 
 A GBA's BIOS starts a cartridge only where the header's bytes $04-$9F are
 the logo it keeps its own copy of, so the logo is the one thing a ROM for
