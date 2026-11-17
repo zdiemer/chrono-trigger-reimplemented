@@ -4318,12 +4318,37 @@ static uint16_t gba_window(uint8_t left, uint8_t right, const Band *b)
     return (uint16_t)(x1 << 8 | x2);
 }
 
+/* Whether colour math is done in a window region: the colour window keeps
+ * it to inside or outside itself (a spell's beam of light across the
+ * battlefield, Magus's in battle-menu-buttons, the math on the beam's lines
+ * alone). The GBA's blending is the math there, so a region the math is kept
+ * from leaves it out; a fade (the brightness, below 15) is blending too, and
+ * goes on everywhere. Not in a frame laid out for mode 2, whose moved
+ * columns take the windows the regions leave free (show_moved_columns: the
+ * menus' lists, which the colour window there would push out). */
+static bool math_windowed(const LineState *st)
+{
+    VidRegion p = st->math.prevent_math;
+    return st->brightness == 15 && laid_out_mode != 2 && (p == VID_REGION_OUTSIDE || p == VID_REGION_INSIDE) &&
+           ((st->windows.w1[VID_BACK] & 2) || (st->windows.w2[VID_BACK] & 2));
+}
+
+/* Whether a region the windows make, in window 1 (`in1`) and window 2
+ * (`in2`) or not, has the line's math. */
+static bool math_in_region(const LineState *st, bool in1, bool in2)
+{
+    if (!math_windowed(st))
+        return true;
+    bool inside = masked(&st->windows, VID_BACK, in1, in2);
+    return st->math.prevent_math == VID_REGION_OUTSIDE ? inside : !inside;
+}
+
 /* The layers a window region shows: in window 1 alone (WIN0), in window 2
- * alone (WIN1), in neither (outside). Where both windows are, the GBA shows
- * window 1's choice. */
+ * alone (WIN1), in neither (outside), and whether the region blends. Where
+ * both windows are, the GBA shows window 1's choice. */
 static uint16_t region_layers(const LineState *st, bool in1, bool in2)
 {
-    uint16_t shown = WIN_EFFECTS;
+    uint16_t shown = math_in_region(st, in1, in2) ? WIN_EFFECTS : 0;
     for (unsigned layer = VID_BG1; layer <= VID_OBJ; layer++) {
         if (!(st->main_layers & (1u << layer)))
             continue;
@@ -4344,7 +4369,8 @@ static uint16_t region_layers(const LineState *st, bool in1, bool in2)
 enum { IN_ONE = 1, IN_TWO = 2 };
 static struct {
     uint8_t main_layers, win_main;
-    bool mode7, held;
+    bool mode7, math_windowed, held;
+    VidRegion prevent_math;
     uint16_t shown[4];   /* by IN_ONE and IN_TWO */
 } regions_kept;
 
@@ -4352,14 +4378,17 @@ static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits);
 
 static const uint16_t *regions(const LineState *st)
 {
-    bool mode7 = st->mode == 7;
+    bool mode7 = st->mode == 7, windowed = math_windowed(st);
     if (!regions_kept.held || regions_kept.main_layers != st->main_layers ||
-        regions_kept.win_main != st->windows.win_main || regions_kept.mode7 != mode7) {
+        regions_kept.win_main != st->windows.win_main || regions_kept.mode7 != mode7 ||
+        regions_kept.math_windowed != windowed || (windowed && regions_kept.prevent_math != st->math.prevent_math)) {
         for (unsigned k = 0; k < 4; k++)
             regions_kept.shown[k] = line_layer_bits(st, region_layers(st, k & IN_ONE, k & IN_TWO));
         regions_kept.main_layers = st->main_layers;
         regions_kept.win_main = st->windows.win_main;
         regions_kept.mode7 = mode7;
+        regions_kept.math_windowed = windowed;
+        regions_kept.prevent_math = st->math.prevent_math;
         regions_kept.held = true;
     }
     return regions_kept.shown;
@@ -4514,9 +4543,9 @@ static uint16_t backdrop(const LineState *st)
  * half a colour's strength give or take half the grey's, as darkening by
  * half less or more a sixteenth for each strength step of the grey's in 20
  * does (halved_shading_steps). Math the colour window limits to part of the
- * line is done across it (the save screen's math stops 16 dots short of
- * either side). The backdrop's own math is exact (backdrop, above), so it
- * isn't a target. */
+ * line is kept to that part by the GBA's windows (math_in_region), where
+ * they are free to take it. The backdrop's own math is exact (backdrop,
+ * above), so it isn't a target. */
 enum { BRIGHTENED_STRENGTH = 7, DARKENED_STRENGTH = 20, BLEND_STEPS = 16 };
 
 /* n / d for the small n (under 2^16 / d) and constant d the shading works
@@ -4566,8 +4595,9 @@ static void fixed_shading(LineRegisters *r, const LineState *st)
  * colour. The GBA's blending adds as the SNES's does, each channel held at
  * 31, and halves as it does, rounding down, so the sum is the SNES's exactly,
  * any colour, not only a grey. Where the SNES's backdrop shows on such a
- * line, the GBA's shows the fixed colour rather than its own; where the
- * colour window keeps the math to part of the line, it is done across it. */
+ * line, the GBA's shows the fixed colour rather than its own, even where the
+ * colour window keeps the math off (math_in_region): the backdrop is one
+ * colour a line. */
 static uint16_t layers_through_windows(const LineRegisters *r)
 {
     return (uint16_t)((r->winin | r->winin >> 8 | r->winout) & 0xF);
@@ -5442,7 +5472,11 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
  * palace's edges and its curtain in the attract demo, issue #565), the
  * first carries the windows' meeting and the second whatever of the rest
  * differs from outside them. Four regions all different can't be shown and
- * keep window 1's choice where they meet. */
+ * keep window 1's choice where they meet. Where the colour window alone
+ * makes them four (the status screen's shading kept off its left edge by
+ * one window, a layer masked by the other), the layers are what is kept:
+ * the math is done across the line, as it is where the GBA's windows are
+ * taken otherwise. */
 static void window_regions(LineRegisters *r, const LineState *st, const Band *b, uint16_t neither)
 {
     const VidWindows *w = &st->windows;
@@ -5453,6 +5487,11 @@ static void window_regions(LineRegisters *r, const LineState *st, const Band *b,
     uint8_t meet_right = w->w1_right < w->w2_right ? w->w1_right : w->w2_right;
     bool meet = w->w1_left <= w->w1_right && w->w2_left <= w->w2_right && meet_left <= meet_right;
     uint16_t both = meet ? shown[IN_ONE | IN_TWO] : one;
+    if (meet && one != two && one != neither && two != neither && both != one && both != two && both != neither &&
+        math_windowed(st)) {
+        one |= WIN_EFFECTS, two |= WIN_EFFECTS, both |= WIN_EFFECTS, neither |= WIN_EFFECTS;
+        r->winout |= WIN_EFFECTS;
+    }
     bool four_kinds = one != two && one != neither && two != neither;
     if (both == one || (both != two && four_kinds)) {
         r->win0h = win1;
@@ -5537,7 +5576,7 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     if ((layers_enabled & VID_BG4_BIT) && !b->drawn && !mode7)
         controls[3] = layer_control_kept(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
     r.winout = regions(st)[0];
-    if (st->windows.win_main & (VID_ALL_LAYERS))
+    if ((st->windows.win_main & VID_ALL_LAYERS) || math_windowed(st))
         window_regions(&r, st, b, r.winout);
     /* Inside the sprite window, what the line shows outside the windows but
      * the sprites. */
