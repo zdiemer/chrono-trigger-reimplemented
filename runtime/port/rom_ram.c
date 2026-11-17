@@ -11,3 +11,10 @@ uint8_t wram_data_read8(const GameState *g, uint32_t at)
         state_host_game_access(g, STATE_HOST_CARTRIDGE_CLOCKS);
     return state_host_read8(g, at);
 }
+
+void wram_data_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count)
+{
+    if (!vars_peeking())
+        state_host_game_access(g, STATE_HOST_CARTRIDGE_CLOCKS * count);
+    state_host_read_span(g, at, bytes, count);
+}

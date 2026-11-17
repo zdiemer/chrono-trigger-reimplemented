@@ -651,10 +651,14 @@ class TestAccessors(unittest.TestCase):
         for line in ("void set_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, "
                      "const uint8_t *v, unsigned count);",
                      "void fill_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, "
-                     "uint8_t v, unsigned count);"):
+                     "uint8_t v, unsigned count);",
+                     "void maps_run(const GameState *g, unsigned layer, unsigned row, unsigned column, "
+                     "uint8_t *v, unsigned count);"):
             with self.subTest(line=line):
                 self.assertIn(line, h)
         self.assertIn("for (unsigned k = 0; k < count; k++) set_maps(g, layer, row, column + k, v[k]);",
+                      ram_map.render_backing(m))
+        self.assertIn("for (unsigned k = 0; k < count; k++) v[k] = maps(g, layer, row, column + k);",
                       ram_map.render_backing(m))
         with self.assertRaises(ram_map.MapError):
             self.load(var("flag", 'addr = "7E:1000"\nruns = true'))

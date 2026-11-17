@@ -29,6 +29,9 @@ uint16_t wram_read16(const GameState *g, uint32_t at);
  * the cartridge's bytes take, as the original's long reads through the
  * pointer do. */
 uint8_t wram_data_read8(const GameState *g, uint32_t at);
+/* `count` such bytes from `at` on, within its bank, as that many
+ * wram_data_read8's. */
+void wram_data_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count);
 void wram_write8(GameState *g, uint32_t at, uint8_t v);
 void wram_write16(GameState *g, uint32_t at, uint16_t v);
 /* `count` bytes read from `at` on into `bytes`, as that many wram_read8's;

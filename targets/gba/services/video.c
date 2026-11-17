@@ -4062,6 +4062,37 @@ static uint16_t region_layers(const LineState *st, bool in1, bool in2)
     return shown;
 }
 
+/* The four regions' layers as the GBA's (line_layer_bits of region_layers),
+ * in window 1 alone, window 2 alone, both and neither, worked out once for
+ * each set of layers shown and layers the windows mask down a frame's lines:
+ * the line effects move the windows' edges and change which layers they
+ * mask, never how they mask them (unit_apply), so those two settle the
+ * regions (the rising palace's curtain, whose windows change every line).
+ * work_out_lines forgets them. */
+enum { IN_ONE = 1, IN_TWO = 2 };
+static struct {
+    uint8_t main_layers, win_main;
+    bool mode7, held;
+    uint16_t shown[4];   /* by IN_ONE and IN_TWO */
+} regions_kept;
+
+static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits);
+
+static const uint16_t *regions(const LineState *st)
+{
+    bool mode7 = st->mode == 7;
+    if (!regions_kept.held || regions_kept.main_layers != st->main_layers ||
+        regions_kept.win_main != st->windows.win_main || regions_kept.mode7 != mode7) {
+        for (unsigned k = 0; k < 4; k++)
+            regions_kept.shown[k] = line_layer_bits(st, region_layers(st, k & IN_ONE, k & IN_TWO));
+        regions_kept.main_layers = st->main_layers;
+        regions_kept.win_main = st->windows.win_main;
+        regions_kept.mode7 = mode7;
+        regions_kept.held = true;
+    }
+    return regions_kept.shown;
+}
+
 /* A map to keep for the next layout, which converts it: one a line effect
  * shows that the layout hasn't, or one a band shows cut. Where the maps
  * kept are as many as there is room for, a map a line shows whole takes
@@ -4137,6 +4168,26 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
         maps_shown |= (uint16_t)(1u << n);
     uint32_t gba_byte = lm && lm->gba_byte != NO_PLACE ? lm->gba_byte : at;
     return (uint16_t)(char_block << 2 | BGCNT_4BPP | (gba_byte / SCREEN_BYTES) << 8 | size << 14);
+}
+
+/* Each layer's control for the map a frame's lines last showed it from, where
+ * no band cuts it: the same map gives the same control down the frame, and
+ * the maps a line notes for the next layout are noted by the first line that
+ * shows them. work_out_lines forgets them. */
+typedef struct {
+    uint8_t map;
+    bool held;
+    uint16_t control;
+} ControlKept;
+static ControlKept controls_kept[4];
+
+static uint16_t layer_control_kept(unsigned n, uint8_t map, const Band *band, uint16_t hofs)
+{
+    if (band->cut_dots)
+        return layer_control(n, map, band, hofs);
+    if (!controls_kept[n].held || controls_kept[n].map != map)
+        controls_kept[n] = (ControlKept){ .map = map, .held = true, .control = layer_control(n, map, band, hofs) };
+    return controls_kept[n].control;
 }
 
 static uint8_t map_byte_of(const VidBg *b)
@@ -4644,19 +4695,56 @@ static void offset_row(const VidBg *b, uint32_t row, uint32_t first_col, uint16_
     }
 }
 
-/* The line's offsets, false where none names the first two layers. */
-static bool line_offsets(const LineState *st, LineOffsets *o)
+/* The offsets the frame's lines last read, kept for the lines after them
+ * that read the same: the third layer's map and scroll mostly stand down
+ * the picture while the lines' windows and the first layer's scroll change
+ * (the rising palace's curtain and shimmer, where reading them a line at a
+ * time was a fifth of a picture of ten GBA frames). VRAM doesn't change
+ * while a frame's lines are worked out; work_out_lines forgets them. */
+static struct {
+    LineOffsets o;
+    uint16_t hofs, vofs;
+    uint8_t map;
+    bool names;   /* whether one names the first two layers */
+    bool held;
+} offsets_read;
+
+/* Layer `n`'s moved columns on a line (moved_columns), found once for each
+ * scroll and column the frame's lines show with the offsets last read: the
+ * rising palace's shimmer pushes every other line across by the same
+ * strength, and its curtain changes each line's windows alone, so most of
+ * its lines find runs a line before them found (moved_columns_kept). */
+enum { RUNS_KEPT = 4 };
+typedef struct {
+    uint16_t hofs, vofs;
+    int16_t column_end, column_rows;
+    uint8_t n, count;
+    MovedColumns runs[MOST_RUNS];
+} RunsFound;
+static RunsFound runs_found[RUNS_KEPT];
+static uint8_t runs_found_count, runs_found_next;
+
+/* The line's offsets, NULL where none names the first two layers. */
+static const LineOffsets *line_offsets(const LineState *st)
 {
-    VidBg third = { 0 };
-    vid_bg_map_decode(&third, st->map[2]);
-    o->hofs = (uint16_t)((st->hofs[2] - 1) & 0x1FF);
-    uint32_t first_col = o->hofs >> 3;
-    offset_row(&third, st->vofs[2] >> 3, first_col, o->across);
-    offset_row(&third, (st->vofs[2] + 8u) >> 3, first_col, o->down);
-    uint16_t names = 0;
-    for (unsigned j = 0; j < OFFSET_COLUMNS; j++)
-        names |= o->across[j] | o->down[j];
-    return names & (OFFSET_LAYER_BIT * 3);
+    if (!offsets_read.held || offsets_read.map != st->map[2] || offsets_read.hofs != st->hofs[2] ||
+        offsets_read.vofs != st->vofs[2]) {
+        LineOffsets *o = &offsets_read.o;
+        VidBg third = { 0 };
+        vid_bg_map_decode(&third, st->map[2]);
+        o->hofs = (uint16_t)((st->hofs[2] - 1) & 0x1FF);
+        uint32_t first_col = o->hofs >> 3;
+        offset_row(&third, st->vofs[2] >> 3, first_col, o->across);
+        offset_row(&third, (st->vofs[2] + 8u) >> 3, first_col, o->down);
+        uint16_t names = 0;
+        for (unsigned j = 0; j < OFFSET_COLUMNS; j++)
+            names |= o->across[j] | o->down[j];
+        offsets_read.names = (names & (OFFSET_LAYER_BIT * 3)) != 0;
+        offsets_read.map = st->map[2], offsets_read.hofs = st->hofs[2], offsets_read.vofs = st->vofs[2];
+        offsets_read.held = true;
+        runs_found_count = runs_found_next = 0;
+    }
+    return offsets_read.names ? &offsets_read.o : NULL;
 }
 
 /* The first MOST_RUNS runs of layer `n`'s moved columns on a line, as many
@@ -4689,6 +4777,28 @@ static unsigned moved_columns(const LineState *st, const LineOffsets *o, unsigne
             return MOST_RUNS + 1;
         runs[count++] = (MovedColumns){ .first = dot, .last = dot + 7, .hofs = h, .vofs = v };
     }
+    return count;
+}
+
+static unsigned moved_columns_kept(const LineState *st, const LineOffsets *o, unsigned n, int column_end,
+                                   int column_rows, MovedColumns runs[MOST_RUNS])
+{
+    for (unsigned i = 0; i < runs_found_count; i++) {
+        const RunsFound *f = &runs_found[i];
+        if (f->n == n && f->hofs == st->hofs[n] && f->vofs == st->vofs[n] && f->column_end == column_end &&
+            f->column_rows == column_rows) {
+            memcpy(runs, f->runs, sizeof f->runs);
+            return f->count;
+        }
+    }
+    unsigned count = moved_columns(st, o, n, column_end, column_rows, runs);
+    RunsFound *f = &runs_found[runs_found_next];
+    *f = (RunsFound){ .hofs = st->hofs[n], .vofs = st->vofs[n], .column_end = (int16_t)column_end,
+                      .column_rows = (int16_t)column_rows, .n = (uint8_t)n, .count = (uint8_t)count };
+    memcpy(f->runs, runs, sizeof f->runs);
+    runs_found_next = (uint8_t)((runs_found_next + 1) % RUNS_KEPT);
+    if (runs_found_count < RUNS_KEPT)
+        runs_found_count++;
     return count;
 }
 
@@ -5000,8 +5110,8 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
         if (gba_layers[g].source == 2)
             free_layers |= (uint8_t)(1u << g);
     uint8_t unused = (uint8_t)(free_layers | columns_bits);   /* the layers no run takes */
-    LineOffsets offsets;
-    if (!line_offsets(st, &offsets)) {
+    const LineOffsets *offsets = line_offsets(st);
+    if (!offsets) {
         show_tiles_in_front_again(r, unused);
         return;
     }
@@ -5010,8 +5120,8 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
         unsigned own = own_layer(n);
         MovedColumns runs[MOST_RUNS];
         unsigned count = own == NO_LAYER || !(st->main_layers >> n & 1) ? 0 :
-                         moved_columns(st, &offsets, n, column.end ? column.end + b->left : 0, column.rows, runs);
-        if (count > MOST_RUNS && !column.end && show_columns_copied(r, st, n, own, &offsets))
+                         moved_columns_kept(st, offsets, n, column.end ? column.end + b->left : 0, column.rows, runs);
+        if (count > MOST_RUNS && !column.end && show_columns_copied(r, st, n, own, offsets))
             continue;
         if (count > MOST_RUNS)
             count = MOST_RUNS;
@@ -5063,13 +5173,13 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
 static void window_regions(LineRegisters *r, const LineState *st, const Band *b, uint16_t neither)
 {
     const VidWindows *w = &st->windows;
-    uint16_t one = line_layer_bits(st, region_layers(st, true, false));
-    uint16_t two = line_layer_bits(st, region_layers(st, false, true));
+    const uint16_t *shown = regions(st);
+    uint16_t one = shown[IN_ONE], two = shown[IN_TWO];
     uint16_t win1 = gba_window(w->w1_left, w->w1_right, b), win2 = gba_window(w->w2_left, w->w2_right, b);
     uint8_t meet_left = w->w1_left > w->w2_left ? w->w1_left : w->w2_left;
     uint8_t meet_right = w->w1_right < w->w2_right ? w->w1_right : w->w2_right;
     bool meet = w->w1_left <= w->w1_right && w->w2_left <= w->w2_right && meet_left <= meet_right;
-    uint16_t both = meet ? line_layer_bits(st, region_layers(st, true, true)) : one;
+    uint16_t both = meet ? shown[IN_ONE | IN_TWO] : one;
     bool four_kinds = one != two && one != neither && two != neither;
     if (both == one || (both != two && four_kinds)) {
         r->win0h = win1;
@@ -5113,10 +5223,10 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     uint16_t controls[4] = { 0 };
     for (unsigned n = 0; n < 3; n++)
         if ((layers_enabled & (1u << n)) && !b->drawn && !mode7)
-            controls[n] = layer_control(n, st->map[n], b, st->hofs[n]);
+            controls[n] = layer_control_kept(n, st->map[n], b, st->hofs[n]);
     if ((layers_enabled & VID_BG4_BIT) && !b->drawn && !mode7)
-        controls[3] = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
-    r.winout = line_layer_bits(st, region_layers(st, false, false));
+        controls[3] = layer_control_kept(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
+    r.winout = regions(st)[0];
     if (st->windows.win_main & (VID_ALL_LAYERS))
         window_regions(&r, st, b, r.winout);
     /* Inside the sprite window, what the line shows outside the windows but
@@ -5520,6 +5630,9 @@ ARM_CODE static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint1
 static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t layers_enabled)
 {
     LineState st = *st_out, shown;
+    offsets_read.held = false;
+    regions_kept.held = false;
+    memset(controls_kept, 0, sizeof controls_kept);
     plane_on_lines = false;
     plane_shown = false;
     memset(plane_set, 0, sizeof plane_set);

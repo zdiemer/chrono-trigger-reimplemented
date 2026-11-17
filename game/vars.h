@@ -2261,9 +2261,10 @@ enum { FIELD_LAYER_MAPS_ROWS = 64, FIELD_LAYER_MAPS_COLUMNS = 64 };
 uint8_t field_layer_maps(const GameState *g, unsigned layer, unsigned row, unsigned column);
 void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v);
 /* `count` bytes along a row from `column` on, as that many set_field_layer_maps's: from `v`, or
- * each `v` (fill). */
+ * each `v` (fill); or read into `v`, as that many field_layer_maps's. */
 void set_field_layer_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, const uint8_t *v, unsigned count);
 void fill_field_layer_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v, unsigned count);
+void field_layer_maps_run(const GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t *v, unsigned count);
 
 /* The first of the three bytes a map gives each tile, beside the layers' rows [a byte by row and
  * column] */
@@ -2271,9 +2272,10 @@ enum { FIELD_TILE_PROPERTIES_ROWS = 64, FIELD_TILE_PROPERTIES_COLUMNS = 64 };
 uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint8_t v);
 /* `count` bytes along a row from `column` on, as that many set_field_tile_properties's: from
- * `v`, or each `v` (fill). */
+ * `v`, or each `v` (fill); or read into `v`, as that many field_tile_properties's. */
 void set_field_tile_properties_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count);
 void fill_field_tile_properties_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count);
+void field_tile_properties_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count);
 
 /* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
  * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
@@ -2283,9 +2285,10 @@ enum { FIELD_TILE_UPPER_ATTRIBUTES_ROWS = 64, FIELD_TILE_UPPER_ATTRIBUTES_COLUMN
 uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
 /* `count` bytes along a row from `column` on, as that many set_field_tile_upper_attributes's:
- * from `v`, or each `v` (fill). */
+ * from `v`, or each `v` (fill); or read into `v`, as that many field_tile_upper_attributes's. */
 void set_field_tile_upper_attributes_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count);
 void fill_field_tile_upper_attributes_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count);
+void field_tile_upper_attributes_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count);
 /* The second of the three bytes a map gives each tile (a row every 256 bytes, beside
  * field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the
  * map (field_object_sprite_priority +1, where the object takes its priority from the map) [a
@@ -2305,9 +2308,10 @@ enum { FIELD_TILE_LOWER_ATTRIBUTES_ROWS = 64, FIELD_TILE_LOWER_ATTRIBUTES_COLUMN
 uint8_t field_tile_lower_attributes(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column, uint8_t v);
 /* `count` bytes along a row from `column` on, as that many set_field_tile_lower_attributes's:
- * from `v`, or each `v` (fill). */
+ * from `v`, or each `v` (fill); or read into `v`, as that many field_tile_lower_attributes's. */
 void set_field_tile_lower_attributes_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count);
 void fill_field_tile_lower_attributes_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count);
+void field_tile_lower_attributes_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count);
 /* The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it,
  * bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)
  * [a byte by row and column] Unchecked, reaching past the variable into what follows it: an
@@ -2325,9 +2329,10 @@ enum { FIELD_TILE_EXITS_ROWS = 64, FIELD_TILE_EXITS_COLUMNS = 64 };
 uint8_t field_tile_exits(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_exits(GameState *g, unsigned row, unsigned column, uint8_t v);
 /* `count` bytes along a row from `column` on, as that many set_field_tile_exits's: from `v`, or
- * each `v` (fill). */
+ * each `v` (fill); or read into `v`, as that many field_tile_exits's. */
 void set_field_tile_exits_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count);
 void fill_field_tile_exits_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count);
+void field_tile_exits_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count);
 
 /* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
  * it holds (field_location_chests) [a byte by row and column] */
@@ -2407,9 +2412,10 @@ enum { FIELD_LAYER_STAGING_BYTES = 2048 };
 uint8_t field_layer_staging_byte(const GameState *g, unsigned layer, unsigned at);
 void set_field_layer_staging_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
 /* `count` bytes along it from `at` on, as that many set_field_layer_staging_byte's: from `v`, or
- * each `v` (fill). */
+ * each `v` (fill); or read into `v`, as that many field_layer_staging_byte's. */
 void set_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, const uint8_t *v, unsigned count);
 void fill_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, uint8_t v, unsigned count);
+void field_layer_staging_byte_run(const GameState *g, unsigned layer, unsigned at, uint8_t *v, unsigned count);
 
 enum { FIELD_WINDOW_STAGING_COUNT = 1024 };   /* by byte */
 /* Where the field builds what the dialog window shows before it is sent to VRAM: the window's

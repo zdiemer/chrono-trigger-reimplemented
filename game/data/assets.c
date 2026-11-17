@@ -359,8 +359,28 @@ void rom_read_span(const GameState *g, uint32_t at, uint8_t *to, uint32_t length
         rom_cartridge_read_span(g, at, bytes, to, length);
         return;
     }
-    for (uint32_t i = 0; i < length; i++)
-        to[i] = rom_read8(g, at + i);
+    /* A pointer into work RAM (the field's sprite tiles, unpacked there a
+     * tile at a time): its bytes read from where they lie, all in one bank. */
+    if (length && cartridge_address(at) == NOT_ROM && cartridge_address(at + length - 1u) == NOT_ROM &&
+        (at & 0xFFFFu) + length <= 0x10000u) {
+        wram_data_read_span(g, at & 0xFFFFFFu, to, length);
+        return;
+    }
+    /* Otherwise each resource's part as one run, and a byte at a time only
+     * where no run holds it: a song read with its length runs a few bytes
+     * past the end of its resource, thousands of bytes read singly as a
+     * location's music loads. */
+    while (length) {
+        RomRun run = rom_run_from(at);
+        uint32_t n = run.length < length ? run.length : length;
+        if (n) {
+            rom_cartridge_read_span(g, at, run.bytes, to, n);
+        } else {
+            *to = rom_read8(g, at);
+            n = 1;
+        }
+        at += n, to += n, length -= n;
+    }
 }
 
 const AssetUnpacked *rom_unpacked(uint32_t at)
