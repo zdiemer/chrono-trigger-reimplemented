@@ -1510,8 +1510,8 @@ mode 0's four tiled layers and its sprites:
   million pixels to 3.2 (the scene's cluster gone; what is left there is
   in clusters of 0.15 million and less) and `gato-battle`'s from 3.2 to
   1.4, the other four movies within 0.02 million; each movie ends as
-  ct_native's. Two clusters came in: a frame or two of shading as Crono
-  leaves his room (`new-game` 6164, 0.07 million) and eight frames of a
+  ct_native's. Two clusters came in: a frame or two of shading in Crono's
+  room (`new-game` 6164, 0.07 million) and eight frames of a
   dialog's rows a line apart as it opens (`gato-battle` 15625, 0.11
   million).
 - **A layout's work** is what the picture stops for, so it is kept short.
