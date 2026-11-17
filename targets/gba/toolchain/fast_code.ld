@@ -27,7 +27,6 @@
  * (system/fiber.c): the next functions by the GBA's work a byte */
 *(.text.vid_send_palette .text.vid_send_palette.*)
 *(.text.w8 .text.w8.*)
-*(.text.offset_row .text.offset_row.*)
 *(.text.load_sprite_list .text.load_sprite_list.*)
 *(.text.plane_line .text.plane_line.*)
 *(.text.next_of .text.next_of.*)

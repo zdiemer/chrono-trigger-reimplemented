@@ -24,7 +24,9 @@ decisions, and the save RAM the movie starts from goes in as its .sav. With
 plays and FILE gets each function's share of the samples, the largest first;
 with `--profile-frames FROM-TO[,FROM-TO]...` too, only while the game plays
 those of its frames (both ends counted; a single FROM is that frame), such as
-a location's load.
+a location's load; with `--profile-spans SPAN`, only in the game's frames
+that took SPAN GBA frames from their start to the next's, such as the
+ordinary frames that run into a second GBA frame.
 With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
 every sample the program queued, without the gaps where its frames were
 late. With `--fast-rom`, the ROM is packed with the cartridge's faster waits
@@ -210,6 +212,8 @@ def main(argv=None):
                     help="sample where the processor is as the movie plays; FILE gets each function's share")
     ap.add_argument("--profile-frames", metavar="FROM-TO[,FROM-TO]...",
                     help="with --profile, sample only while the game plays these of its frames")
+    ap.add_argument("--profile-spans", type=int, metavar="SPAN",
+                    help="with --profile, sample only the game's frames that took SPAN GBA frames, start to start")
     ap.add_argument("--fast-rom", action="store_true", help="pack the ROM with the cartridge's faster waits (pack.py)")
     ap.add_argument("--fast-work-ram", action="store_true", help="pack the ROM with work RAM's faster wait (pack.py)")
     ap.add_argument("--colours", choices=pack.PROFILES, default="original",
@@ -221,8 +225,8 @@ def main(argv=None):
     ap.add_argument("--own-time", action="store_true",
                     help="play in the GBA's own time, as by hand, and check the places it goes through")
     args = ap.parse_args(argv)
-    if args.profile_frames and not args.profile:
-        ap.error("--profile-frames needs --profile")
+    if (args.profile_frames or args.profile_spans) and not args.profile:
+        ap.error("--profile-frames and --profile-spans need --profile")
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
     image = out_dir / "ct.gba"
@@ -275,6 +279,8 @@ def main(argv=None):
         command += ["--samples", str(samples)]
         if args.profile_frames:
             command += ["--sample-frames", args.profile_frames]
+        if args.profile_spans:
+            command += ["--sample-spans", str(args.profile_spans)]
     gba = subprocess.run(command, stdout=subprocess.PIPE, text=True, env=env)
     if args.profile and samples.exists():
         profile(args.program.resolve().with_suffix(".elf"), samples, args.profile)

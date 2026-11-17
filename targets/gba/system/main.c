@@ -161,7 +161,7 @@ static uint32_t end_state_crc(GameState *g)
 /* A part's cycles a frame over the run: the total, the heaviest, and a
  * histogram in quarters of a GBA frame (280,896 cycles) for its 99th
  * percentile, which needs no memory a frame. */
-enum { GBA_FRAME_CYCLES = 280896, BUCKET = GBA_FRAME_CYCLES / 4, BUCKETS = 256 };
+enum { GBA_FRAME_CYCLES = 280896, GBA_LINE_CYCLES = 1232, BUCKET = GBA_FRAME_CYCLES / 4, BUCKETS = 256 };
 typedef struct {
     const char *name;
     uint64_t total;
@@ -253,6 +253,35 @@ static void picture_await_due(const Pictures *p)
     gba_video_await_blank();
 }
 
+/* The picture begun before its blank (services/video.h, gba_video_prepare)
+ * where the frame leaves the time: what is made then is made in time the
+ * GBA would have spent waiting, and what of it runs on into the blank would
+ * have been made there anyway. But one that ran on past the blank's lines
+ * would wait a GBA frame for the next, as the picture's changes to VRAM
+ * must be made in a blank: so it is begun only where the time left before
+ * the blank, and an eighth of a GBA frame of the blank's own, is as long as
+ * the longest it has taken lately. How many were begun, and their cycles,
+ * for the report. */
+typedef struct {
+    uint32_t longest;   /* cycles: the longest lately, a 128th less each frame */
+    uint32_t begun;
+    uint64_t cycles;
+} Begun;
+
+static uint32_t picture_begun(Begun *b, Platform *pf, const Pictures *p)
+{
+    uint32_t now = cycles_now();
+    b->longest -= b->longest / 128;
+    if ((int32_t)(p->due + GBA_FRAME_CYCLES / 8 - now) < (int32_t)b->longest || !gba_video_prepare(pf))
+        return 0;
+    uint32_t took = cycles_now() - now;
+    if (took > b->longest)
+        b->longest = took;
+    b->begun++;
+    b->cycles += took;
+    return took;
+}
+
 /* The pictures' pacing as a player sees it: how many GBA frames apart each
  * picture shown is from the last, a histogram, and the longest gaps, with
  * the game's frame that ended them and whose work they were: the last
@@ -298,6 +327,28 @@ static void picture_paced(Pacing *p, uint32_t blank, uint32_t frame)
 
 static void picture_made(Pacing *p, uint32_t cycles) { p->last_picture = cycles; }
 
+/* The steady state: how many GBA frames each game frame's work fills, its
+ * game and sound and the picture made just before it, which takes the
+ * start of the same GBA frame: one where it fits, two where it runs into
+ * the next, and so on. */
+enum { FILLED = 4 };
+typedef struct {
+    uint32_t picture;         /* cycles: the picture made before this frame, 0 where it was left out */
+    uint32_t count[FILLED];   /* 1, 2, 3, more */
+} Filled;
+
+static void frame_filled(Filled *f, uint32_t game_and_sound)
+{
+    uint32_t frames = (f->picture + game_and_sound) / GBA_FRAME_CYCLES;
+    f->count[frames < FILLED ? frames : FILLED - 1]++;
+}
+
+static void report_filled(const Filled *f)
+{
+    fprintf(stderr, "ct_gba: GBA frames a game frame's work fills (1, 2, 3, more): %u %u %u %u\n",
+            (unsigned)f->count[0], (unsigned)f->count[1], (unsigned)f->count[2], (unsigned)f->count[3]);
+}
+
 static void report_pacing(const Pacing *p)
 {
     fprintf(stderr, "ct_gba: pictures apart, in GBA frames (0-%u, more):", PACING_GAPS - 1);
@@ -324,6 +375,8 @@ typedef struct {
     uint32_t frames;
     Pictures pictures;
     Pacing pacing;
+    Filled filled;
+    Begun begun;
     Cycles game, sounds, picture;
     Mixing mixing;
 } Run;
@@ -345,6 +398,11 @@ static void report(void *ctx)
         fprintf(stderr, "ct_gba: %u picture(s) left out, the game's frame running late\n",
                 (unsigned)run->pictures.pictures_left_out);
         report_pacing(&run->pacing);
+        report_filled(&run->filled);
+        char begun[16];
+        gba_frames(begun, sizeof begun, run->begun.begun ? run->begun.cycles / run->begun.begun : 0);
+        fprintf(stderr, "ct_gba: %u picture(s) begun before the blank, %s GBA frames there a picture\n",
+                (unsigned)run->begun.begun, begun);
         char mean[16], most[16];
         gba_frames(mean, sizeof mean, run->mixing.total / run->frames);
         gba_frames(most, sizeof most, run->mixing.most);
@@ -421,6 +479,7 @@ int main(void)
      * and the mixing's, in whichever of them the playback's interrupt came. */
     static Run run = { .game = { .name = "game" }, .sounds = { .name = "sound" }, .picture = { .name = "picture" } };
     run.g = g, run.pf = &pf;
+    run.begun.longest = GBA_FRAME_CYCLES / 2;
     static Keypad keypad;
     cycles_start();
     frames_start(driven);
@@ -441,19 +500,25 @@ int main(void)
         sound_native_frame(sound);
         uint32_t sound_done = cycles_now();
         frame_paced(&run.pacing, game_done - began, sound_done - game_done);
-        uint32_t picture = 0;
+        frame_filled(&run.filled, sound_done - began);
+        uint32_t picture = 0, begun = 0;
         if (!picture_left_out(&run.pictures, sound_done)) {
+            begun = picture_begun(&run.begun, &pf, &run.pictures);
             picture_await_due(&run.pictures);
-            uint32_t blank = cycles_now();
+            /* where the blank began: a picture begun before it may have
+             * run on into it, and the next is due a GBA frame after its
+             * start, not after where this one's making began */
+            uint32_t making = cycles_now(), blank = making - gba_video_lines_into_blank() * GBA_LINE_CYCLES;
             picture_shown(&run.pictures, blank);
             picture_paced(&run.pacing, blank, run.frames + 1);
             gba_video_present(&pf, run.frames + 1);
-            picture = cycles_now() - blank;
+            picture = cycles_now() - making;
             picture_made(&run.pacing, picture);
         }
         count_cycles(&run.game, game_done - began);
         count_cycles(&run.sounds, sound_done - game_done);
-        count_cycles(&run.picture, picture);
+        count_cycles(&run.picture, begun + picture);
+        run.filled.picture = picture;   /* what was begun before the blank took no time from this frame */
         count_mixing(&run.mixing, mixer_take_cycles());
         check_stacks();
         run.frames++;
