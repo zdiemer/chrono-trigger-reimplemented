@@ -1802,6 +1802,29 @@ mode 0's four tiled layers and its sprites:
   frames against 2,114, 8,131, 28,437, 15,810 and 8,792 (`title-start`,
   `new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`), and
   work RAM keeps 30,240 bytes free against 30,824.
+  A line whose scroll alone changed, and which shows exactly what one of
+  the last two such lines worked out whole in its band showed, takes the
+  change made for that line again (`made_before`, `keep_the_line`): the
+  Ocean Palace's scenes in the attract sequence step the first layer's
+  scroll back and forth a few dots each line over the moved columns, and
+  every one of their 160 lines was worked out whole, the moved columns'
+  runs found again each time, about 20 GBA frames a picture (issue #568's
+  heaviest pictures). Lines whose registers are their own line's as well
+  as their looks' (Mode 7's plane, a drawn panel, runs in front of a layer
+  shown again) and lines showing a copy of moved columns aren't kept. The
+  heaviest of those pictures came down from 19.8 to 12.4 and 11.2 GBA
+  frames; the rest of their cost is the lines where the palace's edge
+  window also moves, each a new look. Over the attract sequence's two
+  Ocean Palace stretches of slow pictures (game frames 8,796-10,067 and
+  19,845-21,083) the census counts 2,469 and 2,427 GBA frames against
+  3,147 and 3,103, and its clusters' visibility falls 16% with no new
+  cluster but frames that moved by one; `attract-demo` takes 32,280 GBA
+  frames against 33,633, its pictures' 99th percentile under 4 GBA
+  frames against 10. The kept lines live on the driver's stack (3,178
+  bytes at most against 3,010), and the work stays out of the lines'
+  loop, which inlined took the menus and the race half a percent longer;
+  the five movies take 1,872, 7,748, 24,676, 12,849 and 7,749 GBA frames
+  against 1,872, 7,744, 24,669, 12,850 and 7,726.
 - **Colour math with the fixed colour** (the sub screen added where it has
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at

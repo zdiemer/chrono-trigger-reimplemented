@@ -4892,6 +4892,85 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     return r;
 }
 
+/* ---- Lines that show what one before them did ----
+ *
+ * A line whose scroll alone changed, and which shows what one of the last
+ * two such lines worked out whole in its band showed, takes the change made
+ * for that line again rather than working its registers out: the Ocean
+ * Palace in the attract demo steps its first layer's scroll back and forth
+ * a few dots each line over mode 2's moved columns, and had each of its 160
+ * lines worked out whole, about twenty GBA frames a picture. Not where a
+ * line's registers are its own line's as well as its looks': a Mode 7
+ * line's plane, a drawn panel's line, mode 2's runs of a layer whose tiles
+ * in front are shown again (runs_in_front); nor a line showing a copy of a
+ * layer's moved columns, whose place a later line's copy may take
+ * (show_columns_copied). */
+typedef struct {
+    LineState st[2];
+    const Band *band[2];
+    uint8_t change[2];   /* the change each line's registers were made */
+    uint8_t kept;        /* the lines kept, a bit each */
+    uint8_t next;        /* the one to keep the next line in */
+} LinesKept;
+
+/* Whether a line's registers show a layer from a copy of its moved columns. */
+static bool shows_a_copy(const LineRegisters *r)
+{
+    for (unsigned g = 0; copy_room.made && g < 4; g++)
+        for (unsigned c = 0; c < COPIES; c++)
+            if ((r->bgcnt[g] >> 8 & 31) == copy_room.map_block[c])
+                return true;
+    return false;
+}
+
+/* Whether a line's registers are its looks' alone, so that another line
+ * of its band that looks the same takes them. */
+static bool looks_alone(const LineState *st, const Band *b)
+{
+    return st->mode != 7 && !b->drawn && !(st->mode == 2 && (layers[0].overlaid || layers[1].overlaid));
+}
+
+/* The change made for a kept line of band `b` that shows what `st` does, or
+ * NO_CHANGE. */
+enum { NO_CHANGE = 0xFF, NOT_WHOLE = 0xFE };
+static uint8_t shown_before(const LinesKept *k, const LineState *st, const Band *b)
+{
+    for (unsigned i = 0; i < 2; i++)
+        if ((k->kept >> i & 1) && k->band[i] == b && memcmp(&k->st[i], st, sizeof *st) == 0)
+            return k->change[i];
+    return NO_CHANGE;
+}
+
+static void keep_line(LinesKept *k, const LineState *st, const Band *b, uint8_t change)
+{
+    unsigned i = k->next;
+    k->st[i] = *st;
+    k->band[i] = b;
+    k->change[i] = change;
+    k->kept |= (uint8_t)(1u << i);
+    k->next = (uint8_t)(i ^ 1);
+}
+
+/* The change made for a kept line that shows what a line whose scroll
+ * alone changed does, or NO_CHANGE. Kept out of the frame's lines' loop, as
+ * show_moved_columns is, with keep_the_line, below: the menus' and the
+ * race's lines, few of which show what one before them did, took half a
+ * percent longer with the kept lines' work in the loop. */
+__attribute__((noinline)) static uint8_t made_before(const LinesKept *k, const LineState *st, const Band *b)
+{
+    return looks_alone(st, b) ? shown_before(k, st, b) : NO_CHANGE;
+}
+
+/* A line whose scroll alone changed, worked out whole, kept where another
+ * may take its registers `r`: the last of the `count` changes made, which
+ * they are where the changes had room. */
+__attribute__((noinline)) static void keep_the_line(LinesKept *k, const LineState *st, const Band *b,
+                                                    const LineRegisters *r, uint8_t count)
+{
+    if (count < GBA_LINES && looks_alone(st, b) && !shows_a_copy(r))
+        keep_line(k, st, b, (uint8_t)(count - 1u));
+}
+
 /* In ARM, in fast RAM, as the interrupts are; a long call from the cartridge. */
 __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static void set_line(const LineRegisters *r)
 {
@@ -5226,6 +5305,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
     unsigned band_at = 0;   /* where band_down_to has reached */
     uint8_t count = 0, next_black = 0;
     uint8_t touched = CHANGED_OTHER;   /* what of the lines' registers may have changed (Changed) */
+    LinesKept kept = { .kept = 0 };   /* (Lines that show what one before them did, above) */
     for (uint16_t line = 0; line < SNES_LINES;) {
         if (line == display_at) {
             st.brightness = (uint8_t)(v->display_below.brightness & 15);
@@ -5255,6 +5335,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
             if (next_black < band_count && bands[next_black].at < at)
                 count = black_bands_above((unsigned)at, count, &next_black, layers_enabled);
             bool band_starts = at == b->at, again = false;
+            uint8_t made_as = NOT_WHOLE;   /* a line worked out whole: the change it takes again, or NO_CHANGE */
             /* Where only the scroll, the plane or the colour math may have
              * changed (but not a band cut's scroll, which moves the cut in
              * its maps, nor mode 2's, which moves its columns, nor that of a
@@ -5314,7 +5395,12 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                     lines_text_mode = 2;
                 else if (laid_out_mode == 2 && st.mode != 7 && ((st.main_layers | st.sub_layers) & VID_BG3_BIT))
                     third_on_lines = true;
-                r = line_registers(&st, layers_enabled, b, down, at);
+                /* a line whose scroll alone changed may show what one before it did */
+                made_as = touched == CHANGED_SCROLL ? made_before(&kept, &st, b) : NO_CHANGE;
+                if (made_as != NO_CHANGE)
+                    r = *made_change(made_as);
+                else
+                    r = line_registers(&st, layers_enabled, b, down, at);
                 memcpy(&shown, &st, sizeof st);
                 again = true;
             }
@@ -5323,6 +5409,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 *made_line(count++) = (uint8_t)at;
                 set_strength((unsigned)at, r.bldy);
             }
+            if (made_as == NO_CHANGE && touched == CHANGED_SCROLL && count)
+                keep_the_line(&kept, &st, b, &r, count);
             touched = 0;
         }
         /* the slots with a transfer at this line apply it, in the slots' order */
