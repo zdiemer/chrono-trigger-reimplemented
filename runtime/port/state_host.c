@@ -484,6 +484,18 @@ void wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v)
 
 void wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes)
 {
+    if (from.ptr) {
+        /* bytes in hand, written a run of the storage at a time: to $7F's
+         * end, then round to $7E's start */
+        at %= WORK_RAM_SPAN;
+        while (bytes) {
+            uint32_t room = WORK_RAM_SPAN - at, n = bytes < room ? bytes : room;
+            vars_host_write_span(&g->head.vars, WORK_RAM + at, from.ptr, n);
+            from.ptr += n, bytes -= n;
+            at = 0;
+        }
+        return;
+    }
     for (uint32_t i = 0; i < bytes; i++) {
         const uint8_t *byte = pf_data_pointer(from, i);
         state_host_write8(g, through_the_port(at, i), byte ? *byte : state_host_read8(g, pf_data_address(from, i)));
@@ -499,13 +511,32 @@ __attribute__((noinline)) static void copy_by_address(GameState *g, uint32_t fro
         state_host_write8(g, in_bank(to, i), state_host_read8(g, in_bank(from, i)));
 }
 
+/* A copy that doesn't stay in work RAM's own banks: from one of the
+ * cartridge's resources into one of them, as a span of the resource's bytes
+ * (the menus build their tiles from the cartridge a block at a time, which a
+ * byte at a time was a tenth of their opening frame on the GBA); otherwise a
+ * byte at a time by address. Kept apart from wram_copy as copy_by_address is. */
+__attribute__((noinline)) static void copy_from_elsewhere(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
+{
+    uint32_t offset;
+    if (bytes && in_work_ram_banks(to) && (to & 0xFFFF) + bytes <= BANK_BYTES &&
+        place_of(from & 0xFFFFFF, &offset) == IN_ROM) {
+        RomRun run = rom_run_from(from & 0xFFFFFF);
+        if (run.bytes && bytes <= run.length) {
+            vars_host_write_span(&g->head.vars, to & 0xFFFFFF, run.bytes, bytes);
+            return;
+        }
+    }
+    copy_by_address(g, from, to, bytes);
+}
+
 void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes)
 {
     if (in_work_ram_banks(from) && in_work_ram_banks(to) && (from & 0xFFFF) + bytes <= BANK_BYTES &&
         (to & 0xFFFF) + bytes <= BANK_BYTES)
         vars_host_copy_span(&g->head.vars, from & 0xFFFFFF, to & 0xFFFFFF, bytes);
     else
-        copy_by_address(g, from, to, bytes);
+        copy_from_elsewhere(g, from, to, bytes);
 }
 
 /* ---- Time: what the frame-level time model charges ------------------------------------------- *

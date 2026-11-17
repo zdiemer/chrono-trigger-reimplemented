@@ -1875,7 +1875,11 @@ Approximated, or not shown yet (issue #483):
   the GBA has layers to spare: the field, with three layers that have them,
   splits one, and mode 0 none. Mode 1's third layer in front, where the mode
   puts it in front of every sprite, is in front of every layer but the
-  sprites of the lowest priority show in front of its tiles behind too. A
+  sprites of the lowest priority show in front of its tiles behind too.
+  With no tiles in front it stands behind the first two, as on the SNES,
+  even where only the lines show its map: the light circles 12,000 BC's
+  cave and Lucca's house keep on it out of sight covered both rooms, and
+  the End of Time's lamp lit its floor in streaks. A
   split takes its copies' room from the tile caches.
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it.
@@ -1885,7 +1889,11 @@ Approximated, or not shown yet (issue #483):
   window a few steps lighter or darker at its edges than natively, the
   race's fog a little deeper. The sub
   screen added to the main screen is the GBA's blending at full weight
-  where the sub screen's layers are on the main screen too; a sub screen's
+  where the sub screen's layers are on the main screen too, and halved only
+  with those: where the sub screen shows nothing the SNES adds the fixed
+  colour unhalved, so the Millennial Fair's ground, halved with a sub screen
+  of its own, stays as bright as natively (halved with the backdrop, the
+  whole Fair was drawn darker); a sub screen's
   layers subtracted, a sub screen of its own and the colour window aren't
   (colour math the colour window limits isn't done: the time warp shows its
   waves without the glow).
@@ -2126,6 +2134,33 @@ at `gato-battle` frame 11580 from 69 to 34; the heaviest frames are 43, 43,
 `events-jetbike-race`, `menus-sweep`), each ending as ct_native does. The
 pack grows by 508 bytes (13,824,576 in all), and fast RAM gains 496 bytes,
 the hashing's loop gone from it.
+
+**The menus' opening** (the load screen's first frame). As the menus open
+they build their tiles from the cartridge, read the save slots and set
+each slot's text a glyph at a time; on the GBA that frame took 36-45 GBA
+frames, one picture held for most of a second in every movie that starts
+from power-on. Profiled over that frame alone, most of it was reads of the
+cartridge a byte at a time: the glyph drawer reads its glyph's 24 bytes and
+the tiles' places (`menu_text_column_offset`) again for each of a glyph's
+24 lines, tens of thousands of lookups for the three slots' text; and the
+tile building's block moves from the cartridge (`wram_copy`) went a byte
+at a time by address. Now a glyph's bytes and the places are found once a
+glyph (`menu_font_bytes`, `menu_text_column_offsets`), each line charged
+the reads the original makes (`charge_rom_accesses`); a block moved from
+one of the cartridge's resources is written as a span of its bytes
+(`rom_run_from`), and bytes in hand through the work RAM port too
+(`wram_port_copy`); and `asset_read16` looks its resource up once for its
+two bytes. The game's time and outcome are as before. The heaviest game
+frame fell from 36.5 to 18.8 GBA frames in `title-start` and from 44.2,
+36.5, 41.5 and 39.9 to 23.0, 22.3, 24.6 and 20.7 in `menus-sweep`,
+`new-game`, `gato-battle` and `events-jetbike-race` (each a menu's
+opening), and the load screen's longest gap from 36-39 GBA frames to
+18-25; over the census's 16 movies 3-7% fewer GBA frames
+(`menus-sweep` 8,588 to 8,113) and fewer mismatching frames, every end
+state ct_native's. The title's fade-in (game frames 870-923) left out 6
+pictures and leaves out 4, its game frames shorter. Fast RAM keeps 624
+bytes spare (the new paths that run seldom kept in the cartridge,
+`copy_from_elsewhere`); the program is 10 KiB smaller.
 
 **A load's frames between its steps** (issue #568). A location's load runs
 with the frame's handlers off and the original's frames went by in the

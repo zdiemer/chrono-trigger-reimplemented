@@ -205,6 +205,14 @@ uint8_t rom_read8(const GameState *g, uint32_t at)
     return rom_cartridge_read(g, at, served(at));
 }
 
+/* A resource's bytes, as resource_bytes finds them, with the one the read
+ * before found answered in place: the menus' and the dialog's text reads its
+ * tables a byte at a time, tens of thousands of reads as a screen opens. */
+static inline const uint8_t *held_bytes(AssetId id)
+{
+    return holding && held[id % HELD].id == id ? held[id % HELD].bytes : resource_bytes(id);
+}
+
 /* The read is the same one the address would make: timed as a cartridge
  * read at the address the original keeps the byte at. */
 uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
@@ -217,10 +225,17 @@ uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
     return rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
 }
 
+/* Two reads, the low byte's first, each timed as asset_read8 times it. */
 uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset)
 {
-    uint8_t low = asset_read8(g, resource, offset);
-    return (uint16_t)(low | asset_read8(g, resource, offset + 1) << 8);
+    const AssetEntry *e = &asset_catalogue[resource];
+    if (offset + 1u >= e->length || left_untyped(resource)) {
+        uint8_t low = asset_read8(g, resource, offset);
+        return (uint16_t)(low | asset_read8(g, resource, offset + 1) << 8);
+    }
+    const uint8_t *bytes = held_bytes(resource);
+    uint8_t low = rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
+    return (uint16_t)(low | rom_cartridge_read(g, e->at + offset + 1, bytes ? bytes + offset + 1 : NULL) << 8);
 }
 
 uint8_t asset_read8_at_place(const GameState *g, AssetId resource, uint16_t place)
