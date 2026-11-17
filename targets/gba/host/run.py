@@ -220,6 +220,8 @@ def main(argv=None):
     ap.add_argument("--own-time", action="store_true",
                     help="play in the GBA's own time, as by hand, and check the places it goes through")
     args = ap.parse_args(argv)
+    if args.profile_frames and not args.profile:
+        ap.error("--profile-frames needs --profile")
     out_dir = args.program.resolve().parent
     exe = runner(args.mgba.resolve(), out_dir)
     image = out_dir / "ct.gba"

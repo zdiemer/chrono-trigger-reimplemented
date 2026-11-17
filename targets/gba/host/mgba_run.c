@@ -61,6 +61,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,23 +125,47 @@ static int frame_sampled(void)
     return 0;
 }
 
+/* A count in decimal at `text`: digits only, no sign or space before them,
+ * at most UINT32_MAX. Returns where it ends, or NULL where there is none. */
+static const char *decimal(const char *text, uint32_t *out)
+{
+    uint32_t n = 0;
+    const char *at = text;
+    for (; *at >= '0' && *at <= '9'; at++) {
+        uint32_t digit = (uint32_t)(*at - '0');
+        if (n > (UINT32_MAX - digit) / 10)
+            return NULL;
+        n = n * 10 + digit;
+    }
+    if (at == text)
+        return NULL;
+    *out = n;
+    return at;
+}
+
+/* An option's count, the whole word a decimal; 0 where it isn't. */
+static int count_option(const char *word, unsigned long *out)
+{
+    uint32_t n;
+    const char *end = decimal(word, &n);
+    if (!end || *end)
+        return 0;
+    *out = n;
+    return 1;
+}
+
 /* --sample-frames' runs, FROM-TO or FROM, a comma between them. */
 static int parse_sampled_runs(const char *text)
 {
     while (*text) {
-        char *end;
-        unsigned long from = strtoul(text, &end, 10), to = from;
-        if (end == text || sampled_run_count == MAX_SAMPLED_RUNS)
+        uint32_t from, to;
+        if (sampled_run_count == MAX_SAMPLED_RUNS || !(text = decimal(text, &from)))
             return -1;
-        text = end;
-        if (*text == '-') {
-            to = strtoul(text + 1, &end, 10);
-            if (end == text + 1 || to < from)
-                return -1;
-            text = end;
-        }
-        sampled_runs[sampled_run_count].from = (uint32_t)from;
-        sampled_runs[sampled_run_count++].to = (uint32_t)to;
+        to = from;
+        if (*text == '-' && (!(text = decimal(text + 1, &to)) || to < from))
+            return -1;
+        sampled_runs[sampled_run_count].from = from;
+        sampled_runs[sampled_run_count++].to = to;
         if (*text == ',')
             text++;
         else if (*text)
@@ -771,8 +796,10 @@ int main(int argc, char **argv)
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "--movie") && i + 1 < argc)
             movie = argv[++i];
-        else if (!strcmp(argv[i], "--frames") && i + 1 < argc)
-            frames = strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--frames") && i + 1 < argc) {
+            if (!count_option(argv[++i], &frames))
+                argc = 0;
+        }
         else if (!strcmp(argv[i], "--bios") && i + 1 < argc)
             bios = argv[++i];
         else if (!strcmp(argv[i], "--sav") && i + 1 < argc)
@@ -790,17 +817,21 @@ int main(int argc, char **argv)
             decisions_path = argv[++i];
         else if (!strcmp(argv[i], "--record") && i + 1 < argc)
             pictures_path = argv[++i];
-        else if (!strcmp(argv[i], "--stall") && i + 1 < argc)
-            stall = strtoul(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "--stall") && i + 1 < argc) {
+            if (!count_option(argv[++i], &stall))
+                argc = 0;
+        }
         else if (!strcmp(argv[i], "--drive"))
             driving = 1;
         else if (!strcmp(argv[i], "--watch") && i + 3 < argc) {
-            watch_from = strtoul(argv[++i], NULL, 10);
-            watch_to = strtoul(argv[++i], NULL, 10);
+            if (!count_option(argv[i + 1], &watch_from) || !count_option(argv[i + 2], &watch_to))
+                argc = 0;
+            i += 2;
             watch_dir = argv[++i];
         }
         else if (!strcmp(argv[i], "--shot") && i + 2 < argc && count < MAX_SHOTS) {
-            shots[count].frame = strtoul(argv[++i], NULL, 10);
+            if (!count_option(argv[++i], &shots[count].frame))
+                argc = 0;
             shots[count++].path = argv[++i];
         } else
             argc = 0;
