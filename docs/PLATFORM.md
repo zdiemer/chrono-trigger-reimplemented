@@ -2400,20 +2400,23 @@ byte at a time, 0.6M cycles; it goes in as one copy now, the port left at
 (the unpacks' copies and the sends' reads, about 30 KiB each way) went a
 byte at a time in a C loop that spent as long on itself as on the SRAM:
 they go through the target's copies now (`vars_host_cold_write`,
-`vars_host_cold_read`, ARM in fast RAM in `system/copies.s`), a word at
-a time on the other end. And a plane's redraw built each block's two
+`vars_host_cold_read`, `services/cartridge_save.c`), two words at a time
+on the other end; they run from the cartridge, fast RAM having no room for
+them (as ARM in fast RAM they took the load to 11.4 GBA frames, but left
+fast RAM under its floor). And a plane's redraw built each block's two
 strips a byte at a time through the state's accessors: a block reads each
 map tile's group whole and puts both strips in the upload buffer at once
 (`build_block_whole`), where the buffer lies apart from the map and its
 groups (every screen's does; otherwise a word at a time as before), the
-same bytes charged. The load fell from 15.9 GBA frames to 11.4 (its
+same bytes charged. The load fell from 15.9 GBA frames to 12.6 (its
 samples, over the four loads); what is left is mostly the picture's taking
 the sends (`vram_take`, `vram_put_bytes` and their `memcpy`, about 55%,
 `services/video.c`), the column strips a byte at a time through a port
 that steps a row. The six movies end as ct_native's, in as many GBA frames
 or a few fewer (`attract-demo` 33,648 against 33,703, `gato-battle` 24,669
 against 24,680), `attract-demo`'s heaviest frame now a field map's load
-(15.3 GBA frames against the world map's 16.0); fast RAM keeps 264 bytes fewer spare. The census finds
+(15.3 GBA frames against the world map's 16.0); fast RAM keeps 528 bytes spare (600 before: the copies' veneers and
+the larger `put_span`). The census finds
 the clusters it found before, but for `attract-demo`'s two scenes with
 noise over the screen (frames 7931-8209 and 18980-19260), whose
 mismatches already spanned them and now fall on more GBA frames with
