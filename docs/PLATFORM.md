@@ -844,8 +844,13 @@ made in `game/` as presentation and never as a rule:
   lines down at 240x160). It stays where it was aimed and starts in the
   middle. `core/view_framing.c` moves it a quarter of the way a frame (at
   least a dot): `view_follow` keeps a point in the middle third of the view,
-  `view_centre_on` puts it in the middle. It keeps nothing beside the game:
-  the camera's place is the view's own.
+  `view_centre_on` puts it in the middle, and `view_start_centred_on` puts
+  it there at once. It keeps nothing beside the game: the camera's place is
+  the view's own, so a mode that frames nothing shows what the last one
+  aimed at. The title, which frames nothing, starts it in the screen's
+  middle as at power-on: after the attract demo it was left where the
+  demo's last scene aimed it, and the logo and pendulum showed 22 lines
+  higher and 8 dots further left (issue #572).
 - **Panels** (`vid_keep_a_panel_in_view`, `VidViewPanel`): bands of the
   screen's lines shown at lines of the view's own over the camera's picture,
   whole as the original draws them (every layer, sprite, window and colour),
