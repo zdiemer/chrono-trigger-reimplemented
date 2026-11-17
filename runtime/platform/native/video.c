@@ -547,6 +547,12 @@ void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value)
     vid_obs_write_vram(ob(pf), value, high ? 1 : 0);
 }
 
+void vid_write_vram_bytes(Platform *pf, PfOrigin o, bool high, const uint8_t *bytes, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++)
+        vid_write_vram_byte(pf, o, high, bytes[i]);
+}
+
 void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first) { (void)o; vid_obs_palette_address(ob(pf), first); }
 
 void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color)

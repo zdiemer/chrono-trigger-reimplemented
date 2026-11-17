@@ -1190,13 +1190,17 @@ and `events-jetbike-race` stay as they were (2,251 and 26,640 against 26,629).
 
 The cartridge's reads find their resource among those read lately: the last
 resource found in each 4 KiB of the cartridge (`asset_containing`), and the
-store's bytes for the last 16 resources asked for (`resource_bytes`). A read
+store's bytes for the last 16 resources asked for, each held with its row of
+the catalogue: where it lies, how long it is, whether it is left untyped
+(`held_resource`). A read
 by address keeps the two answers together, the resource it found last in
 each 4 KiB with where it lies and its bytes (`served`, `found`), so the next
 read in it is one comparison and a load; on the GBA that takes the game's
 frame from 0.65, 0.82, 1.11 and 1.20 GBA frames to 0.64, 0.79, 1.07 and 1.15
 (`title-start`, `new-game`, `gato-battle`, `events-jetbike-race`), with
-`served` and `resource_bytes` in fast RAM. A new
+`served` and `held_resource` in fast RAM. A run of the cartridge
+(`rom_run_from`) and a read of a resource by its id (`asset_read8`) are
+answered from the same, with no look at the catalogue in the cartridge. A new
 source (`assets_use`, which `ct_native --measure` also calls at each stay, so
 it counts each stay's resources afresh) asks again. A reader that goes on
 through the data from one address finds its run of the store's bytes once
@@ -1876,7 +1880,23 @@ mode 0's four tiled layers and its sprites:
   the colour is a grey, it is the GBA's
   brightening or darkening of them by sixteenths, a grey of k added
   brightening by 16k/24 (against a window's dark colours, 7 of 31) and
-  subtracted darkening by 16k/20 (against a scene's brighter ones). A line where only
+  subtracted darkening by 16k/20 (against a scene's brighter ones). Where
+  the SNES halves the sum (the fixed colour's math with `half`, which the
+  save screen dims its other slots with), it is darkening by 8 -+ 8k/20, a
+  colour of 20 halved with the grey, and so where several of the math's
+  layers stand over one another, which blending with the backdrop leaves
+  whole (`halved_shading_steps`). Math the colour window limits to part of
+  the line is done across it, as the added blending's is (the menus'
+  windows darken toward their foot inside a window 16 dots short of either
+  side, which was left undone). In the census (replayed) the save screen's
+  picture clusters in `events-jetbike-race` and `menus-sweep` (1.6M and
+  1.5M pixels summed) fell to 0.1M; with `--colours port-style`
+  `menus-sweep`'s picture mismatches fell from 18.7M to 2.3M, `new-game`'s
+  from 2.4M to 0.9M, `events-jetbike-race`'s from 7.5M to 3.1M and
+  `gato-battle`'s from 7.2M to 5.3M, the menus' windows' feet now steps
+  off rather than whole shades; the colour mismatches that took their
+  place are smaller (a menu frame's mean step 3.8 to 2.9) though about 7%
+  more pixels. A line where only
   the colour math changed takes the last change's registers with its
   blending, and where only its strength (BLDY) changed it is no change at
   all: DMA copies each line's strength in the horizontal blank above it
@@ -2011,7 +2031,7 @@ Approximated, or not shown yet (issue #483):
 - Colour math: the fixed colour added to layers with only the backdrop
   behind them is exact, but where the SNES's backdrop shows on those lines
   the GBA's shows the fixed colour, and math the colour window confines is
-  done across the line. Elsewhere the fixed colour on layers is a grey's
+  done across the line, the brightening and darkening too. Elsewhere the fixed colour on layers is a grey's
   brightening or darkening (above), so a colour that isn't a grey isn't
   added to them (Magus's castle's candle flames, issue #554), and the
   shading taken away is near the SNES's rather than its own: a window's
@@ -2034,8 +2054,8 @@ Approximated, or not shown yet (issue #483):
   the dialog's shading, at no cost to measure; where the light layer moves,
   it now shows a frame late in places (`gato-battle` 8697-8793 and
   10164-10537, `frame` clusters). A sub screen's layers subtracted and the
-  colour window aren't (colour math the colour window limits isn't done:
-  the time warp shows its waves without the glow).
+  colour window on the sub screen's math isn't (the time warp shows its
+  waves without the glow).
 - Mode 7: tile 0 outside the plane shows as nothing; EXTBG's second layer,
   the plane's mosaic and direct colour aren't shown; a frame whose plane's
   room was not yet made (the first frame a line shows Mode 7) shows its
@@ -2835,6 +2855,56 @@ call (the save service's `sv_read_span`); each byte's time as before. The
 opening falls from 17.4 GBA frames to 15.3 in `title-start` and
 `new-game`, 17.4-18.5 to 15.3-16.2 in `gato-battle` and 20.0 to 17.5 in
 `menus-sweep`.
+
+**The longest frames, again.** Timed a step at a time with the GBA's cycle
+count, and profiled with the runner's samples kept to the frame, what was
+left of the longest frames (issue #568) was mostly the video service taking
+the sends and the cartridge's lookups, both spread over every load:
+
+- **VRAM a unit at a time.** A send compared each word with VRAM's and
+  copied what differed with a call of its own; the menus' clear of all 64
+  KiB took 0.6M cycles of their opening. Whole units now go through
+  `services/units.s`, ARM in fast RAM, four words a load-multiple from
+  each side and stored only where they differ, answering which units
+  changed (a fill the same 16 bytes again and again); the clear takes
+  0.24M.
+- **Sends read where they lie.** A send of the game's work RAM was copied
+  into a piece and then compared; where the flat state keeps the bytes in
+  one run (`state_host_span_in_place`, which the driver gives the video
+  service through `gba_video_read_in_place`), they are compared from there.
+- **The resources held with their rows.** A read of a resource by its id
+  and a run of the cartridge each looked the catalogue up in the cartridge
+  again; they are now answered from the resources held (above, "The
+  cartridge's reads"): a read of the menus' tables from about 250 cycles to
+  140, a run from about 600 to 360.
+- **The title's plane a row at a time.** The title's set-up wrote the
+  plane's 10,240 pixels and its map through the port a byte a call;
+  `vid_write_vram_bytes` takes a tile's pixels or a row of the map in one,
+  as that many `vid_write_vram_byte`'s, and the GBA puts them as a send's
+  half of each word.
+- **A battle's cut rows.** A band's map cut (`convert_cut_row`) was
+  converted a row for each of its two units, from the cartridge; a row is
+  now converted once, from fast RAM, where `note_if_unread` (asked now only
+  for a row left untyped) gave up its room.
+
+With `--fast-rom`, the heaviest game frames, in GBA frames, before and
+after, the end states as ct_native's throughout:
+
+| Frame | Before | After |
+|---|---|---|
+| The title's load screen opening (`new-game`, `title-start` 1742) | 15.28 | 11.46 |
+| The field's menu opening (`menus-sweep` 1705, 2640) | 16.68, 17.54 | 12.84, 13.56 |
+| The title's set-up (frame 65) | 11.75 | 5.94 |
+| A location's load (`new-game` 5801, 3248) | 13.06, 12.06 | 11.79, 10.28 |
+| `gato-battle`'s heaviest (11580) | 16.89 | 15.74 |
+| `attract-demo`'s heaviest game frame / picture | 13.71 / 13.99 | 12.20 / 12.67 |
+
+`attract-demo` takes 31,791 GBA frames rather than 32,361, `menus-sweep`
+7,443 rather than 7,793; a census of seven movies finds the same 1,511
+picture clusters, and `run.py --own-time` the attract's 50 places. Fast RAM keeps 536 bytes spare. What remains of
+the loads and the openings is the game's own work through the accessors,
+each access charged as the original's, a few hundred cycles a block move or
+a run read from the cartridge (issue #568).
 
 ## Scene map fills
 

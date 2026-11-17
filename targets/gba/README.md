@@ -77,6 +77,9 @@ platform services' backends. Nothing here is included from `game/`.
     (`VARS_FLAT_COLD_FROM`). mGBA keeps the SRAM in the `.sav`
     beside the `.gba`.
   - `video.c`, `video.h`: the video service on the GBA's own picture.
+  - `units.s`: VRAM's 32-byte units taken a send at a time, ARM in fast
+    RAM: each unit compared with what VRAM holds and stored only where it
+    differs, the units that changed answered for the picture to convert.
   - `mixer.c`, `mixer.h`: the sound driver's voices played, in the native
     mixer's place (frontend/sound_native.c takes it through
     `SOUND_NATIVE_MIXER` and `SOUND_NATIVE_MIXER_PLAYS`): the packed samples

@@ -106,6 +106,8 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
 {
     if (planes > SCENE_MOST_PLANES)
         planes = SCENE_MOST_PLANES;
+    uint8_t pixels[TILE_ROWS * TILE_PIXELS];
+    uint8_t *to = pixels;
     for (int row = 0; row < TILE_ROWS; row++) {
         uint8_t plane_bytes[SCENE_MOST_PLANES];
         for (unsigned pair = 0; pair < planes / 2; pair++) {
@@ -118,9 +120,10 @@ void scene_expand_plane_tile(GameState *g, Platform *pf, uint8_t bank, uint16_t 
             uint8_t color = 0;
             for (int plane = (int)planes - 1; plane >= 0; plane--)
                 color = (uint8_t)(color << 1 | (plane_bytes[plane] >> pixel & 1));
-            vid_write_vram_byte(pf, PF_AT(expansion_of(planes)->site), true, color);
+            *to++ = color;
         }
     }
+    vid_write_vram_bytes(pf, PF_AT(expansion_of(planes)->site), true, pixels, sizeof pixels);
     charge_accesses(g, planes + (planes == TILE_PLANES));
     /* The eight-plane form counts its rows in the bitmap scaler's cell, which
      * the scaler reads before it writes: the count run out stays there. */
@@ -164,14 +167,15 @@ void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E5AC4), PLANE_VRAM);
+    static const uint8_t blank_columns[PLANE_ROW - PICTURE_COLUMNS];   /* tile 0 */
     for (int row = 0; row < PICTURE_ROWS; row++) {
+        uint8_t tiles[PICTURE_COLUMNS];
         for (int column = 0; column < PICTURE_COLUMNS; column++) {
             uint32_t at = (uint32_t)picture_bank << 16 | (uint16_t)(PICTURE_TILES + (row * PICTURE_COLUMNS + column) * 2);
-            uint16_t word = wram_read16(g, at);
-            vid_write_vram_byte(pf, PF_AT(0x7E5ACE), false, (uint8_t)word);
+            tiles[column] = (uint8_t)wram_read16(g, at);
         }
-        for (int column = PICTURE_COLUMNS; column < PLANE_ROW; column++)
-            vid_write_vram_byte(pf, PF_AT(0x7E5ADC), false, 0);
+        vid_write_vram_bytes(pf, PF_AT(0x7E5ACE), false, tiles, PICTURE_COLUMNS);
+        vid_write_vram_bytes(pf, PF_AT(0x7E5ADC), false, blank_columns, sizeof blank_columns);
     }
     vid_fill_vram_half(pf, PF_AT(0x7E5AEB), PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
     /* the port, where the original's reads of the picture leave it */

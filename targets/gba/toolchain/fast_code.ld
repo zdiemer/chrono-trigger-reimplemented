@@ -8,15 +8,13 @@
  * suffix after the name is the compiler's copy of it); a name the build no
  * longer has places nothing. */
 *(.text.state_host_read8 .text.state_host_read8.*)
-*(.text.note_if_unread .text.note_if_unread.*)
 *(.text.read_game .text.read_game.*)
 *(.text.place_of .text.place_of.*)
 *(.text.vars_host_read_span .text.vars_host_read_span.*)
 *(.text.rom_read8 .text.rom_read8.*)
-*(.text.vram_take .text.vram_take.*)
 *(.text.asset_read8 .text.asset_read8.*)
 *(.text.served .text.served.*)
-*(.text.resource_bytes .text.resource_bytes.*)
+*(.text.held_resource .text.held_resource.*)
 *libc.a:libc_a-memcmp.o(.text)
 /* The picture's line effects, a frame's every transfer (services/video.c,
  * compiled as ARM there) */
@@ -31,7 +29,6 @@
 *(.text.offset_row .text.offset_row.*)
 *(.text.load_sprite_list .text.load_sprite_list.*)
 *(.text.plane_line .text.plane_line.*)
-*(.text.vid_send_vram_fill .text.vid_send_vram_fill.*)
 *(.text.next_of .text.next_of.*)
 *(.text.event_script_byte .text.event_script_byte.*)
 *(.text.r8 .text.r8.*)
@@ -49,3 +46,4 @@
 *(.text.convert_tile .text.convert_tile.*)
 *(.text.convert_map_units .text.convert_map_units.*)
 *(.text.convert_map .text.convert_map.*)
+*(.text.convert_cut_row .text.convert_cut_row.*)
