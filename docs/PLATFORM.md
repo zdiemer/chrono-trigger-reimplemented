@@ -1881,7 +1881,11 @@ Approximated, or not shown yet (issue #483):
   window a few steps lighter or darker at its edges than natively, the
   race's fog a little deeper. The sub
   screen added to the main screen is the GBA's blending at full weight
-  where the sub screen's layers are on the main screen too; a sub screen's
+  where the sub screen's layers are on the main screen too, and halved only
+  with those: where the sub screen shows nothing the SNES adds the fixed
+  colour unhalved, so the Millennial Fair's ground, halved with a sub screen
+  of its own, stays as bright as natively (halved with the backdrop, the
+  whole Fair was drawn darker); a sub screen's
   layers subtracted, a sub screen of its own and the colour window aren't
   (colour math the colour window limits isn't done: the time warp shows its
   waves without the glow).

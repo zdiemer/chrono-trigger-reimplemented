@@ -3883,6 +3883,10 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
  * its colour math. Adding the sub screen to the layers colour math takes
  * in is the GBA's blending of two targets at full weight (half at half): of
  * the sub screen, only what the main screen shows too, and the backdrop.
+ * Where the sub screen shows nothing the SNES adds the fixed colour and
+ * doesn't halve, so a halved sum leaves the backdrop out: the Millennial
+ * Fair's ground, halved with its sub screen's light where the GBA can't
+ * show it, stays as bright as natively rather than halved toward black.
  * The SNES's subtraction of a sub screen has no GBA counterpart. */
 static void line_blending(LineRegisters *r, const LineState *st)
 {
@@ -3898,7 +3902,7 @@ static void line_blending(LineRegisters *r, const LineState *st)
     const VidColorMath *m = &st->math;
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
-        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
+        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | (m->half ? 0 : VID_BACK_BIT));
         r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
     } else {
