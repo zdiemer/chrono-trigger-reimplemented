@@ -3890,6 +3890,7 @@ typedef struct {
     bool applied;       /* whether `last` holds the unit its last transfer applied */
     uint8_t last[4] __attribute__((aligned(4)));
     uint16_t cursor, indirect, line;
+    const struct ReadLine *held;   /* the read of the tables its last transfer took its unit from, or NULL */
 } Slot;
 
 /* The tables are read 32 bytes at a time, kept for the frame's reading of
@@ -3897,7 +3898,7 @@ typedef struct {
  * fast RAM, since each of a frame's transfers reads them. */
 enum { READ_LINES = 8, READ_LINE_BYTES = 32 };
 enum { LINE_KEPT = 0x80000000u };   /* a tag's mark: the line is among the lines read (below) */
-typedef struct {
+typedef struct ReadLine {
     uint32_t tag;    /* the line's address / READ_LINE_BYTES, plus one, and LINE_KEPT; 0: none */
     uint8_t bytes[READ_LINE_BYTES];
 } ReadLine;
@@ -5876,13 +5877,27 @@ ARM_CODE static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_
         bool applies = false;
         if (sl->transfer) {
             uint8_t unit[4] __attribute__((aligned(4))) = { 0 };
-            if (e->indirect) {
-                table_unit(e->indirect_bank, sl->indirect, sl->unit, unit, true);
-                sl->indirect = (uint16_t)(sl->indirect + sl->unit);
+            bool values = e->indirect;
+            uint16_t *at = values ? &sl->indirect : &sl->cursor;
+            uint8_t bank = values ? e->indirect_bank : sl->bank;
+            unsigned within = *at % READ_LINE_BYTES;
+            if (within + sl->unit <= READ_LINE_BYTES) {
+                /* most transfers read on in the 32 bytes the last one read:
+                 * taken from that read where the cache still holds it */
+                uint32_t read = ((uint32_t)bank << 16 | *at) / READ_LINE_BYTES;
+                const ReadLine *h = sl->held;
+                if (!h || (h->tag & ~LINE_KEPT) != read + 1)
+                    sl->held = h = (const ReadLine *)(line_bytes(read, values) - offsetof(ReadLine, bytes));
+                const uint8_t *from = h->bytes + within;
+                unit[0] = from[0];
+                if (sl->unit > 1)
+                    unit[1] = from[1];
+                if (sl->unit > 2)
+                    unit[2] = from[2], unit[3] = from[3];
             } else {
-                table_unit(sl->bank, sl->cursor, sl->unit, unit, false);
-                sl->cursor = (uint16_t)(sl->cursor + sl->unit);
+                table_unit(bank, *at, sl->unit, unit, values);
             }
+            *at = (uint16_t)(*at + sl->unit);
             /* compared a word at a time: the bytes past the unit are 0 in both */
             uint32_t now, was;
             memcpy(&now, unit, sizeof now);
