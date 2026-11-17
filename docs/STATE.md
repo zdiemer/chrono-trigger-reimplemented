@@ -237,8 +237,9 @@ every byte of which an owner keeps reads and writes them where the banks keep
 them (`get16`, `put16`), charging the whole value's time at once; an index out
 of range, and the unchecked pairs, go by address. A table of rows marked
 `runs` (a map's tile maps, attributes and exits, which a location's load
-writes a row at a time) also has `set_<name>_run` and `fill_<name>_run`, a
-run along a row as that many single writes: the typed state makes them so,
+writes a row at a time), or a buffer of bytes (the field's staged layer
+entries, `set_field_layer_staging_byte_run`), also has `set_<name>_run` and
+`fill_<name>_run`, a run along a row or the buffer as that many single writes: the typed state makes them so,
 and the flat state copies or fills the row's bytes in one go where they lie
 together, charging each byte's time. The backing keeps the two banks (`vars_flat_host.c`), but for
 the top a target may keep in memory of its own from a 4 KiB step no value read

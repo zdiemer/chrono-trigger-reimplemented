@@ -214,29 +214,29 @@ game/battle/timers.c	175	unchecked-accessor	set_battle_timer_counts_byte_uncheck
 game/battle/timers.c	176	unchecked-accessor	battle_timer_runs_left_byte_unchecked(g, kind, nobody) - 1);
 game/battle/timers.c	177	unchecked-accessor	set_battle_timer_runs_left_byte_unchecked(g, kind, nobody, left == 0 ? RUNS_A_CYCLE : left);
 game/battle/timers.c	181	unchecked-accessor	set_battle_timer_flags_byte_unchecked(g, kind, nobody, TIMER_STOPPED);
-game/battle/uploads.c	53	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
-game/battle/uploads.c	220	video-source	PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
-game/battle/uploads.c	232	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | first.source),
-game/battle/uploads.c	235	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | second.source), second.size, NULL);
-game/battle/uploads.c	266	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | battle_upload_source(g, upload)),
-game/battle/uploads.c	301	video-source	PF_GAME((uint16_t)RAM_OAM_BUFFER), sprite_table_places(g));
-game/battle/uploads.c	307	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
-game/battle/uploads.c	53	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
-game/battle/uploads.c	72	layout-expression	<< 16 | battle_vram_request_source(g), bytes);
-game/battle/uploads.c	86	layout-expression	& 0xFF0000u) | (uint16_t)(source + TILE_BYTES * tile);
-game/battle/uploads.c	110	layout-expression	<< 16 | source, battle_block_vram(g, offset));
-game/battle/uploads.c	126	layout-expression	RAM_BATTLE_MESSAGE_TILES + (odd ? 0 : RAM_BATTLE_MESSAGE_TILES_STRIDE),
-game/battle/uploads.c	126	layout-expression	RAM_BATTLE_MESSAGE_TILES_STRIDE),
-game/battle/uploads.c	157	layout-expression	<< 16 | (uint16_t)(v[3] << 8 | v[2]),
-game/battle/uploads.c	184	layout-expression	RAM_BATTLE_WINDOW_TILEMAP + offset); }
-game/battle/uploads.c	195	layout-expression	RAM_BATTLE_MENU_TILEMAP)
-game/battle/uploads.c	220	layout-expression	RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
-game/battle/uploads.c	232	layout-expression	<< 16 | first.source),
-game/battle/uploads.c	235	layout-expression	<< 16 | second.source), second.size, NULL);
-game/battle/uploads.c	266	layout-expression	<< 16 | battle_upload_source(g, upload)),
-game/battle/uploads.c	301	layout-expression	RAM_OAM_BUFFER), sprite_table_places(g));
-game/battle/uploads.c	307	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
-game/battle/uploads.c	344	layout-expression	RAM_BATTLE_MENU_TILEMAP); }
+game/battle/uploads.c	54	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
+game/battle/uploads.c	221	video-source	PF_GAME((uint16_t)RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
+game/battle/uploads.c	233	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | first.source),
+game/battle/uploads.c	236	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | second.source), second.size, NULL);
+game/battle/uploads.c	267	video-source	PF_GAME((uint32_t)BLOCK_BANK << 16 | battle_upload_source(g, upload)),
+game/battle/uploads.c	302	video-source	PF_GAME((uint16_t)RAM_OAM_BUFFER), sprite_table_places(g));
+game/battle/uploads.c	309	video-source	PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
+game/battle/uploads.c	54	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
+game/battle/uploads.c	73	layout-expression	<< 16 | battle_vram_request_source(g), bytes);
+game/battle/uploads.c	87	layout-expression	& 0xFF0000u) | (uint16_t)(source + TILE_BYTES * tile);
+game/battle/uploads.c	111	layout-expression	<< 16 | source, battle_block_vram(g, offset));
+game/battle/uploads.c	127	layout-expression	RAM_BATTLE_MESSAGE_TILES + (odd ? 0 : RAM_BATTLE_MESSAGE_TILES_STRIDE),
+game/battle/uploads.c	127	layout-expression	RAM_BATTLE_MESSAGE_TILES_STRIDE),
+game/battle/uploads.c	158	layout-expression	<< 16 | (uint16_t)(v[3] << 8 | v[2]),
+game/battle/uploads.c	185	layout-expression	RAM_BATTLE_WINDOW_TILEMAP + offset); }
+game/battle/uploads.c	196	layout-expression	RAM_BATTLE_MENU_TILEMAP)
+game/battle/uploads.c	221	layout-expression	RAM_BATTLE_WINDOW_FRAMES_TILEMAP),
+game/battle/uploads.c	233	layout-expression	<< 16 | first.source),
+game/battle/uploads.c	236	layout-expression	<< 16 | second.source), second.size, NULL);
+game/battle/uploads.c	267	layout-expression	<< 16 | battle_upload_source(g, upload)),
+game/battle/uploads.c	302	layout-expression	RAM_OAM_BUFFER), sprite_table_places(g));
+game/battle/uploads.c	309	layout-expression	RAM_PALETTE_WORKING), PALETTE_COLORS);
+game/battle/uploads.c	346	layout-expression	RAM_BATTLE_MENU_TILEMAP); }
 game/battle/window.h	217	unchecked-accessor	battle_menu_slot_members_unchecked(g, slot));
 game/battle/window.h	231	unchecked-accessor	battle_cursor_offset_x_unchecked(g, slot);
 game/battle/window.h	236	unchecked-accessor	battle_cursor_offset_y_unchecked(g, slot);
@@ -245,13 +245,11 @@ game/core/palette.c	118	layout-expression	& 0xFF0000u) | (uint16_t)(table + step
 game/core/palette.c	500	layout-expression	0x7E2200), PALETTE_COLORS);
 game/core/palette_data.h	51	resource-address	rom_read8(g, at); }
 game/core/sound_data.h	174	resource-address	rom_read16(g, sound_song_at(g, song)); }
-game/core/sound_data.h	179	resource-address	rom_read8(g, (at & 0xFF0000u) + (at & 0xFFFFu) + i);
-game/core/sound_data.h	244	resource-address	rom_read16(g, sound_block_data(g, id)); }
-game/core/sound_data.h	248	resource-address	rom_read8(g, sound_block_data(g, id) + 2 + i);
+game/core/sound_data.h	180	resource-address	rom_read_span(g, sound_song_at(g, song) + 2, to, count);
+game/core/sound_data.h	245	resource-address	rom_read16(g, sound_block_data(g, id)); }
+game/core/sound_data.h	291	resource-address	rom_read_span(g, asset_address(sound_effect_set(set)) + 2u, to, count);
 game/core/sound_data.h	171	layout-expression	<< 16;
-game/core/sound_data.h	179	layout-expression	& 0xFF0000u) + (at & 0xFFFFu) + i);
-game/core/sound_data.h	179	layout-expression	& 0xFFFFu) + i);
-game/core/sound_data.h	241	layout-expression	<< 16;
+game/core/sound_data.h	242	layout-expression	<< 16;
 game/core/tile_animation.c	52	video-source	PF_GAME(frame_tiles(g, slot, frame)), TILE_BYTES, NULL);
 game/core/tile_animation.c	41	layout-expression	<< 16 | tile_animation_tables_sources(g, slot, frame);
 game/cpu_io.h	55	raw-helper	hw_port_seek(GameState *g, uint16_t at, uint8_t bank);
@@ -259,54 +257,68 @@ game/cpu_io.h	56	raw-helper	hw_port_seek_address(GameState *g, uint16_t at);
 game/cpu_io.h	57	raw-helper	hw_port_seek_bank(GameState *g, uint8_t bank);
 game/cpu_io.h	58	raw-helper	hw_port_read(GameState *g);
 game/cpu_io.h	59	raw-helper	hw_port_write(GameState *g, uint8_t v);
-game/cpu_io.h	65	raw-helper	hw_port_leave_spill(GameState *g, uint8_t low);
-game/data/assets.c	129	raw-helper	wram_data_read8(g, at & 0xFFFFFFu);
-game/data/assets.c	126	resource-address	rom_read8(const GameState *g, uint32_t at)
-game/data/assets.c	130	resource-address	rom_cartridge_read(g, at, served(at));
-game/data/assets.c	139	resource-address	rom_read8(g, e->at + offset);
-game/data/assets.c	142	resource-address	rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
-game/data/assets.c	156	resource-address	rom_read8(g, (e->at & 0xFF0000u) | place);
-game/data/assets.c	165	resource-address	rom_read16(g, (e->at & 0xFF0000u) | place);
-game/data/assets.c	173	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
-game/data/assets.c	175	resource-address	rom_read8(g, asset_place_address(resource, place));
-game/data/assets.c	178	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
-game/data/assets.c	180	resource-address	rom_read16(g, asset_place_address(resource, place));
-game/data/assets.c	183	resource-address	rom_read16(const GameState *g, uint32_t at)
-game/data/assets.c	185	resource-address	rom_read8(g, at);
-game/data/assets.c	186	resource-address	rom_read8(g, at + 1) << 8);
-game/data/assets.c	189	resource-address	rom_data(uint32_t at, uint32_t length)
-game/data/assets.c	219	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
-game/data/assets.c	222	resource-address	rom_data(at, length ? 1 : 0);
-game/data/assets.c	224	resource-address	rom_data(at, length);
-game/data/assets.c	226	resource-address	rom_data(first, length);
-game/data/assets.c	192	video-source	PF_GAME(at);
+game/cpu_io.h	62	raw-helper	hw_port_read_span(GameState *g, uint8_t *bytes, uint16_t count);
+game/cpu_io.h	67	raw-helper	hw_port_peek_span(const GameState *g, uint8_t *bytes, uint16_t count);
+game/cpu_io.h	68	raw-helper	hw_port_skip(GameState *g, uint16_t count);
+game/cpu_io.h	71	raw-helper	hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count);
+game/cpu_io.h	77	raw-helper	hw_port_leave_spill(GameState *g, uint8_t low);
+game/data/assets.c	200	raw-helper	wram_data_read8(g, at & 0xFFFFFFu);
+game/data/assets.c	197	resource-address	rom_read8(const GameState *g, uint32_t at)
+game/data/assets.c	201	resource-address	rom_cartridge_read(g, at, served(at));
+game/data/assets.c	212	resource-address	rom_read8(g, h->at + offset);
+game/data/assets.c	215	resource-address	rom_cartridge_read(g, h->at + offset, h->bytes ? h->bytes + offset : NULL);
+game/data/assets.c	227	resource-address	rom_cartridge_read(g, h->at + offset, bytes ? bytes + offset : NULL);
+game/data/assets.c	228	resource-address	rom_cartridge_read(g, h->at + offset + 1, bytes ? bytes + offset + 1 : NULL) << 8);
+game/data/assets.c	236	resource-address	rom_read8(g, (e->at & 0xFF0000u) | place);
+game/data/assets.c	245	resource-address	rom_read16(g, (e->at & 0xFF0000u) | place);
+game/data/assets.c	253	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+game/data/assets.c	255	resource-address	rom_read8(g, asset_place_address(resource, place));
+game/data/assets.c	258	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place)
+game/data/assets.c	260	resource-address	rom_read16(g, asset_place_address(resource, place));
+game/data/assets.c	290	resource-address	rom_read_span(const GameState *g, uint32_t at, uint8_t *to, uint32_t length)
+game/data/assets.c	298	resource-address	rom_read8(g, at + i);
+game/data/assets.c	315	resource-address	rom_cartridge_read(g, at, run->bytes + i);
+game/data/assets.c	316	resource-address	rom_read8(g, at);
+game/data/assets.c	319	resource-address	rom_read16(const GameState *g, uint32_t at)
+game/data/assets.c	321	resource-address	rom_read8(g, at);
+game/data/assets.c	322	resource-address	rom_read8(g, at + 1) << 8);
+game/data/assets.c	325	resource-address	rom_data(uint32_t at, uint32_t length)
+game/data/assets.c	355	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode)
+game/data/assets.c	358	resource-address	rom_data(at, length ? 1 : 0);
+game/data/assets.c	360	resource-address	rom_data(at, length);
+game/data/assets.c	362	resource-address	rom_data(first, length);
+game/data/assets.c	328	video-source	PF_GAME(at);
 game/data/assets.c	20	layout-expression	<< 16 | offset;
 game/data/assets.c	22	layout-expression	<< 16 | offset;
-game/data/assets.c	156	layout-expression	& 0xFF0000u) | place);
-game/data/assets.c	165	layout-expression	& 0xFF0000u) | place);
-game/data/assets.c	171	layout-expression	& 0xFF0000u) | place; }
-game/data/assets.c	214	layout-expression	& 0xFF0000u) | (uint16_t)(cursor + span);
-game/data/assets.c	225	layout-expression	& 0xFF0000u) | (uint16_t)(at - length + 1);
-game/data/decompress.c	77	raw-helper	hw_port_write(out->g, v);
-game/data/decompress.c	85	raw-helper	wram_write8(out->g, out->bank | out->at, wram_read8(out->g, out->bank | from));
-game/data/decompress.c	85	raw-helper	wram_read8(out->g, out->bank | from));
-game/data/decompress.c	86	raw-helper	hw_port_seek_address(out->g, out->at);
-game/data/decompress.c	201	raw-helper	hw_port_seek(g, out.at, (uint8_t)(to >> 16));
-game/data/decompress.c	43	resource-address	rom_read8(in->g, ((uint32_t)in->bank << 16) + in->at + ahead);
-game/data/decompress.c	135	resource-address	rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
-game/data/decompress.c	135	resource-address	rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
-game/data/decompress.c	137	resource-address	rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
-game/data/decompress.c	197	resource-address	rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
-game/data/decompress.c	197	resource-address	rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
-game/data/decompress.c	202	resource-address	rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
-game/data/decompress.c	43	layout-expression	<< 16) + in->at + ahead);
-game/data/decompress.c	137	layout-expression	<< 16 | segment_end) & LONG_RUNS;
-game/data/decompress.c	200	layout-expression	0x7F0000u : 0x7E0000u, (uint16_t)to };
-game/data/decompress.c	200	layout-expression	0x7E0000u, (uint16_t)to };
-game/data/decompress.c	202	layout-expression	<< 16 | segment_end) & LONG_RUNS;
+game/data/assets.c	236	layout-expression	& 0xFF0000u) | place);
+game/data/assets.c	245	layout-expression	& 0xFF0000u) | place);
+game/data/assets.c	251	layout-expression	& 0xFF0000u) | place; }
+game/data/assets.c	350	layout-expression	& 0xFF0000u) | (uint16_t)(cursor + span);
+game/data/assets.c	361	layout-expression	& 0xFF0000u) | (uint16_t)(at - length + 1);
+game/data/decompress.c	93	raw-helper	hw_port_write(out->g, v);
+game/data/decompress.c	105	raw-helper	hw_port_write_span(out->g, bytes, count);
+game/data/decompress.c	118	raw-helper	wram_copy(out->g, out->bank | from, out->bank | out->at, length);
+game/data/decompress.c	121	raw-helper	hw_port_seek_address(out->g, out->at);
+game/data/decompress.c	276	raw-helper	wram_put_unpacked(g, rom_unpacked_bytes(u), bank | (uint16_t)to, u->length))
+game/data/decompress.c	286	raw-helper	hw_port_seek(g, (uint16_t)end, (uint8_t)(end >> 16));
+game/data/decompress.c	302	raw-helper	hw_port_seek(g, out.at, (uint8_t)(to >> 16));
+game/data/decompress.c	170	resource-address	rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	170	resource-address	rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	172	resource-address	rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
+game/data/decompress.c	298	resource-address	rom_read8(g, from) | rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	298	resource-address	rom_read8(g, (from + 1) & 0xFFFFFF) << 8);
+game/data/decompress.c	303	resource-address	rom_read8(g, (uint32_t)in.bank << 16 | segment_end) & LONG_RUNS;
+game/data/decompress.c	51	layout-expression	<< 16) + in->at + ahead;
+game/data/decompress.c	102	layout-expression	<< 16) + in->at + ahead, count);
+game/data/decompress.c	172	layout-expression	<< 16 | segment_end) & LONG_RUNS;
+game/data/decompress.c	275	layout-expression	0x7F0000u : 0x7E0000u;
+game/data/decompress.c	275	layout-expression	0x7E0000u;
+game/data/decompress.c	301	layout-expression	0x7F0000u : 0x7E0000u, (uint16_t)to };
+game/data/decompress.c	301	layout-expression	0x7E0000u, (uint16_t)to };
+game/data/decompress.c	303	layout-expression	<< 16 | segment_end) & LONG_RUNS;
 game/data/packed_graphics.h	23	layout-expression	<< 16;
 game/event/chests.c	73	unchecked-accessor	field_tile_walkable_unchecked(g, row, column);
-game/event/engine.c	167	layout-expression	<< 16;
+game/event/engine.c	248	layout-expression	<< 16;
 game/event/memory.c	38	raw-helper	wram_write8(g, address, (uint8_t)value);
 game/event/memory.c	40	raw-helper	wram_write16(g, address, value);
 game/event/memory.c	77	raw-helper	wram_write8(g, b.bank | to, script_byte(g, from));
@@ -328,7 +340,7 @@ game/field/dialog_window.c	85	layout-expression	RAM_FIELD_WINDOW_STAGING, RAM_FI
 game/field/dialog_window.c	85	layout-expression	RAM_FIELD_WINDOW_STAGING + at, BLANK_TILE_BYTES);
 game/field/dialog_window.c	139	layout-expression	RAM_FIELD_WINDOW_STAGING);
 game/field/dialog_window.c	389	layout-expression	RAM_FIELD_WINDOW_STAGING, .size = TEXT_ROW_BYTES };
-game/field/dialog_window.c	602	layout-expression	RAM_FIELD_WINDOW_STAGING,
+game/field/dialog_window.c	603	layout-expression	RAM_FIELD_WINDOW_STAGING,
 game/field/display.c	205	raw-helper	wram_clear(g, PF_AT(0xC02E01), from, bytes ? bytes : 0x10000u);
 game/field/display.c	43	video-source	PF_GAME(FIELD_SPRITE_TABLE_ADDRESS), sprite_table_places(g));
 game/field/display.c	57	video-source	PF_GAME((uint32_t)QUEUE_BANK << 16 | field_vram_queue_source(g, i)), size ? size : 0x10000u, NULL);
@@ -354,15 +366,16 @@ game/field/field_data.h	277	resource-address	rom_read8(g, at); }
 game/field/field_data.h	283	resource-address	rom_read16(g, at); }
 game/field/field_data.h	285	resource-address	rom_read8(g, at); }
 game/field/field_data.h	294	resource-address	rom_read16(g, at); }
-game/field/field_data.h	303	resource-address	rom_read8(g, (uint32_t)t.bank << 16 | place);
-game/field/field_data.h	308	resource-address	rom_read8_in_bank_of(g, ASSET_SETUP_DELAY_LISTS, place);
-game/field/field_data.h	487	resource-address	rom_data(source, bytes); }
+game/field/field_data.h	300	resource-address	rom_read_span(g, at, out, length);
+game/field/field_data.h	310	resource-address	rom_read8(g, (uint32_t)t.bank << 16 | place);
+game/field/field_data.h	315	resource-address	rom_read8_in_bank_of(g, ASSET_SETUP_DELAY_LISTS, place);
+game/field/field_data.h	494	resource-address	rom_data(source, bytes); }
 game/field/field_data.h	224	layout-expression	<< 16;
-game/field/field_data.h	303	layout-expression	<< 16 | place);
-game/field/field_data.h	446	layout-expression	<< 16;
-game/field/field_data.h	455	layout-expression	<< 16;
-game/field/field_data.h	476	layout-expression	<< 16;
+game/field/field_data.h	310	layout-expression	<< 16 | place);
+game/field/field_data.h	453	layout-expression	<< 16;
+game/field/field_data.h	462	layout-expression	<< 16;
 game/field/field_data.h	483	layout-expression	<< 16;
+game/field/field_data.h	490	layout-expression	<< 16;
 game/field/frames.c	440	video-source	PF_GAME(RAM_FIELD_FIGURE_TILES), FIELD_FIGURE_TILES_BYTES,
 game/field/frames.c	165	layout-expression	<< 16 | (uint16_t)(d.address + frame * description_bytes(plan));
 game/field/frames.c	414	layout-expression	RAM_ABS(RAM_FIELD_FIGURE_TILES); }
@@ -370,79 +383,84 @@ game/field/frames.c	414	layout-expression	RAM_FIELD_FIGURE_TILES); }
 game/field/frames.c	433	layout-expression	<< 16 | d.address;
 game/field/frames.c	440	layout-expression	RAM_FIELD_FIGURE_TILES), FIELD_FIGURE_TILES_BYTES,
 game/field/frames.c	551	layout-expression	<< 16 | d.address;
-game/field/graphics.c	37	raw-helper	wram_read16(g, at) : field_sprite_graphics_word(g, at);
-game/field/graphics.c	38	raw-helper	wram_write16(g, ((uint32_t)FIELD_BUILD_BANK << 16) + k + to, word);
-game/field/graphics.c	52	raw-helper	wram_write8(g, ((uint32_t)FIELD_BUILD_BANK << 16) + (uint16_t)(to + k), b);
-game/field/graphics.c	72	raw-helper	wram_read16(g, at) : field_sprite_graphics_word(g, at);
-game/field/graphics.c	34	layout-expression	<< 16;
-game/field/graphics.c	38	layout-expression	<< 16) + k + to, word);
-game/field/graphics.c	49	layout-expression	<< 16 | set.address;
-game/field/graphics.c	52	layout-expression	<< 16) + (uint16_t)(to + k), b);
-game/field/graphics.c	63	layout-expression	<< 16 | set.address;
-game/field/graphics.c	69	layout-expression	<< 16;
-game/field/layers.c	375	raw-helper	hw_port_read(g));
-game/field/layers.c	405	raw-helper	hw_port_read(g);
-game/field/layers.c	407	raw-helper	hw_port_read(g);
-game/field/layers.c	422	raw-helper	hw_port_read(g);
-game/field/layers.c	426	raw-helper	hw_port_read(g);
-game/field/layers.c	444	raw-helper	hw_port_seek(g, MAP_DATA, MAP_DATA_BANK);
-game/field/layers.c	394	unchecked-accessor	field_tile_upper_attributes_unchecked(g, p.row, p.column),
-game/field/layers.c	395	unchecked-accessor	field_tile_lower_attributes_unchecked(g, p.row, p.column) };
-game/field/line_effects.c	662	video-source	PF_GAME(RAM_FIELD_LINE_EFFECT_TABLES + (uint32_t)(set * SLOTS + slot) * RAM_FIELD_LINE_EFFECT_TABLES_STRIDE),
-game/field/line_effects.c	90	layout-expression	RAM_FIELD_LINE_WAVE_STRIDE };
-game/field/line_effects.c	94	layout-expression	RAM_ABS(RAM_FIELD_LINE_BG_MAPS + in_window * RAM_FIELD_LINE_BG_MAPS_STRIDE);
-game/field/line_effects.c	94	layout-expression	RAM_FIELD_LINE_BG_MAPS + in_window * RAM_FIELD_LINE_BG_MAPS_STRIDE);
-game/field/line_effects.c	94	layout-expression	RAM_FIELD_LINE_BG_MAPS_STRIDE);
-game/field/line_effects.c	98	layout-expression	RAM_ABS(RAM_FIELD_LINE_SCROLL + (layer * 2 + set) * RAM_FIELD_LINE_SCROLL_STRIDE);
-game/field/line_effects.c	98	layout-expression	RAM_FIELD_LINE_SCROLL + (layer * 2 + set) * RAM_FIELD_LINE_SCROLL_STRIDE);
-game/field/line_effects.c	98	layout-expression	RAM_FIELD_LINE_SCROLL_STRIDE);
-game/field/line_effects.c	108	layout-expression	RAM_ABS(RAM_FIELD_LINE_WINDOW_SCROLL + window_scroll(position, bg3) * RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE);
-game/field/line_effects.c	108	layout-expression	RAM_FIELD_LINE_WINDOW_SCROLL + window_scroll(position, bg3) * RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE);
-game/field/line_effects.c	108	layout-expression	RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE);
-game/field/line_effects.c	112	layout-expression	RAM_ABS(RAM_FIELD_LINE_SCREENS + which * RAM_FIELD_LINE_SCREENS_STRIDE);
-game/field/line_effects.c	112	layout-expression	RAM_FIELD_LINE_SCREENS + which * RAM_FIELD_LINE_SCREENS_STRIDE);
-game/field/line_effects.c	112	layout-expression	RAM_FIELD_LINE_SCREENS_STRIDE);
-game/field/line_effects.c	116	layout-expression	RAM_ABS(RAM_FIELD_LINE_COLOR_MATH + (set + 2 * in_window) * RAM_FIELD_LINE_COLOR_MATH_STRIDE);
-game/field/line_effects.c	116	layout-expression	RAM_FIELD_LINE_COLOR_MATH + (set + 2 * in_window) * RAM_FIELD_LINE_COLOR_MATH_STRIDE);
-game/field/line_effects.c	116	layout-expression	RAM_FIELD_LINE_COLOR_MATH_STRIDE);
-game/field/line_effects.c	120	layout-expression	RAM_ABS(RAM_FIELD_LINE_WINDOW1_EDGES + set * RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE);
-game/field/line_effects.c	120	layout-expression	RAM_FIELD_LINE_WINDOW1_EDGES + set * RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE);
-game/field/line_effects.c	120	layout-expression	RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE);
-game/field/line_effects.c	124	layout-expression	RAM_ABS(RAM_FIELD_DIALOG_SHADING_COPY) : RAM_ABS(RAM_FIELD_DIALOG_SHADING);
-game/field/line_effects.c	124	layout-expression	RAM_FIELD_DIALOG_SHADING_COPY) : RAM_ABS(RAM_FIELD_DIALOG_SHADING);
-game/field/line_effects.c	124	layout-expression	RAM_ABS(RAM_FIELD_DIALOG_SHADING);
-game/field/line_effects.c	124	layout-expression	RAM_FIELD_DIALOG_SHADING);
-game/field/line_effects.c	128	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES_COPY) : RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES);
-game/field/line_effects.c	128	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES_COPY) : RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES);
-game/field/line_effects.c	128	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES);
-game/field/line_effects.c	128	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES);
-game/field/line_effects.c	132	layout-expression	RAM_ABS(RAM_FIELD_LINE_WAVE) + (set * WAVE_SET_LINES + line) * WAVE_ENTRY);
-game/field/line_effects.c	132	layout-expression	RAM_FIELD_LINE_WAVE) + (set * WAVE_SET_LINES + line) * WAVE_ENTRY);
-game/field/line_effects.c	411	layout-expression	RAM_FIELD_DIALOG_SHADING_STRIDE);
-game/field/line_effects.c	600	layout-expression	<< 16 | (uint32_t)d << 24;
-game/field/line_effects.c	662	layout-expression	RAM_FIELD_LINE_EFFECT_TABLES + (uint32_t)(set * SLOTS + slot) * RAM_FIELD_LINE_EFFECT_TABLES_STRIDE),
-game/field/line_effects.c	662	layout-expression	RAM_FIELD_LINE_EFFECT_TABLES_STRIDE),
-game/field/line_effects.c	664	layout-expression	RAM_FIELD_LINE_EFFECT_TABLES >> 16,
-game/field/location.c	66	raw-helper	wram_copy(g, FIELD_STATE_FROM, FIELD_STATE_ASIDE, FIELD_STATE_BYTES);
-game/field/location.c	73	raw-helper	wram_copy(g, FIELD_STATE_ASIDE, FIELD_STATE_FROM, FIELD_STATE_BYTES);
-game/field/location.c	58	layout-expression	RAM_FIELD_SHARED_GRAPHICS,
-game/field/location.c	59	layout-expression	RAM_FIELD_RIPPLE_FRAMES_LEFT + 1 - RAM_FIELD_SHARED_GRAPHICS,
+game/field/graphics.c	40	raw-helper	wram_write_span(g, into, bytes, FIELD_TILE_BYTES);
+game/field/graphics.c	48	raw-helper	wram_read_span(g, source + from, bytes, FIELD_TILE_BYTES);
+game/field/graphics.c	49	raw-helper	wram_write_span(g, into, bytes, FIELD_TILE_BYTES);
+game/field/graphics.c	53	raw-helper	wram_write16(g, into + k, wram_read16(g, source + k + from));
+game/field/graphics.c	53	raw-helper	wram_read16(g, source + k + from));
+game/field/graphics.c	73	raw-helper	wram_write8(g, ((uint32_t)FIELD_BUILD_BANK << 16) + (uint16_t)(to + k), b);
+game/field/graphics.c	79	raw-helper	wram_write_span(g, into, bytes, FIELD_TILE_BYTES);
+game/field/graphics.c	109	raw-helper	wram_read16(g, source + k + from);
+game/field/graphics.c	35	layout-expression	<< 16;
+game/field/graphics.c	36	layout-expression	<< 16) + to;
+game/field/graphics.c	66	layout-expression	<< 16 | set.address) + at;
+game/field/graphics.c	67	layout-expression	<< 16 | to;
+game/field/graphics.c	70	layout-expression	<< 16 | set.address;
+game/field/graphics.c	73	layout-expression	<< 16) + (uint16_t)(to + k), b);
+game/field/graphics.c	92	layout-expression	<< 16 | set.address;
+game/field/graphics.c	103	layout-expression	<< 16;
+game/field/layers.c	377	raw-helper	hw_port_read_span(g, tiles, size.columns);
+game/field/layers.c	448	raw-helper	hw_port_skip(g, s->at);
+game/field/layers.c	449	raw-helper	hw_port_peek_span(g, s->bytes, STREAM_WINDOW);
+game/field/layers.c	461	raw-helper	hw_port_skip(g, s->at); }
+game/field/layers.c	495	raw-helper	hw_port_seek(g, MAP_DATA, MAP_DATA_BANK);
+game/field/layers.c	390	unchecked-accessor	field_tile_upper_attributes_unchecked(g, p.row, p.column),
+game/field/layers.c	391	unchecked-accessor	field_tile_lower_attributes_unchecked(g, p.row, p.column) };
+game/field/line_effects.c	671	video-source	PF_GAME(RAM_FIELD_LINE_EFFECT_TABLES + (uint32_t)(set * SLOTS + slot) * RAM_FIELD_LINE_EFFECT_TABLES_STRIDE),
+game/field/line_effects.c	91	layout-expression	RAM_FIELD_LINE_WAVE_STRIDE };
+game/field/line_effects.c	95	layout-expression	RAM_ABS(RAM_FIELD_LINE_BG_MAPS + in_window * RAM_FIELD_LINE_BG_MAPS_STRIDE);
+game/field/line_effects.c	95	layout-expression	RAM_FIELD_LINE_BG_MAPS + in_window * RAM_FIELD_LINE_BG_MAPS_STRIDE);
+game/field/line_effects.c	95	layout-expression	RAM_FIELD_LINE_BG_MAPS_STRIDE);
+game/field/line_effects.c	99	layout-expression	RAM_ABS(RAM_FIELD_LINE_SCROLL + (layer * 2 + set) * RAM_FIELD_LINE_SCROLL_STRIDE);
+game/field/line_effects.c	99	layout-expression	RAM_FIELD_LINE_SCROLL + (layer * 2 + set) * RAM_FIELD_LINE_SCROLL_STRIDE);
+game/field/line_effects.c	99	layout-expression	RAM_FIELD_LINE_SCROLL_STRIDE);
+game/field/line_effects.c	109	layout-expression	RAM_ABS(RAM_FIELD_LINE_WINDOW_SCROLL + window_scroll(position, bg3) * RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE);
+game/field/line_effects.c	109	layout-expression	RAM_FIELD_LINE_WINDOW_SCROLL + window_scroll(position, bg3) * RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE);
+game/field/line_effects.c	109	layout-expression	RAM_FIELD_LINE_WINDOW_SCROLL_STRIDE);
+game/field/line_effects.c	113	layout-expression	RAM_ABS(RAM_FIELD_LINE_SCREENS + which * RAM_FIELD_LINE_SCREENS_STRIDE);
+game/field/line_effects.c	113	layout-expression	RAM_FIELD_LINE_SCREENS + which * RAM_FIELD_LINE_SCREENS_STRIDE);
+game/field/line_effects.c	113	layout-expression	RAM_FIELD_LINE_SCREENS_STRIDE);
+game/field/line_effects.c	117	layout-expression	RAM_ABS(RAM_FIELD_LINE_COLOR_MATH + (set + 2 * in_window) * RAM_FIELD_LINE_COLOR_MATH_STRIDE);
+game/field/line_effects.c	117	layout-expression	RAM_FIELD_LINE_COLOR_MATH + (set + 2 * in_window) * RAM_FIELD_LINE_COLOR_MATH_STRIDE);
+game/field/line_effects.c	117	layout-expression	RAM_FIELD_LINE_COLOR_MATH_STRIDE);
+game/field/line_effects.c	121	layout-expression	RAM_ABS(RAM_FIELD_LINE_WINDOW1_EDGES + set * RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE);
+game/field/line_effects.c	121	layout-expression	RAM_FIELD_LINE_WINDOW1_EDGES + set * RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE);
+game/field/line_effects.c	121	layout-expression	RAM_FIELD_LINE_WINDOW1_EDGES_STRIDE);
+game/field/line_effects.c	125	layout-expression	RAM_ABS(RAM_FIELD_DIALOG_SHADING_COPY) : RAM_ABS(RAM_FIELD_DIALOG_SHADING);
+game/field/line_effects.c	125	layout-expression	RAM_FIELD_DIALOG_SHADING_COPY) : RAM_ABS(RAM_FIELD_DIALOG_SHADING);
+game/field/line_effects.c	125	layout-expression	RAM_ABS(RAM_FIELD_DIALOG_SHADING);
+game/field/line_effects.c	125	layout-expression	RAM_FIELD_DIALOG_SHADING);
+game/field/line_effects.c	129	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES_COPY) : RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES);
+game/field/line_effects.c	129	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES_COPY) : RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES);
+game/field/line_effects.c	129	layout-expression	RAM_ABS(RAM_FIELD_WINDOW_EDGE_LINES);
+game/field/line_effects.c	129	layout-expression	RAM_FIELD_WINDOW_EDGE_LINES);
+game/field/line_effects.c	133	layout-expression	RAM_ABS(RAM_FIELD_LINE_WAVE) + (set * WAVE_SET_LINES + line) * WAVE_ENTRY);
+game/field/line_effects.c	133	layout-expression	RAM_FIELD_LINE_WAVE) + (set * WAVE_SET_LINES + line) * WAVE_ENTRY);
+game/field/line_effects.c	412	layout-expression	RAM_FIELD_DIALOG_SHADING_STRIDE);
+game/field/line_effects.c	609	layout-expression	<< 16 | (uint32_t)d << 24;
+game/field/line_effects.c	671	layout-expression	RAM_FIELD_LINE_EFFECT_TABLES + (uint32_t)(set * SLOTS + slot) * RAM_FIELD_LINE_EFFECT_TABLES_STRIDE),
+game/field/line_effects.c	671	layout-expression	RAM_FIELD_LINE_EFFECT_TABLES_STRIDE),
+game/field/line_effects.c	673	layout-expression	RAM_FIELD_LINE_EFFECT_TABLES >> 16,
+game/field/location.c	67	raw-helper	wram_copy(g, FIELD_STATE_FROM, FIELD_STATE_ASIDE, FIELD_STATE_BYTES);
+game/field/location.c	74	raw-helper	wram_copy(g, FIELD_STATE_ASIDE, FIELD_STATE_FROM, FIELD_STATE_BYTES);
 game/field/location.c	59	layout-expression	RAM_FIELD_SHARED_GRAPHICS,
-game/field/location.c	60	layout-expression	RAM_EVENT_OBJECT_COUNT,
-game/field/location.c	202	layout-expression	RAM_FIELD_LAYER_MAPS,
-game/field/location.c	207	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED,
-game/field/location.c	211	layout-expression	0x7F6000, 0x7F7000 };
-game/field/location.c	211	layout-expression	0x7F7000 };
-game/field/location.c	215	layout-expression	RAM_FIELD_TILE_LOOKS, BG3_TILE_LOOKS = RAM_FIELD_BG3_TILE_LOOKS };
-game/field/location.c	215	layout-expression	RAM_FIELD_BG3_TILE_LOOKS };
-game/field/location.c	379	layout-expression	0x7F2000, SCRIPT_ROOM = 0x1700, CR = 0x0D, LF = 0x0A };
-game/field/location.c	89	unchecked-accessor	field_object_x_tile_unchecked(g, leader), field_object_y_tile_unchecked(g, leader),
-game/field/location.c	89	unchecked-accessor	field_object_y_tile_unchecked(g, leader),
-game/field/location.c	90	unchecked-accessor	field_object_facing_unchecked(g, leader) };
+game/field/location.c	60	layout-expression	RAM_FIELD_RIPPLE_FRAMES_LEFT + 1 - RAM_FIELD_SHARED_GRAPHICS,
+game/field/location.c	60	layout-expression	RAM_FIELD_SHARED_GRAPHICS,
+game/field/location.c	61	layout-expression	RAM_EVENT_OBJECT_COUNT,
+game/field/location.c	203	layout-expression	RAM_FIELD_LAYER_MAPS,
+game/field/location.c	208	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED,
+game/field/location.c	212	layout-expression	0x7F6000, 0x7F7000 };
+game/field/location.c	212	layout-expression	0x7F7000 };
+game/field/location.c	216	layout-expression	RAM_FIELD_TILE_LOOKS, BG3_TILE_LOOKS = RAM_FIELD_BG3_TILE_LOOKS };
+game/field/location.c	216	layout-expression	RAM_FIELD_BG3_TILE_LOOKS };
+game/field/location.c	380	layout-expression	0x7F2000, SCRIPT_ROOM = 0x1700, CR = 0x0D, LF = 0x0A };
+game/field/location.c	90	unchecked-accessor	field_object_x_tile_unchecked(g, leader), field_object_y_tile_unchecked(g, leader),
+game/field/location.c	90	unchecked-accessor	field_object_y_tile_unchecked(g, leader),
+game/field/location.c	91	unchecked-accessor	field_object_facing_unchecked(g, leader) };
 game/field/main_loop.c	79	layout-expression	0x7E0000, 0x0500 },
 game/field/main_loop.c	80	layout-expression	0x7E0700, 0xE900 },
 game/field/main_loop.c	81	layout-expression	0x7F5080, 0x5080 },
-game/field/map.c	210	layout-expression	RAM_FIELD_MAP_HEADER };
+game/field/map.c	209	layout-expression	RAM_FIELD_MAP_HEADER };
 game/field/motion.c	122	unchecked-accessor	set_field_object_velocity_x_unchecked(g, slot, (uint16_t)((field_object_velocity_x_unchecked(g, slot) & 0xFF00) | (uint8_t)step.x));
 game/field/motion.c	122	unchecked-accessor	field_object_velocity_x_unchecked(g, slot) & 0xFF00) | (uint8_t)step.x));
 game/field/motion.c	123	unchecked-accessor	set_field_object_velocity_y_unchecked(g, slot, (uint16_t)((field_object_velocity_y_unchecked(g, slot) & 0xFF00) | (uint8_t)step.y));
@@ -474,11 +492,8 @@ game/field/script_layers.c	163	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED);
 game/field/script_layers.c	165	layout-expression	RAM_FIELD_BG3_TILES_UNPACKED, LETTERS_BYTES };
 game/field/sounds.c	41	unchecked-accessor	field_object_screen_x_unchecked(g, leader.obj)
 game/field/sprites.c	88	raw-helper	hw_port_seek_bank(g, 0); }
-game/field/sprites.c	119	raw-helper	hw_port_seek_address(g, (uint16_t)(entry + FIELD_SPRITE_TABLE_ADDRESS));
-game/field/sprites.c	122	raw-helper	hw_port_write(g, vid_oam_x_low(sprites[n].x));
-game/field/sprites.c	123	raw-helper	hw_port_write(g, sprites[n].y);
-game/field/sprites.c	124	raw-helper	hw_port_write(g, sprites[n].tile);
-game/field/sprites.c	125	raw-helper	hw_port_write(g, sprites[n].attributes);
+game/field/sprites.c	122	raw-helper	hw_port_seek_address(g, (uint16_t)(entry + FIELD_SPRITE_TABLE_ADDRESS));
+game/field/sprites.c	132	raw-helper	hw_port_write_span(g, entries, (uint16_t)(count * OAM_ENTRY));
 game/field/walk.c	200	unchecked-accessor	field_object_screen_x_unchecked(g, w.obj) : field_object_screen_x(g, w.obj);
 game/field/walk.c	201	unchecked-accessor	field_object_screen_y_unchecked(g, w.obj) : field_object_screen_y(g, w.obj);
 game/field/window_shape.c	66	raw-helper	wram_write8(g, line, from_first ? e.from.x : e.to.x);
@@ -502,48 +517,48 @@ game/menu/description.c	93	layout-expression	& 0xFF0000u) | at); }
 game/menu/description.c	198	layout-expression	<< 16);
 game/menu/description.c	234	layout-expression	& 0xFFFFu) | (uint32_t)TEXT_BANK << 16);
 game/menu/description.c	234	layout-expression	<< 16);
-game/menu/display.c	337	raw-helper	wram_copy(g, 0x7E0000u | from, 0x7E0000u | to, bytes);
-game/menu/display.c	567	raw-helper	wram_fill8(g, RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
-game/menu/display.c	600	raw-helper	wram_fill8(g, RAM_MENU_OBJECT_VRAM_QUEUE, MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES, 0);
-game/menu/display.c	910	raw-helper	hw_port_seek(g, at, 0);
-game/menu/display.c	911	raw-helper	wram_port_fill(g, at, count, 0);
-game/menu/display.c	931	raw-helper	hw_port_seek(g, at, 0);
-game/menu/display.c	932	raw-helper	wram_port_copy(g, menu_screen_graphics_data(graphics, count), at, count);
-game/menu/display.c	347	video-source	PF_GAME(RAM_MENU_PALETTE), 256);
-game/menu/display.c	360	video-source	PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
-game/menu/display.c	486	video-source	PF_GAME(RAM_MENU_MATH_LINE_TABLES),
-game/menu/display.c	688	video-source	PF_GAME(RAM_ABS(RAM_OAM_BUFFER)), sprite_table_places(g));
-game/menu/display.c	690	video-source	PF_GAME(RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
-game/menu/display.c	849	video-source	PF_GAME(0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);
-game/menu/display.c	857	video-source	PF_GAME(RAM_MENU_LOADED_PALETTE), 256);
-game/menu/display.c	337	layout-expression	0x7E0000u | from, 0x7E0000u | to, bytes);
-game/menu/display.c	337	layout-expression	0x7E0000u | to, bytes);
-game/menu/display.c	347	layout-expression	RAM_MENU_PALETTE), 256);
-game/menu/display.c	360	layout-expression	RAM_OAM_BUFFER), sprite_table_places(g));
-game/menu/display.c	367	layout-expression	RAM_ABS(RAM_MENU_MATH_LINE_TABLES)
-game/menu/display.c	367	layout-expression	RAM_MENU_MATH_LINE_TABLES)
-game/menu/display.c	368	layout-expression	RAM_MENU_MATH_LINE_TABLES_STRIDE : 0);
-game/menu/display.c	407	layout-expression	<< 16 | menu_vram_queue_source(g, i), size ? size : 0x10000u),
-game/menu/display.c	486	layout-expression	RAM_MENU_MATH_LINE_TABLES),
-game/menu/display.c	567	layout-expression	RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
-game/menu/display.c	591	layout-expression	0x7EF000 };
-game/menu/display.c	600	layout-expression	RAM_MENU_OBJECT_VRAM_QUEUE, MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES, 0);
-game/menu/display.c	688	layout-expression	RAM_ABS(RAM_OAM_BUFFER)), sprite_table_places(g));
-game/menu/display.c	688	layout-expression	RAM_OAM_BUFFER)), sprite_table_places(g));
-game/menu/display.c	690	layout-expression	RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
-game/menu/display.c	690	layout-expression	RAM_MENU_OBJECT_PALETTE)), 256);
-game/menu/display.c	818	layout-expression	<< 16 | source, size ? size : 0x10000u), size ? size : 0x10000u, &port);
-game/menu/display.c	849	layout-expression	0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);
-game/menu/display.c	857	layout-expression	RAM_MENU_LOADED_PALETTE), 256);
-game/menu/display.c	971	layout-expression	RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE));
-game/menu/display.c	971	layout-expression	RAM_MENU_WINDOW_LINE_TABLE));
-game/menu/display.c	451	unchecked-accessor	set_menu_math_line_tables_byte_unchecked(g, at >> 8, at & 0xFF, v);
-game/menu/display.c	812	unchecked-accessor	menu_object_vram_queue_source_unchecked(g, r);
-game/menu/display.c	813	unchecked-accessor	menu_object_vram_queue_vram_unchecked(g, r);
-game/menu/display.c	814	unchecked-accessor	menu_object_vram_queue_size_unchecked(g, r);
-game/menu/display.c	815	unchecked-accessor	menu_object_vram_queue_bank_unchecked(g, r);
-game/menu/display.c	817	unchecked-accessor	menu_object_vram_queue_port_unchecked(g, r));
-game/menu/display.c	831	unchecked-accessor	menu_object_vram_queue_bank_unchecked(g, r));
+game/menu/display.c	339	raw-helper	wram_copy(g, 0x7E0000u | from, 0x7E0000u | to, bytes);
+game/menu/display.c	569	raw-helper	wram_fill8(g, RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
+game/menu/display.c	602	raw-helper	wram_fill8(g, RAM_MENU_OBJECT_VRAM_QUEUE, MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES, 0);
+game/menu/display.c	912	raw-helper	hw_port_seek(g, at, 0);
+game/menu/display.c	913	raw-helper	wram_port_fill(g, at, count, 0);
+game/menu/display.c	933	raw-helper	hw_port_seek(g, at, 0);
+game/menu/display.c	934	raw-helper	wram_port_copy(g, menu_screen_graphics_data(graphics, count), at, count);
+game/menu/display.c	349	video-source	PF_GAME(RAM_MENU_PALETTE), 256);
+game/menu/display.c	362	video-source	PF_GAME(RAM_OAM_BUFFER), sprite_table_places(g));
+game/menu/display.c	488	video-source	PF_GAME(RAM_MENU_MATH_LINE_TABLES),
+game/menu/display.c	690	video-source	PF_GAME(RAM_ABS(RAM_OAM_BUFFER)), sprite_table_places(g));
+game/menu/display.c	692	video-source	PF_GAME(RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
+game/menu/display.c	851	video-source	PF_GAME(0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);
+game/menu/display.c	859	video-source	PF_GAME(RAM_MENU_LOADED_PALETTE), 256);
+game/menu/display.c	339	layout-expression	0x7E0000u | from, 0x7E0000u | to, bytes);
+game/menu/display.c	339	layout-expression	0x7E0000u | to, bytes);
+game/menu/display.c	349	layout-expression	RAM_MENU_PALETTE), 256);
+game/menu/display.c	362	layout-expression	RAM_OAM_BUFFER), sprite_table_places(g));
+game/menu/display.c	369	layout-expression	RAM_ABS(RAM_MENU_MATH_LINE_TABLES)
+game/menu/display.c	369	layout-expression	RAM_MENU_MATH_LINE_TABLES)
+game/menu/display.c	370	layout-expression	RAM_MENU_MATH_LINE_TABLES_STRIDE : 0);
+game/menu/display.c	409	layout-expression	<< 16 | menu_vram_queue_source(g, i), size ? size : 0x10000u),
+game/menu/display.c	488	layout-expression	RAM_MENU_MATH_LINE_TABLES),
+game/menu/display.c	569	layout-expression	RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
+game/menu/display.c	593	layout-expression	0x7EF000 };
+game/menu/display.c	602	layout-expression	RAM_MENU_OBJECT_VRAM_QUEUE, MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES, 0);
+game/menu/display.c	690	layout-expression	RAM_ABS(RAM_OAM_BUFFER)), sprite_table_places(g));
+game/menu/display.c	690	layout-expression	RAM_OAM_BUFFER)), sprite_table_places(g));
+game/menu/display.c	692	layout-expression	RAM_ABS(RAM_MENU_OBJECT_PALETTE)), 256);
+game/menu/display.c	692	layout-expression	RAM_MENU_OBJECT_PALETTE)), 256);
+game/menu/display.c	820	layout-expression	<< 16 | source, size ? size : 0x10000u), size ? size : 0x10000u, &port);
+game/menu/display.c	851	layout-expression	0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);
+game/menu/display.c	859	layout-expression	RAM_MENU_LOADED_PALETTE), 256);
+game/menu/display.c	973	layout-expression	RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE));
+game/menu/display.c	973	layout-expression	RAM_MENU_WINDOW_LINE_TABLE));
+game/menu/display.c	453	unchecked-accessor	set_menu_math_line_tables_byte_unchecked(g, at >> 8, at & 0xFF, v);
+game/menu/display.c	814	unchecked-accessor	menu_object_vram_queue_source_unchecked(g, r);
+game/menu/display.c	815	unchecked-accessor	menu_object_vram_queue_vram_unchecked(g, r);
+game/menu/display.c	816	unchecked-accessor	menu_object_vram_queue_size_unchecked(g, r);
+game/menu/display.c	817	unchecked-accessor	menu_object_vram_queue_bank_unchecked(g, r);
+game/menu/display.c	819	unchecked-accessor	menu_object_vram_queue_port_unchecked(g, r));
+game/menu/display.c	833	unchecked-accessor	menu_object_vram_queue_bank_unchecked(g, r));
 game/menu/epoch.c	141	raw-helper	wram_read16(g, in_work_ram((uint16_t)(group + corner)));
 game/menu/epoch.c	156	raw-helper	wram_write8(g, in_work_ram((uint16_t)(buffer + at)), p.pixel);
 game/menu/epoch.c	163	raw-helper	wram_read8(g, in_work_ram((uint16_t)(menu_plane_map(g, plane) + row * MAP_COLUMNS + column)));
@@ -596,9 +611,9 @@ game/menu/epoch.c	1273	layout-expression	<< 16 | menu_gate_stream_source(g, stre
 game/menu/epoch.c	1274	layout-expression	<< 16 | menu_gate_stream_dest(g, stream));
 game/menu/epoch.c	1285	layout-expression	RAM_MENU_GATE_TILES), GATE_TILES_BYTES, &after_high);
 game/menu/epoch.c	1286	layout-expression	RAM_MENU_MODE7_PLANE,
-game/menu/equipment.c	161	raw-helper	wram_fill8(g, 0x7E0000u | HIDDEN_ROWS_AT, HIDDEN_ROWS_BYTES, 0);
-game/menu/equipment.c	161	layout-expression	0x7E0000u | HIDDEN_ROWS_AT, HIDDEN_ROWS_BYTES, 0);
-game/menu/equipment.c	487	unchecked-accessor	menu_list_items_unchecked(g, place);
+game/menu/equipment.c	162	raw-helper	wram_fill8(g, 0x7E0000u | HIDDEN_ROWS_AT, HIDDEN_ROWS_BYTES, 0);
+game/menu/equipment.c	162	layout-expression	0x7E0000u | HIDDEN_ROWS_AT, HIDDEN_ROWS_BYTES, 0);
+game/menu/equipment.c	488	unchecked-accessor	menu_list_items_unchecked(g, place);
 game/menu/equipment_windows.c	153	raw-helper	wram_copy(g, 0x7E0000u | LABELS_ROW, 0x7E0000u | LABELS_ROW_COPY, ROW_BYTES);
 game/menu/equipment_windows.c	315	raw-helper	wram_fill8(g, 0x7E0000u | LABEL_ROWS_AT, LABEL_ROW_BYTES, 0);
 game/menu/equipment_windows.c	316	raw-helper	wram_fill8(g, 0x7E0000u | SECOND_LABEL_ROWS_AT, LABEL_ROW_BYTES, 0);
@@ -618,32 +633,35 @@ game/menu/figures.c	239	layout-expression	RAM_MENU_ITEMS_SET_ASIDE, RAM_INVENTOR
 game/menu/figures.c	239	layout-expression	RAM_INVENTORY_ITEMS, INVENTORY_BYTES);
 game/menu/figures.c	64	unchecked-accessor	menu_item_amounts_unchecked(g, item);
 game/menu/gate_screen.c	130	layout-expression	0x7EB000 };
-game/menu/glyphs.c	112	raw-helper	wram_write8(g, in_column(g, t, at, p.column + 2u), (uint8_t)across);
-game/menu/glyphs.c	113	raw-helper	wram_write8(g, in_column(g, t, at, p.column + 1u), (uint8_t)(across >> 8));
-game/menu/glyphs.c	116	raw-helper	wram_write8(g, own, p.offset == 0 ? mine : (uint8_t)(mine | wram_read8(g, own)));
-game/menu/glyphs.c	116	raw-helper	wram_read8(g, own)));
-game/menu/glyphs.c	149	layout-expression	& 0xFF0000u) | (uint16_t)(line + LINES_DOWN_THE_ROW);
-game/menu/graphics.c	36	raw-helper	wram_read8(g, in_work_ram(at)); }
-game/menu/graphics.c	37	raw-helper	wram_write8(g, in_work_ram(at), v); }
-game/menu/graphics.c	43	raw-helper	wram_copy(g, from, in_work_ram(to), bytes);
+game/menu/glyphs.c	124	raw-helper	wram_write8(g, (at + c.of[2]) & 0xFFFFFFu, (uint8_t)across);
+game/menu/glyphs.c	125	raw-helper	wram_write8(g, (at + c.of[1]) & 0xFFFFFFu, (uint8_t)(across >> 8));
+game/menu/glyphs.c	128	raw-helper	wram_write8(g, own, p.offset == 0 ? mine : (uint8_t)(mine | wram_read8(g, own)));
+game/menu/glyphs.c	128	raw-helper	wram_read8(g, own)));
+game/menu/glyphs.c	206	raw-helper	wram_read_span(g, r->at[part][0], bytes[0], lines);
+game/menu/glyphs.c	216	raw-helper	wram_write_span(g, r->at[part][k], bytes[k], lines);
+game/menu/glyphs.c	251	layout-expression	& 0xFF0000u) | (uint16_t)(line + LINES_DOWN_THE_ROW);
+game/menu/graphics.c	40	raw-helper	wram_copy(g, from, in_work_ram(to), bytes);
+game/menu/graphics.c	77	raw-helper	wram_write_span(g, in_work_ram((uint16_t)(into + LAST_PLANES)), last_planes, LAST_PLANES);
+game/menu/graphics.c	125	raw-helper	wram_read_span(g, place, t.bytes, SIXTEEN_COLOUR_TILE);
+game/menu/graphics.c	127	raw-helper	wram_write_span(g, place, t.bytes, SIXTEEN_COLOUR_TILE);
 game/menu/graphics.c	34	layout-expression	0x7E0000u | at; }
 game/menu/item_screen.c	234	raw-helper	wram_fill8(g, 0x7E0000u | USERS_LINES_AT, USERS_LINES_BYTES, 0);
 game/menu/item_screen.c	235	raw-helper	wram_fill16(g, 0x7E0000u | USERS_FIRST_BAND, USERS_BAND_WORDS, USERS_FIRST_VALUE);
 game/menu/item_screen.c	236	raw-helper	wram_fill16(g, 0x7E0000u | USERS_SECOND_BAND, USERS_BAND_WORDS, USERS_SECOND_VALUE);
-game/menu/item_screen.c	518	raw-helper	wram_fill8(g, MENU_NAMES_BANK | pen, LABEL_TILES * TILE_BYTES, 0);
-game/menu/item_screen.c	572	raw-helper	wram_fill8(g, 0x7E0000u | PANEL_ROWS_AT, PANEL_ROWS_BYTES, 0);
-game/menu/item_screen.c	934	raw-helper	wram_fill8(g, 0x7E0000u | MEMBER_WINDOW_LAYER_AT, MEMBER_WINDOW_LAYER_BYTES, 0);
+game/menu/item_screen.c	524	raw-helper	wram_fill8(g, MENU_NAMES_BANK | pen, LABEL_TILES * TILE_BYTES, 0);
+game/menu/item_screen.c	578	raw-helper	wram_fill8(g, 0x7E0000u | PANEL_ROWS_AT, PANEL_ROWS_BYTES, 0);
+game/menu/item_screen.c	940	raw-helper	wram_fill8(g, 0x7E0000u | MEMBER_WINDOW_LAYER_AT, MEMBER_WINDOW_LAYER_BYTES, 0);
 game/menu/item_screen.c	234	layout-expression	0x7E0000u | USERS_LINES_AT, USERS_LINES_BYTES, 0);
 game/menu/item_screen.c	235	layout-expression	0x7E0000u | USERS_FIRST_BAND, USERS_BAND_WORDS, USERS_FIRST_VALUE);
 game/menu/item_screen.c	236	layout-expression	0x7E0000u | USERS_SECOND_BAND, USERS_BAND_WORDS, USERS_SECOND_VALUE);
-game/menu/item_screen.c	572	layout-expression	0x7E0000u | PANEL_ROWS_AT, PANEL_ROWS_BYTES, 0);
-game/menu/item_screen.c	934	layout-expression	0x7E0000u | MEMBER_WINDOW_LAYER_AT, MEMBER_WINDOW_LAYER_BYTES, 0);
-game/menu/item_screen.c	324	unchecked-accessor	set_inventory_items_unchecked(g, *place, item);
-game/menu/item_screen.c	325	unchecked-accessor	set_inventory_counts_unchecked(g, *place, menu_sort_counts(g, item));
-game/menu/item_screen.c	352	unchecked-accessor	inventory_items_unchecked(g, at);
-game/menu/item_screen.c	356	unchecked-accessor	inventory_counts_unchecked(g, at) + menu_sort_counts(g, item));
-game/menu/item_screen.c	370	unchecked-accessor	set_inventory_items_unchecked(g, place, NO_ITEM);
-game/menu/item_screen.c	371	unchecked-accessor	set_inventory_counts_unchecked(g, place, 0);
+game/menu/item_screen.c	578	layout-expression	0x7E0000u | PANEL_ROWS_AT, PANEL_ROWS_BYTES, 0);
+game/menu/item_screen.c	940	layout-expression	0x7E0000u | MEMBER_WINDOW_LAYER_AT, MEMBER_WINDOW_LAYER_BYTES, 0);
+game/menu/item_screen.c	330	unchecked-accessor	set_inventory_items_unchecked(g, *place, item);
+game/menu/item_screen.c	331	unchecked-accessor	set_inventory_counts_unchecked(g, *place, menu_sort_counts(g, item));
+game/menu/item_screen.c	358	unchecked-accessor	inventory_items_unchecked(g, at);
+game/menu/item_screen.c	362	unchecked-accessor	inventory_counts_unchecked(g, at) + menu_sort_counts(g, item));
+game/menu/item_screen.c	376	unchecked-accessor	set_inventory_items_unchecked(g, place, NO_ITEM);
+game/menu/item_screen.c	377	unchecked-accessor	set_inventory_counts_unchecked(g, place, 0);
 game/menu/items.c	200	unchecked-accessor	menu_item_powers_unchecked(g, item);
 game/menu/line_effects.c	106	raw-helper	wram_read8(g, in_line_bank(at)) | wram_read8(g, in_line_bank((uint16_t)(at + 1))) << 8);
 game/menu/line_effects.c	106	raw-helper	wram_read8(g, in_line_bank((uint16_t)(at + 1))) << 8);
@@ -683,17 +701,19 @@ game/menu/lists.c	133	raw-helper	wram_read8(g, WORK_RAM | (uint16_t)(menu_block_
 game/menu/lists.c	22	layout-expression	0x7E0000 };
 game/menu/lists.c	158	layout-expression	RAM_MENU_SLIDE_STAGED_TABLE);
 game/menu/lists.c	197	layout-expression	RAM_MENU_SLIDE_TABLE_AT_REST);
-game/menu/load_screen.c	504	layout-expression	<< 16 | from, MENU_CHAPTER_LABEL_BYTES, 0 };
+game/menu/load_screen.c	510	layout-expression	<< 16 | from, MENU_CHAPTER_LABEL_BYTES, 0 };
 game/menu/map.c	147	raw-helper	wram_read8(g, MAP_BANK + map + at); }
 game/menu/map.c	151	raw-helper	wram_read8(g, at) | wram_read8(g, at + 1) << 8);
 game/menu/map.c	151	raw-helper	wram_read8(g, at + 1) << 8);
-game/menu/map.c	164	raw-helper	wram_write8(g, at, (uint8_t)word);
-game/menu/map.c	165	raw-helper	wram_write8(g, at + 1, (uint8_t)(word >> 8));
-game/menu/map.c	460	video-source	PF_GAME(buffer), STRIP_BYTES, &column_port);
-game/menu/map.c	462	video-source	PF_GAME((buffer & 0xFF0000u) | (uint16_t)(buffer + STRIP_BYTES)), STRIP_BYTES, &column_port);
+game/menu/map.c	163	raw-helper	wram_read_span(g, MAP_BANK + (uint16_t)(byte * GROUP_BYTES + p->groups), group, GROUP_BYTES);
+game/menu/map.c	170	raw-helper	wram_write8(g, at, (uint8_t)word);
+game/menu/map.c	171	raw-helper	wram_write8(g, at + 1, (uint8_t)(word >> 8));
+game/menu/map.c	478	raw-helper	wram_write_span(g, MAP_BANK + buffer, strips, BLOCK_BYTES);
+game/menu/map.c	512	video-source	PF_GAME(buffer), STRIP_BYTES, &column_port);
+game/menu/map.c	514	video-source	PF_GAME((buffer & 0xFF0000u) | (uint16_t)(buffer + STRIP_BYTES)), STRIP_BYTES, &column_port);
 game/menu/map.c	68	layout-expression	0x7E0000 };
-game/menu/map.c	247	layout-expression	& 0xFF0000u) | (uint16_t)(buffer + bytes));
-game/menu/map.c	462	layout-expression	& 0xFF0000u) | (uint16_t)(buffer + STRIP_BYTES)), STRIP_BYTES, &column_port);
+game/menu/map.c	253	layout-expression	& 0xFF0000u) | (uint16_t)(buffer + bytes));
+game/menu/map.c	514	layout-expression	& 0xFF0000u) | (uint16_t)(buffer + STRIP_BYTES)), STRIP_BYTES, &column_port);
 game/menu/map_picture.h	52	unchecked-accessor	menu_map_colours_unchecked(g, tile);
 game/menu/members.c	222	raw-helper	wram_write16(g, 0x7E0000u | (uint16_t)(LABEL_AT + row * MENU_TILEMAP_ROW_BYTES + i * MENU_TILE_BYTES), tile);
 game/menu/members.c	49	layout-expression	RAM_ABS(RAM_CHARACTER_RECORDS) + character * RAM_CHARACTER_RECORDS_STRIDE);
@@ -709,31 +729,33 @@ game/menu/members.c	71	layout-expression	RAM_CHARACTER_RECORDS_STRIDE < CHARACTE
 game/menu/members.c	222	layout-expression	0x7E0000u | (uint16_t)(LABEL_AT + row * MENU_TILEMAP_ROW_BYTES + i * MENU_TILE_BYTES), tile);
 game/menu/members.c	134	unchecked-accessor	menu_low_hp_marks_unchecked(g, character);
 game/menu/menu_data.h	441	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	536	resource-address	rom_read8_in_bank_of(g, ASSET_WEAPON_RECORDS, at);
-game/menu/menu_data.h	673	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	700	resource-address	rom_read8_in_bank_of(g, ASSET_MENU_WINDOW_STRINGS, at); }
-game/menu/menu_data.h	839	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	845	resource-address	rom_read8(g, at & 0xFFFFFFu) | rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
-game/menu/menu_data.h	845	resource-address	rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
-game/menu/menu_data.h	848	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	850	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	1121	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at) |
-game/menu/menu_data.h	1122	resource-address	rom_read8_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, (uint16_t)(at + 2u)) << 16;
-game/menu/menu_data.h	1140	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at);
-game/menu/menu_data.h	1172	resource-address	rom_read8(g, at & 0xFFFFFFu); }
-game/menu/menu_data.h	1231	resource-address	rom_read16_in_bank_of(g, ASSET_MENU_COLORS, (uint16_t)(colours + 2u * i));
-game/menu/menu_data.h	1603	resource-address	rom_data(source, bytes); }
-game/menu/menu_data.h	1608	resource-address	rom_data(asset_address(graphics), bytes);
-game/menu/menu_data.h	1614	resource-address	rom_data(asset_address(ASSET_MENU_MAP_VIEW_TILES) + (second ? 32u : 0u), 32);
-game/menu/menu_data.h	1619	resource-address	rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
+game/menu/menu_data.h	548	resource-address	rom_read8_in_bank_of(g, ASSET_WEAPON_RECORDS, at);
+game/menu/menu_data.h	560	resource-address	rom_read_span(g, asset_place_address(ASSET_WEAPON_RECORDS, at), out, count);
+game/menu/menu_data.h	567	resource-address	rom_read_span(g, asset_address(ASSET_MENU_THREE_PLANE_TILES) + at, out, count);
+game/menu/menu_data.h	704	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	731	resource-address	rom_read8_in_bank_of(g, ASSET_MENU_WINDOW_STRINGS, at); }
+game/menu/menu_data.h	870	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	884	resource-address	rom_read8(g, at & 0xFFFFFFu) | rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
+game/menu/menu_data.h	884	resource-address	rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
+game/menu/menu_data.h	887	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	889	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	1160	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at) |
+game/menu/menu_data.h	1161	resource-address	rom_read8_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, (uint16_t)(at + 2u)) << 16;
+game/menu/menu_data.h	1179	resource-address	rom_read16_in_bank_of(g, ASSET_SPRITE_RESOURCE_BASES, at);
+game/menu/menu_data.h	1211	resource-address	rom_read8(g, at & 0xFFFFFFu); }
+game/menu/menu_data.h	1270	resource-address	rom_read16_in_bank_of(g, ASSET_MENU_COLORS, (uint16_t)(colours + 2u * i));
+game/menu/menu_data.h	1642	resource-address	rom_data(source, bytes); }
+game/menu/menu_data.h	1647	resource-address	rom_data(asset_address(graphics), bytes);
+game/menu/menu_data.h	1653	resource-address	rom_data(asset_address(ASSET_MENU_MAP_VIEW_TILES) + (second ? 32u : 0u), 32);
+game/menu/menu_data.h	1658	resource-address	rom_read16(g, (strings + 2u * string) & 0xFFFFFFu);
 game/menu/menu_data.h	105	layout-expression	0x7E0000u, MENU_FIRST_NAME = 0x2C23, MENU_NAME_BYTES = 6 };
-game/menu/menu_data.h	789	layout-expression	<< 16 | (uint16_t)(b[2] | b[3] << 8),
-game/menu/menu_data.h	895	layout-expression	<< 16;
-game/menu/menu_data.h	969	layout-expression	<< 16;
-game/menu/menu_data.h	976	layout-expression	<< 16;
-game/menu/menu_data.h	1122	layout-expression	<< 16;
-game/menu/menu_data.h	1358	layout-expression	<< 16,
-game/menu/menu_data.h	1372	layout-expression	<< 16,
+game/menu/menu_data.h	820	layout-expression	<< 16 | (uint16_t)(b[2] | b[3] << 8),
+game/menu/menu_data.h	934	layout-expression	<< 16;
+game/menu/menu_data.h	1008	layout-expression	<< 16;
+game/menu/menu_data.h	1015	layout-expression	<< 16;
+game/menu/menu_data.h	1161	layout-expression	<< 16;
+game/menu/menu_data.h	1397	layout-expression	<< 16,
+game/menu/menu_data.h	1411	layout-expression	<< 16,
 game/menu/naming.c	302	layout-expression	RAM_ABS(RAM_CHARACTER_NAMES) + named(g) * NAME_BYTES;
 game/menu/naming.c	302	layout-expression	RAM_CHARACTER_NAMES) + named(g) * NAME_BYTES;
 game/menu/naming.c	313	layout-expression	0x7E0000, FRONT_LAYER = 0, FRONT_LAYER_DOWN = 3 };
@@ -780,31 +802,31 @@ game/menu/save_screen.c	594	layout-expression	RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) +
 game/menu/save_screen.c	594	layout-expression	RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES + SUMMARY_MEMBER_BYTES));
 game/menu/save_screen.c	732	layout-expression	RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES);
 game/menu/save_screen.c	732	layout-expression	RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES);
-game/menu/saves.c	97	raw-helper	wram_read8(g, in_bank(from, i)));
-game/menu/saves.c	106	raw-helper	wram_write8(g, in_bank(to, i), sv_read8(pf, PF_AT(0xFFFADB), (uint16_t)(from + i)));
-game/menu/saves.c	226	raw-helper	wram_fill8(g, RAM_EVENT_MEMORY, STORY_BYTES, 0);
-game/menu/saves.c	227	raw-helper	wram_fill8(g, RAM_PLAY_TIME, CLOCK_PAGE_BYTES, 0);
-game/menu/saves.c	228	raw-helper	wram_fill8(g, RAM_GAME_SETTINGS, SETTINGS_TO_JOINED_BYTES, 0);
-game/menu/saves.c	251	raw-helper	wram_fill8(g, RAM_INVENTORY_ITEMS, INVENTORY_BYTES, 0);
-game/menu/saves.c	253	raw-helper	wram_write8(g, RAM_CHARACTER_RECORDS + i, menu_new_game_record_byte(g, i));
-game/menu/saves.c	262	raw-helper	wram_fill8(g, RAM_BATTLE_REMEMBERED_CURSORS, REMEMBERED_CURSORS_BYTES, 0);
-game/menu/saves.c	89	layout-expression	& 0xFF0000u) | (uint16_t)(at + i); }
-game/menu/saves.c	226	layout-expression	RAM_EVENT_MEMORY, STORY_BYTES, 0);
-game/menu/saves.c	227	layout-expression	RAM_PLAY_TIME, CLOCK_PAGE_BYTES, 0);
-game/menu/saves.c	228	layout-expression	RAM_GAME_SETTINGS, SETTINGS_TO_JOINED_BYTES, 0);
-game/menu/saves.c	251	layout-expression	RAM_INVENTORY_ITEMS, INVENTORY_BYTES, 0);
-game/menu/saves.c	253	layout-expression	RAM_CHARACTER_RECORDS + i, menu_new_game_record_byte(g, i));
-game/menu/saves.c	262	layout-expression	RAM_BATTLE_REMEMBERED_CURSORS, REMEMBERED_CURSORS_BYTES, 0);
+game/menu/saves.c	107	raw-helper	wram_read8(g, in_bank(from, i)));
+game/menu/saves.c	116	raw-helper	wram_write8(g, in_bank(to, i), sv_read8(pf, PF_AT(0xFFFADB), (uint16_t)(from + i)));
+game/menu/saves.c	236	raw-helper	wram_fill8(g, RAM_EVENT_MEMORY, STORY_BYTES, 0);
+game/menu/saves.c	237	raw-helper	wram_fill8(g, RAM_PLAY_TIME, CLOCK_PAGE_BYTES, 0);
+game/menu/saves.c	238	raw-helper	wram_fill8(g, RAM_GAME_SETTINGS, SETTINGS_TO_JOINED_BYTES, 0);
+game/menu/saves.c	261	raw-helper	wram_fill8(g, RAM_INVENTORY_ITEMS, INVENTORY_BYTES, 0);
+game/menu/saves.c	263	raw-helper	wram_write8(g, RAM_CHARACTER_RECORDS + i, menu_new_game_record_byte(g, i));
+game/menu/saves.c	272	raw-helper	wram_fill8(g, RAM_BATTLE_REMEMBERED_CURSORS, REMEMBERED_CURSORS_BYTES, 0);
+game/menu/saves.c	99	layout-expression	& 0xFF0000u) | (uint16_t)(at + i); }
+game/menu/saves.c	236	layout-expression	RAM_EVENT_MEMORY, STORY_BYTES, 0);
+game/menu/saves.c	237	layout-expression	RAM_PLAY_TIME, CLOCK_PAGE_BYTES, 0);
+game/menu/saves.c	238	layout-expression	RAM_GAME_SETTINGS, SETTINGS_TO_JOINED_BYTES, 0);
+game/menu/saves.c	261	layout-expression	RAM_INVENTORY_ITEMS, INVENTORY_BYTES, 0);
+game/menu/saves.c	263	layout-expression	RAM_CHARACTER_RECORDS + i, menu_new_game_record_byte(g, i));
+game/menu/saves.c	272	layout-expression	RAM_BATTLE_REMEMBERED_CURSORS, REMEMBERED_CURSORS_BYTES, 0);
 game/menu/screen_objects.c	260	layout-expression	RAM_MENU_OBJECT_PALETTE, PALETTE_BANK = 0x7E };
 game/menu/screen_objects.c	405	layout-expression	& 0xFF0000u) | (uint16_t)(colours + i * COLOUR_BYTES));
 game/menu/screen_objects.c	497	layout-expression	<< 16 | operand_word(g, self, 1);
 game/menu/screen_objects.c	527	layout-expression	& 0xFF0000u) | (uint16_t)(source + bytes));
-game/menu/script.c	19	raw-helper	wram_read8(g, cell_address(b.at));
-game/menu/script.c	31	raw-helper	wram_write8(g, cell_address(b.at), v);
-game/menu/script.c	15	layout-expression	0x7E0000u + at; }
-game/menu/script.c	68	layout-expression	<< 16 | operand_word(g, at, a.operand);
-game/menu/script.c	69	layout-expression	<< 16 | operand_word(g, at, a.operand);
-game/menu/script.c	184	layout-expression	& 0xFF0000u;
+game/menu/script.c	22	raw-helper	wram_read8(g, cell_address(b.at));
+game/menu/script.c	34	raw-helper	wram_write8(g, cell_address(b.at), v);
+game/menu/script.c	18	layout-expression	0x7E0000u + at; }
+game/menu/script.c	83	layout-expression	<< 16 | operand_word(b, a.operand);
+game/menu/script.c	84	layout-expression	<< 16 | operand_word(b, a.operand);
+game/menu/script.c	353	layout-expression	& 0xFF0000u;
 game/menu/settings_screen.c	337	unchecked-accessor	menu_settings_buttons_unchecked(g, other) == button)
 game/menu/settings_screen.c	338	unchecked-accessor	set_menu_settings_buttons_unchecked(g, other, replacement);
 game/menu/shop.c	59	layout-expression	<< 16; }
@@ -847,37 +869,37 @@ game/menu/tech_screen.c	765	raw-helper	wram_copy(g, WORK_RAM | (uint16_t)(SECOND
 game/menu/tech_screen.c	772	raw-helper	wram_copy(g, WORK_RAM | (uint16_t)(from_end - (NAME_COLUMN_BYTES - 1)), WORK_RAM | (uint16_t)(to_end - (NAME_COLUMN_BYTES - 1)),
 game/menu/tech_screen.c	775	raw-helper	wram_copy(g, WORK_RAM | INCOMING_ROWS, WORK_RAM | FIRST_ROWS, INCOMING_ROWS_BYTES);
 game/menu/tech_screen.c	758	layout-expression	0x7E0000 };
-game/menu/text.c	94	raw-helper	wram_write8(g, at, tile);
-game/menu/text.c	95	raw-helper	wram_write8(g, at + 1, menu_text_attribute(g));
-game/menu/text.c	250	raw-helper	wram_read8(g, NUMBER_CELLS + i);
-game/menu/text.c	283	raw-helper	wram_write8(g, in_tilemap(pen, 0), DASH);
-game/menu/text.c	284	raw-helper	wram_write8(g, in_tilemap(pen, 2), DASH);
-game/menu/text.c	286	raw-helper	wram_write8(g, in_tilemap(pen, 1), attribute);
-game/menu/text.c	287	raw-helper	wram_write8(g, in_tilemap(pen, 3), attribute);
-game/menu/text.c	323	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | attribute_at);
-game/menu/text.c	330	raw-helper	wram_read8(g, in_tilemap(from, 0));
-game/menu/text.c	331	raw-helper	wram_read8(g, in_tilemap(from, 1));
-game/menu/text.c	332	raw-helper	wram_write8(g, in_tilemap(pen, 0), tile);
-game/menu/text.c	333	raw-helper	wram_write8(g, in_tilemap(pen, 1), attribute);
-game/menu/text.c	526	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | at);
-game/menu/text.c	527	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(at + 1));
-game/menu/text.c	537	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) != 0)
-game/menu/text.c	540	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + i)) > MOST_DIGIT)
-game/menu/text.c	555	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) == 0) {
-game/menu/text.c	567	raw-helper	wram_write16(g, in_tilemap(pen, 0), (uint16_t)(menu_text_attribute(g) << 8 | COLON));
-game/menu/text.c	75	layout-expression	<< 16 | p.at) + k; }
-game/menu/text.c	86	layout-expression	<< 16) + pen + offset) & 0xFFFFFFu; }
-game/menu/text.c	238	layout-expression	0x7E008A };
-game/menu/text.c	280	layout-expression	<< 16 | value_at;
-game/menu/text.c	323	layout-expression	<< 16 | attribute_at);
-game/menu/text.c	401	layout-expression	<< 16 | text_word(g, o, 0);
-game/menu/text.c	526	layout-expression	<< 16 | at);
-game/menu/text.c	527	layout-expression	<< 16 | (uint16_t)(at + 1));
-game/menu/text.c	537	layout-expression	<< 16 | (uint16_t)(digits + TIME_RAN_PAST)) != 0)
-game/menu/text.c	540	layout-expression	<< 16 | (uint16_t)(digits + i)) > MOST_DIGIT)
-game/menu/text.c	555	layout-expression	<< 16 | (uint16_t)(digits + TIME_RAN_PAST)) == 0) {
-game/menu/text.c	577	layout-expression	0x7E9B76 };
-game/menu/text.c	590	layout-expression	& 0xFF0000u) | stopped.at;
+game/menu/text.c	95	raw-helper	wram_write8(g, at, tile);
+game/menu/text.c	96	raw-helper	wram_write8(g, at + 1, menu_text_attribute(g));
+game/menu/text.c	251	raw-helper	wram_read8(g, NUMBER_CELLS + i);
+game/menu/text.c	284	raw-helper	wram_write8(g, in_tilemap(pen, 0), DASH);
+game/menu/text.c	285	raw-helper	wram_write8(g, in_tilemap(pen, 2), DASH);
+game/menu/text.c	287	raw-helper	wram_write8(g, in_tilemap(pen, 1), attribute);
+game/menu/text.c	288	raw-helper	wram_write8(g, in_tilemap(pen, 3), attribute);
+game/menu/text.c	324	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | attribute_at);
+game/menu/text.c	331	raw-helper	wram_read8(g, in_tilemap(from, 0));
+game/menu/text.c	332	raw-helper	wram_read8(g, in_tilemap(from, 1));
+game/menu/text.c	333	raw-helper	wram_write8(g, in_tilemap(pen, 0), tile);
+game/menu/text.c	334	raw-helper	wram_write8(g, in_tilemap(pen, 1), attribute);
+game/menu/text.c	527	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | at);
+game/menu/text.c	528	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(at + 1));
+game/menu/text.c	538	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) != 0)
+game/menu/text.c	541	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + i)) > MOST_DIGIT)
+game/menu/text.c	556	raw-helper	wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) == 0) {
+game/menu/text.c	568	raw-helper	wram_write16(g, in_tilemap(pen, 0), (uint16_t)(menu_text_attribute(g) << 8 | COLON));
+game/menu/text.c	76	layout-expression	<< 16 | p.at) + k; }
+game/menu/text.c	87	layout-expression	<< 16) + pen + offset) & 0xFFFFFFu; }
+game/menu/text.c	239	layout-expression	0x7E008A };
+game/menu/text.c	281	layout-expression	<< 16 | value_at;
+game/menu/text.c	324	layout-expression	<< 16 | attribute_at);
+game/menu/text.c	402	layout-expression	<< 16 | text_word(g, o, 0);
+game/menu/text.c	527	layout-expression	<< 16 | at);
+game/menu/text.c	528	layout-expression	<< 16 | (uint16_t)(at + 1));
+game/menu/text.c	538	layout-expression	<< 16 | (uint16_t)(digits + TIME_RAN_PAST)) != 0)
+game/menu/text.c	541	layout-expression	<< 16 | (uint16_t)(digits + i)) > MOST_DIGIT)
+game/menu/text.c	556	layout-expression	<< 16 | (uint16_t)(digits + TIME_RAN_PAST)) == 0) {
+game/menu/text.c	578	layout-expression	0x7E9B76 };
+game/menu/text.c	591	layout-expression	& 0xFF0000u) | stopped.at;
 game/menu/tiles.c	19	raw-helper	wram_read8(g, WORK_RAM | (uint16_t)(at + ATTRIBUTE)); }
 game/menu/tiles.c	20	raw-helper	wram_write8(g, WORK_RAM | (uint16_t)(at + ATTRIBUTE), v); }
 game/menu/tiles.c	37	raw-helper	wram_write16(g, WORK_RAM | (uint16_t)(origin + row * ROW_BYTES + column * TILE_BYTES), tile);
@@ -955,31 +977,31 @@ game/overworld/places.c	39	layout-expression	RAM_OVERWORLD_HALTS_STRIDE, 3,
 game/overworld/places.c	41	layout-expression	RAM_OVERWORLD_EVENT_SCRIPTS, RAM_OVERWORLD_EVENT_SCRIPTS_STRIDE, 1, { 0 } },
 game/overworld/places.c	41	layout-expression	RAM_OVERWORLD_EVENT_SCRIPTS_STRIDE, 1, { 0 } },
 game/overworld/places.c	164	layout-expression	<< 16 | script, MENU_ORDINARY_SLOT));
-game/overworld/setup.c	169	raw-helper	wram_copy(g, (to & 0xFF0000u) | from, to, bytes);
-game/overworld/setup.c	352	raw-helper	wram_read8(g, at);
-game/overworld/setup.c	356	raw-helper	wram_copy(g, at + 1, l->kept_at, bytes);
-game/overworld/setup.c	378	raw-helper	wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, SIGN_BUFFER_BYTES, 0); }
-game/overworld/setup.c	47	layout-expression	RAM_MENU_WORLD_MAP_TILES, BLOCK_BYTES = 0x1000 };
-game/overworld/setup.c	53	layout-expression	0x7E3000,
-game/overworld/setup.c	54	layout-expression	0x7E4000,
-game/overworld/setup.c	55	layout-expression	RAM_TILE_ANIMATION_TABLES,
-game/overworld/setup.c	56	layout-expression	0x7EB800,
-game/overworld/setup.c	57	layout-expression	0x7EC000,
-game/overworld/setup.c	58	layout-expression	0x7EC800,
-game/overworld/setup.c	59	layout-expression	0x7EC600,
-game/overworld/setup.c	136	layout-expression	& 0xFF0000u) | (uint16_t)(STAGING + blocks * BLOCK_BYTES));
-game/overworld/setup.c	153	layout-expression	0x7FB000, PARTY_ROWS = 0x7FBC00, CHARACTER_ROWS_FROM = 0xAC00 };
-game/overworld/setup.c	153	layout-expression	0x7FBC00, CHARACTER_ROWS_FROM = 0xAC00 };
-game/overworld/setup.c	169	layout-expression	& 0xFF0000u) | from, to, bytes);
-game/overworld/setup.c	193	layout-expression	0x7F8E00, CHARACTER_COLOUR_BYTES = 0x20, MEMBER_COLOUR_BYTES = 0x10 };
-game/overworld/setup.c	205	layout-expression	RAM_MENU_LOADED_PALETTE);
-game/overworld/setup.c	209	layout-expression	RAM_MENU_LOADED_PALETTE + 2u * (FIRST_MEMBER_COLOUR + place * COLOURS_A_PALETTE),
-game/overworld/setup.c	278	layout-expression	0x7E0000 };
-game/overworld/setup.c	280	layout-expression	RAM_MENU_OBJECT_PALETTE - LOW_RAM_IN_BANK_0 + (uint32_t)row * ROW_BYTES);
-game/overworld/setup.c	366	layout-expression	RAM_OVERWORLD_GROUND_KINDS);
-game/overworld/setup.c	368	layout-expression	RAM_OVERWORLD_REGIONS); }
-game/overworld/setup.c	378	layout-expression	RAM_OVERWORLD_SIGN_LABEL, SIGN_BUFFER_BYTES, 0); }
-game/overworld/setup.c	451	layout-expression	RAM_TILE_ANIMATION_TABLES };
+game/overworld/setup.c	176	raw-helper	wram_copy(g, (to & 0xFF0000u) | from, to, bytes);
+game/overworld/setup.c	362	raw-helper	wram_read8(g, at);
+game/overworld/setup.c	366	raw-helper	wram_copy(g, at + 1, l->kept_at, bytes);
+game/overworld/setup.c	392	raw-helper	wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, SIGN_BUFFER_BYTES, 0); }
+game/overworld/setup.c	48	layout-expression	RAM_MENU_WORLD_MAP_TILES, BLOCK_BYTES = 0x1000 };
+game/overworld/setup.c	54	layout-expression	0x7E3000,
+game/overworld/setup.c	55	layout-expression	0x7E4000,
+game/overworld/setup.c	56	layout-expression	RAM_TILE_ANIMATION_TABLES,
+game/overworld/setup.c	57	layout-expression	0x7EB800,
+game/overworld/setup.c	58	layout-expression	0x7EC000,
+game/overworld/setup.c	59	layout-expression	0x7EC800,
+game/overworld/setup.c	60	layout-expression	0x7EC600,
+game/overworld/setup.c	143	layout-expression	& 0xFF0000u) | (uint16_t)(STAGING + blocks * BLOCK_BYTES));
+game/overworld/setup.c	160	layout-expression	0x7FB000, PARTY_ROWS = 0x7FBC00, CHARACTER_ROWS_FROM = 0xAC00 };
+game/overworld/setup.c	160	layout-expression	0x7FBC00, CHARACTER_ROWS_FROM = 0xAC00 };
+game/overworld/setup.c	176	layout-expression	& 0xFF0000u) | from, to, bytes);
+game/overworld/setup.c	200	layout-expression	0x7F8E00, CHARACTER_COLOUR_BYTES = 0x20, MEMBER_COLOUR_BYTES = 0x10 };
+game/overworld/setup.c	212	layout-expression	RAM_MENU_LOADED_PALETTE);
+game/overworld/setup.c	216	layout-expression	RAM_MENU_LOADED_PALETTE + 2u * (FIRST_MEMBER_COLOUR + place * COLOURS_A_PALETTE),
+game/overworld/setup.c	285	layout-expression	0x7E0000 };
+game/overworld/setup.c	287	layout-expression	RAM_MENU_OBJECT_PALETTE - LOW_RAM_IN_BANK_0 + (uint32_t)row * ROW_BYTES);
+game/overworld/setup.c	376	layout-expression	RAM_OVERWORLD_GROUND_KINDS);
+game/overworld/setup.c	378	layout-expression	RAM_OVERWORLD_REGIONS); }
+game/overworld/setup.c	392	layout-expression	RAM_OVERWORLD_SIGN_LABEL, SIGN_BUFFER_BYTES, 0); }
+game/overworld/setup.c	467	layout-expression	RAM_TILE_ANIMATION_TABLES };
 game/overworld/sign.c	61	raw-helper	wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, LABEL_BYTES, 0);
 game/overworld/sign.c	61	layout-expression	RAM_OVERWORLD_SIGN_LABEL, LABEL_BYTES, 0);
 game/overworld/sign.c	72	layout-expression	RAM_OVERWORLD_SIGN_SPRITES);
@@ -994,9 +1016,10 @@ game/rom.h	41	resource-address	rom_read8_in_bank_of(const GameState *g, AssetId 
 game/rom.h	42	resource-address	rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t place);
 game/rom.h	57	resource-address	rom_read8(const GameState *g, uint32_t at);
 game/rom.h	58	resource-address	rom_read16(const GameState *g, uint32_t at);
-game/rom.h	63	resource-address	rom_data(uint32_t at, uint32_t length);
-game/rom.h	65	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
-game/rom.h	71	resource-address	rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served);
+game/rom.h	91	resource-address	rom_read_span(const GameState *g, uint32_t at, uint8_t *to, uint32_t length);
+game/rom.h	102	resource-address	rom_data(uint32_t at, uint32_t length);
+game/rom.h	104	resource-address	rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
+game/rom.h	110	resource-address	rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served);
 game/scene/beyond_time.c	172	layout-expression	0x7E9DDE), &centre, VID_M7_CENTER);
 game/scene/beyond_time.c	346	layout-expression	0x7EA03D, scene_draw_large_sprite_list(g, burst_frame(g, firework_frame(g, firework)).list, LIST_KEEPS_EVERY_SPRITE));
 game/scene/beyond_time.c	391	layout-expression	0x7E9E31), &m7, VID_M7_MATRIX | VID_M7_CENTER | VID_M7_SCROLL);
@@ -1460,15 +1483,17 @@ game/scene/race.c	211	raw-helper	wram_copy(g, from, to, PLANE_ROW_BYTES);
 game/scene/race.c	212	raw-helper	wram_copy(g, from, to + PLANE_ROW_BYTES, PLANE_ROW_BYTES);
 game/scene/race.c	226	raw-helper	wram_copy(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | UNPACKED_PALETTE, SCENE_PALETTE, PALETTE_BYTES);
 game/scene/race.c	262	raw-helper	wram_fill8(g, ROAD_STRIP, ROAD_STRIP_BYTES, 0);
-game/scene/race.c	294	raw-helper	wram_copy(g, from + row * BLOCK_PIXELS, to + row * PICTURE_ROW, BLOCK_PIXELS);
-game/scene/race.c	321	raw-helper	wram_write8(g, to + i, wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
-game/scene/race.c	321	raw-helper	wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
-game/scene/race.c	322	raw-helper	wram_fill8(g, to + MIRRORED_PIXELS, PICTURE_ROW - MIRRORED_PIXELS, 0);
-game/scene/race.c	359	raw-helper	wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
+game/scene/race.c	295	raw-helper	wram_copy(g, from + row * BLOCK_PIXELS, to + row * PICTURE_ROW, BLOCK_PIXELS);
+game/scene/race.c	327	raw-helper	wram_read_span(g, source, pixels, MIRRORED_PIXELS);
+game/scene/race.c	330	raw-helper	wram_write_span(g, to, mirrored, MIRRORED_PIXELS);
+game/scene/race.c	334	raw-helper	wram_write8(g, to + i, wram_read8(g, bank | (uint16_t)(from + last - i)));
+game/scene/race.c	334	raw-helper	wram_read8(g, bank | (uint16_t)(from + last - i)));
+game/scene/race.c	345	raw-helper	wram_fill8(g, to + MIRRORED_PIXELS, PICTURE_ROW - MIRRORED_PIXELS, 0);
+game/scene/race.c	382	raw-helper	wram_copy(g, PICTURES, CRONO_PICTURES_COPY, CRONO_PICTURES_COPY_BYTES);
 game/scene/race.c	127	video-source	PF_GAME(SCENE_BLANK_TILE), RACERS_MAP_BYTES, NULL);
 game/scene/race.c	137	video-source	PF_GAME(SCENE_PLANE_MAP), PLANE_MAP_HALF_BYTES, VID_VRAM_LOW_BYTES);
-game/scene/race.c	606	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	622	video-source	PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	632	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	648	video-source	PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
 game/scene/race.c	55	layout-expression	0x7EF000, LINE_TABLES_BYTES = 0x1000,
 game/scene/race.c	57	layout-expression	0x7EE100, ROAD_STRIP_BYTES = 0x0040,
 game/scene/race.c	58	layout-expression	0x7F0300, SCALER_OUTPUT_BYTES = 0x0700,
@@ -1513,22 +1538,22 @@ game/scene/race.c	239	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
 game/scene/race.c	242	layout-expression	0x7E38E7, scene_send_unpacked(g, pf));
 game/scene/race.c	258	layout-expression	0x7E3E03), SCENE_VRAM_WHOLE_WORDS);
 game/scene/race.c	264	layout-expression	0x7E3E71);
-game/scene/race.c	309	layout-expression	<< 16 | crono_blocks[i]);
-game/scene/race.c	321	layout-expression	& 0xFF0000) | (uint16_t)(from + last - i)));
-game/scene/race.c	324	layout-expression	& 0xFF0000) | (uint16_t)(from + PICTURE_ROW);
-game/scene/race.c	336	layout-expression	0x7F2C00 };
-game/scene/race.c	408	layout-expression	0x7E3C9E), &race_curtain,
-game/scene/race.c	478	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
-game/scene/race.c	508	layout-expression	0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
-game/scene/race.c	508	layout-expression	0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
-game/scene/race.c	528	layout-expression	0x7E43F5),
-game/scene/race.c	531	layout-expression	0x7E440D), VID_BG2, scene_race_bg2_scroll_x(g), 0, VID_SCROLL_H);
-game/scene/race.c	532	layout-expression	0x7E4419), VID_BG3, scene_race_bg3_scroll_x(g), scene_race_bg3_scroll_y(g),
-game/scene/race.c	559	layout-expression	0x7E4671), PLANE_COLUMN_VRAM, scene_race_column_data(column, PLANE_COLUMN_BYTES),
-game/scene/race.c	606	layout-expression	0x7E525B), vram, PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	622	layout-expression	0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
-game/scene/race.c	640	layout-expression	0x7E4BD4), 1, engine_pitch(g));
-game/scene/race.c	641	layout-expression	0x7E4BD9), 0, EFFECT_PITCH);
+game/scene/race.c	310	layout-expression	<< 16 | crono_blocks[i]);
+game/scene/race.c	318	layout-expression	& 0xFF0000;
+game/scene/race.c	347	layout-expression	& 0xFF0000) | (uint16_t)(from + PICTURE_ROW);
+game/scene/race.c	359	layout-expression	0x7F2C00 };
+game/scene/race.c	431	layout-expression	0x7E3C9E), &race_curtain,
+game/scene/race.c	503	layout-expression	0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
+game/scene/race.c	534	layout-expression	0x7E3D81 : 0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
+game/scene/race.c	534	layout-expression	0x7E3D88), CURTAIN_WINDOW_SLOT, curtain_table(g));
+game/scene/race.c	554	layout-expression	0x7E43F5),
+game/scene/race.c	557	layout-expression	0x7E440D), VID_BG2, scene_race_bg2_scroll_x(g), 0, VID_SCROLL_H);
+game/scene/race.c	558	layout-expression	0x7E4419), VID_BG3, scene_race_bg3_scroll_x(g), scene_race_bg3_scroll_y(g),
+game/scene/race.c	585	layout-expression	0x7E4671), PLANE_COLUMN_VRAM, scene_race_column_data(column, PLANE_COLUMN_BYTES),
+game/scene/race.c	632	layout-expression	0x7E525B), vram, PF_GAME(SCENE_TILEMAP_BUFFER), TILEMAP_HALF_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	648	layout-expression	0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
+game/scene/race.c	666	layout-expression	0x7E4BD4), 1, engine_pitch(g));
+game/scene/race.c	667	layout-expression	0x7E4BD9), 0, EFFECT_PITCH);
 game/scene/race.h	82	layout-expression	0x7E34E3,
 game/scene/race.h	83	layout-expression	0x7E416D,
 game/scene/race.h	84	layout-expression	0x7E4283,
@@ -1541,24 +1566,24 @@ game/scene/race.h	90	layout-expression	0x7E4677,
 game/scene/race.h	91	layout-expression	0x7E4755,
 game/scene/race_camera.c	341	layout-expression	0x7E5261, race_upload_road_strip(pf));
 game/scene/race_camera.c	345	layout-expression	0x7E357B };
-game/scene/race_drawing.c	44	layout-expression	0x7E531B, JOHNNY_SPRITES = (uint16_t)0x7E535C };
-game/scene/race_drawing.c	44	layout-expression	0x7E535C };
-game/scene/race_drawing.c	198	layout-expression	0x7E5391, (uint16_t)0x7E538D };
-game/scene/race_drawing.c	198	layout-expression	0x7E538D };
-game/scene/race_drawing.c	212	layout-expression	0x7E50E1), 0) << 8 | product >> 8);
-game/scene/race_drawing.c	226	layout-expression	0x7E5389,
-game/scene/race_drawing.c	227	layout-expression	0x7E5385,
-game/scene/race_drawing.c	241	layout-expression	0x7E5395, PANEL_CORNERS = (uint16_t)0x7E53AE };
-game/scene/race_drawing.c	241	layout-expression	0x7E53AE };
-game/scene/race_drawing.c	248	layout-expression	0x7E3A7D, DIGIT_TILES = 0x20, DIGIT_BYTES = 4, DIGITS = 5 };
-game/scene/race_drawing.c	383	layout-expression	0x7E4F54, "a race's frame the port's drawing doesn't take");
-game/scene/race_matrix.c	46	raw-helper	hw_port_write(g, v); }
-game/scene/race_matrix.c	112	raw-helper	hw_port_seek(g, (uint16_t)RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
-game/scene/race_matrix.c	112	layout-expression	RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
-game/scene/race_matrix.c	112	layout-expression	RAM_SCENE_MATRIX_CODE >> 16));
-game/scene/race_matrix.c	190	layout-expression	0x7EB574, scene_gather_picture_into_tiles(g));
-game/scene/race_matrix.c	196	layout-expression	0x7E5211 };
-game/scene/race_matrix.c	208	layout-expression	0x7E5215, gather_scaled_picture(g));
+game/scene/race_drawing.c	45	layout-expression	0x7E531B, JOHNNY_SPRITES = (uint16_t)0x7E535C };
+game/scene/race_drawing.c	45	layout-expression	0x7E535C };
+game/scene/race_drawing.c	199	layout-expression	0x7E5391, (uint16_t)0x7E538D };
+game/scene/race_drawing.c	199	layout-expression	0x7E538D };
+game/scene/race_drawing.c	213	layout-expression	0x7E50E1), 0) << 8 | product >> 8);
+game/scene/race_drawing.c	227	layout-expression	0x7E5389,
+game/scene/race_drawing.c	228	layout-expression	0x7E5385,
+game/scene/race_drawing.c	242	layout-expression	0x7E5395, PANEL_CORNERS = (uint16_t)0x7E53AE };
+game/scene/race_drawing.c	242	layout-expression	0x7E53AE };
+game/scene/race_drawing.c	249	layout-expression	0x7E3A7D, DIGIT_TILES = 0x20, DIGIT_BYTES = 4, DIGITS = 5 };
+game/scene/race_drawing.c	379	layout-expression	0x7E4F54, "a race's frame the port's drawing doesn't take");
+game/scene/race_matrix.c	58	raw-helper	hw_port_write_span(e->g, e->bytes, e->count);
+game/scene/race_matrix.c	135	raw-helper	hw_port_seek(g, (uint16_t)RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
+game/scene/race_matrix.c	135	layout-expression	RAM_SCENE_MATRIX_CODE, (uint8_t)(RAM_SCENE_MATRIX_CODE >> 16));
+game/scene/race_matrix.c	135	layout-expression	RAM_SCENE_MATRIX_CODE >> 16));
+game/scene/race_matrix.c	213	layout-expression	0x7EB574, scene_gather_picture_into_tiles(g));
+game/scene/race_matrix.c	219	layout-expression	0x7E5211 };
+game/scene/race_matrix.c	231	layout-expression	0x7E5215, gather_scaled_picture(g));
 game/scene/race_projection.c	525	layout-expression	0x7E4D0D, "bikes placed where the port's sums don't reach");
 game/scene/race_rules.c	764	layout-expression	0x7E4211, MARKERS_STOPPED = 0x60, CAMERA_SPEED_SHIFT = 11 };
 game/scene/race_rules.c	944	layout-expression	0x7E41A6 };
@@ -1732,51 +1757,51 @@ game/scene/stars.c	243	layout-expression	0x7E98BC, 0x7E98C8 };
 game/scene/stars.c	243	layout-expression	0x7E98C8 };
 game/scene/stars.c	300	layout-expression	0x7E579B, "a star field the port doesn't fly");
 game/scene/stars.c	318	layout-expression	0x7E999C, START_DRIFT = 0x9897 };
-game/scene/title.c	111	raw-helper	wram_read16(g, (uint32_t)bank << 16 | (uint16_t)(tile + pair * SCENE_PLANE_PAIR_BYTES));
-game/scene/title.c	169	raw-helper	wram_read16(g, at);
-game/scene/title.c	78	video-source	PF_GAME(SCENE_BLANK_TILE), BG1_MAP_REST_BYTES, NULL);
-game/scene/title.c	175	video-source	PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
-game/scene/title.c	464	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES,
-game/scene/title.c	76	layout-expression	0x7E59D8), &vram_port);
-game/scene/title.c	77	layout-expression	0x7E59DD), BG1_MAP_REST_VRAM,
-game/scene/title.c	87	layout-expression	0x7E0000 };
-game/scene/title.c	95	layout-expression	0x7E5E75 };
-game/scene/title.c	96	layout-expression	0x7E5F2E };
-game/scene/title.c	111	layout-expression	<< 16 | (uint16_t)(tile + pair * SCENE_PLANE_PAIR_BYTES));
-game/scene/title.c	164	layout-expression	0x7E5ABE), SCENE_VRAM_LOW_BYTES);
-game/scene/title.c	165	layout-expression	0x7E5AC4), PLANE_VRAM);
-game/scene/title.c	168	layout-expression	<< 16 | (uint16_t)(PICTURE_TILES + (row * PICTURE_COLUMNS + column) * 2);
-game/scene/title.c	170	layout-expression	0x7E5ACE), false, (uint8_t)word);
-game/scene/title.c	173	layout-expression	0x7E5ADC), false, 0);
-game/scene/title.c	175	layout-expression	0x7E5AEB), PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
-game/scene/title.c	197	layout-expression	0x7E5A61), &pendulum_mode);
-game/scene/title.c	198	layout-expression	0x7E5A65), &pendulum_plane, VID_M7_SELECT);
-game/scene/title.c	199	layout-expression	0x7E5A6A), VID_BG1_BIT, VID_OBJ_BIT,
-game/scene/title.c	201	layout-expression	0x7E5A6F), VID_BG1, &pendulum_bg1);
-game/scene/title.c	202	layout-expression	0x7E5A6F), VID_BG2, &pendulum_bg2);
-game/scene/title.c	203	layout-expression	0x7E5A73), VID_BG3, &pendulum_bg3);
-game/scene/title.c	204	layout-expression	0x7E5A77), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
-game/scene/title.c	205	layout-expression	0x7E5A7C), &pendulum_math, VID_MATH_CONTROL | VID_MATH_LAYERS);
-game/scene/title.c	206	layout-expression	0x7E5A80), &pendulum_plane, VID_M7_CENTER);
-game/scene/title.c	207	layout-expression	0x7E5A90), VID_BG2, (uint16_t)PENDULUM_BG2_SCROLL, 0, VID_SCROLL_H);
-game/scene/title.c	221	layout-expression	0x7E5C59), &m7, VID_M7_MATRIX);
-game/scene/title.c	222	layout-expression	0x7E5C82), VID_BG1, scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_X),
-game/scene/title.c	302	layout-expression	0x7E5CA4), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0,
-game/scene/title.c	348	layout-expression	0x7E5DAA), &(VidMode){ .mode = 2 });
-game/scene/title.c	349	layout-expression	0x7E5DAA), 0, 1);
-game/scene/title.c	464	layout-expression	0x7E6215), BG3_MAP_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES,
-game/scene/title.c	466	layout-expression	0x7E623E), VID_BG3, scene_bg3_scroll_x(g), 0, VID_SCROLL_H);
-game/scene/title.c	498	layout-expression	0x7E38E7, scene_send_unpacked(g, pf)); }
-game/scene/title.c	535	layout-expression	0x7E3749 };
-game/scene/title.c	550	layout-expression	0x7E3775, 0xC70004),
-game/scene/title.c	559	layout-expression	0x7E597D), SCENE_VRAM_WHOLE_WORDS);
-game/scene/title.c	560	layout-expression	0x7E5983), SPRITE_TILES_VRAM);
-game/scene/title.c	566	layout-expression	0x7E59A3), LAYER_TILES_VRAM);
-game/scene/title.c	568	layout-expression	0x7E59AD), PLANE_VRAM);
-game/scene/title.c	571	layout-expression	0x7E59BF), BG1_MAP_VRAM);
-game/scene/title.c	574	layout-expression	0x7E59CF), BG2_MAP_VRAM);
-game/scene/title.c	576	layout-expression	0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
-game/scene/title.c	578	layout-expression	& 0xFF0000u) | UNPACKED_PALETTE_AT);
+game/scene/title.c	114	raw-helper	wram_read16(g, (uint32_t)bank << 16 | (uint16_t)(tile + pair * SCENE_PLANE_PAIR_BYTES));
+game/scene/title.c	175	raw-helper	wram_read16(g, at);
+game/scene/title.c	79	video-source	PF_GAME(SCENE_BLANK_TILE), BG1_MAP_REST_BYTES, NULL);
+game/scene/title.c	180	video-source	PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
+game/scene/title.c	469	video-source	PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES,
+game/scene/title.c	77	layout-expression	0x7E59D8), &vram_port);
+game/scene/title.c	78	layout-expression	0x7E59DD), BG1_MAP_REST_VRAM,
+game/scene/title.c	88	layout-expression	0x7E0000 };
+game/scene/title.c	96	layout-expression	0x7E5E75 };
+game/scene/title.c	97	layout-expression	0x7E5F2E };
+game/scene/title.c	114	layout-expression	<< 16 | (uint16_t)(tile + pair * SCENE_PLANE_PAIR_BYTES));
+game/scene/title.c	168	layout-expression	0x7E5ABE), SCENE_VRAM_LOW_BYTES);
+game/scene/title.c	169	layout-expression	0x7E5AC4), PLANE_VRAM);
+game/scene/title.c	174	layout-expression	<< 16 | (uint16_t)(PICTURE_TILES + (row * PICTURE_COLUMNS + column) * 2);
+game/scene/title.c	177	layout-expression	0x7E5ACE), false, tiles, PICTURE_COLUMNS);
+game/scene/title.c	178	layout-expression	0x7E5ADC), false, blank_columns, sizeof blank_columns);
+game/scene/title.c	180	layout-expression	0x7E5AEB), PF_GAME(SCENE_BLANK_TILE), REST_OF_PLANE_BYTES, VID_VRAM_LOW_BYTES);
+game/scene/title.c	202	layout-expression	0x7E5A61), &pendulum_mode);
+game/scene/title.c	203	layout-expression	0x7E5A65), &pendulum_plane, VID_M7_SELECT);
+game/scene/title.c	204	layout-expression	0x7E5A6A), VID_BG1_BIT, VID_OBJ_BIT,
+game/scene/title.c	206	layout-expression	0x7E5A6F), VID_BG1, &pendulum_bg1);
+game/scene/title.c	207	layout-expression	0x7E5A6F), VID_BG2, &pendulum_bg2);
+game/scene/title.c	208	layout-expression	0x7E5A73), VID_BG3, &pendulum_bg3);
+game/scene/title.c	209	layout-expression	0x7E5A77), VID_BG1, LAYER_TILES_VRAM, LAYER_TILES_VRAM);
+game/scene/title.c	210	layout-expression	0x7E5A7C), &pendulum_math, VID_MATH_CONTROL | VID_MATH_LAYERS);
+game/scene/title.c	211	layout-expression	0x7E5A80), &pendulum_plane, VID_M7_CENTER);
+game/scene/title.c	212	layout-expression	0x7E5A90), VID_BG2, (uint16_t)PENDULUM_BG2_SCROLL, 0, VID_SCROLL_H);
+game/scene/title.c	226	layout-expression	0x7E5C59), &m7, VID_M7_MATRIX);
+game/scene/title.c	227	layout-expression	0x7E5C82), VID_BG1, scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_X),
+game/scene/title.c	307	layout-expression	0x7E5CA4), VID_BG1_BIT | VID_BG2_BIT | VID_OBJ_BIT, 0,
+game/scene/title.c	353	layout-expression	0x7E5DAA), &(VidMode){ .mode = 2 });
+game/scene/title.c	354	layout-expression	0x7E5DAA), 0, 1);
+game/scene/title.c	469	layout-expression	0x7E6215), BG3_MAP_VRAM, PF_GAME(SCENE_TILEMAP_BUFFER), OFFSET_ROWS_BYTES,
+game/scene/title.c	471	layout-expression	0x7E623E), VID_BG3, scene_bg3_scroll_x(g), 0, VID_SCROLL_H);
+game/scene/title.c	503	layout-expression	0x7E38E7, scene_send_unpacked(g, pf)); }
+game/scene/title.c	540	layout-expression	0x7E3749 };
+game/scene/title.c	555	layout-expression	0x7E3775, 0xC70004),
+game/scene/title.c	564	layout-expression	0x7E597D), SCENE_VRAM_WHOLE_WORDS);
+game/scene/title.c	565	layout-expression	0x7E5983), SPRITE_TILES_VRAM);
+game/scene/title.c	571	layout-expression	0x7E59A3), LAYER_TILES_VRAM);
+game/scene/title.c	573	layout-expression	0x7E59AD), PLANE_VRAM);
+game/scene/title.c	576	layout-expression	0x7E59BF), BG1_MAP_VRAM);
+game/scene/title.c	579	layout-expression	0x7E59CF), BG2_MAP_VRAM);
+game/scene/title.c	581	layout-expression	0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
+game/scene/title.c	583	layout-expression	& 0xFF0000u) | UNPACKED_PALETTE_AT);
 game/scene/turning.c	49	raw-helper	wram_write8(g, (uint16_t)(output + byte), mirrored ? mirrored_bits(value) : value);
 game/scene/turning.c	276	video-source	PF_GAME(FIGURE_BUFFER), 256, SCENE_VRAM_WHOLE_WORDS);
 game/scene/turning.c	277	video-source	PF_GAME(FIGURE_BUFFER + 256), 256, NULL);
@@ -1810,6 +1835,7 @@ game/scene/turning.c	452	layout-expression	0x7E710F, 0x7E31B0),
 game/scene/turning.c	452	layout-expression	0x7E31B0),
 game/scene/turning.c	466	layout-expression	0x7E3754 : 0x7E3749, turn = scene_channel_turn(g, pf, channel));
 game/scene/turning.c	466	layout-expression	0x7E3749, turn = scene_channel_turn(g, pf, channel));
+game/sound/loads.c	134	resource-address	rom_read8(d->game, from + i));
 game/warp/picture.c	98	video-source	PF_GAME(RAM_WARP_PLANE_MAP), PLANE_SIDE * PLANE_SIDE,
 game/warp/picture.c	222	video-source	PF_GAME(RAM_WARP_LIGHT_TILES), LIGHT_BYTES,
 game/warp/picture.c	314	video-source	PF_GAME(list), .indirect = true,
@@ -1839,14 +1865,17 @@ game/warp/warp.c	268	video-source	PF_GAME(RAM_PALETTE_BASE), PALETTE_COLOURS);
 game/warp/warp.c	269	video-source	PF_GAME((uint16_t)RAM_OAM_BUFFER), sprite_table_places(g));
 game/warp/warp.c	268	layout-expression	RAM_PALETTE_BASE), PALETTE_COLOURS);
 game/warp/warp.c	269	layout-expression	RAM_OAM_BUFFER), sprite_table_places(g));
-game/wram.h	23	raw-helper	wram_read8(const GameState *g, uint32_t at);
-game/wram.h	24	raw-helper	wram_read16(const GameState *g, uint32_t at);
-game/wram.h	30	raw-helper	wram_data_read8(const GameState *g, uint32_t at);
-game/wram.h	31	raw-helper	wram_write8(GameState *g, uint32_t at, uint8_t v);
-game/wram.h	32	raw-helper	wram_write16(GameState *g, uint32_t at, uint16_t v);
-game/wram.h	39	raw-helper	wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
-game/wram.h	40	raw-helper	wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v);
-game/wram.h	41	raw-helper	wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
-game/wram.h	47	raw-helper	wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
-game/wram.h	54	raw-helper	wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
-game/wram.h	55	raw-helper	wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes);
+game/wram.h	24	raw-helper	wram_read8(const GameState *g, uint32_t at);
+game/wram.h	25	raw-helper	wram_read16(const GameState *g, uint32_t at);
+game/wram.h	31	raw-helper	wram_data_read8(const GameState *g, uint32_t at);
+game/wram.h	32	raw-helper	wram_write8(GameState *g, uint32_t at, uint8_t v);
+game/wram.h	33	raw-helper	wram_write16(GameState *g, uint32_t at, uint16_t v);
+game/wram.h	36	raw-helper	wram_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count);
+game/wram.h	37	raw-helper	wram_write_span(GameState *g, uint32_t at, const uint8_t *bytes, uint32_t count);
+game/wram.h	44	raw-helper	wram_fill8(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
+game/wram.h	45	raw-helper	wram_fill16(GameState *g, uint32_t at, uint32_t words, uint16_t v);
+game/wram.h	46	raw-helper	wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
+game/wram.h	52	raw-helper	wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
+game/wram.h	58	raw-helper	wram_put_unpacked(GameState *g, const uint8_t *from, uint32_t at, uint32_t bytes);
+game/wram.h	65	raw-helper	wram_port_fill(GameState *g, uint32_t at, uint32_t bytes, uint8_t v);
+game/wram.h	66	raw-helper	wram_port_copy(GameState *g, PfData from, uint32_t at, uint32_t bytes);

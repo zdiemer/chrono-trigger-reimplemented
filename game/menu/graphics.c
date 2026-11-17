@@ -33,9 +33,6 @@ enum { TILE_ROWS = 8, FOUR_COLOUR_TILE = 16, SIXTEEN_COLOUR_TILE = 32, LAST_PLAN
 
 static uint32_t in_work_ram(uint16_t at) { return 0x7E0000u | at; }
 
-static uint8_t tile_byte(const GameState *g, uint16_t at) { return wram_read8(g, in_work_ram(at)); }
-static void put_tile_byte(GameState *g, uint16_t at, uint8_t v) { wram_write8(g, in_work_ram(at), v); }
-
 /* A block moved into work RAM, from the ROM or from elsewhere in it, and the
  * block move's time. */
 static void move_block(GameState *g, uint32_t from, uint16_t to, uint32_t bytes)
@@ -81,45 +78,66 @@ static void widen_three_plane_tiles(GameState *g, uint16_t from, uint16_t to, un
     }
 }
 
-/* A row's ink in its first two planes. The loops that make the planes count
- * in the menus' first cells, which they leave at 0. */
-static uint8_t ink_of_two(const GameState *g, uint16_t row) { return (uint8_t)(tile_byte(g, row) | tile_byte(g, (uint16_t)(row + 1))); }
+/* ---- Inking tiles ---------------------------------------------------------------------------- */
 
-// $C2:962E
-/* Each row's fourth plane set to the ink of its first three. */
-static void ink_the_fourth_plane(GameState *g, uint16_t at, unsigned tiles)
-{
-    for (unsigned t = 0; t < tiles; t++)
-        for (unsigned r = 0; r < TILE_ROWS; r++) {
-            uint16_t row = (uint16_t)(at + t * SIXTEEN_COLOUR_TILE + 2 * r);
-            put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1),
-                          (uint8_t)(ink_of_two(g, row) | tile_byte(g, (uint16_t)(row + LAST_PLANES))));
-        }
-}
+/* A tile's 32 bytes in hand: its rows' first two planes, then their last two,
+ * a byte a plane. The menus ink a tile's rows from the planes there, and each
+ * row's inking reads and writes four of its bytes. */
+typedef struct {
+    uint8_t bytes[SIXTEEN_COLOUR_TILE];
+} Tile;
+enum { ACCESSES_A_ROW = 4 };
 
-// $C2:9653
-/* Each row's third and fourth planes both set to the ink of its first two. */
-static void ink_the_last_two_planes(GameState *g, uint16_t at, unsigned tiles)
-{
-    for (unsigned t = 0; t < tiles; t++)
-        for (unsigned r = 0; r < TILE_ROWS; r++) {
-            uint16_t row = (uint16_t)(at + t * SIXTEEN_COLOUR_TILE + 2 * r);
-            uint8_t ink = ink_of_two(g, row);
-            put_tile_byte(g, (uint16_t)(row + LAST_PLANES), ink);
-            put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1), ink);
-        }
-}
+/* A row's ink in its first two planes: a pixel set in either. */
+static uint8_t ink_of_two(const Tile *t, unsigned r) { return (uint8_t)(t->bytes[2 * r] | t->bytes[2 * r + 1]); }
+static uint8_t *third_plane(Tile *t, unsigned r) { return &t->bytes[LAST_PLANES + 2 * r]; }
+static uint8_t *fourth_plane(Tile *t, unsigned r) { return &t->bytes[LAST_PLANES + 2 * r + 1]; }
 
-// $C2:9678
-/* A tile's third plane set to the ink of its first two, its fourth cleared. */
-static void ink_the_third_plane(GameState *g, uint16_t tile)
+typedef enum {
+    INK_THE_FOURTH_PLANE,      /* $C2:962E: each row's fourth plane the ink of its first three */
+    INK_THE_LAST_TWO_PLANES,   /* $C2:9653: each row's third and fourth planes the ink of its first two */
+    INK_THE_THIRD_PLANE,       /* $C2:9678: each row's third plane the ink of its first two, its fourth cleared */
+} Inking;
+
+static void ink_tile(Tile *t, Inking inking)
 {
     for (unsigned r = 0; r < TILE_ROWS; r++) {
-        uint16_t row = (uint16_t)(tile + 2 * r);
-        put_tile_byte(g, (uint16_t)(row + LAST_PLANES), ink_of_two(g, row));
-        put_tile_byte(g, (uint16_t)(row + LAST_PLANES + 1), 0);
+        uint8_t ink = ink_of_two(t, r);
+        switch (inking) {
+        case INK_THE_FOURTH_PLANE: *fourth_plane(t, r) = (uint8_t)(ink | *third_plane(t, r)); break;
+        case INK_THE_LAST_TWO_PLANES: *third_plane(t, r) = *fourth_plane(t, r) = ink; break;
+        case INK_THE_THIRD_PLANE: *third_plane(t, r) = ink, *fourth_plane(t, r) = 0; break;
+        }
     }
 }
+
+// $C2:962E, $C2:9653, $C2:9678
+/* `tiles` tiles in a row from `at`, inked. Each is taken whole and put back
+ * at once; the original reads and writes the bytes a row's inking uses one at
+ * a time, and their time is charged as its own: the same accesses, at the
+ * same rate, the tiles' other bytes taken and put back as they were. */
+static void ink_tiles(GameState *g, uint16_t at, unsigned tiles, Inking inking)
+{
+    uint32_t mark = charge_uncounted_begin(g);
+    for (unsigned i = 0; i < tiles; i++) {
+        uint32_t place = in_work_ram((uint16_t)(at + i * SIXTEEN_COLOUR_TILE));
+        Tile t;
+        wram_read_span(g, place, t.bytes, SIXTEEN_COLOUR_TILE);
+        ink_tile(&t, inking);
+        wram_write_span(g, place, t.bytes, SIXTEEN_COLOUR_TILE);
+    }
+    charge_uncounted_end(g, mark);
+    charge_accesses(g, tiles * TILE_ROWS * ACCESSES_A_ROW);
+}
+
+static void ink_the_fourth_plane(GameState *g, uint16_t at, unsigned tiles) { ink_tiles(g, at, tiles, INK_THE_FOURTH_PLANE); }
+
+static void ink_the_last_two_planes(GameState *g, uint16_t at, unsigned tiles)
+{
+    ink_tiles(g, at, tiles, INK_THE_LAST_TWO_PLANES);
+}
+
+static void ink_the_third_plane(GameState *g, uint16_t tile) { ink_tiles(g, tile, 1, INK_THE_THIRD_PLANE); }
 
 /* ---- Sending them ---------------------------------------------------------------------------- */
 

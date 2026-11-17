@@ -2406,6 +2406,10 @@ enum { FIELD_LAYER_STAGING_COUNT = 3 };   /* by layer (BG1-BG3) */
 enum { FIELD_LAYER_STAGING_BYTES = 2048 };
 uint8_t field_layer_staging_byte(const GameState *g, unsigned layer, unsigned at);
 void set_field_layer_staging_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+/* `count` bytes along it from `at` on, as that many set_field_layer_staging_byte's: from `v`, or
+ * each `v` (fill). */
+void set_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, const uint8_t *v, unsigned count);
+void fill_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, uint8_t v, unsigned count);
 
 enum { FIELD_WINDOW_STAGING_COUNT = 1024 };   /* by byte */
 /* Where the field builds what the dialog window shows before it is sent to VRAM: the window's
