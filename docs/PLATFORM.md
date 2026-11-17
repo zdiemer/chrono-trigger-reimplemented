@@ -1876,7 +1876,23 @@ mode 0's four tiled layers and its sprites:
   the colour is a grey, it is the GBA's
   brightening or darkening of them by sixteenths, a grey of k added
   brightening by 16k/24 (against a window's dark colours, 7 of 31) and
-  subtracted darkening by 16k/20 (against a scene's brighter ones). A line where only
+  subtracted darkening by 16k/20 (against a scene's brighter ones). Where
+  the SNES halves the sum (the fixed colour's math with `half`, which the
+  save screen dims its other slots with), it is darkening by 8 -+ 8k/20, a
+  colour of 20 halved with the grey, and so where several of the math's
+  layers stand over one another, which blending with the backdrop leaves
+  whole (`halved_shading_steps`). Math the colour window limits to part of
+  the line is done across it, as the added blending's is (the menus'
+  windows darken toward their foot inside a window 16 dots short of either
+  side, which was left undone). In the census (replayed) the save screen's
+  picture clusters in `events-jetbike-race` and `menus-sweep` (1.6M and
+  1.5M pixels summed) fell to 0.1M; with `--colours port-style`
+  `menus-sweep`'s picture mismatches fell from 18.7M to 2.3M, `new-game`'s
+  from 2.4M to 0.9M, `events-jetbike-race`'s from 7.5M to 3.1M and
+  `gato-battle`'s from 7.2M to 5.3M, the menus' windows' feet now steps
+  off rather than whole shades; the colour mismatches that took their
+  place are smaller (a menu frame's mean step 3.8 to 2.9) though about 7%
+  more pixels. A line where only
   the colour math changed takes the last change's registers with its
   blending, and where only its strength (BLDY) changed it is no change at
   all: DMA copies each line's strength in the horizontal blank above it
@@ -1999,7 +2015,7 @@ Approximated, or not shown yet (issue #483):
 - Colour math: the fixed colour added to layers with only the backdrop
   behind them is exact, but where the SNES's backdrop shows on those lines
   the GBA's shows the fixed colour, and math the colour window confines is
-  done across the line. Elsewhere the fixed colour on layers is a grey's
+  done across the line, the brightening and darkening too. Elsewhere the fixed colour on layers is a grey's
   brightening or darkening (above), so a colour that isn't a grey isn't
   added to them (Magus's castle's candle flames, issue #554), and the
   shading taken away is near the SNES's rather than its own: a window's
@@ -2022,8 +2038,8 @@ Approximated, or not shown yet (issue #483):
   the dialog's shading, at no cost to measure; where the light layer moves,
   it now shows a frame late in places (`gato-battle` 8697-8793 and
   10164-10537, `frame` clusters). A sub screen's layers subtracted and the
-  colour window aren't (colour math the colour window limits isn't done:
-  the time warp shows its waves without the glow).
+  colour window on the sub screen's math isn't (the time warp shows its
+  waves without the glow).
 - Mode 7: tile 0 outside the plane shows as nothing; EXTBG's second layer,
   the plane's mosaic and direct colour aren't shown; a frame whose plane's
   room was not yet made (the first frame a line shows Mode 7) shows its
