@@ -3,6 +3,7 @@
  * (docs/PLATFORM.md, "The GBA build, as built"; targets/gba/README.md).
  *
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --movie MOVIE.ctm --frames N [--shot FRAME FILE.png]... [--samples FILE]
+ *            [--sample-frames FROM-TO[,FROM-TO]...]
  *            [--wav FILE.wav] [--stream FILE.wav] [--watch FROM TO DIR] [--record FILE] [--stall N]
  *   mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] --drive
  *
@@ -20,7 +21,9 @@
  * it with the GBA frames the movie took. With --samples, it notes where the
  * processor is every SAMPLE_CYCLES cycles as the movie plays and writes each
  * address it was seen at with its count (run.py's --profile names the
- * functions). With --wav, it writes what mGBA plays as the movie plays, in
+ * functions); with --sample-frames, only while the game plays one of the
+ * runs of its frames FROM to TO, both counted (a single FROM is the one
+ * frame): a load or a menu's opening by itself. With --wav, it writes what mGBA plays as the movie plays, in
  * the GBA's time, gaps and all where the game's frame was late; with
  * --stream, every sample the program queued (the sound's ring, which it
  * names in its log, services/direct_sound.h), one after another, as the GBA
@@ -103,10 +106,53 @@ static uint32_t *rom_samples, *iwram_samples, *ewram_samples;
 static unsigned long other_samples;
 static struct mTimingEvent sampling_event;
 
+/* The runs of the game's frames sampled (--sample-frames); none, every frame. */
+enum { MAX_SAMPLED_RUNS = 16 };
+static struct { uint32_t from, to; } sampled_runs[MAX_SAMPLED_RUNS];
+static unsigned sampled_run_count;
+
+static uint32_t frames_played(void);
+
+static int frame_sampled(void)
+{
+    if (!sampled_run_count)
+        return 1;
+    uint32_t frame = frames_played();
+    for (unsigned i = 0; i < sampled_run_count; i++)
+        if (frame >= sampled_runs[i].from && frame <= sampled_runs[i].to)
+            return 1;
+    return 0;
+}
+
+/* --sample-frames' runs, FROM-TO or FROM, a comma between them. */
+static int parse_sampled_runs(const char *text)
+{
+    while (*text) {
+        char *end;
+        unsigned long from = strtoul(text, &end, 10), to = from;
+        if (end == text || sampled_run_count == MAX_SAMPLED_RUNS)
+            return -1;
+        text = end;
+        if (*text == '-') {
+            to = strtoul(text + 1, &end, 10);
+            if (end == text + 1 || to < from)
+                return -1;
+            text = end;
+        }
+        sampled_runs[sampled_run_count].from = (uint32_t)from;
+        sampled_runs[sampled_run_count++].to = (uint32_t)to;
+        if (*text == ',')
+            text++;
+        else if (*text)
+            return -1;
+    }
+    return sampled_run_count ? 0 : -1;
+}
+
 static void sample(struct mTiming *timing, void *context, uint32_t late)
 {
     (void)context;
-    if (sampling) {
+    if (sampling && frame_sampled()) {
         uint32_t pc = (uint32_t)((struct ARMCore *)core->cpu)->gprs[ARM_PC];
         switch (pc >> 24) {
         case 8: case 9: rom_samples[(pc - 0x08000000u) / 2 % ROM_HALVES]++; break;
@@ -714,7 +760,7 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
 int main(int argc, char **argv)
 {
     static const char usage[] = "usage: mgba_run ROM.gba [--bios BIOS.bin] [--sav FILE.sav] (--movie MOVIE.ctm --frames N "
-                                "[--shot FRAME FILE.png]... [--samples FILE] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
+                                "[--shot FRAME FILE.png]... [--samples FILE] [--sample-frames FROM-TO[,FROM-TO]...] [--wav FILE.wav] [--stream FILE.wav] [--decisions FILE] "
                                 "[--watch FROM TO DIR] [--record FILE] [--stall N] | --drive)\n";
     const char *movie = NULL, *bios = NULL, *sav = NULL, *samples_path = NULL, *wav_path = NULL, *stream_path = NULL;
     const char *decisions_path = NULL, *pictures_path = NULL;
@@ -733,7 +779,10 @@ int main(int argc, char **argv)
             sav = argv[++i];
         else if (!strcmp(argv[i], "--samples") && i + 1 < argc)
             samples_path = argv[++i];
-        else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
+        else if (!strcmp(argv[i], "--sample-frames") && i + 1 < argc) {
+            if (parse_sampled_runs(argv[++i]))
+                argc = 0;
+        } else if (!strcmp(argv[i], "--wav") && i + 1 < argc)
             wav_path = argv[++i];
         else if (!strcmp(argv[i], "--stream") && i + 1 < argc)
             stream_path = argv[++i];

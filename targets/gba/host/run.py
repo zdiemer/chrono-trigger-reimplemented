@@ -21,7 +21,10 @@ GBA build, keeping no time of the original's, replays
 (targets/gba/system/frames.h); the runner feeds it the movie's pads and the
 decisions, and the save RAM the movie starts from goes in as its .sav. With
 `--profile FILE`, the runner samples where the processor is as the movie
-plays and FILE gets each function's share of the samples, the largest first.
+plays and FILE gets each function's share of the samples, the largest first;
+with `--profile-frames FROM-TO[,FROM-TO]...` too, only while the game plays
+those of its frames (both ends counted; a single FROM is that frame), such as
+a location's load.
 With `--wav FILE.wav`, FILE gets what mGBA plays; with `--stream FILE.wav`,
 every sample the program queued, without the gaps where its frames were
 late. With `--fast-rom`, the ROM is packed with the cartridge's faster waits
@@ -205,6 +208,8 @@ def main(argv=None):
                     help="write every sample the program queued, as it plays where the game keeps its time")
     ap.add_argument("--profile", type=pathlib.Path, metavar="FILE",
                     help="sample where the processor is as the movie plays; FILE gets each function's share")
+    ap.add_argument("--profile-frames", metavar="FROM-TO[,FROM-TO]...",
+                    help="with --profile, sample only while the game plays these of its frames")
     ap.add_argument("--fast-rom", action="store_true", help="pack the ROM with the cartridge's faster waits (pack.py)")
     ap.add_argument("--colours", choices=pack.PROFILES, default="original",
                     help="pack the ROM with this profile's colours (pack.py's --profile)")
@@ -264,6 +269,8 @@ def main(argv=None):
     samples = out_dir / (args.movie.stem + ".samples")
     if args.profile:
         command += ["--samples", str(samples)]
+        if args.profile_frames:
+            command += ["--sample-frames", args.profile_frames]
     gba = subprocess.run(command, stdout=subprocess.PIPE, text=True, env=env)
     if args.profile and samples.exists():
         profile(args.program.resolve().with_suffix(".elf"), samples, args.profile)

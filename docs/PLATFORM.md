@@ -2205,8 +2205,9 @@ and the attract's battles and the Ocean Palace's clouds (#550).
 loads stops the picture for as long as it takes, and those were the GBA's
 longest frames: 123 GBA frames (two seconds) as the title's song loads,
 88 as the menus open in `new-game`, 226 as a map with its song loads in
-`gato-battle`. Profiled over those frames alone (`mgba_run`'s samples
-limited to a run of the game's frames), three causes stood out, each now
+`gato-battle`. Profiled over those frames alone (`run.py --profile FILE
+--profile-frames FROM-TO`, the runner's samples limited to a run of the
+game's frames), three causes stood out, each now
 gone or shortened: a song's samples were sent to sound memory reading each
 byte's block's place in the cartridge again and the byte through the
 catalogue's search (the block was then found once and read on through,
