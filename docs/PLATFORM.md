@@ -1991,7 +1991,19 @@ Approximated, or not shown yet (issue #483):
   even where only the lines show its map: the light circles 12,000 BC's
   cave and Lucca's house keep on it out of sight covered both rooms, and
   the End of Time's lamp lit its floor in streaks. A
-  split takes its copies' room from the tile caches.
+  split takes its copies' room from the tile caches. The layers are
+  assigned for the mode the frame starts in; a line effect that sets the
+  mode again part of the way down sets the third layer's priority with it
+  (`third_layer_as_the_line_puts_it`). The battle's windows keep it and the
+  battlefield below them drops it: there the third layer stands behind
+  every sprite, or, where the line's colour math adds the sub screen it is
+  on to the first two layers, in front of them as the blending's first
+  target and behind the sprites of the highest priority (the battle's),
+  the same sum. Before, Flea's red cross in the attract demo covered Crono
+  and the damage shown; sprites of the lower priorities still stand behind
+  it there. The flash across the battlefield as the cross begins (the sub
+  screen's third layer, which no window keeps in, where the main screen's is
+  windowed) is not shown.
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it; a sprite
   raised instead shows over the dots of the layers between where they
