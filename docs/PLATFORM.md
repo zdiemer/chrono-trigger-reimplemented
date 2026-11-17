@@ -1777,7 +1777,19 @@ mode 0's four tiled layers and its sprites:
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at
   its horizon, a scene's fall into darkness): on the backdrop it is worked
-  out exactly; on layers, where the colour is a grey, it is the GBA's
+  out exactly. Added to layers with nothing behind them but the backdrop
+  (a window's background, the text in front of it: the shading's top half),
+  it is exact too, any colour: the GBA's blending of those layers with the
+  backdrop at full weight (half where the SNES halves), the line's
+  backdrop the fixed colour, adds each channel held at 31 as the SNES does
+  (`add_by_blending`). Its steps are changes rather than strength steps,
+  about eight more a frame while a window shows. In the census (replayed,
+  fast waits) the colour mismatches fell 24% in `gato-battle`, 30% in
+  `menus-sweep`, 16% in `new-game`, 11% in `attract-demo` and 5% in
+  `events-jetbike-race`, with no new picture cluster; the GBA's frames for
+  `gato-battle` and `menus-sweep` rose 0.9% and 2.2% with the extra
+  changes. Elsewhere on layers, where
+  the colour is a grey, it is the GBA's
   brightening or darkening of them by sixteenths, a grey of k added
   brightening by 16k/24 (against a window's dark colours, 7 of 31) and
   subtracted darkening by 16k/20 (against a scene's brighter ones). A line where only
@@ -1890,11 +1902,15 @@ Approximated, or not shown yet (issue #483):
   split takes its copies' room from the tile caches.
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it.
-- Colour math: the fixed colour on layers is a grey's brightening or
-  darkening (above), so a colour that isn't a grey isn't added to layers,
-  and the shading is near the SNES's rather than its own: the dialog's
-  window a few steps lighter or darker at its edges than natively, the
-  race's fog a little deeper. The sub
+- Colour math: the fixed colour added to layers with only the backdrop
+  behind them is exact, but where the SNES's backdrop shows on those lines
+  the GBA's shows the fixed colour, and math the colour window confines is
+  done across the line. Elsewhere the fixed colour on layers is a grey's
+  brightening or darkening (above), so a colour that isn't a grey isn't
+  added to them (Magus's castle's candle flames, issue #554), and the
+  shading taken away is near the SNES's rather than its own: a window's
+  foot a few steps lighter or darker than natively, the race's fog a little
+  deeper. The sub
   screen added to the main screen is the GBA's blending at full weight
   where the sub screen's layers are on the main screen too, and halved only
   with those: where the sub screen shows nothing the SNES adds the fixed
