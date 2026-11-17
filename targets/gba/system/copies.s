@@ -100,3 +100,80 @@ memset:
     mov     r0, r12
     bx      lr
     .size memset, . - memset
+
+@ Runs into and out of work RAM's top in the cartridge's SRAM
+@ (runtime/port/vars_host.h's vars_host_cold_write and vars_host_cold_read),
+@ which takes a byte at a time: the ordinary memory's end read or written a
+@ word at a time once aligned, four of the SRAM's bytes to each, where a
+@ byte loop in C spent as long again on itself as on the SRAM. A world
+@ map's load sends its graphics through the SRAM, about 20 KiB each way.
+
+@ void vars_host_cold_write(volatile uint8_t *to (r0), const uint8_t *from (r1), uint32_t n (r2))
+    .global vars_host_cold_write
+    .type vars_host_cold_write, %function
+vars_host_cold_write:
+    cmp     r2, #0
+    bxeq    lr
+    tst     r1, #3
+    ldrbne  r3, [r1], #1
+    strbne  r3, [r0], #1
+    subne   r2, r2, #1
+    bne     vars_host_cold_write
+    subs    r2, r2, #4
+    blo     .Lcold_write_bytes
+.Lcold_write_word:
+    ldr     r3, [r1], #4
+    strb    r3, [r0], #1
+    lsr     r3, r3, #8
+    strb    r3, [r0], #1
+    lsr     r3, r3, #8
+    strb    r3, [r0], #1
+    lsr     r3, r3, #8
+    strb    r3, [r0], #1
+    subs    r2, r2, #4
+    bhs     .Lcold_write_word
+.Lcold_write_bytes:
+    adds    r2, r2, #4
+    bxeq    lr
+.Lcold_write_byte:
+    ldrb    r3, [r1], #1
+    strb    r3, [r0], #1
+    subs    r2, r2, #1
+    bne     .Lcold_write_byte
+    bx      lr
+    .size vars_host_cold_write, . - vars_host_cold_write
+
+@ void vars_host_cold_read(uint8_t *to (r0), const volatile uint8_t *from (r1), uint32_t n (r2))
+    .global vars_host_cold_read
+    .type vars_host_cold_read, %function
+vars_host_cold_read:
+    cmp     r2, #0
+    bxeq    lr
+    tst     r0, #3
+    ldrbne  r3, [r1], #1
+    strbne  r3, [r0], #1
+    subne   r2, r2, #1
+    bne     vars_host_cold_read
+    subs    r2, r2, #4
+    blo     .Lcold_read_bytes
+.Lcold_read_word:
+    ldrb    r3, [r1], #1
+    ldrb    r12, [r1], #1
+    orr     r3, r3, r12, lsl #8
+    ldrb    r12, [r1], #1
+    orr     r3, r3, r12, lsl #16
+    ldrb    r12, [r1], #1
+    orr     r3, r3, r12, lsl #24
+    str     r3, [r0], #4
+    subs    r2, r2, #4
+    bhs     .Lcold_read_word
+.Lcold_read_bytes:
+    adds    r2, r2, #4
+    bxeq    lr
+.Lcold_read_byte:
+    ldrb    r3, [r1], #1
+    strb    r3, [r0], #1
+    subs    r2, r2, #1
+    bne     .Lcold_read_byte
+    bx      lr
+    .size vars_host_cold_read, . - vars_host_cold_read

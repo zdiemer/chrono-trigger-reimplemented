@@ -52,7 +52,7 @@ void wram_copy(GameState *g, uint32_t from, uint32_t to, uint32_t bytes);
 void wram_clear(GameState *g, PfOrigin o, uint32_t at, uint32_t bytes);
 
 /* `bytes` of a stream the resources keep unpacked (rom.h, rom_unpacked)
- * written from `at`, short of its bank's end, where each of them reads back
+ * written from `at`, up to its bank's end at most, where each of them reads back
  * as it is written, every byte having an owner (true); false, and nothing
  * written, where the state can't take them so. None of the port's own time. */
 bool wram_put_unpacked(GameState *g, const uint8_t *from, uint32_t at, uint32_t bytes);

@@ -2329,6 +2329,38 @@ finds the same clusters as before, none new over a single GBA frame, each
 run ending as ct_native's, whose movies and lag frames are as before. Work
 RAM is 512 bytes above its floor, fast RAM 616 spare.
 
+**The world map's load** (issue #568). A world map's load took 16 GBA
+frames in one game frame (`attract-demo` frames 2210, 10668, 13259 and
+21718, `run.py --profile-frames`): its graphics are unpacked into a
+buffer at `$7F:9000` that runs on into the SRAM's cold top and sent from
+there to VRAM, and both planes are drawn whole. Three things made it long.
+The last of the map tiles' seven blocks ends at `$7F:FFFF`, which a
+stream kept unpacked wasn't let reach, so it went through the unpacker a
+byte at a time, 0.6M cycles; it goes in as one copy now, the port left at
+`$7E:0000` after it, where writing through it leaves it
+(`wram_put_unpacked`, `put_unpacked`). Runs into and out of the cold top
+(the unpacks' copies and the sends' reads, about 30 KiB each way) went a
+byte at a time in a C loop that spent as long on itself as on the SRAM:
+they go through the target's copies now (`vars_host_cold_write`,
+`vars_host_cold_read`, ARM in fast RAM in `system/copies.s`), a word at
+a time on the other end. And a plane's redraw built each block's two
+strips a byte at a time through the state's accessors: a block reads each
+map tile's group whole and puts both strips in the upload buffer at once
+(`build_block_whole`), where the buffer lies apart from the map and its
+groups (every screen's does; otherwise a word at a time as before), the
+same bytes charged. The load fell from 15.9 GBA frames to 11.4 (its
+samples, over the four loads); what is left is mostly the picture's taking
+the sends (`vram_take`, `vram_put_bytes` and their `memcpy`, about 55%,
+`services/video.c`), the column strips a byte at a time through a port
+that steps a row. The six movies end as ct_native's, in as many GBA frames
+or a few fewer (`attract-demo` 33,648 against 33,703, `gato-battle` 24,669
+against 24,680), `attract-demo`'s heaviest frame now a field map's load
+(15.3 GBA frames against the world map's 16.0); fast RAM keeps 264 bytes fewer spare. The census finds
+the clusters it found before, but for `attract-demo`'s two scenes with
+noise over the screen (frames 7931-8209 and 18980-19260), whose
+mismatches already spanned them and now fall on more GBA frames with
+fewer pixels each, about as many in all (719 clusters against 626).
+
 **Measured** (2026-11-14, mGBA 0.10.5):
 
 | What | On the GBA |

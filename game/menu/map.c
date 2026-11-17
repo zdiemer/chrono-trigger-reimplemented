@@ -157,6 +157,12 @@ static uint16_t group_tile(const GameState *g, const MapPlane *p, uint8_t byte, 
     return bank_word(g, MAP_BANK + corner + (uint16_t)(byte * GROUP_BYTES + p->groups));
 }
 
+/* A tile group's four tiles, read whole. */
+static void read_group(const GameState *g, const MapPlane *p, uint8_t byte, uint8_t group[GROUP_BYTES])
+{
+    wram_read_span(g, MAP_BANK + (uint16_t)(byte * GROUP_BYTES + p->groups), group, GROUP_BYTES);
+}
+
 /* A word of the strip being built at `buffer`, `out` bytes in. */
 static void put_strip_word(GameState *g, uint16_t buffer, uint16_t out, uint16_t word)
 {
@@ -427,13 +433,59 @@ MenuMapTile menu_map_camera_looks_at(const GameState *g)
  * fill two tilemap columns from the top of the screen round its 32 rows. */
 enum { REDRAW_BLOCKS = 18, BLOCK_TILES = 16, BLOCK_PIXELS = 2 * TILE_PIXELS };
 
+enum { BLOCK_BYTES = 2 * STRIP_BYTES, GROUP_TABLE_BYTES = 256 * GROUP_BYTES };
+
+static bool apart(uint32_t a, uint32_t a_bytes, uint32_t b, uint32_t b_bytes)
+{
+    return a + a_bytes <= b || b + b_bytes <= a;
+}
+
+/* Whether a block can be built whole and put in the upload buffer at once:
+ * the buffer lies apart from the map and its groups (every screen's does),
+ * so none of the block's reads would see a word it writes. */
+static bool block_can_be_built_whole(const MapPlane *p, uint16_t buffer)
+{
+    return p->groups <= 0x10000 - GROUP_TABLE_BYTES && apart(buffer, BLOCK_BYTES, p->groups, GROUP_TABLE_BYTES) &&
+           apart(buffer, BLOCK_BYTES, p->map, MAP_BYTES);
+}
+
+/* A map tile's pair of tiles, a word each, into a strip. */
+static void put_pair(uint8_t *strip, const uint8_t *first, const uint8_t *second)
+{
+    strip[0] = first[0], strip[1] = first[1];
+    strip[2] = second[0], strip[3] = second[1];
+}
+
 // $C2:0A6C, $C2:0AAE
-/* Build a block in the upload buffer: each map tile's left-hand pair in the
- * block's first column, its right-hand pair a strip further on in the second.
+/* Build a block: each map tile's left-hand pair in the block's first column,
+ * its right-hand pair a strip further on in the second. Its sixteen map
+ * tiles fill both strips, built here and put in the upload buffer whole.
  * Returns how far into the map it got. */
+static uint16_t build_block_whole(GameState *g, const MapPlane *p, uint16_t map, uint16_t at, uint16_t buffer,
+                                  uint16_t out)
+{
+    uint8_t strips[BLOCK_BYTES];
+    for (unsigned i = 0; i < BLOCK_TILES; i++) {
+        uint8_t group[GROUP_BYTES];
+        read_group(g, p, map_byte(g, map, at), group);
+        put_pair(strips + out, group + TOP_LEFT, group + BOTTOM_LEFT);
+        put_pair(strips + STRIP_BYTES + out, group + TOP_RIGHT, group + BOTTOM_RIGHT);
+        at = (uint16_t)(at + MAP_COLUMNS);
+        if (at >= MAP_BYTES)
+            at = 0;
+        out = (uint16_t)(out + 4) & (STRIP_BYTES - 1);
+    }
+    wram_write_span(g, MAP_BANK + buffer, strips, BLOCK_BYTES);
+    return at;
+}
+
+/* The same a word at a time into the upload buffer, as the original builds
+ * it, where the buffer lies among the map or its groups. */
 static uint16_t build_block(GameState *g, const MapPlane *p, uint16_t map, uint16_t at, uint16_t out)
 {
     uint16_t buffer = (uint16_t)menu_object_upload_buffer(g);
+    if (block_can_be_built_whole(p, buffer))
+        return build_block_whole(g, p, map, at, buffer, out);
     for (unsigned i = 0; i < BLOCK_TILES; i++) {
         uint8_t byte = map_byte(g, map, at);
         put_strip_word(g, buffer, out, group_tile(g, p, byte, TOP_LEFT));
