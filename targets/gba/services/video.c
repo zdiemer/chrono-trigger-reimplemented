@@ -1435,17 +1435,25 @@ static const Order *order_of_mode(void)
 
 /* Whether a layer not split stands in front of the sprites: where more of
  * its map's units have only tiles in front than only tiles behind; mode 1's
- * third layer put in front, where it has any tiles in front or its own map
- * isn't shown (its text and panels, which the mode puts in front of
- * everything; what it has behind is mostly blank). Mode 2 shows no third
- * layer; where a mode 1 line below shows it, it is the menus' text, put in
- * front so (their description of a tech or an item). */
+ * third layer put in front, where it has any tiles in front (its text and
+ * panels, which the mode puts in front of everything; what it has behind is
+ * mostly blank), or where its own map isn't shown and the maps the lines
+ * show in its place have no tiles behind either (a battle window's text, cut
+ * to the view). A third layer of tiles behind alone stays behind, as on the
+ * SNES, where the first two layers' tiles cover it: what a room keeps on it
+ * out of sight (12,000 BC's cave, Lucca's house at the End of Time's gate
+ * covered in light circles otherwise). Mode 2 shows no third layer; where a
+ * mode 1 line below shows it, it is the menus' text, put in front so (their
+ * description of a tech or an item). */
 static bool stands_in_front(unsigned n)
 {
     unsigned front, behind;
-    bool third_in_front = n == 2 && (order_of_mode() == &third_in_front_order || order_of_mode() == &mode2_order);
+    const Order *o = order_of_mode();
+    bool third_in_front = n == 2 && (o == &third_in_front_order || o == &mode2_order);
     count_priorities(n, !third_in_front, &front, &behind);
-    return third_in_front ? front > 0 || !layers[n].own_map : front > behind;
+    if (!third_in_front)
+        return front > behind;
+    return front > 0 || (!layers[n].own_map && (o == &mode2_order || !behind));
 }
 
 /* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
@@ -2599,6 +2607,7 @@ static void convert_block(unsigned k, uint32_t units)
                 convert_map_units(block, units, n, layers[n].map_byte, false, NULL, NO_PLACE, NO_PLACE);
         uint32_t front = owner->front_byte + ((block - owner->map_byte) & (VRAM_BYTES - 1));
         convert_map_units(block, units, 4, 0, false, owner, block, owner->split ? front : NO_PLACE);
+
         if (owner->overlaid)
             convert_map_units(block, units, 4, 0, false, owner, NO_PLACE, front);
     }
