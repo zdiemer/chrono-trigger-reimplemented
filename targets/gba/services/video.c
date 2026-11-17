@@ -4149,10 +4149,15 @@ static uint16_t backdrop(const LineState *st)
  * raises it by k, as brightening by 16k / (31 - c) does; subtracted, it
  * lowers it by k, as darkening by 16k / c does. The strengths taken are a
  * window's dark colours (7 of 31) brightened, and a scene's brighter ones (20)
- * darkened, which keeps a scene darkened in sight as natively. Math the
- * colour window limits (the time warp's glow) isn't done, which leaves the
- * layers as they are outside it. The backdrop's own math is exact
- * (backdrop, above), so it isn't a target. */
+ * darkened, which keeps a scene darkened in sight as natively. Where the
+ * fixed colour is halved with what it is added to or taken from (the save
+ * screen's slots other than the one chosen, dimmed to half), the sum is
+ * half a colour's strength give or take half the grey's, as darkening by
+ * half less or more a sixteenth for each strength step of the grey's in 20
+ * does (halved_shading_steps). Math the colour window limits to part of the
+ * line is done across it (the save screen's math stops 16 dots short of
+ * either side). The backdrop's own math is exact (backdrop, above), so it
+ * isn't a target. */
 enum { BRIGHTENED_STRENGTH = 7, DARKENED_STRENGTH = 20, BLEND_STEPS = 16 };
 
 /* n / d for the small n (under 2^16 / d) and constant d the shading works
@@ -4163,20 +4168,35 @@ static inline unsigned small_quotient(unsigned n, unsigned d) { return n * ((1u 
 
 static uint16_t line_layer_bits(const LineState *st, uint16_t snes_bits);
 
+/* Whether the fixed colour's sum is halved: the SNES halves it unless the
+ * sum is the sub screen's and it shows nothing there. */
+static bool halves_the_fixed_colour(const VidColorMath *m) { return m->half && !m->sub_screen; }
+
+/* The darkening by sixteenths that halves a colour of DARKENED_STRENGTH
+ * with a grey of strength `grey` added or taken away: (s +- k) / 2 is s
+ * darkened by 8 -+ 8k / s. */
+static unsigned halved_shading_steps(unsigned grey, bool subtract)
+{
+    unsigned shift = small_quotient(grey * (BLEND_STEPS / 2), DARKENED_STRENGTH);
+    if (subtract)
+        return BLEND_STEPS / 2 + shift;
+    return shift < BLEND_STEPS / 2 ? BLEND_STEPS / 2 - shift : 0;
+}
+
 static void fixed_shading(LineRegisters *r, const LineState *st)
 {
     const VidColorMath *m = &st->math;
     uint8_t layers = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
-    if (st->brightness < 15 || sub_screen_shows_a_layer(st) || !layers || m->prevent_math != VID_REGION_NEVER)
+    if (st->brightness < 15 || sub_screen_shows_a_layer(st) || !layers || m->prevent_math == VID_REGION_ALWAYS)
         return;
     unsigned red = st->fixed_color & 31, green = st->fixed_color >> 5 & 31, blue = st->fixed_color >> 10 & 31;
-    if (red != green || green != blue || red == 0)
+    bool halved = halves_the_fixed_colour(m);
+    if (red != green || green != blue || (red == 0 && !halved))
         return;
-    unsigned steps = m->subtract ? small_quotient(red * BLEND_STEPS, DARKENED_STRENGTH)
-                                 : small_quotient(red * BLEND_STEPS, 31 - BRIGHTENED_STRENGTH);
-    if (m->half)
-        steps /= 2;
-    r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
+    unsigned steps = halved      ? halved_shading_steps(red, m->subtract)
+                     : m->subtract ? small_quotient(red * BLEND_STEPS, DARKENED_STRENGTH)
+                                   : small_quotient(red * BLEND_STEPS, 31 - BRIGHTENED_STRENGTH);
+    r->bldcnt = (uint16_t)((m->subtract || halved ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
     r->bldy = (uint16_t)(steps > BLEND_STEPS ? BLEND_STEPS : steps);
 }
 
@@ -4242,8 +4262,12 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
         for (unsigned h = 0; (added >> g & 1) && h < 4; h++)
             if ((through >> h & 1) && !(added >> h & 1) && behind(r, h, g))
                 return false;
-    /* the sub screen showing nothing is the fixed colour, unhalved */
-    bool half = m->half && !m->sub_screen;
+    /* the sub screen showing nothing is the fixed colour, unhalved; halved,
+     * an added layer over another blends with nothing and would show at
+     * twice the strength, so several are darkened (fixed_shading) */
+    bool half = halves_the_fixed_colour(m);
+    if (half && (added & (added - 1)))
+        return false;
     if (!st->fixed_color && !half)
         return true;
     r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
