@@ -311,6 +311,29 @@ static void place_crono_blocks(GameState *g)
     charge_accesses(g, 2);
 }
 
+/* A row of pictures mirrored: the `MIRRORED_PIXELS` from `last` in the row at
+ * `from` back to the row's start, into the row at `to`. */
+static void mirror_row(GameState *g, uint32_t to, uint32_t from, uint16_t last)
+{
+    uint32_t bank = from & 0xFF0000;
+    uint16_t first = (uint16_t)(from + last - (MIRRORED_PIXELS - 1));
+    uint32_t source = bank | first;
+    /* read and written a row at a time, each pixel's time as before, where
+     * the row's pixels neither wrap round their bank nor overlap where they
+     * go; a pixel at a time otherwise, as each write reaches the pixels still
+     * to be read */
+    if (first <= 0x10000u - MIRRORED_PIXELS && (source + MIRRORED_PIXELS <= to || to + MIRRORED_PIXELS <= source)) {
+        uint8_t pixels[MIRRORED_PIXELS], mirrored[MIRRORED_PIXELS];
+        wram_read_span(g, source, pixels, MIRRORED_PIXELS);
+        for (unsigned i = 0; i < MIRRORED_PIXELS; i++)
+            mirrored[i] = pixels[MIRRORED_PIXELS - 1 - i];
+        wram_write_span(g, to, mirrored, MIRRORED_PIXELS);
+        return;
+    }
+    for (unsigned i = 0; i < MIRRORED_PIXELS; i++)
+        wram_write8(g, to + i, wram_read8(g, bank | (uint16_t)(from + last - i)));
+}
+
 // $7E:3ED3
 /* `rows` rows of pictures mirrored into the rows from `to`: from each source
  * row, its pixels from `last` back to the row's start, then empty ones to
@@ -318,8 +341,7 @@ static void place_crono_blocks(GameState *g)
 uint32_t scene_mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t last, unsigned rows)
 {
     for (unsigned row = 0; row < rows; row++) {
-        for (unsigned i = 0; i < MIRRORED_PIXELS; i++)
-            wram_write8(g, to + i, wram_read8(g, (from & 0xFF0000) | (uint16_t)(from + last - i)));
+        mirror_row(g, to, from, last);
         wram_fill8(g, to + MIRRORED_PIXELS, PICTURE_ROW - MIRRORED_PIXELS, 0);
         to += PICTURE_ROW;
         from = (from & 0xFF0000) | (uint16_t)(from + PICTURE_ROW);

@@ -78,23 +78,35 @@ void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_
 }
 
 /* `n` bytes from `at` (bytes from $7E:0000, below the cold top) filled where
- * owners keep them: runs of eight-byte groups owners keep whole at once, the
- * rest a byte at a time. */
+ * owners keep them: the rest of a page owners keep whole at once; elsewhere a
+ * group of eight bytes at a time, its owners looked up once, runs of groups
+ * owners keep whole at once and the rest by their owners' bits. */
 static void fill_owned(VarsHost *h, uint32_t at, uint8_t value, uint32_t n)
 {
     uint8_t *to = h->page[0] + at;
     for (uint32_t i = 0; i < n;) {
-        uint32_t whole = i;
-        while (!((at + whole) & 7u) && n - whole >= 8 && vars_flat_owners(at + whole) == 0xFF)
-            whole += 8;
-        if (whole > i) {
+        uint32_t place = at + i, page_left = 256 - (place & 255u);
+        if (page_left <= n - i && vars_flat_wholly_owned(place, page_left)) {
+            memset(to + i, value, page_left);   /* to a page's end, every byte of it owned */
+            i += page_left;
+            continue;
+        }
+        uint32_t k = 8 - (place & 7u);
+        if (k > n - i)
+            k = n - i;
+        uint8_t owners = vars_flat_owners(place);
+        if (owners == 0xFF) {
+            uint32_t whole = i + k;
+            while (n - whole >= 8 && vars_flat_owners(at + whole) == 0xFF)
+                whole += 8;
             memset(to + i, value, whole - i);
             i = whole;
             continue;
         }
-        if (vars_flat_owners(at + i) >> ((at + i) & 7u) & 1u)
-            to[i] = value;
-        i++;
+        for (uint32_t b = 0; b < k; b++)
+            if (owners >> ((place + b) & 7u) & 1u)
+                to[i + b] = value;
+        i += k;
     }
 }
 

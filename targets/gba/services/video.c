@@ -251,6 +251,31 @@ static void vram_put_run(const uint8_t *bytes, uint8_t fill, uint32_t n, uint32_
     }
     uint16_t addr = snes.vram_addr, step = snes.port.step;
     bool after_high = snes.port.after_high;
+    if (half >= 0 && after_high == (half == 1) && step == 1) {
+        /* one half of successive words, as the Mode 7 plane's pixels and
+         * map are sent: a unit's bytes compared and put together, the unit
+         * marked once */
+        for (uint32_t k = 0; k < n;) {
+            uint32_t at = (uint32_t)(addr & 0x7FFF) << 1 | (uint32_t)half;
+            uint32_t m = (UNIT_BYTES - at % UNIT_BYTES + 1) / 2;
+            if (m > n - k)
+                m = n - k;
+            bool changed = false;
+            for (uint32_t j = 0; j < m; j++) {
+                uint8_t v = bytes ? bytes[k + j] : fill;
+                if (snes.vram[at + 2 * j] != v) {
+                    snes.vram[at + 2 * j] = v;
+                    changed = true;
+                }
+            }
+            if (changed)
+                unit_changed(at);
+            addr = (uint16_t)(addr + m);
+            k += m;
+        }
+        snes.vram_addr = addr;
+        return;
+    }
     for (uint32_t k = 0; k < n; k++) {
         bool high = half < 0 ? ((first + k) & 1) != 0 : half == 1;
         uint32_t at = (uint32_t)(addr & 0x7FFF) << 1 | (high ? 1u : 0u);
@@ -2046,6 +2071,82 @@ static bool line_splits_in_this_scene(uint8_t had)
 
 static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, bool added);
 
+/* The places window `block` has free for cache `c`'s tiles once the tiles
+ * the caches in `placed` (a bit each) have yet to place (`needed`) are
+ * counted out of it where their windows share places with it: a window is
+ * 1,024 places from its char block, and the next starts 512 on. */
+static int32_t room_beside(unsigned c, uint8_t block, uint8_t placed, const unsigned needed[CACHES])
+{
+    int32_t room = (int32_t)free_in_window(block);
+    for (unsigned d = 0; d < CACHES; d++)
+        if (d != c && (placed >> d & 1) && caches[d].used && caches[d].block + 1 >= block && caches[d].block <= block + 1)
+            room -= (int32_t)needed[d];
+    return room;
+}
+
+/* The window for a cache started afresh beside the caches in `placed`:
+ * the one with the most places free, where its tiles fit there beside
+ * theirs, or else the one with the most room left beside them. Two caches
+ * started afresh in the window with the most free took their places from
+ * it both, and where it couldn't hold both one's tiles missed: the floor of
+ * the lab before the jet bike race went black in sixteen-dot squares as
+ * each of Johnny's dialogs opened, the dialog's map naming its own tiles
+ * beside the floor's while its window grew (issue #589). */
+static uint8_t window_for(unsigned c, uint8_t placed, const unsigned needed[CACHES])
+{
+    uint8_t best = roomiest_window();
+    int32_t most = room_beside(c, best, placed, needed);
+    if (most >= (int32_t)needed[c])
+        return best;
+    for (uint8_t block = 0; block < 3; block++) {
+        int32_t room = room_beside(c, block, placed, needed);
+        if (room >= (int32_t)needed[c] && room > most)
+            most = room, best = block;
+    }
+    return best;
+}
+
+/* Whether cache `c`, which the last layout had, can't place its tiles in
+ * its window beside those the other caches it had (`had`) have yet to
+ * place there (`needed`: a cache that kept its places has them taken
+ * already and counts the rest), where another window has more room. */
+static bool crowded(unsigned c, uint8_t had, const unsigned needed[CACHES])
+{
+    uint8_t others = (uint8_t)(had & ~(1u << c));
+    return room_beside(c, caches[c].block, others, needed) < (int32_t)needed[c] &&
+           window_for(c, others, needed) != caches[c].block;
+}
+
+/* The caches the layout uses that keep no places (their bit clear in
+ * `had`) started afresh, the one with the most tiles to place first, each
+ * with its blank, in the window window_for finds beside those before it. */
+static void start_the_caches_afresh(uint8_t had, const unsigned needed[CACHES])
+{
+    uint8_t placed = 0;
+    for (unsigned c = 0; c < CACHES; c++)
+        if (caches[c].used && had >> c & 1)
+            placed |= (uint8_t)(1u << c);
+    for (;;) {
+        unsigned c = CACHES;
+        for (unsigned d = 0; d < CACHES; d++)
+            if (caches[d].used && !(placed >> d & 1) && (c == CACHES || needed[d] > needed[c]))
+                c = d;
+        if (c == CACHES)
+            return;
+        Cache *cache = &caches[c];
+        cache->next = cache->placed = 0;
+        cache->block = window_for(c, placed, needed);
+        memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
+        cache->blank = take_slot(cache);
+        if (cache->blank == NO_SLOT)
+            cache->blank = 0;
+        else
+            for (unsigned w = 0; w < 8; w++)
+                BG_VRAM[(cache->block * 512u + cache->blank) * 8u + w] = 0;
+        placed |= (uint8_t)(1u << c);
+    }
+}
+
 /* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
  * places their maps take, the layers split by priority with their copies of
  * tiles in front, and their tiles' caches, each with the window the most
@@ -2220,21 +2321,32 @@ static uint8_t lay_out(bool pruned, bool keeps_windows)
      * picture while its tiles are converted again (the attract sequence's
      * battle blinked black where a screen's map took 64 of its window's
      * places and another window had all 1,024, and the title as the plane's
-     * room was given back). */
-    if (had) {
+     * room was given back), and only where a window can hold its tiles
+     * beside the other caches': moved where none can, its tiles missed as
+     * before and the picture was hidden as well. A cache none of whose
+     * tiles has a place yet starts afresh where its window can't hold them
+     * beside the other caches' and another window has more room (crowded). */
+    unsigned needed[CACHES] = { 0 };   /* each cache's tiles its maps name that have no place yet */
+    {
         uint32_t named[CACHES][CACHE_TILES / 32];
         uint32_t placed[CACHES][CACHE_TILES / 32];
         name_the_tiles(named, placed);
+        for (unsigned c = 0; c < CACHES; c++)
+            for (unsigned w = 0; caches[c].used && w < CACHE_TILES / 32; w++)
+                needed[c] += bits_set(named[c][w]);
         for (unsigned c = 0; c < CACHES; c++) {
             if (!caches[c].used || !(had >> c & 1))
                 continue;
-            unsigned tiles = 0, here = free_in_window(caches[c].block);
-            for (unsigned w = 0; keeps_windows && w < CACHE_TILES / 32; w++)
-                tiles += bits_set(named[c][w]);
-            if ((!keeps_windows || tiles >= here) && here < free_in_window(roomiest_window()))
+            unsigned here = free_in_window(caches[c].block);
+            uint8_t others = (uint8_t)(had & ~(1u << c));
+            bool fits = room_beside(c, window_for(c, others, needed), others, needed) >= (int32_t)needed[c];
+            if (((!keeps_windows || needed[c] >= here) && here < free_in_window(roomiest_window()) && fits) ||
+                (!caches[c].placed && crowded(c, had, needed)))
                 had &= (uint8_t)~(1u << c);
             else if (keep_places(&caches[c], named[c], placed[c]))
                 lost |= (uint8_t)(1u << c);
+            unsigned kept_tiles = had >> c & 1 ? caches[c].placed : 0;
+            needed[c] = needed[c] > kept_tiles ? needed[c] - kept_tiles : 0;
         }
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
@@ -2246,20 +2358,7 @@ static uint8_t lay_out(bool pruned, bool keeps_windows)
         else
             lm->front_refused = true;
     }
-    for (unsigned c = 0; c < CACHES; c++) {
-        Cache *cache = &caches[c];
-        if (!cache->used || had >> c & 1)
-            continue;
-        cache->next = cache->placed = 0;
-        cache->block = roomiest_window();
-        memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
-        cache->blank = take_slot(cache);
-        if (cache->blank == NO_SLOT)
-            cache->blank = 0;
-        else
-            for (unsigned w = 0; w < 8; w++)
-                BG_VRAM[(cache->block * 512u + cache->blank) * 8u + w] = 0;
-    }
+    start_the_caches_afresh(had, needed);
     uint8_t kept = 0;
     for (unsigned c = 0; c < CACHES; c++)
         if (caches[c].used && had >> c & 1 && !(lost >> c & 1))
@@ -2829,8 +2928,10 @@ static bool gba_size(unsigned w, unsigned h, uint16_t *shape, uint16_t *size)
  * panel's over them, its lines looking like the screen's lines their own
  * are spread over; or black, past the SNES's lines. Worked out from the
  * framing once a frame. The lines are worked out down the SNES's picture
- * (work_out_lines), so the bands must show its lines in their order; a
- * framing that doesn't shows the camera's alone. */
+ * (work_out_lines), so the bands must show its lines in their order: a
+ * band's lines whose rows a band above showed already are black
+ * (black_out_rows_shown_above), and a framing that can't be put in order so
+ * shows the camera's alone. */
 typedef struct {
     int16_t row, left;
     int16_t cut_at;         /* from its dot cut_at on, the SNES's dots cut_dots further on */
@@ -2922,6 +3023,53 @@ static unsigned next_change_of_band(unsigned y, const Band *b)
     return (unsigned)next;
 }
 
+/* The bands made to show the SNES's lines in their order, or false where
+ * they can't be: a camera's or a panel's band whose first rows a band
+ * above it showed already shows black on their lines, and the rest from
+ * the next row on; a drawn panel's band can't give up its rows. As a
+ * dialog's window opens, the drawn panel looks like the rows the window
+ * grows over, which the camera's band below it shows again: the view fell
+ * back to the camera's band alone for those frames, the dialog's window
+ * where the SNES has it, and the dialog's map its lines showed took the
+ * tiles' room from the scene's (the lab's floor before the jet bike race
+ * went black in sixteen-dot squares as each of Johnny's dialogs opened,
+ * issue #589). */
+static bool black_out_rows_shown_above(void)
+{
+    int row = -1;
+    if (band_count >= MOST_BANDS)
+        return false;
+    for (unsigned k = 0; k < band_count; k++) {
+        Band *b = &bands[k];
+        if (b->black)
+            continue;
+        if (b->row > row) {
+            row = b->row + b->rows - 1;
+            continue;
+        }
+        unsigned shown = (unsigned)(row - b->row + 1);
+        if (b->drawn)
+            return false;
+        if (shown >= b->lines) {
+            b->black = true;
+            band_columns[k] = (MovedColumn){ 0, 0 };
+            continue;
+        }
+        if (band_count >= MOST_BANDS)
+            return false;
+        memmove(&bands[k + 1], &bands[k], sizeof bands[0] * (band_count - k));
+        memmove(&band_columns[k + 1], &band_columns[k], sizeof band_columns[0] * (band_count - k));
+        band_count++;
+        bands[k] = (Band){ .row = -1, .at = b->at, .lines = (uint8_t)shown, .rows = (uint8_t)shown, .black = true };
+        band_columns[k] = (MovedColumn){ 0, 0 };
+        b = &bands[++k];
+        b->at = (uint8_t)(b->at + shown), b->row = (int16_t)(b->row + shown);
+        b->lines = (uint8_t)(b->lines - shown), b->rows = (uint8_t)(b->rows - shown);
+        row = b->row + b->rows - 1;
+    }
+    return true;
+}
+
 /* The bands, a run of lines at a time between the lines where they may change. */
 static void band_up_the_view(void)
 {
@@ -2945,14 +3093,7 @@ static void band_up_the_view(void)
         }
         y = past;
     }
-    int row = -1;
-    bool in_order = band_count < MOST_BANDS;
-    for (unsigned k = 0; k < band_count && in_order; k++)
-        if (!bands[k].black) {
-            in_order = bands[k].row > row;
-            row = bands[k].row + bands[k].rows - 1;
-        }
-    if (!in_order) {
+    if (!black_out_rows_shown_above()) {
         bands[0] = (Band){ .row = view_aim.top, .left = view_aim.left, .lines = GBA_VIEW_HEIGHT, .rows = GBA_VIEW_HEIGHT };
         band_columns[0] = (MovedColumn){ 0, 0 };
         band_count = 1;
@@ -4060,6 +4201,33 @@ static bool behind(const LineRegisters *r, unsigned h, unsigned g)
     return ph > pg || (ph == pg && h > g);
 }
 
+/* The backdrop's colour that the blending adds to (or halves with) the
+ * colours shown to give the fixed colour's sum. With the cartridge's own
+ * colours that is the fixed colour itself. Packed with a colour profile
+ * (pack.py --profile), the GBA blends colours already shown, which a sum
+ * can't follow exactly: the colour taken is what the sum adds to a window's
+ * dark colours (BRIGHTENED_STRENGTH of 31, as the brightening is fitted),
+ * each channel's, so the shading steps by what it shows there rather than
+ * by its own colour shown, which a gamma brightens most for small
+ * colours. */
+static uint16_t added_colour(uint16_t fixed, bool half)
+{
+    if (!shown_colours)
+        return fixed;
+    const unsigned base = BRIGHTENED_STRENGTH;
+    uint16_t grey = (uint16_t)(base * 0x0421), sum = 0, out = 0;
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        unsigned k = fixed >> shift & 31;
+        sum |= (uint16_t)((half ? (base + k) / 2 : base + k > 31 ? 31 : base + k) << shift);
+    }
+    uint16_t was = shown(grey), now = shown(sum);
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        int w = was >> shift & 31, n = now >> shift & 31, add = half ? 2 * n - w : n - w;
+        out |= (uint16_t)((add < 0 ? 0 : add > 31 ? 31 : add) << shift);
+    }
+    return out;
+}
+
 static bool add_by_blending(LineRegisters *r, const LineState *st)
 {
     const VidColorMath *m = &st->math;
@@ -4080,7 +4248,7 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
         return true;
     r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
     r->bldalpha = half ? 0x0808 : 0x1010;
-    r->backdrop = shown(st->fixed_color);
+    r->backdrop = added_colour(st->fixed_color, half);
     return true;
 }
 
@@ -4145,6 +4313,44 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
  * Fair's ground, halved with its sub screen's light where the GBA can't
  * show it, stays as bright as natively rather than halved toward black.
  * The SNES's subtraction of a sub screen has no GBA counterpart. */
+/* The sub screen's own layers (those the main screen doesn't show: a
+ * room's light or the Millennial Fair's, the layers the sub screen adds to
+ * the math's layers) on a line whose math adds the sub screen: shown behind
+ * every layer, at the GBA's last priority, where the math's layers show,
+ * so that each lies under the math's tiles as the GBA's blending's second
+ * target, as the sub screen lies under the main screen on the SNES. What
+ * the math's layers show is the sub screen added to it; where another layer
+ * stands between them it shows unblended, and where no layer of the main
+ * screen covers it, it shows itself. Their GBA layers, a bit each; none where
+ * one of the math's layers already stands at the last priority after them. */
+static uint16_t sub_screens_own(const LineState *st)
+{
+    return (uint16_t)(st->sub_layers & ~st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+}
+
+static uint16_t show_the_sub_screens_own(LineRegisters *r, const LineState *st, uint16_t first)
+{
+    uint16_t own = (uint16_t)(line_layer_bits(st, sub_screens_own(st)) & 0xF);
+    for (unsigned g = 0; g < 4; g++)
+        if ((own >> g & 1) && !r->bgcnt[g])
+            own &= (uint16_t)~(1u << g);   /* a layer the line doesn't show (a split layer's front, no tiles there) */
+    for (unsigned g = 0; g < 4; g++)
+        for (unsigned h = g + 1; (own >> g & 1) && h < 4; h++)
+            if ((first >> h & 1) && (r->bgcnt[h] & 3) == 3)
+                return 0;
+    if (!own)
+        return 0;
+    for (unsigned g = 0; g < 4; g++)
+        if (own >> g & 1)
+            r->bgcnt[g] |= 3;
+    uint16_t *regions[] = { &r->winin, &r->winout };
+    for (unsigned k = 0; k < 2; k++)
+        for (unsigned shift = 0; shift < 16; shift += 8)
+            if (*regions[k] >> shift & first & 0xF)
+                *regions[k] |= (uint16_t)(own << shift);
+    return own;
+}
+
 static void line_blending(LineRegisters *r, const LineState *st)
 {
     r->bldcnt = st->brightness < 15 ? (uint16_t)(BLD_DARKEN | BLD_ALL_FIRST) : 0;
@@ -4160,7 +4366,8 @@ static void line_blending(LineRegisters *r, const LineState *st)
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
         uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | (m->half ? 0 : VID_BACK_BIT));
-        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
+        uint16_t own = show_the_sub_screens_own(r, st, line_layer_bits(st, first));
+        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | (line_layer_bits(st, second) | own) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
     } else if (!add_by_blending(r, st)) {
         fixed_shading(r, st);
@@ -4801,6 +5008,87 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     return r;
 }
 
+/* ---- Lines that show what one before them did ----
+ *
+ * A line whose scroll alone changed, and which shows what one of the last
+ * two such lines worked out whole in its band showed, takes the change made
+ * for that line again rather than working its registers out: the Ocean
+ * Palace in the attract demo steps its first layer's scroll back and forth
+ * a few dots each line over mode 2's moved columns, and had each of its 160
+ * lines worked out whole, about twenty GBA frames a picture. Not where a
+ * line's registers are its own line's as well as its looks': a Mode 7
+ * line's plane, a drawn panel's line, mode 2's runs of a layer whose tiles
+ * in front are shown again (runs_in_front), a band that cuts its maps,
+ * whose cut layer_control moves with each line's scroll (a line taken
+ * again would leave the cut where an earlier line put it); nor a line
+ * showing a copy of a layer's moved columns, whose place a later line's
+ * copy may take (show_columns_copied). */
+typedef struct {
+    LineState st[2];
+    const Band *band[2];
+    uint8_t change[2];   /* the change each line's registers were made */
+    uint8_t kept;        /* the lines kept, a bit each */
+    uint8_t next;        /* the one to keep the next line in */
+} LinesKept;
+
+/* Whether a line's registers show a layer from a copy of its moved columns. */
+static bool shows_a_copy(const LineRegisters *r)
+{
+    for (unsigned g = 0; copy_room.made && g < 4; g++)
+        for (unsigned c = 0; c < COPIES; c++)
+            if ((r->bgcnt[g] >> 8 & 31) == copy_room.map_block[c])
+                return true;
+    return false;
+}
+
+/* Whether a line's registers are its looks' alone, so that another line
+ * of its band that looks the same takes them. */
+static bool looks_alone(const LineState *st, const Band *b)
+{
+    return st->mode != 7 && !b->drawn && !b->cut_dots && !(st->mode == 2 && (layers[0].overlaid || layers[1].overlaid));
+}
+
+/* The change made for a kept line of band `b` that shows what `st` does, or
+ * NO_CHANGE. */
+enum { NO_CHANGE = 0xFF, NOT_WHOLE = 0xFE };
+static uint8_t shown_before(const LinesKept *k, const LineState *st, const Band *b)
+{
+    for (unsigned i = 0; i < 2; i++)
+        if ((k->kept >> i & 1) && k->band[i] == b && memcmp(&k->st[i], st, sizeof *st) == 0)
+            return k->change[i];
+    return NO_CHANGE;
+}
+
+static void keep_line(LinesKept *k, const LineState *st, const Band *b, uint8_t change)
+{
+    unsigned i = k->next;
+    k->st[i] = *st;
+    k->band[i] = b;
+    k->change[i] = change;
+    k->kept |= (uint8_t)(1u << i);
+    k->next = (uint8_t)(i ^ 1);
+}
+
+/* The change made for a kept line that shows what a line whose scroll
+ * alone changed does, or NO_CHANGE. Kept out of the frame's lines' loop, as
+ * show_moved_columns is, with keep_the_line, below: the menus' and the
+ * race's lines, few of which show what one before them did, took half a
+ * percent longer with the kept lines' work in the loop. */
+__attribute__((noinline)) static uint8_t made_before(const LinesKept *k, const LineState *st, const Band *b)
+{
+    return looks_alone(st, b) ? shown_before(k, st, b) : NO_CHANGE;
+}
+
+/* A line whose scroll alone changed, worked out whole, kept where another
+ * may take its registers `r`: the last of the `count` changes made, which
+ * they are where the changes had room. */
+__attribute__((noinline)) static void keep_the_line(LinesKept *k, const LineState *st, const Band *b,
+                                                    const LineRegisters *r, uint8_t count)
+{
+    if (count < GBA_LINES && looks_alone(st, b) && !shows_a_copy(r))
+        keep_line(k, st, b, (uint8_t)(count - 1u));
+}
+
 /* In ARM, in fast RAM, as the interrupts are; a long call from the cartridge. */
 __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static void set_line(const LineRegisters *r)
 {
@@ -5135,6 +5423,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
     unsigned band_at = 0;   /* where band_down_to has reached */
     uint8_t count = 0, next_black = 0;
     uint8_t touched = CHANGED_OTHER;   /* what of the lines' registers may have changed (Changed) */
+    LinesKept kept = { .kept = 0 };   /* (Lines that show what one before them did, above) */
     for (uint16_t line = 0; line < SNES_LINES;) {
         if (line == display_at) {
             st.brightness = (uint8_t)(v->display_below.brightness & 15);
@@ -5164,6 +5453,7 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
             if (next_black < band_count && bands[next_black].at < at)
                 count = black_bands_above((unsigned)at, count, &next_black, layers_enabled);
             bool band_starts = at == b->at, again = false;
+            uint8_t made_as = NOT_WHOLE;   /* a line worked out whole: the change it takes again, or NO_CHANGE */
             /* Where only the scroll, the plane or the colour math may have
              * changed (but not a band cut's scroll, which moves the cut in
              * its maps, nor mode 2's, which moves its columns, nor that of a
@@ -5176,7 +5466,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
              * blending, a step of its strength alone no change at all. */
             bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
                          !((b->cut_dots || st.mode == 2 || split_wanted >> OVERLAY_SHIFT) && (touched & CHANGED_SCROLL)) &&
-                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn);
+                         (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn) &&
+                         !((touched & CHANGED_MATH) && (sub_screens_own(&st) || sub_screens_own(&shown)));
             LineRegisters r;
             /* a Mode 7 line's plane is its own table's, no change's */
             if (touched && cheap && st.mode == 7 && (touched & (CHANGED_PLANE | CHANGED_SCROLL))) {
@@ -5222,7 +5513,12 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                     lines_text_mode = 2;
                 else if (laid_out_mode == 2 && st.mode != 7 && ((st.main_layers | st.sub_layers) & VID_BG3_BIT))
                     third_on_lines = true;
-                r = line_registers(&st, layers_enabled, b, down, at);
+                /* a line whose scroll alone changed may show what one before it did */
+                made_as = touched == CHANGED_SCROLL ? made_before(&kept, &st, b) : NO_CHANGE;
+                if (made_as != NO_CHANGE)
+                    r = *made_change(made_as);
+                else
+                    r = line_registers(&st, layers_enabled, b, down, at);
                 memcpy(&shown, &st, sizeof st);
                 again = true;
             }
@@ -5231,6 +5527,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 *made_line(count++) = (uint8_t)at;
                 set_strength((unsigned)at, r.bldy);
             }
+            if (made_as == NO_CHANGE && touched == CHANGED_SCROLL && count)
+                keep_the_line(&kept, &st, b, &r, count);
             touched = 0;
         }
         /* the slots with a transfer at this line apply it, in the slots' order */
