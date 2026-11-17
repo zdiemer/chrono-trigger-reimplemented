@@ -27,6 +27,7 @@
 
 #include "charge.h"
 #include "core/palette.h"
+#include "core/view_framing.h"
 #include "cpu_io.h"
 #include "platform/audio.h"
 #include "platform/video.h"
@@ -594,6 +595,9 @@ bool scene_title_set_up(GameState *g, Platform *pf)
     set_scene_song(g, TITLE_SONG);
     set_scene_song_playing(g, TITLE_SONG);
     start_the_song(pf);
+    /* A smaller view shows the title from the screen's middle, as at power-on,
+     * wherever the attract demo's last scene left its camera (issue #572). */
+    view_start_centred_on(pf, view_screen_middle(), view_all_lines(vid_view(pf)));
     return true;
 }
 
