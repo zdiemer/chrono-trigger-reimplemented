@@ -100,14 +100,18 @@ void asset_note_outside(uint32_t at)
 
 static const AssetSource *source;
 
-/* The resources read lately, and their bytes: the reads come in runs through
- * a few resources at once, and a run asks the source once. A new source asks
- * again. */
+/* The resources read lately, each with its bytes and what the catalogue says
+ * of it (where it lies, how long it is, whether it is left untyped): the
+ * reads come in runs through a few resources at once, and a run asks the
+ * source and the catalogue once. A new source asks again. */
 enum { HELD = 16 };
-static struct {
+typedef struct {
+    uint32_t at, length;
+    const uint8_t *bytes;   /* NULL: no source, or it hasn't the resource as the catalogue has it */
     AssetId id;
-    const uint8_t *bytes;
-} held[HELD];
+    bool untyped;
+} Held;
+static Held held[HELD];
 static bool holding;
 
 static void forget_found(void);
@@ -121,21 +125,23 @@ void assets_use(const AssetSource *s)
     holding = true;
 }
 
-/* A resource's bytes from the source, or NULL where there is no source or it
- * hasn't the resource as the catalogue has it. */
-static const uint8_t *resource_bytes(AssetId id)
+/* A resource as held: asked of the source and the catalogue where it isn't. */
+static const Held *held_resource(AssetId id)
 {
     if (!holding)
         assets_use(source);
-    if (held[id % HELD].id == id)
-        return held[id % HELD].bytes;
-    if (!source)
-        return NULL;
+    Held *h = &held[id % HELD];
+    if (h->id == id)
+        return h;
+    const AssetEntry *e = &asset_catalogue[id];
     uint32_t length = 0;
-    const uint8_t *bytes = source->resource(source->ctx, id, &length);
-    held[id % HELD].id = id;
-    held[id % HELD].bytes = bytes && length == asset_catalogue[id].length ? bytes : NULL;
-    return held[id % HELD].bytes;
+    const uint8_t *bytes = source ? source->resource(source->ctx, id, &length) : NULL;
+    h->id = id;
+    h->at = e->at;
+    h->length = e->length;
+    h->bytes = bytes && length == e->length ? bytes : NULL;
+    h->untyped = left_untyped(id);
+    return h;
 }
 
 const uint8_t *asset_form(AssetForm form, AssetId id, uint32_t *length)
@@ -146,15 +152,9 @@ const uint8_t *asset_form(AssetForm form, AssetId id, uint32_t *length)
 }
 
 /* The resource a read by address found last in each 4 KiB of the cartridge,
- * with where it lies and the store's bytes for it, so that the next read in
- * it finds its byte with one comparison: what asset_containing and
- * resource_bytes would answer, kept together until a new source. */
-static struct {
-    uint32_t at, length;    /* length 0: none yet */
-    const uint8_t *bytes;
-    AssetId id;
-    bool untyped;
-} found[NEARBY];
+ * as held_resource has it, so that the next read in it finds its byte with
+ * one comparison, kept until a new source. */
+static Held found[NEARBY];   /* length 0: none yet */
 
 static void forget_found(void)
 {
@@ -162,25 +162,19 @@ static void forget_found(void)
         found[i].length = 0;
 }
 
-/* The store's copy of the cartridge byte at `at` (its cartridge address
- * `a`), found afresh: the resource it lies in, kept as the one found last in
- * its 4 KiB. */
-static const uint8_t *find_served(uint32_t at, uint32_t a)
+/* The resource that holds cartridge address `a` (`at` as the game names it):
+ * the one found last in its 4 KiB, or found afresh and kept there; NULL
+ * where `a` lies in none. */
+static const Held *found_at(uint32_t at, uint32_t a)
 {
+    Held *f = &found[(a >> NEAR_SHIFT) & (NEARBY - 1)];
+    if (a - f->at < f->length)
+        return f;
     AssetId id = asset_containing(at);
-    if (id == ASSET_NONE) {
-        asset_note_outside(at);
+    if (id == ASSET_NONE)
         return NULL;
-    }
-    note_if_unread(id, at);
-    const uint8_t *bytes = resource_bytes(id);
-    const uint32_t i = (a >> NEAR_SHIFT) & (NEARBY - 1);
-    found[i].at = asset_catalogue[id].at;
-    found[i].length = asset_catalogue[id].length;
-    found[i].bytes = bytes;
-    found[i].id = id;
-    found[i].untyped = left_untyped(id);
-    return bytes ? bytes + (a - asset_catalogue[id].at) : NULL;
+    *f = *held_resource(id);
+    return f;
 }
 
 /* The store's copy of the cartridge byte at `at`, or NULL: the address is in
@@ -188,12 +182,14 @@ static const uint8_t *find_served(uint32_t at, uint32_t a)
 static const uint8_t *served(uint32_t at)
 {
     uint32_t a = cartridge_address(at);
-    const uint32_t i = (a >> NEAR_SHIFT) & (NEARBY - 1);
-    if (a == NOT_ROM || a - found[i].at >= found[i].length)
-        return find_served(at, a);
-    if (found[i].untyped)
-        note_if_unread(found[i].id, at);
-    return found[i].bytes ? found[i].bytes + (a - found[i].at) : NULL;
+    const Held *f = a == NOT_ROM ? NULL : found_at(at, a);
+    if (!f) {
+        asset_note_outside(at);
+        return NULL;
+    }
+    if (f->untyped)
+        note_if_unread(f->id, at);
+    return f->bytes ? f->bytes + (a - f->at) : NULL;
 }
 
 /* Where a pointer in the data names RAM, the byte is the game's RAM's
@@ -205,37 +201,31 @@ uint8_t rom_read8(const GameState *g, uint32_t at)
     return rom_cartridge_read(g, at, served(at));
 }
 
-/* A resource's bytes, as resource_bytes finds them, with the one the read
- * before found answered in place: the menus' and the dialog's text reads its
- * tables a byte at a time, tens of thousands of reads as a screen opens. */
-static inline const uint8_t *held_bytes(AssetId id)
-{
-    return holding && held[id % HELD].id == id ? held[id % HELD].bytes : resource_bytes(id);
-}
-
 /* The read is the same one the address would make: timed as a cartridge
- * read at the address the original keeps the byte at. */
+ * read at the address the original keeps the byte at. The menus' and the
+ * dialog's text read their tables a byte at a time, tens of thousands of
+ * reads as a screen opens, each answered from the resource held. */
 uint8_t asset_read8(const GameState *g, AssetId resource, uint32_t offset)
 {
-    const AssetEntry *e = &asset_catalogue[resource];
-    if (offset >= e->length)
-        return rom_read8(g, e->at + offset);
-    note_if_unread(resource, e->at + offset);
-    const uint8_t *bytes = resource_bytes(resource);
-    return rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
+    const Held *h = held_resource(resource);
+    if (offset >= h->length)
+        return rom_read8(g, h->at + offset);
+    if (h->untyped)
+        note_if_unread(resource, h->at + offset);
+    return rom_cartridge_read(g, h->at + offset, h->bytes ? h->bytes + offset : NULL);
 }
 
 /* Two reads, the low byte's first, each timed as asset_read8 times it. */
 uint16_t asset_read16(const GameState *g, AssetId resource, uint32_t offset)
 {
-    const AssetEntry *e = &asset_catalogue[resource];
-    if (offset + 1u >= e->length || left_untyped(resource)) {
+    const Held *h = held_resource(resource);
+    if (offset + 1u >= h->length || h->untyped) {
         uint8_t low = asset_read8(g, resource, offset);
         return (uint16_t)(low | asset_read8(g, resource, offset + 1) << 8);
     }
-    const uint8_t *bytes = held_bytes(resource);
-    uint8_t low = rom_cartridge_read(g, e->at + offset, bytes ? bytes + offset : NULL);
-    return (uint16_t)(low | rom_cartridge_read(g, e->at + offset + 1, bytes ? bytes + offset + 1 : NULL) << 8);
+    const uint8_t *bytes = h->bytes;
+    uint8_t low = rom_cartridge_read(g, h->at + offset, bytes ? bytes + offset : NULL);
+    return (uint16_t)(low | rom_cartridge_read(g, h->at + offset + 1, bytes ? bytes + offset + 1 : NULL) << 8);
 }
 
 uint8_t asset_read8_at_place(const GameState *g, AssetId resource, uint16_t place)
@@ -270,18 +260,19 @@ uint16_t rom_read16_in_bank_of(const GameState *g, AssetId resource, uint16_t pl
     return rom_read16(g, asset_place_address(resource, place));
 }
 
+/* A run from the resource found last where `at` lies, as reads by address
+ * find it: the menus build their tiles and the field its maps from runs of
+ * the cartridge a block at a time. */
 RomRun rom_run_from(uint32_t at)
 {
     RomRun run = { at, 0, NULL };
     uint32_t a = cartridge_address(at);
-    AssetId id = asset_containing(at);
+    const Held *f = a == NOT_ROM ? NULL : found_at(at, a);
     /* A row marked unread has no run: each of its reads goes by rom_read8, which notes it. */
-    const uint8_t *bytes = id == ASSET_NONE || left_untyped(id) ? NULL : resource_bytes(id);
-    if (!bytes)
+    if (!f || f->untyped || !f->bytes)
         return run;
-    const AssetEntry *e = &asset_catalogue[id];
-    uint32_t in_resource = e->length - (a - e->at), in_bank = 0x10000u - (uint16_t)at;
-    run.bytes = bytes + (a - e->at);
+    uint32_t in_resource = f->length - (a - f->at), in_bank = 0x10000u - (uint16_t)at;
+    run.bytes = f->bytes + (a - f->at);
     run.length = in_resource < in_bank ? in_resource : in_bank;
     return run;
 }

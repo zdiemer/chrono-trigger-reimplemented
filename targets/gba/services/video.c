@@ -153,6 +153,7 @@ typedef struct {
     uint32_t changed[UNITS / 32];     /* the 32-byte units the game changed since the picture was made */
     bool palette_written, settings_changed, sprites_changed;
     PfReadGame *read;
+    const uint8_t *(*in_place)(void *ctx, uint32_t addr, uint32_t len);   /* gba_video_read_in_place */
     void *ctx;
 } Snes;
 
@@ -295,31 +296,62 @@ static void vram_put_run(const uint8_t *bytes, uint8_t fill, uint32_t n, uint32_
 typedef uint32_t __attribute__((may_alias)) Word;
 typedef uint16_t __attribute__((may_alias)) Halfword;
 
+/* Whole units compared and stored where they differ, the answer's bit k set
+ * where the kth changed (services/units.s, ARM in fast RAM): 1 to 32 units,
+ * `to` and `from` word-aligned, `from` stepped 16 bytes a half unit, or 0
+ * for a fill of the same 16 bytes. */
+uint32_t vram_units_take(uint32_t *to, const uint32_t *from, uint32_t units, uint32_t step);
+enum { UNIT_STEP = UNIT_BYTES / 2 };
+
 /* `n` bytes into VRAM from `at` (not past its end), marking the units they
  * change: the game sends much of its VRAM again as it was. `bytes` has the
- * same alignment to a word as `at` (and `snes.vram`, a word's). */
-static void vram_take(uint32_t at, const uint8_t *bytes, uint32_t n)
+ * same alignment to a word as `at` (and `snes.vram`, a word's); where it is
+ * NULL, every byte is `fill`. Whole units go through units.s, as many at
+ * once as share a word of the changed units' bits; the parts of units at
+ * the ends a byte or a word at a time. */
+static void vram_take_or_fill(uint32_t at, const uint8_t *bytes, uint8_t fill, uint32_t n)
 {
     while (n) {
         uint32_t k = UNIT_BYTES - at % UNIT_BYTES;
-        if (k > n)
-            k = n;
-        uint8_t *to = &snes.vram[at];
-        uint32_t i = 0;
-        while (i < k && (at + i) % 4 && to[i] == bytes[i])
-            i++;
-        if ((at + i) % 4 == 0)
-            while (k - i >= 4 && *(const Word *)(to + i) == *(const Word *)(bytes + i))
-                i += 4;
-        while (i < k && to[i] == bytes[i])
-            i++;
-        if (i < k) {
-            memcpy(to + i, bytes + i, k - i);
-            unit_changed(at);
+        if (k == UNIT_BYTES && n >= UNIT_BYTES) {
+            uint32_t units = n / UNIT_BYTES, unit = at / UNIT_BYTES, room = 32 - unit % 32;
+            if (units > room)
+                units = room;
+            uint32_t *to = (uint32_t *)(void *)&snes.vram[at];
+            const uint32_t fills[4] = { fill * 0x01010101u, fill * 0x01010101u, fill * 0x01010101u, fill * 0x01010101u };
+            uint32_t changed = bytes ? vram_units_take(to, (const uint32_t *)(const void *)bytes, units, UNIT_STEP)
+                                     : vram_units_take(to, fills, units, 0);
+            snes.changed[unit / 32] |= changed << (unit % 32);
+            k = units * UNIT_BYTES;
+        } else {
+            if (k > n)
+                k = n;
+            uint8_t *to = &snes.vram[at];
+            const uint8_t *from = bytes;
+            if (!bytes) {
+                memset(piece, fill, UNIT_BYTES + 4);
+                from = piece + at % 4;
+            }
+            uint32_t i = 0;
+            while (i < k && (at + i) % 4 && to[i] == from[i])
+                i++;
+            if ((at + i) % 4 == 0)
+                while (k - i >= 4 && *(const Word *)(to + i) == *(const Word *)(from + i))
+                    i += 4;
+            while (i < k && to[i] == from[i])
+                i++;
+            if (i < k) {
+                memcpy(to + i, from + i, k - i);
+                unit_changed(at);
+            }
         }
-        at += k, bytes += k, n -= k;
+        at += k, n -= k;
+        if (bytes)
+            bytes += k;
     }
 }
+
+static void vram_take(uint32_t at, const uint8_t *bytes, uint32_t n) { vram_take_or_fill(at, bytes, 0, n); }
 
 /* Whether words through the port go straight into VRAM's next bytes: a
  * port that steps a word after the high byte, with no remapping. */
@@ -340,6 +372,17 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
             uint32_t n = (len - i) & ~1u;
             if (n > VRAM_BYTES - at)
                 n = VRAM_BYTES - at;
+            const uint8_t *from = src.ptr ? src.ptr + i
+                                  : !src.byte_at && snes.read && snes.in_place ? snes.in_place(snes.ctx, src.addr + i, n)
+                                                                               : NULL;
+            if (from && (uintptr_t)from % 4 == at % 4) {
+                /* a host's bytes or the game's in one run, aligned as
+                 * VRAM's: taken where they are */
+                vram_take(at, from, n);
+                snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
+                i += n;
+                continue;
+            }
             if (n > PIECE)
                 n = PIECE;
             data_bytes(src, i, piece + at % 4, n);
@@ -357,23 +400,20 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
 }
 
 /* `len` bytes of `fill` through the VRAM port as words. Through a port that
- * takes them in order they are compared against VRAM and put a piece at a
- * time, as a send's bytes are (vram_put_bytes), rather than a byte at a
- * time: the menus clear all 64 KiB of VRAM as they open, which a byte at a
- * time took several GBA frames. */
+ * takes them in order they are compared against VRAM and put a unit at a
+ * time (vram_take_or_fill), rather than a byte at a time: the menus clear
+ * all 64 KiB of VRAM as they open, which a byte at a time took several GBA
+ * frames. */
 static void vram_fill(uint8_t fill, uint32_t len)
 {
     uint32_t i = 0;
     if (port_takes_words_in_order()) {
-        memset(piece, fill, sizeof piece_words);
         while (len - i >= 2) {
             uint32_t at = (uint32_t)(snes.vram_addr & 0x7FFF) << 1;
             uint32_t n = (len - i) & ~1u;
             if (n > VRAM_BYTES - at)
                 n = VRAM_BYTES - at;
-            if (n > PIECE)
-                n = PIECE;
-            vram_take(at, piece + at % 4, n);
+            vram_take_or_fill(at, NULL, fill, n);
             snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
             i += n;
         }
@@ -482,6 +522,11 @@ static bool offsets_written;                          /* mode 2's columns' offse
 static const uint16_t *shown_colours;
 
 void gba_video_use_colours(const uint16_t *colours) { shown_colours = colours; }
+
+void gba_video_read_in_place(const uint8_t *(*in_place)(void *ctx, uint32_t addr, uint32_t len))
+{
+    snes.in_place = in_place;
+}
 
 static uint16_t shown(uint16_t colour) { return shown_colours ? shown_colours[colour & 0x7FFF] : colour; }
 

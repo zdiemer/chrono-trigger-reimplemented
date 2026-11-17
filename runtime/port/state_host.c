@@ -280,6 +280,27 @@ void state_host_read_span(const GameState *g, uint32_t addr, uint8_t *out, uint3
         out[i] = state_host_read8(g, addr + i);
 }
 
+const uint8_t *state_host_span_in_place(const GameState *g, uint32_t addr, uint32_t len)
+{
+#ifdef CT_FLAT_STATE
+    /* the run below the cold top that vars_host_read_span copies from */
+    uint32_t first, last;
+    if (!len)
+        return NULL;
+    if (addr >= 0x7E0000u && addr < 0x800000u)
+        first = addr - 0x7E0000u;
+    else if ((addr >> 16) != ((addr + len - 1u) >> 16) || place_of(addr & 0xFFFFFF, &first) != IN_WRAM ||
+             place_of((addr + len - 1u) & 0xFFFFFF, &last) != IN_WRAM)
+        return NULL;
+    if (first >= VARS_FLAT_COLD_FROM || len > VARS_FLAT_COLD_FROM - first)
+        return NULL;
+    return g->head.vars.page[0] + first;
+#else
+    (void)g, (void)addr, (void)len;
+    return NULL;
+#endif
+}
+
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v)
 {
     uint32_t offset = (addr & 0xFFFFFF) - 0x7E0000u;
