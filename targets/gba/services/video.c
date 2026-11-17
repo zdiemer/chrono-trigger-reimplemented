@@ -3857,6 +3857,33 @@ static bool behind(const LineRegisters *r, unsigned h, unsigned g)
     return ph > pg || (ph == pg && h > g);
 }
 
+/* The backdrop's colour that the blending adds to (or halves with) the
+ * colours shown to give the fixed colour's sum. With the cartridge's own
+ * colours that is the fixed colour itself. Packed with a colour profile
+ * (pack.py --profile), the GBA blends colours already shown, which a sum
+ * can't follow exactly: the colour taken is what the sum adds to a window's
+ * dark colours (BRIGHTENED_STRENGTH of 31, as the brightening is fitted),
+ * each channel's, so the shading steps by what it shows there rather than
+ * by its own colour shown, which a gamma brightens most for small
+ * colours. */
+static uint16_t added_colour(uint16_t fixed, bool half)
+{
+    if (!shown_colours)
+        return fixed;
+    const unsigned base = BRIGHTENED_STRENGTH;
+    uint16_t grey = (uint16_t)(base * 0x0421), sum = 0, out = 0;
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        unsigned k = fixed >> shift & 31;
+        sum |= (uint16_t)((half ? (base + k) / 2 : base + k > 31 ? 31 : base + k) << shift);
+    }
+    uint16_t was = shown(grey), now = shown(sum);
+    for (unsigned shift = 0; shift < 15; shift += 5) {
+        int w = was >> shift & 31, n = now >> shift & 31, add = half ? 2 * n - w : n - w;
+        out |= (uint16_t)((add < 0 ? 0 : add > 31 ? 31 : add) << shift);
+    }
+    return out;
+}
+
 static bool add_by_blending(LineRegisters *r, const LineState *st)
 {
     const VidColorMath *m = &st->math;
@@ -3877,7 +3904,7 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
         return true;
     r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
     r->bldalpha = half ? 0x0808 : 0x1010;
-    r->backdrop = shown(st->fixed_color);
+    r->backdrop = added_colour(st->fixed_color, half);
     return true;
 }
 

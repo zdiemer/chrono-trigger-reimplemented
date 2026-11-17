@@ -1787,7 +1787,12 @@ mode 0's four tiled layers and its sprites:
   it is exact too, any colour: the GBA's blending of those layers with the
   backdrop at full weight (half where the SNES halves), the line's
   backdrop the fixed colour, adds each channel held at 31 as the SNES does
-  (`add_by_blending`). Its steps are changes rather than strength steps,
+  (`add_by_blending`). Packed with a colour profile, the GBA blends colours
+  already shown, so the backdrop takes what the sum adds to a window's dark
+  colours as shown (`added_colour`) rather than the fixed colour shown: in
+  `port-style` the census's colour mismatches then fall 23% in
+  `gato-battle` and `menus-sweep`, where the fixed colour shown had raised
+  them 2-6%. Its steps are changes rather than strength steps,
   about eight more a frame while a window shows. In the census (replayed,
   fast waits) the colour mismatches fell 24% in `gato-battle`, 30% in
   `menus-sweep`, 16% in `new-game`, 11% in `attract-demo` and 5% in
