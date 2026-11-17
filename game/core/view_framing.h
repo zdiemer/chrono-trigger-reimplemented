@@ -52,6 +52,10 @@ void view_follow(Platform *pf, ViewFocus focus, ViewLines open);
  * and of `open` down, gliding as above. */
 void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open);
 
+/* The camera put at once where view_centre_on glides it: for a picture
+ * that starts framed, whatever the mode before left the camera on. */
+void view_start_centred_on(Platform *pf, ViewFocus focus, ViewLines open);
+
 /* The screen's lines from `top`, `lines` of them, kept in view from the
  * view's line `at`, the view's middle across on the original's. */
 void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at);
