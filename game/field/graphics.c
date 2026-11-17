@@ -59,13 +59,14 @@ static void copy_sprite_tile(GameState *g, ObjectGraphics set, uint16_t tile, ui
  * build bank. */
 static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
 {
-    /* graphics built in the build bank that overlap where the tile goes: a
-     * byte read and written at a time, as each write reaches the bytes still
-     * to be read */
+    /* graphics built in the build bank that overlap where the tile goes, or
+     * places that wrap in the build bank: a byte read and written at a time,
+     * as each write reaches the bytes still to be read */
     uint16_t at = field_tile_offset(tile);
     uint32_t source = ((uint32_t)set.bank << 16 | set.address) + at;
     uint32_t into = (uint32_t)FIELD_BUILD_BANK << 16 | to;
-    if (source + FIELD_TILE_BYTES > into && into + FIELD_TILE_BYTES > source) {
+    if (to > 0x10000u - FIELD_TILE_BYTES
+        || (source + FIELD_TILE_BYTES > into && into + FIELD_TILE_BYTES > source)) {
         uint32_t graphics = (uint32_t)set.bank << 16 | set.address;
         for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++) {
             uint8_t b = field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics + (uint16_t)(at + k)));
@@ -75,13 +76,7 @@ static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t 
     }
     uint8_t bytes[FIELD_TILE_BYTES];
     field_read_frame_tile(g, set, tile, bytes);
-    if (to <= 0x10000u - FIELD_TILE_BYTES) {
-        wram_write_span(g, (uint32_t)FIELD_BUILD_BANK << 16 | to, bytes, FIELD_TILE_BYTES);
-        return;
-    }
-    /* its places wrap in the build bank */
-    for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++)
-        wram_write8(g, (uint32_t)FIELD_BUILD_BANK << 16 | (uint16_t)(to + k), bytes[k]);
+    wram_write_span(g, into, bytes, FIELD_TILE_BYTES);
 }
 
 /* A frame's tile as the two copies would draw it, read into `out` instead:
