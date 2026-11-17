@@ -3217,11 +3217,54 @@ the fast RAM copy. A battle's second layout, a frame or two after its
 first, as its lines name a map the first lacked (`gato-battle` 13848 and
 13850, 0.9M then 1.4M cycles), costs as much keeping the caches' windows:
 the new map's tiles take places that send the scene's tiles to new ones.
-The largest steady cost left is a battle whose line effects run all eight
-slots indirect (`gato-battle` 19313-21239): working its lines out takes
-1.2-1.4 GBA frames a picture for 15 changes, about 40 lines visited,
-41 transfers applied and some 590 passed over, 123 table reads, so every
-other picture is left out.
+**Line effects that stand** (issue #568). A battle whose line effects run
+all eight slots indirect (`gato-battle` 19313-21239) took 1.2-1.4 GBA
+frames a picture working its lines out (333K cycles timed, for 15 changes:
+about 40 lines visited, 200 transfers and 590 passed over, 124 table reads),
+so every other picture was left out. Its transfers are the same frame after
+frame, yet no frame's lines stood as the last one's (`make_lines`): the
+frame read 62 places of the tables, each kept once for each time the eight
+places of the read cache let it go, which overflowed the 64 kept and left
+the frame unkept; and the windows' table flips between two copies every
+few frames, which changed the starting point's hash. Now a place is kept
+once, and only the indirect slots' values are kept by where they lie; each
+slot's own table (its counts and pointers, a direct slot's values) is kept
+by how many bytes the frame read from its start, and their hash, so that
+either copy of the windows' table stands where both say the same. Through
+that battle a picture's lines stand at about 30K cycles, the check of what
+they read, and the stretch takes 14% fewer of the GBA's cycles. The
+transfers' readers left the transfer loop rather than being inlined three
+times into it, which left fast RAM 856 bytes more, and a transfer takes its
+unit from the read its last one took where the cache still holds it.
+
+With `--fast-rom`, main against this, each end state as ct_native's:
+
+| Movie | Speed | Pictures a second | 1 / 2 / 3 / 4+ GBA frames |
+|---|---|---|---|
+| `gato-battle` | 88.8% → 90.3% | 41.9 → 43.1 | 76.6 / 19.9 / 2.0 / 1.6% → 77.8 / 19.0 / 2.4 / 0.8% |
+| `attract-demo` | 72.6% → 73.3% | 33.8 → 34.2 | 71.8 / 15.3 / 6.4 / 6.5% → 72.5 / 15.6 / 5.6 / 6.2% |
+| `events-jetbike-race` | 75.8% → 76.1% | 32.4 → 33.3 | 66.1 / 17.7 / 11.5 / 4.7% → 67.5 / 16.5 / 11.6 / 4.5% |
+
+A census of the seven movies (`--fast-rom`) finds 2,211 clusters against
+2,249 with the original colours and 2,029 against 1,995 with
+`port-style`'s; the torn clusters are main's. The picture clusters that
+overlap none of main's are each one to four GBA frames, mostly in
+`gato-battle`'s battles and a menu list's page turn (`menus-sweep` 2773):
+pictures main left out and this shows, the same wrong pictures main shows
+at other frames (`gato-battle` 13174). With the lines never standing, the
+same build shows the page turn wrong too. `run.py --own-time` finds the
+attract's 50 places. Fast RAM keeps 1,504 bytes spare and work RAM is 280
+bytes above its floor.
+
+Two leads didn't pay: two places for each of four sets of the read cache,
+and keeping what every frame read (the 1-in-16 tries kept): where the
+tables change every frame the check costs more than it saves. The largest
+line cost left is the jet bike race's (`events-jetbike-race` from 8221):
+its plane's matrix tables don't change between frames, only its scroll's
+does, yet each picture works out every line's transfers again, about 500K
+cycles, two-thirds of it the slots' transfers. Lines that only one slot
+changes could reuse the others' transfers, which needs room work RAM
+hasn't to spare (issue #568).
 
 ## Scene map fills
 
