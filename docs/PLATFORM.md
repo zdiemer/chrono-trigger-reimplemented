@@ -1333,7 +1333,7 @@ time model's rows aren't in the program. Its host decides instead
   and stood for ever in its hall with no party (issue #553).
   `host/run.py --own-time` plays a movie so and checks that the GBA goes
   through the same places as ct_native in the same order (`ct_native
-  --locations`, the GBA's `location_id` read every 8 frames, the last
+  --locations`, the GBA's `location_id` read every 4 frames, the last
   allowed to differ): `attract-demo` through its 50 and `new-game` its 6,
   where before the attract stopped at its 13th. In the castle's pan the
   gargoyle's tiles were drawn some 35 frames after the pan reached them
@@ -2668,6 +2668,28 @@ the port can't read fewer. Its entries now go through the work RAM port in
 one piece (`hw_port_write_span`, the same time), 6% of it; a fifth of the
 rest is the walk over the 64 rows, twice (the port's check that it draws
 every object, then the drawing), and the rest the objects' own.
+
+**The heaviest frames.** Where a scene sets itself up in a single game
+frame, that frame took 15-20 GBA frames, and the picture stood still for
+a third of a second (issue #568). `run.py --profile` with the runner's
+samples kept to a few frames finds what each does. The jet bike race's
+set-up (the attract demo's frames 8236 and 19285, `events-jetbike-race`'s
+5872) sent the Mode 7 plane's pixels and map into one half of each VRAM
+word a byte at a time, each byte compared and marked as a change of its
+own, 42% of the frame; mirrored Johnny's pictures from Crono's a pixel at a
+time through the state; and wrote the routine that gathers the scaled
+racers into tiles through the work RAM port a byte at a time. A half send
+now compares and puts a unit's bytes together and marks the unit once
+(`services/video.c`, `vram_put_run`); the mirroring reads and writes a row
+at a time (`scene_mirror_rows`, `wram_read_span` and `wram_write_span`),
+where the row neither runs round its bank nor overlaps where it goes; and
+the routine goes through the port 64 bytes at a time
+(`hw_port_write_span`), each byte's time as before. The frame falls from
+19.7 GBA frames to 11.3 in the attract and from 19.5 to 11.3 in the race,
+the end states as before. Played in its own time, the GBA stays 8 frames
+at `$06B` after the attract's second race, where ct_native stays 23 (the
+base build too), so `run.py --own-time` reads the location every 4 frames
+rather than 8, which the faster set-up's frames had moved past that stay.
 
 **The menus' opening.** The menus open in a single game frame (the title's
 load screen, the field's menu, the save point's), 17-20 GBA frames, the

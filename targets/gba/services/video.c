@@ -251,6 +251,31 @@ static void vram_put_run(const uint8_t *bytes, uint8_t fill, uint32_t n, uint32_
     }
     uint16_t addr = snes.vram_addr, step = snes.port.step;
     bool after_high = snes.port.after_high;
+    if (half >= 0 && after_high == (half == 1) && step == 1) {
+        /* one half of successive words, as the Mode 7 plane's pixels and
+         * map are sent: a unit's bytes compared and put together, the unit
+         * marked once */
+        for (uint32_t k = 0; k < n;) {
+            uint32_t at = (uint32_t)(addr & 0x7FFF) << 1 | (uint32_t)half;
+            uint32_t m = (UNIT_BYTES - at % UNIT_BYTES + 1) / 2;
+            if (m > n - k)
+                m = n - k;
+            bool changed = false;
+            for (uint32_t j = 0; j < m; j++) {
+                uint8_t v = bytes ? bytes[k + j] : fill;
+                if (snes.vram[at + 2 * j] != v) {
+                    snes.vram[at + 2 * j] = v;
+                    changed = true;
+                }
+            }
+            if (changed)
+                unit_changed(at);
+            addr = (uint16_t)(addr + m);
+            k += m;
+        }
+        snes.vram_addr = addr;
+        return;
+    }
     for (uint32_t k = 0; k < n; k++) {
         bool high = half < 0 ? ((first + k) & 1) != 0 : half == 1;
         uint32_t at = (uint32_t)(addr & 0x7FFF) << 1 | (high ? 1u : 0u);

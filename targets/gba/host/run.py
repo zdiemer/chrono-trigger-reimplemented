@@ -62,7 +62,7 @@ END = re.compile(r"^ct_gba: end state crc32 ([0-9A-F]{8}), save RAM crc32 ([0-9A
 LOCATION = re.compile(r"^location: frame \d+ \$([0-9A-F]{3})", re.M)
 LOCATION_ID = 0x7E0100  # location_id (re/ram.toml), its low nine bits the place
 LOCATION_BITS = 0x1FF
-LOCATION_EVERY = 8      # frames between the GBA's reads, under the shortest stay the attract demo makes (19)
+LOCATION_EVERY = 4      # frames between the GBA's reads: in its own time the attract's shortest stay is 8 ($06B after the race; ct_native's 23)
 
 
 def runner(prefix, out_dir):
