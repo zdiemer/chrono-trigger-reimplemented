@@ -1112,6 +1112,16 @@ void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value)
     vram_put(high, value);
 }
 
+/* A run of them, as vram_put_run takes a send's: one half of successive
+ * words compared and put a unit at a time where the port steps a word after
+ * that half. */
+void vid_write_vram_bytes(Platform *pf, PfOrigin o, bool high, const uint8_t *bytes, uint32_t count)
+{
+    (void)pf, (void)o;
+    if (count)
+        vram_put_run(bytes, 0, count, 0, high ? 1 : 0);
+}
+
 void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first) { (void)pf, (void)o, (void)first; }
 
 void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t color)
