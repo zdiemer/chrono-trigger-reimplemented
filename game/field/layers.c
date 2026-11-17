@@ -15,6 +15,8 @@
  * on the layers' page. */
 #include "field/layers.h"
 
+#include <string.h>
+
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field.h"
@@ -420,10 +422,15 @@ static bool put_tiles(GameState *g, MapSize size, MapPlace *p, AttributeRow *r, 
     while (count) {
         unsigned room = p->column < size.columns ? (unsigned)(size.columns - p->column) : 1u;
         unsigned n = count < room ? count : room;
-        for (unsigned k = 0; k < n; k++) {
-            r->properties[p->column + k] = a.properties;
-            r->upper[p->column + k] = a.upper;
-            r->lower[p->column + k] = a.lower;
+        if (n == 1) {
+            /* most tiles come alone, and are set without a fill */
+            r->properties[p->column] = a.properties;
+            r->upper[p->column] = a.upper;
+            r->lower[p->column] = a.lower;
+        } else {
+            memset(&r->properties[p->column], a.properties, n);
+            memset(&r->upper[p->column], a.upper, n);
+            memset(&r->lower[p->column], a.lower, n);
         }
         p->column = (uint8_t)(p->column + n - 1);
         count -= n;
@@ -436,7 +443,7 @@ static bool put_tiles(GameState *g, MapSize size, MapPlace *p, AttributeRow *r, 
 /* The attributes' stream, looked at ahead of the port a window at a time
  * (it never reaches the tables it fills, field_tile_maps_fit) and taken a
  * byte at a time, each charged as the port's read of it. */
-enum { STREAM_WINDOW = 48 };
+enum { STREAM_WINDOW = 128 };
 
 typedef struct {
     uint8_t bytes[STREAM_WINDOW];

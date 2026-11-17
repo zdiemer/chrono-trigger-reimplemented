@@ -2028,7 +2028,14 @@ Approximated, or not shown yet (issue #483):
   screens' layers sets the sub screen's windows with them; the GBA's lines
   had kept only the main screen's, so the flash was missing (1.15M and
   1.13M pixel-frames in the census at attract-demo frames 4098-4108 and
-  15150-15160, now none).
+  15150-15160, now none). Where the third layer keeps its priority but is
+  the light the sub screen adds to the first two layers, and isn't split,
+  it stands behind every layer on those lines, as the blending's second
+  target, its few tiles in front with it
+  (`third_layer_behind_where_it_lights`): in Guardia's throne room its glow,
+  nearly all tiles behind, had covered the stained glass in front of it (the
+  census's clusters at `attract-demo` frames 3281-3504 and 14330-14553,
+  428,178 and 427,116 pixels, now none).
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it; a sprite
   raised instead shows over the dots of the layers between where they
@@ -2735,6 +2742,45 @@ frame added up, with both settings ending in ct_native's work RAM and save RAM:
 About 5% everywhere: only the code and constants still read from the
 cartridge (the first access of a run, the prefetch's misses) gain, and the
 code that runs most is already in fast RAM.
+
+Work RAM (EWRAM) is 2 waits by default. `host/pack.py --fast-work-ram` sets
+the options word's second bit, and the start then writes `0E000020` to the
+internal memory control register (`$0400:0800`), which puts work RAM at 1
+wait. A GBA and a GBA SP take it. A GBA Micro, a DS in its GBA mode and some
+emulators don't, and a ROM packed with it can crash there, so it is off by
+default like `--fast-rom`. mGBA honours it: with `--fast-rom` added, the
+same movies take fewer GBA frames, and the end states are ct_native's. In
+GBA frames (`run.py --fast-rom`, replayed), against `--fast-rom` alone:
+
+| Frame | `--fast-rom` | and `--fast-work-ram` |
+|---|---|---|
+| `new-game` 1742 (the load screen's opening) | 10.67 | 9.92 |
+| `new-game` 5801, 3248 (a location's load) | 11.27, 10.28 | 10.74, 9.55 |
+| `gato-battle` 11580 (a location's load) | 15.21 | 14.55 |
+| `gato-battle` 7690, 12832 | 11.56, 11.78 | 11.03, 11.33 |
+| Whole movie: `new-game`, `gato-battle` | 7,693, 24,352 | 7,651, 24,105 |
+
+That is 4-7% off the heaviest frames. They are mostly code from the
+cartridge and copies into and out of work RAM, and a copy's word takes two
+16-bit accesses either way.
+
+A location's load unpacks its tile attributes three bytes a tile, mostly a
+tile at a time (`game/field/layers.c`, `put_tiles`). Each tile used to call
+`memset` three times to fill one byte. A lone tile is now set in place, and
+the stream is read ahead 128 bytes at a time rather than 48, so the work RAM
+port is read ahead three-eighths as often. Together with `--fast-work-ram`
+(`run.py --fast-rom`, against the first column above): `new-game` 5801
+10.27, `gato-battle` 11580 14.28. `attract-demo`'s heaviest game frame
+went from 11.78 to 10.99, its heaviest picture from 12.29 to 12.02, and the
+whole movie from 31,701 GBA frames to 31,140. Its heaviest frames are now
+pictures, not the game's work (issue #568). `run.py --own-time attract-demo`
+goes through ct_native's 50 places with either packing. A census of
+`title-start`, `new-game`, `gato-battle`, `menus-sweep` and `attract-demo`
+(`--fast-rom`, against the same without `--fast-work-ram` or the unpacking's
+change) finds 1,279 picture clusters rather than 1,267. The 38 with no
+cluster beside them in the base run each last 1-3 GBA frames: an edge of
+the top lines or one frame of the title's clock, a picture shown a GBA
+frame earlier or later than before. Fast RAM and work RAM are as they were.
 
 A GBA's BIOS starts a cartridge only where the header's bytes $04-$9F are
 the logo it keeps its own copy of, so the logo is the one thing a ROM for

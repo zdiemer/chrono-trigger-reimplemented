@@ -3,7 +3,8 @@
 @ The header's fields are left for the packing step (targets/gba/host/pack.py) to
 @ fill: the logo (from the player's BIOS, `pack.py --bios`), the title, the
 @ game code and the complement check, and the options word after it, where
-@ `pack.py --fast-rom` asks for the cartridge's faster waits. The start sets
+@ `pack.py --fast-rom` asks for the cartridge's faster waits and
+@ `pack.py --fast-work-ram` for work RAM's. The start sets
 @ the waits, puts the driver's stack at the top of fast RAM, copies the data's
 @ initial values out of the cartridge, zeroes the rest and calls main, in
 @ Thumb, which never returns.
@@ -24,7 +25,7 @@ _start:
     .byte   0x00               @ complement check, the packing step's
     .fill   2, 1, 0
 options:
-    .word   0                  @ the packing step's: bit 0, the faster waits (pack.py's OPTIONS_AT, FAST_ROM)
+    .word   0                  @ the packing step's: bit 0, the cartridge's faster waits, bit 1, work RAM's (pack.py's OPTIONS_AT, FAST_ROM, FAST_WORK_RAM)
 
 start:
     mov     r0, #0x1F          @ system mode, interrupts off
@@ -36,6 +37,10 @@ start:
     tst     r2, #1
     ldrne   r1, =0x4318
     strh    r1, [r0]
+    tst     r2, #2             @ work RAM at 1 wait rather than 2, where the packing step asked for it:
+    ldrne   r0, =0x04000800    @ the internal memory control, which the GBA and GBA SP take
+    ldrne   r1, =0x0E000020    @ and the GBA Micro, a DS and some emulators don't
+    strne   r1, [r0]
 
     ldr     r0, =__iwram_load  @ the fast RAM's code and data
     ldr     r1, =__iwram_start
