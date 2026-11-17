@@ -42,13 +42,34 @@ enum { STRIPS = 8, TILES_ACROSS = 8, PLANE_PAIRS = 2, TILE_ROWS = 8 };
 enum { TILE_STEP = 4, PLANE_PAIR_STEP = 2, ROW_STEP = 0x20 };
 
 /* The routine is written a byte after another through the work RAM port, as
- * the generator writes it, which the port's time is reckoned by. */
-static void emit(GameState *g, uint8_t v) { hw_port_write(g, v); }
+ * the generator writes it, which the port's time is reckoned by: gathered a
+ * few dozen bytes at a time and written through the port in one go, each
+ * byte's time as before. */
+enum { GATHERED = 64 };
+typedef struct {
+    GameState *g;
+    uint8_t bytes[GATHERED];
+    uint8_t count;
+} Emitter;
 
-static void emit_word(GameState *g, uint16_t v)
+static void flush(Emitter *e)
 {
-    emit(g, (uint8_t)v);
-    emit(g, (uint8_t)(v >> 8));
+    if (e->count)
+        hw_port_write_span(e->g, e->bytes, e->count);
+    e->count = 0;
+}
+
+static void emit(Emitter *e, uint8_t v)
+{
+    e->bytes[e->count++] = v;
+    if (e->count == GATHERED)
+        flush(e);
+}
+
+static void emit_word(Emitter *e, uint16_t v)
+{
+    emit(e, (uint8_t)v);
+    emit(e, (uint8_t)(v >> 8));
 }
 
 /* The generator's offsets: the table word of the strip being written, and the
@@ -64,6 +85,7 @@ typedef struct {
  * program's next multiply finds it after its product. */
 static void write_matrix_code(GameState *g, uint16_t destination, uint16_t source)
 {
+    Emitter out = { g, { 0 }, 0 };
     Offsets o = { 0, 0, 0, 0 };
     uint16_t pair = destination;
     uint8_t page = (uint8_t)(destination >> 8);
@@ -77,15 +99,15 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
                 for (uint8_t k = 0; k < TILE_ROWS; k++) {
                     if ((uint8_t)pair == 0) {
                         /* the direct page moved to the next page */
-                        emit(g, OP_LDA_IMMEDIATE);
-                        emit_word(g, (uint16_t)(page << 8));
-                        emit(g, OP_TCD);
+                        emit(&out, OP_LDA_IMMEDIATE);
+                        emit_word(&out, (uint16_t)(page << 8));
+                        emit(&out, OP_TCD);
                         page++;
                     }
-                    emit(g, OP_LDA_ABSOLUTE);
-                    emit_word(g, (uint16_t)(o.table + o.tile + o.plane_pair + o.row + source));
-                    emit(g, OP_STA_DIRECT);
-                    emit(g, (uint8_t)pair);
+                    emit(&out, OP_LDA_ABSOLUTE);
+                    emit_word(&out, (uint16_t)(o.table + o.tile + o.plane_pair + o.row + source));
+                    emit(&out, OP_STA_DIRECT);
+                    emit(&out, (uint8_t)pair);
                     pair = (uint16_t)(pair + 2);
                     o.row = (uint8_t)(o.row + ROW_STEP);
                 }
@@ -94,7 +116,8 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
             o.tile = (uint8_t)(o.tile + TILE_STEP);
         }
     }
-    emit(g, OP_RTS);
+    emit(&out, OP_RTS);
+    flush(&out);
 
     SceneProgramPage scene = scene_program_own();
     set_scene_call_matrix_source(g, scene, source);

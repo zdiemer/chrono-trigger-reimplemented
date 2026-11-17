@@ -218,20 +218,20 @@ enum { FIGURES_POWER = 0, FIGURES_FLAGS = 1, FIGURES_AMOUNT = 2, HAS_AN_AMOUNT =
 
 enum { FIRST_ACCESSORY = 0x94, FIRST_OF_THE_REST = 0xBC, ARMED = 0x94 };
 
-static uint16_t table_word(const GameState *g, uint16_t at)
-{
-    return (uint16_t)(menu_item_table_byte(g, at) | menu_item_table_byte(g, (uint16_t)(at + 1)) << 8);
-}
+enum { DATA_BYTES = DATA_AMOUNT + 1 };
 
+/* Each item's data record read whole, each byte's time as a read of its own. */
 static void copy_items_data(GameState *g)
 {
     for (unsigned item = 0; item < MENU_ITEMS; item++) {
         uint16_t at = 0;
         TIMED_AS(g, 0xC288AD, at = menu_item_data_at_of(g, (uint8_t)item));
-        set_menu_item_kinds(g, item, (uint8_t)(menu_item_table_byte(g, (uint16_t)(at + DATA_KIND)) & KIND_BITS));
-        set_menu_item_users(g, item, menu_item_table_byte(g, (uint16_t)(at + DATA_USERS)));
-        set_menu_item_amounts(g, item, menu_item_table_byte(g, (uint16_t)(at + DATA_AMOUNT)));
-        set_menu_item_prices(g, item, table_word(g, (uint16_t)(at + DATA_PRICE)));
+        uint8_t data[DATA_BYTES];
+        menu_item_table_bytes(g, at, data, DATA_BYTES);
+        set_menu_item_kinds(g, item, (uint8_t)(data[DATA_KIND] & KIND_BITS));
+        set_menu_item_users(g, item, data[DATA_USERS]);
+        set_menu_item_amounts(g, item, data[DATA_AMOUNT]);
+        set_menu_item_prices(g, item, (uint16_t)(data[DATA_PRICE] | data[DATA_PRICE + 1] << 8));
     }
 }
 
