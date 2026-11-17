@@ -185,13 +185,25 @@ static void put_bytes(volatile uint8_t *to, Memory to_memory, const volatile uin
 }
 
 /* A span that reaches past one of the storage's runs or a byte no owner
- * keeps: only the owned bytes, as vars_host_write8 has it. Seldom written,
- * kept apart from put_span, which runs from a small target's fast memory. */
-__attribute__((noinline)) static void write_owned_bytes(VarsHost *h, uint32_t at, const volatile uint8_t *in, uint32_t len)
+ * keeps: each run's part of it as the span it is where owners keep all of
+ * it (a location's load writes 3 KiB on from below the cold top into it),
+ * otherwise only the owned bytes, as vars_host_write8 has it. The parts go
+ * in order, each from its first byte, as a byte at a time would. Seldom
+ * written, kept apart from put_span, which runs from a small target's fast
+ * memory. */
+__attribute__((noinline)) static void write_owned_bytes(VarsHost *h, uint32_t at, const volatile uint8_t *in, Memory in_memory,
+                                                        uint32_t len)
 {
-    for (; len && at < WORK_RAM_BYTES; at++, in++, len--)
-        if (vars_flat_owners(at) >> (at & 7u) & 1u)
-            *vars_flat_byte(h, at) = *in;
+    while (len && at < WORK_RAM_BYTES) {
+        uint32_t n = len < run_from(at) ? len : run_from(at);
+        if (vars_flat_wholly_owned(at, n))
+            put_bytes(vars_flat_byte(h, at), memory_at(at), in, in_memory, n);
+        else
+            for (uint32_t i = 0; i < n; i++)
+                if (vars_flat_owners(at + i) >> ((at + i) & 7u) & 1u)
+                    *vars_flat_byte(h, at + i) = in[i];
+        at += n, in += n, len -= n;
+    }
 }
 
 /* `len` bytes from `in`, in `in_memory`, written from `at` (bytes from
@@ -205,7 +217,7 @@ __attribute__((noinline)) static void put_span(VarsHost *h, uint32_t at, const v
     if (len <= run_from(at) && vars_flat_wholly_owned(at, len))
         put_bytes(vars_flat_byte(h, at), memory_at(at), in, in_memory, len);
     else
-        write_owned_bytes(h, at, in, len);
+        write_owned_bytes(h, at, in, in_memory, len);
 }
 
 void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len)
