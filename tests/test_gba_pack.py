@@ -143,9 +143,9 @@ class SamplesTest(unittest.TestCase):
         self.assertEqual(rate, round(4096 * (5 / 16) / (176 / 532.5)))
         self.assertTrue(all(abs(s - 1000) <= 1 for s in out[loop:]))   # a constant loop stays constant
         # a sample that ends keeps the mix's ratio
-        out, loop, rate = samples.resample([500] * 100, None)
-        self.assertEqual((loop, len(out), rate), (None, 34, 4096))
-        self.assertEqual(out[10], 500)
+        out, loop, rate = samples.resample([500] * 400, None)
+        self.assertEqual((loop, len(out), rate), (None, 133, 4096))
+        self.assertEqual(out[60], 500)   # away from its ends, a constant stays constant
 
     def test_end_without_loop(self):
         # the block that ends without looping isn't played

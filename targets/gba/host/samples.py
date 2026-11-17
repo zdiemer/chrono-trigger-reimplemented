@@ -57,7 +57,7 @@ LOOP_SPARE = 256             # samples of a loop's PCM repeated past its end (mi
 # The low-pass: a windowed sinc ZEROS zero crossings each side, its window a
 # Blackman's, tabulated KERNEL_STEPS to a crossing; the cut at CUT of the
 # mix's half rate.
-ZEROS, KERNEL_STEPS, CUT = 6, 256, 0.9
+ZEROS, KERNEL_STEPS, CUT = 16, 256, 0.9
 
 
 def fnv1a(data):

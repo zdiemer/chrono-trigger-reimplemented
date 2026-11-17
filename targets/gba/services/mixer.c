@@ -108,19 +108,21 @@ static inline int decay_end(const AuEnvelope *e, uint8_t gain_mode, uint8_t gain
     return gain_mode == AU_GAIN_DIRECT ? (gain_value & 0x7F) >> 5 : 3 + gain_mode;
 }
 
-/* `level` after `steps` of the S-DSP's exponential fall (each takes 1, then
- * a 256th of what is left): as a 256th falls, (level + 255) times 255/256 to
- * the steps, less 255, the power taken by squaring in 16-bit fractions. */
+/* `level` after `steps` of the S-DSP's exponential fall, each step taking 1
+ * and a 256th of the rest rounded down: the same amount at every step within
+ * a band of 256 levels, so it is taken a band at a time, as many steps as
+ * fall in each, which is what the steps one at a time come to. */
 static int falls_by(int level, uint32_t steps)
 {
-    uint32_t power = 0x10000, base = 0xFF00;
-    for (; steps; steps >>= 1) {
-        if (steps & 1)
-            power = power * base >> 16;
-        base = base * base >> 16;
+    while (steps && level > 0) {
+        int band = (level - 1) >> 8, step = 1 + band;
+        uint32_t in_band = (uint32_t)(level - (band << 8) + step - 1) / (uint32_t)step;
+        if (in_band > steps)
+            in_band = steps;
+        level -= (int)in_band * step;
+        steps -= in_band;
     }
-    int fallen = (int)(((uint32_t)(level + 255) * power) >> 16) - 255;
-    return fallen < 0 ? 0 : fallen;
+    return level < 0 ? 0 : level;
 }
 
 /* The envelope over `frames` of the S-DSP's: a released note falls every
