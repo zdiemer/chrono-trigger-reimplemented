@@ -4433,6 +4433,29 @@ static void line_blending(LineRegisters *r, const LineState *st)
     }
 }
 
+/* Mode 1's third layer, put in front of every layer for its tiles in front,
+ * on a line where it is the light the sub screen adds to the first two
+ * layers (the colour math adding a sub screen it is on to them, not to
+ * itself): the stained glass behind the throne in Guardia's castle, its
+ * glow on the third layer. Its tiles behind, nearly all of it there, stand
+ * behind the first two on the SNES, and the glass is the second layer's
+ * with the glow added; in front of them on the GBA they covered the glass
+ * with the glow alone. Where the layer isn't split, it stands behind every
+ * layer there instead, the blending's second target under the math's
+ * layers, and its few tiles in front stand behind with it. */
+static void third_layer_behind_where_it_lights(LineRegisters *r, const LineState *st)
+{
+    const VidColorMath *m = &st->math;
+    bool lights = (r->bldcnt & BLD_DARKEN) == BLD_ALPHA && m->sub_screen && !m->subtract &&
+                  (st->sub_layers & VID_BG3_BIT) && !(m->layers & VID_BG3_BIT) &&
+                  (m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT));
+    if (!lights || layers[2].split)
+        return;
+    for (unsigned g = 0; g < 4; g++)
+        if (gba_layers[g].source == 2 && !gba_layers[g].columns)
+            r->bgcnt[g] = (uint16_t)((r->bgcnt[g] & ~3u) | order->priority[2][0]);
+}
+
 /* The third layer on a mode 1 line that sets its priority otherwise than
  * the frame's layers were assigned for (order_of_mode, from the mode the
  * frame starts in): a line effect may set the mode again part of the way
@@ -4459,8 +4482,13 @@ static void line_blending(LineRegisters *r, const LineState *st)
 static void third_layer_as_the_line_puts_it(LineRegisters *r, const LineState *st)
 {
     bool assigned_in_front = order == &third_in_front_order;
-    if (st->mode != 1 || (order != &layers_order && !assigned_in_front) || st->bg3_priority == assigned_in_front)
+    if (st->mode != 1 || (order != &layers_order && !assigned_in_front))
         return;
+    if (st->bg3_priority == assigned_in_front) {
+        if (assigned_in_front)
+            third_layer_behind_where_it_lights(r, st);
+        return;
+    }
     const VidColorMath *m = &st->math;
     uint8_t added_to = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT));
     bool added = assigned_in_front && (r->bldcnt & BLD_DARKEN) == BLD_ALPHA && m->sub_screen && !m->subtract &&
