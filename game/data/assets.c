@@ -125,8 +125,10 @@ void assets_use(const AssetSource *s)
     holding = true;
 }
 
-/* A resource as held: asked of the source and the catalogue where it isn't. */
-static const Held *held_resource(AssetId id)
+/* A resource asked of the source and the catalogue, into its place among
+ * those held: seldom, kept apart from held_resource, which runs from a small
+ * target's fast memory. */
+__attribute__((noinline)) static const Held *hold_resource(AssetId id)
 {
     if (!holding)
         assets_use(source);
@@ -144,6 +146,13 @@ static const Held *held_resource(AssetId id)
     return h;
 }
 
+/* A resource as held: asked of the source and the catalogue where it isn't. */
+static const Held *held_resource(AssetId id)
+{
+    const Held *h = &held[id % HELD];
+    return holding && h->id == id ? h : hold_resource(id);
+}
+
 const uint8_t *asset_form(AssetForm form, AssetId id, uint32_t *length)
 {
     if (!source || !source->form)
@@ -156,46 +165,94 @@ const uint8_t *asset_form(AssetForm form, AssetId id, uint32_t *length)
  * one comparison, kept until a new source. */
 static Held found[NEARBY];   /* length 0: none yet */
 
+/* The run of the store's bytes the last read by address found its byte in,
+ * by the address as the game named it: the resource's bytes in that bank,
+ * where the store holds the resource and it is typed (a read of an untyped
+ * one is noted, each). The data's pointers are read a byte at a time,
+ * thousands as a location loads, mostly on through one resource, and a read
+ * in the run finds its byte with one comparison. Length 0: none. */
+static RomRun last_run;
+
 static void forget_found(void)
 {
     for (unsigned i = 0; i < NEARBY; i++)
         found[i].length = 0;
+    last_run.length = 0;
 }
 
-/* The resource that holds cartridge address `a` (`at` as the game names it):
- * the one found last in its 4 KiB, or found afresh and kept there; NULL
- * where `a` lies in none. */
-static const Held *found_at(uint32_t at, uint32_t a)
+/* The byte at `at` where it lies in the last run, or NULL. */
+static inline const uint8_t *in_last_run(uint32_t at)
 {
-    Held *f = &found[(a >> NEAR_SHIFT) & (NEARBY - 1)];
-    if (a - f->at < f->length)
-        return f;
+    uint32_t i = at - last_run.at;
+    return i < last_run.length ? last_run.bytes + i : NULL;
+}
+
+/* The resource that holds cartridge address `a` (`at` as the game names it),
+ * found afresh and kept as the one found last in its 4 KiB; NULL where `a`
+ * lies in none. Kept apart from served, which runs from a small target's
+ * fast memory. */
+__attribute__((noinline)) static const Held *find_anew(uint32_t at, uint32_t a)
+{
     AssetId id = asset_containing(at);
     if (id == ASSET_NONE)
         return NULL;
+    Held *f = &found[(a >> NEAR_SHIFT) & (NEARBY - 1)];
     *f = *held_resource(id);
     return f;
+}
+
+/* The resource that holds cartridge address `a`: the one found last in its
+ * 4 KiB, or found afresh. */
+static const Held *found_at(uint32_t at, uint32_t a)
+{
+    const Held *f = &found[(a >> NEAR_SHIFT) & (NEARBY - 1)];
+    return a - f->at < f->length ? f : find_anew(at, a);
+}
+
+/* The last run made the resource `f` holds in the bank `at` (cartridge
+ * address `a`) lies in, within the part of the bank that is the cartridge's
+ * (its upper half, in the banks that mirror only that). */
+__attribute__((noinline)) static void remember_run(const Held *f, uint32_t at, uint32_t a)
+{
+    uint8_t bank = (uint8_t)(at >> 16);
+    uint32_t whole = bank >= ROM_BANKS || (bank >= 0x40 && bank < 0x7E);
+    uint32_t into = a - f->at, in_bank = (uint16_t)at - (whole ? 0 : UPPER_HALF);
+    uint32_t back = into < in_bank ? into : in_bank;   /* not before the cartridge's part of the bank */
+    uint32_t ahead = f->length - into, bank_left = 0x10000u - in_bank;
+    last_run.at = at - back;
+    last_run.length = back + (ahead < bank_left ? ahead : bank_left);
+    last_run.bytes = f->bytes + (into - back);
 }
 
 /* The store's copy of the cartridge byte at `at`, or NULL: the address is in
  * no resource (counted), there is no store, or it hasn't the resource. */
 static const uint8_t *served(uint32_t at)
 {
+    const uint8_t *byte = in_last_run(at);
+    if (byte)
+        return byte;
     uint32_t a = cartridge_address(at);
     const Held *f = a == NOT_ROM ? NULL : found_at(at, a);
     if (!f) {
         asset_note_outside(at);
         return NULL;
     }
-    if (f->untyped)
+    if (f->untyped) {
         note_if_unread(f->id, at);
+    } else if (f->bytes) {
+        remember_run(f, at, a);
+    }
     return f->bytes ? f->bytes + (a - f->at) : NULL;
 }
 
 /* Where a pointer in the data names RAM, the byte is the game's RAM's
- * (wram_data_read8), never the cartridge's. */
+ * (wram_data_read8), never the cartridge's: the last run is the cartridge's
+ * alone. */
 uint8_t rom_read8(const GameState *g, uint32_t at)
 {
+    const uint8_t *byte = in_last_run(at);
+    if (byte)
+        return rom_cartridge_read(g, at, byte);
     if (cartridge_address(at) == NOT_ROM)
         return wram_data_read8(g, at & 0xFFFFFFu);
     return rom_cartridge_read(g, at, served(at));
