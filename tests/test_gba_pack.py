@@ -44,19 +44,22 @@ class PackTest(unittest.TestCase):
         self.assertEqual((sum(image[0xA0:0xBD]) + 0x19 + image[0xBD]) & 0xFF, 0)
 
     def test_fast_rom(self):
-        # the options word after the header, which start.s reads for the cartridge's waits
+        # the options word after the header, which start.s reads for the cartridge's and work RAM's waits
         saved = pack.resources, pack.sound_samples, pack.unpacked_streams
         pack.unpacked_streams = lambda cartridge: b"UNPACKED"
         pack.resources, pack.sound_samples = (lambda cartridge: []), (lambda cartridge: b"")
         try:
             plain, _ = pack.pack(bytes(0x1F0), b"")
             fast, _ = pack.pack(bytes(0x1F0), b"", fast_rom=True)
+            both, _ = pack.pack(bytes(0x1F0), b"", fast_rom=True, fast_work_ram=True)
             with self.assertRaises(SystemExit):
                 pack.pack(b"\xff" * 0x1F0, b"")     # no options word where start.s keeps it
         finally:
             pack.resources, pack.sound_samples, pack.unpacked_streams = saved
         self.assertEqual(plain[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], bytes(4))
         self.assertEqual(fast[pack.OPTIONS_AT:pack.OPTIONS_AT + 4], pack.FAST_ROM.to_bytes(4, "little"))
+        self.assertEqual(both[pack.OPTIONS_AT:pack.OPTIONS_AT + 4],
+                         (pack.FAST_ROM | pack.FAST_WORK_RAM).to_bytes(4, "little"))
         self.assertEqual(plain[:pack.OPTIONS_AT], fast[:pack.OPTIONS_AT])
 
     def test_logo(self):

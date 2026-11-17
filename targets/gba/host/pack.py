@@ -27,7 +27,9 @@ count, then each script's records; without it the game reads every command from 
 as it plays the same. With --fast-rom, the
 options word after the header (targets/gba/toolchain/start.s) asks for the
 cartridge's waits at 2 and 1 rather than 3 and 1, which flash carts and the
-Analogue Pocket take and some cheap reproduction cartridges don't. With --bios,
+Analogue Pocket take and some cheap reproduction cartridges don't. With --fast-work-ram, it asks
+for work RAM at 1 wait rather than 2 through the internal memory control, which
+the GBA and GBA SP take and the GBA Micro and a DS don't. With --bios,
 the player's own dump of the GBA's BIOS, the header gets the logo the BIOS
 checks before it starts a cartridge, copied from the BIOS's reference copy;
 without it the logo is left blank, which emulators and flash carts that patch
@@ -56,6 +58,7 @@ ENTRY = struct.Struct("<II")
 TITLE, CODE = b"CT NATIVE", b"CTNE"
 OPTIONS_AT = 0xC0    # start.s's options word, after the header
 FAST_ROM = 1         # its bit for the cartridge's waits at 2 and 1
+FAST_WORK_RAM = 2    # its bit for work RAM's wait at 1 rather than 2
 BIOS_BYTES, BIOS_CRC32 = 0x4000, 0x81977335   # the GBA's BIOS, as every GBA and GBA SP has it
 LOGO_AT, LOGO_BYTES = 0x04, 156                # where the header holds the logo
 BIOS_LOGO_AT = 0x3290  # where that BIOS keeps the copy it compares the header's with
@@ -146,7 +149,7 @@ def bios_logo(bios):
     return logo if zlib.crc32(logo) == LOGO_CRC32 else None
 
 
-def pack(program, cartridge, fast_rom=False, profile="original", logo=None, records=None):
+def pack(program, cartridge, fast_rom=False, profile="original", logo=None, records=None, fast_work_ram=False):
     parts = resources(cartridge)
     out = bytearray(program)
     out += bytes(-len(out) % ALIGN)
@@ -186,9 +189,9 @@ def pack(program, cartridge, fast_rom=False, profile="original", logo=None, reco
     out[0xAC:0xB0] = CODE
     out[0xBD] = header_check(out)
     options = struct.unpack_from("<I", out, OPTIONS_AT)[0]
-    if options & ~FAST_ROM:
+    if options & ~(FAST_ROM | FAST_WORK_RAM):
         raise SystemExit("pack: the program has no options word at $%02X (targets/gba/toolchain/start.s)" % OPTIONS_AT)
-    struct.pack_into("<I", out, OPTIONS_AT, FAST_ROM if fast_rom else 0)
+    struct.pack_into("<I", out, OPTIONS_AT, (FAST_ROM if fast_rom else 0) | (FAST_WORK_RAM if fast_work_ram else 0))
     out += bytes(-len(out) % 4)
     return bytes(out), base
 
@@ -200,6 +203,8 @@ def main(argv=None):
     ap.add_argument("--out", type=pathlib.Path, required=True)
     ap.add_argument("--fast-rom", action="store_true",
                     help="the cartridge's waits at 2 and 1, not 3 and 1: flash carts and the Analogue Pocket, not every cartridge")
+    ap.add_argument("--fast-work-ram", action="store_true",
+                    help="work RAM at 1 wait, not 2: the GBA and GBA SP, not the GBA Micro, a DS or every emulator")
     ap.add_argument("--profile", choices=PROFILES, default="original",
                     help="the colours as the GBA shows them: the SNES's as they are (original), or brightened for a GBA's screen (port-style)")
     ap.add_argument("--bios", type=pathlib.Path,
@@ -227,7 +232,8 @@ def main(argv=None):
     if zlib.crc32(cartridge) != rom.EXPECTED_CRC32:
         print("pack: %s is not the No-Intro Chrono Trigger (USA) image" % args.rom, file=sys.stderr)
         return 1
-    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom, args.profile, logo, records)
+    image, base = pack(args.program.read_bytes(), cartridge, args.fast_rom, args.profile, logo, records,
+                       args.fast_work_ram)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(image)
     print("pack: %s, %d bytes: the program %d, the pack from %d" % (args.out, len(image), base, base))
