@@ -2636,6 +2636,26 @@ one piece (`hw_port_write_span`, the same time), 6% of it; a fifth of the
 rest is the walk over the 64 rows, twice (the port's check that it draws
 every object, then the drawing), and the rest the objects' own.
 
+**The menus' opening.** The menus open in a single game frame (the title's
+load screen, the field's menu, the save point's), 17-20 GBA frames, the
+heaviest of `title-start`, `new-game`, `gato-battle` and `menus-sweep`
+(issue #568). Timed a step at a time with the GBA's cycle count, the
+largest steps were clearing VRAM and 58 KiB of work RAM (1.0M cycles),
+building the menus' tiles (1.9M; the three-plane tiles' last planes a byte
+read from the cartridge and two written at a time, 0.64M), the items'
+tables (0.9M; each item's data record a byte at a time by address) and the
+save slots' sums where a slot holds a game (1,280 words a slot through the
+save service, each a call). Work RAM's fills now fill the rest of a page
+owners keep whole at once and look each eight bytes' owners up once
+(`runtime/port/vars_flat_host.c`, `fill_owned`); a three-plane tile's
+last planes go in one write from one read of its third plane
+(`menu_three_plane_tile_bytes`, `wram_write_span`); an item's data record
+is read whole (`menu_item_table_bytes`); and a slot's sum reads 32 bytes a
+call (the save service's `sv_read_span`); each byte's time as before. The
+opening falls from 17.4 GBA frames to 15.3 in `title-start` and
+`new-game`, 17.4-18.5 to 15.3-16.2 in `gato-battle` and 20.0 to 17.5 in
+`menus-sweep`.
+
 ## Scene map fills
 
 `vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving
