@@ -31,6 +31,12 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
     return served ? *served : 0;
 }
 
+void rom_cartridge_read_span(const GameState *g, uint32_t at, const uint8_t *served, uint8_t *to, uint32_t length)
+{
+    for (uint32_t i = 0; i < length; i++)
+        to[i] = rom_cartridge_read(g, at + i, served + i);
+}
+
 /* RAM a pointer in the data names: the game's, never the cartridge's. */
 enum { RAM_BYTE = 0x5A };
 static uint32_t ram_read_at;

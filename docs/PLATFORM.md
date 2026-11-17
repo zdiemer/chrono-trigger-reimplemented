@@ -1335,10 +1335,18 @@ time model's rows aren't in the program. Its host decides instead
   through the same places as ct_native in the same order (`ct_native
   --locations`, the GBA's `location_id` read every 8 frames, the last
   allowed to differ): `attract-demo` through its 50 and `new-game` its 6,
-  where before the attract stopped at its 13th. What remains differs where the
-  GBA is slower than the SNES: the field's script turns in the castle's pan
-  cost the GBA about ten times the original's share of the window, and the
-  gargoyle's tiles are drawn some 35 frames after the pan reaches them (issue #555).
+  where before the attract stopped at its 13th. In the castle's pan the
+  gargoyle's tiles were drawn some 35 frames after the pan reached them
+  (issue #555): its frames are drawn from graphics built in bank $7F, a
+  word at a time through the state, and the frame builder's tile copy was
+  12.6% of the GBA's work over frames 5880-5990. A tile now goes in one
+  read and one write (`game/field/graphics.c`, `wram_read_span`,
+  `wram_write_span`, and from the cartridge `rom_read_span`, served in
+  one copy by `rom_cartridge_read_span`), each byte's time as before,
+  where its places neither leave the bank nor overlap; the copy falls to
+  0.9% and the frames' work over the window by 11%. Played so, the
+  gargoyle is drawn as the pan reaches it, the attract going through
+  ct_native's 50 places.
 
 In mGBA, with a late frame's picture left out (`Pictures`, below) and the
 fibers' stacks sized from the library as before, the movies (`title-start`,
@@ -1852,6 +1860,13 @@ mode 0's four tiled layers and its sprites:
   32-column map's, whole columns where the layer's scroll puts the cut),
   converted again only as the game changes them or the cut moves, and its
   windows' edges and sprites move across as the cut moves the dots.
+  The table of line effects' maps holds ten, nine of them cut at most: a
+  battle's line effects show six and the cut takes three more, which a
+  table of six or seven left no room for (the window shown whole, 16 dots
+  right of ct_native's, its gauges past the screen's edge). A band that cuts a map notes its cut copy alone, the
+  map whole only where the copy found no room: the whole map, shown by no
+  line, was left out by each layout and noted again, a layout a frame in
+  the battle's menus.
 - **The bands** are worked out a run of lines at a time, between the lines
   where a panel starts or ends or a band passes the SNES's first or last
   line, rather than a line at a time: at the title that took the picture
