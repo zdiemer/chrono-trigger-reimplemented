@@ -1698,8 +1698,16 @@ mode 0's four tiled layers and its sprites:
   then, and the first line's registers are set and the line effects' DMA
   armed there too. A frame whose work runs on past the vertical blank it
   began in (the naming screen's, as the cursor moves down a row) is shown
-  from the next picture's, the last frame's staying whole until then, unless
-  it shows the same as the last; before, the GBA showed such a frame's
+  from the next vertical blank, the last frame's staying whole until then,
+  unless it shows the same as the last: the line counter's interrupt there
+  shows it (`show_pending_at_blank`), arming itself where the frame shown
+  had no changes for it. Until 2026-11-16 it waited for the next picture to
+  be made, which where a game frame takes two GBA frames (the world map's
+  flyover, the jet bike race) is a game frame later: each picture went up
+  a game frame late, the flyover's layers a dot or two off the sprites
+  drawn over them and the racers in the last frame's places. The driver
+  tells a runner the frame whose picture went up as it goes up
+  (`gba_video_tell_shown`), not as it is made. Before, the GBA showed such a frame's
   sprites over the last frame's lines for a frame (the hand on the row
   below while the bands still made room for it on the row above, issue
   #520). A frame with more changes than the other end of the table has
