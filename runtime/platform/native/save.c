@@ -15,6 +15,14 @@ uint8_t sv_read8(Platform *pf, PfOrigin o, uint16_t offset)
     return sv_peek8(pf, offset);
 }
 
+void sv_read_span(Platform *pf, PfOrigin o, uint16_t offset, uint8_t *out, uint16_t count)
+{
+    (void)o;
+    tm_host_game_access(pf, (uint32_t)SAVE_ACCESS_CLOCKS * count);
+    for (uint16_t i = 0; i < count; i++)
+        out[i] = sv_peek8(pf, (uint16_t)(offset + i));
+}
+
 void sv_write8(Platform *pf, PfOrigin o, uint16_t offset, uint8_t v)
 {
     (void)o;

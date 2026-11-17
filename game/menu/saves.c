@@ -58,17 +58,27 @@ static uint16_t slot_sum(Platform *pf, uint8_t slot) { return saved_word(pf, PF_
 // $FF:FBE7
 /* A saved game's sum: its words added from the last to the first, in sixteen
  * bits, where an addition that overflows carries one into the next (the last
- * one's is lost). This is the sum the cartridge's saves were written with. */
+ * one's is lost). This is the sum the cartridge's saves were written with.
+ * The words are read a few dozen bytes at a time, each byte's time as a read
+ * of its own. */
+enum { SUMMED_AT_ONCE = 32 };
+
 static uint16_t game_sum(Platform *pf, uint16_t game)
 {
     uint16_t sum = 0, carried = 0;
-    for (int at = SAVED_GAME_BYTES - 2; at >= 0; at -= 2) {
-        uint32_t total = (uint32_t)sum + saved_word(pf, PF_AT(0xFFFBFB), (uint16_t)(game + at)) + carried;
-        sum = (uint16_t)total;
-        carried = (uint16_t)(total >> 16);
+    for (int from = SAVED_GAME_BYTES - SUMMED_AT_ONCE; from >= 0; from -= SUMMED_AT_ONCE) {
+        uint8_t bytes[SUMMED_AT_ONCE];
+        sv_read_span(pf, PF_AT(0xFFFBFB), (uint16_t)(game + from), bytes, SUMMED_AT_ONCE);
+        for (int at = SUMMED_AT_ONCE - 2; at >= 0; at -= 2) {
+            uint32_t total = (uint32_t)sum + (uint16_t)(bytes[at] | bytes[at + 1] << 8) + carried;
+            sum = (uint16_t)total;
+            carried = (uint16_t)(total >> 16);
+        }
     }
     return sum;
 }
+
+_Static_assert(SAVED_GAME_BYTES % SUMMED_AT_ONCE == 0, "a saved game is summed in whole pieces");
 
 /* Where a slot's game is: as the original addresses it on the bus, and in
  * save memory. */

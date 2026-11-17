@@ -548,6 +548,25 @@ static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at)
     return rom_read8_in_bank_of(g, ASSET_WEAPON_RECORDS, at);
 }
 
+/* `count` bytes of the item tables from `at` into `out`, each read as
+ * menu_item_table_byte reads it: in one go where they stay in the bank. */
+static inline void menu_item_table_bytes(const GameState *g, uint16_t at, uint8_t *out, unsigned count)
+{
+    if (at > 0x10000u - count) {
+        for (unsigned i = 0; i < count; i++)
+            out[i] = menu_item_table_byte(g, (uint16_t)(at + i));
+        return;
+    }
+    rom_read_span(g, asset_place_address(ASSET_WEAPON_RECORDS, at), out, count);
+}
+
+/* `count` bytes of the menus' three-plane tiles from `at` into `out`, each
+ * read as menu_three_plane_tile_byte reads it. */
+static inline void menu_three_plane_tile_bytes(const GameState *g, uint32_t at, uint8_t *out, unsigned count)
+{
+    rom_read_span(g, asset_address(ASSET_MENU_THREE_PLANE_TILES) + at, out, count);
+}
+
 /* The items' names, eleven bytes each (menu_item_name): where an item's is
  * in their bank, which the menus keep an item each, and what such a place
  * names. */
