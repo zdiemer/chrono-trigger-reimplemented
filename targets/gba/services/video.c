@@ -1183,6 +1183,11 @@ static Cache caches[CACHES];
 static uint8_t roles[BLOCKS];
 static uint8_t taken[PLACES / 8] __attribute__((aligned(4)));   /* the 32-byte places of background VRAM a map or a tile has */
 static uint32_t misses, layout_misses;
+/* The misses since the layout of tiles the scene's maps and the drawn panel
+ * name, beside those of line maps shown briefly (`converting_brief`, while
+ * one is converted): only theirs have a layout put brief maps to rest. */
+static uint32_t scene_misses;
+static bool converting_brief;
 static uint16_t frames_since_layout;
 
 /* The bits set in a word, a few steps at once rather than the C library's
@@ -1279,6 +1284,7 @@ __attribute__((noinline)) static uint16_t slot_for(Cache *c, uint16_t tile)
         *slot = take_slot(c);
         if (*slot == NO_SLOT) {
             misses++;
+            scene_misses += !converting_brief;
             return c->blank;
         }
         c->placed++;
@@ -1970,6 +1976,8 @@ ARM_CODE __attribute__((noinline)) static void name_map_tiles(uint32_t *bits, ui
     }
 }
 
+static bool resting(const LineMap *lm);
+
 /* The tiles each cache's maps name (the layers' own maps and the line
  * effects' that the layout keeps), a bit each; and the places in each
  * cache's window the drawn panel's maps name (`placed`, a bit each), whose
@@ -1993,7 +2001,7 @@ static void name_the_tiles(uint32_t named[CACHES][CACHE_TILES / 32], uint32_t pl
     for (unsigned k = 0; k < 4u + snes.line_map_count; k++) {
         const LineMap *lm = k < 4 ? NULL : &snes.line_maps[k - 4];
         const Layer *l = &layers[lm ? lm->layer : k];
-        if (!l->shown || (!lm && !l->own_map))
+        if (!l->shown || (!lm && !l->own_map) || (lm && resting(lm)))
             continue;
         uint32_t from = lm ? lm->byte : l->map_byte, bytes = lm ? lm->bytes : l->map_bytes;
         name_map_tiles(named[l->cache], from, bytes);
@@ -2050,6 +2058,74 @@ static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
 enum { LINE_MAPS_SHOWN = 4 };
 static uint16_t maps_shown IN_FAST_RAM;
 _Static_assert(LINE_MAPS_SHOWN + LINE_MAPS <= 16, "a bit of maps_shown each");
+
+/* How the lines have shown each line map: the pictures they showed it in
+ * on end, the last time they did (`shown`, up to BRIEF_PICTURES), and the
+ * pictures made since (`idle`, up to IDLE_PICTURES); and whether it rests
+ * (`resting`): kept where the layout put it, but its tiles given no places
+ * and its copy not converted until a line shows it again, which converts
+ * it again before the picture is shown.
+ *
+ * A dialog's opening and closing show the screen's band of its window for
+ * a few pictures, its two layers' maps beside the scene's while the view's
+ * panel takes its room too, the text layer's naming some 300 tiles. Where
+ * the scene's maps or the panel name tiles that find no place, a map the
+ * lines showed so briefly and show no longer is put to rest at once, its
+ * tiles' places given to theirs: kept until the next layout a second or
+ * more on, the courtroom's dialogs in events-cronos-trial showed their
+ * windows full of black holes and the floor by the throne in black squares
+ * for 200 frames. Left out of the layout instead, the maps came back with
+ * the window's closing, a layout each time. The scene's own maps, which the
+ * lines show for long and leave as the view moves, keep their tiles. */
+enum { IDLE_PICTURES = 4, BRIEF_PICTURES = 16 };
+typedef struct {
+    uint8_t shown, idle;
+    bool resting;
+} LineMapUse;
+static LineMapUse line_map_use[LINE_MAPS];
+static bool line_map_woken;   /* a resting map that this picture's lines show */
+
+/* The line maps a layout put somewhere that the lines showed briefly and no
+ * longer show, not resting yet, a bit each. */
+static uint16_t idle_line_maps(void)
+{
+    uint16_t idle = 0;
+    for (unsigned m = 0; m < snes.line_map_count; m++)
+        if (snes.line_maps[m].gba_byte != NO_PLACE && !line_map_use[m].resting &&
+            line_map_use[m].idle >= IDLE_PICTURES && line_map_use[m].shown < BRIEF_PICTURES)
+            idle |= (uint16_t)(1u << m);
+    return idle;
+}
+
+static bool resting(const LineMap *lm) { return line_map_use[lm - snes.line_maps].resting; }
+
+static void map_changed(const LineMap *lm);
+
+/* A line map shown on a line of the picture being made: counted once a
+ * picture, the first line that shows it after the picture's ageing; one
+ * resting is converted again for the picture. */
+static void map_shown_on_a_line(unsigned m)
+{
+    maps_shown |= (uint16_t)(1u << (LINE_MAPS_SHOWN + m));
+    LineMapUse *u = &line_map_use[m];
+    if (u->idle >= IDLE_PICTURES)
+        u->shown = 0;   /* shown again after a while: a stretch of its own */
+    if (u->idle && u->shown < BRIEF_PICTURES)
+        u->shown++;
+    u->idle = 0;
+    if (u->resting) {
+        u->resting = false;
+        map_changed(&snes.line_maps[m]);
+        line_map_woken = true;
+    }
+}
+
+static void line_maps_age(void)
+{
+    for (unsigned m = 0; m < snes.line_map_count; m++)
+        if (line_map_use[m].idle < IDLE_PICTURES)
+            line_map_use[m].idle++;
+}
 
 /* Whether background VRAM has room left for the copies of tiles in front
  * that the line effects' maps of layers split by them alone would take,
@@ -2195,17 +2271,23 @@ static void start_the_caches_afresh(uint8_t had, const unsigned needed[CACHES])
  * places are free in. Where `pruned`, the maps the lines haven't shown
  * since the last layout are left out, their places and the tiles they name
  * given to the rest; a map left out that a line shows again is noted, and
- * the next layout has it. Where it `keeps_windows`, it is laid out only for
- * tiles that found no place mid-scene, or to give the plane's room back. */
+ * the next layout has it; those in `rest` (idle_line_maps) are put to
+ * rest. Where it `keeps_windows`, it is laid out only for tiles that found
+ * no place mid-scene, or to give the plane's room back. */
 
-static uint8_t lay_out(bool pruned, bool keeps_windows)
+static uint8_t lay_out(bool pruned, bool keeps_windows, uint16_t rest)
 {
     memset(view_memory, 0, sizeof view_memory);   /* the panel's room and the caches' places are made afresh */
+    for (unsigned m = 0; m < snes.line_map_count; m++)
+        if (rest >> m & 1)
+            line_map_use[m].resting = true;
     if (pruned) {
         unsigned kept = 0;
         for (unsigned m = 0; m < snes.line_map_count; m++)
-            if (maps_shown >> (LINE_MAPS_SHOWN + m) & 1)
+            if (maps_shown >> (LINE_MAPS_SHOWN + m) & 1) {
+                line_map_use[kept] = line_map_use[m];
                 snes.line_maps[kept++] = snes.line_maps[m];
+            }
         snes.line_map_count = (uint8_t)kept;
     }
     memset(layers, 0, sizeof layers);
@@ -2221,7 +2303,7 @@ static uint8_t lay_out(bool pruned, bool keeps_windows)
     uint8_t had_places = had;   /* the caches whose places `held` is made from */
     memset(roles, 0, sizeof roles);
     memset(taken, 0, sizeof taken);
-    misses = frames_since_layout = 0;
+    misses = scene_misses = frames_since_layout = 0;
     /* mode 2's lines don't show the third layer, whose map holds their
      * columns' offsets, but a mode 1 line below them may (the menus'
      * descriptions): mode 2 is laid out with it then, as mode 1 */
@@ -2430,7 +2512,7 @@ static unsigned places_of_the_maps(MapPlace out[MAP_PLACES])
         if (k >= 4 && !lm)
             break;
         const Layer *l = &layers[lm ? lm->layer : k];
-        if (!l->shown || (lm ? lm->gba_byte == NO_PLACE : !l->own_map))
+        if (!l->shown || (lm ? lm->gba_byte == NO_PLACE || resting(lm) : !l->own_map))
             continue;
         const Cache *c = &caches[l->cache];
         out[count++] = (MapPlace){
@@ -2766,7 +2848,7 @@ static void convert_block(unsigned k, uint32_t units)
     unsigned line_maps = 0;
     for (unsigned m = 0; role & LINE_MAP && m < snes.line_map_count; m++) {
         const LineMap *lm = &snes.line_maps[m];
-        if (lm->gba_byte != NO_PLACE && layers[lm->layer].shown && within(block, lm->byte, lm->bytes))
+        if (lm->gba_byte != NO_PLACE && layers[lm->layer].shown && !resting(lm) && within(block, lm->byte, lm->bytes))
             shown_maps[line_maps++] = lm;
     }
     uint8_t own_maps = 0;   /* the layers whose own map it is, a bit each */
@@ -2802,12 +2884,14 @@ static void convert_block(unsigned k, uint32_t units)
             }
             continue;
         }
+        converting_brief = line_map_use[lm - snes.line_maps].shown < BRIEF_PICTURES;
         /* a shared copy is its owner's, converted as its map */
         bool front_shared = lm->shared && map_layer(block)->split;
         bool own_copy = !lm->shared || (lm->front_byte != NO_PLACE && !front_shared);
         convert_map_units(block, units, lm->layer, lm->byte, true, own_copy ? &layers[lm->layer] : NULL,
                           lm->shared ? NO_PLACE : lm->gba_byte + offset,
                           lm->front_byte != NO_PLACE && !front_shared ? lm->front_byte + offset : NO_PLACE);
+        converting_brief = false;
         /* tiles in front where its split layer had none: the next layout
          * gives them their copy, where this one had room for it (laid out
          * again each frame where it hadn't, the battle in Gato's movie went
@@ -4220,6 +4304,7 @@ static void note_line_map(unsigned n, uint16_t byte, uint16_t bytes, uint8_t cut
     }
     snes.line_maps[m] =
         (LineMap){ .layer = (uint8_t)n, .cut = cut, .byte = byte, .bytes = bytes, .gba_byte = NO_PLACE, .front_byte = NO_PLACE };
+    line_map_use[m] = (LineMapUse){ 0, 0, false };
     snes.settings_changed = true;
 }
 
@@ -4254,7 +4339,7 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
         if (!cut_map) {
             note_line_map(n, at, bytes, cut);
             if ((cut_map = line_map(n, at, true)) != NULL)
-                maps_shown |= (uint16_t)(1u << (LINE_MAPS_SHOWN + (cut_map - snes.line_maps)));
+                map_shown_on_a_line((unsigned)(cut_map - snes.line_maps));
         } else if (cut_map->gba_byte != NO_PLACE) {
             if (cut_map->cut != cut) {
                 cut_map->cut = cut;   /* converted again for the next picture */
@@ -4264,7 +4349,7 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
         }
     }
     if (lm)
-        maps_shown |= (uint16_t)(1u << (LINE_MAPS_SHOWN + (lm - snes.line_maps)));
+        map_shown_on_a_line((unsigned)(lm - snes.line_maps));
     else if (own)
         maps_shown |= (uint16_t)(1u << n);
     uint32_t gba_byte = lm && lm->gba_byte != NO_PLACE ? lm->gba_byte : at;
@@ -6285,7 +6370,7 @@ static void lay_out_again(bool keep_windows)
     bool missed = misses != 0;
     uint8_t shown[PLACES / 8];
     memcpy(shown, taken, sizeof shown);
-    uint8_t kept = lay_out(usage_known, keep_windows);
+    uint8_t kept = lay_out(usage_known, keep_windows, scene_misses ? idle_line_maps() : 0);
     if (lays_over_the_picture(shown, kept))
         hide_the_picture();
     layout_changed(kept, missed);
@@ -6395,8 +6480,11 @@ void gba_video_present(Platform *pf, uint32_t frame)
     /* Tiles that found no place have the caches started afresh: a second
      * on where a tile missed since the layout, eight where only the layout's
      * own misses stand (starting afresh from the same maps misses the same
-     * tiles, and a layout is about ten GBA frames' work). */
-    bool restart = misses && ++frames_since_layout >= (misses > layout_misses ? 60 : 480);
+     * tiles, and a layout is about ten GBA frames' work); at once where the
+     * scene's tiles missed and a map shown briefly can be put to rest. */
+    line_maps_age();
+    bool restart = misses && (++frames_since_layout >= (misses > layout_misses ? 60 : 480) ||
+                              (scene_misses && idle_line_maps()));
     bool keep_windows = !settings_ask_for_a_layout(), laid_out = layout_wanted(restart), made;
     LineState left;
     uint8_t count;
@@ -6413,7 +6501,13 @@ void gba_video_present(Platform *pf, uint32_t frame)
         }
         convert_the_changes(laid_out);
         uint16_t layers_enabled = arrange_the_layers(laid_out);
+        line_map_woken = false;
         count = make_lines(pf, layers_enabled, laid_out, &made, &left);
+        if (line_map_woken) {
+            /* a resting map the lines show, converted again first */
+            convert_the_changes(false);
+            count = make_lines(pf, layers_enabled, laid_out, &made, &left);
+        }
         if (pass == 1 || !layout_wanted(false))
             break;
         laid_out = true;

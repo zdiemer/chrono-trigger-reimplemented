@@ -1518,6 +1518,28 @@ mode 0's four tiled layers and its sprites:
   room (`new-game` 6164, 0.07 million) and eight frames of a
   dialog's rows a line apart as it opens (`gato-battle` 15625, 0.11
   million).
+  A dialog's opening and closing show the screen's band of its window for a
+  few pictures around the drawn panel, and so its two layers' map (the
+  first layer's frame and the third's text, some 300 tiles of 2bpp) beside
+  the scene's maps and the panel's room. In Guardia's courtroom the tiles
+  outnumbered the places: a layout kept a line map while any line had shown
+  it since the last, so the window's maps, shown for five pictures, held
+  their tiles' places for a second and more after the window had opened,
+  and the panel's frame showed black holes and the floor by the throne
+  black squares (`events-cronos-trial` frames 5792-6013, 564,067 pixels).
+  Each line map now counts the pictures the lines showed it in on end and
+  those since (`LineMapUse`); where the scene's maps or the panel name a tile
+  that finds no place, a line map shown briefly (under 16 pictures) and not
+  for four is put to rest at once by a layout that keeps the windows: kept
+  where it is, its tiles named by nothing and its copy not converted, until
+  a line shows it again, which converts it before that picture is shown.
+  Left out of the layout instead, the maps came back with each closing, a
+  layout each time, and the census's GBA frames rose 2.6%. Over
+  `events-cronos-trial` the census's pictures fell from 6.04 million pixels
+  to 4.04 (clusters of 50,000 and more from 31 to 23; the courtroom's at
+  5792, 8568 and 12210 gone or halved) in 25,045 GBA frames against
+  25,118; over the census's default movies 31.64 million against 31.75,
+  each movie's within 3% and none with a new cluster.
 - **A layout's work** is what the picture stops for, so it is kept short.
   Sampled only while a layout's picture is made (`mgba_run`'s sampler kept
   to a flag the program sets), it was the maps' conversion, a unit at a
