@@ -2422,6 +2422,25 @@ noise over the screen (frames 7931-8209 and 18980-19260), whose
 mismatches already spanned them and now fall on more GBA frames with
 fewer pixels each, about as many in all (719 clusters against 626).
 
+**A field map's attributes** (issue #568). The heaviest frames left in
+`attract-demo` were field loads, 15.3 and 15.1 GBA frames (game frames
+7536 and 18585; `gato-battle`'s 11579 too). Timed a step at a time, the
+largest step was the attributes' unpacking, 1.0M cycles for a 64 by 64
+map: each tile's bytes read through the port as a span of three, and each
+tile of a run placed and stepped past by a call of its own. The stream is
+now looked at a window ahead of the port (`hw_port_peek_span`, the port
+moved on and charged as the reads were with `hw_port_skip`; the stream
+never reaches the tables it fills), and a run's tiles are laid as many at
+a time as the row has room for (`put_tiles`), each row written when it
+fills as before: 0.6M cycles. ct_native reads and charges the same bytes
+in the same order. The rest of the load is the map's script run to its
+first return (0.7M), the layers drawn at the load (0.5M), the tile set's
+sends (0.35M, `services/video.c`) and the map's unpacking. The heaviest
+frame of `attract-demo` falls from 15.3 GBA frames to 13.7 and `gato-battle`'s
+map load at 11580 from 17.7 to 16.5; `attract-demo` takes 33,627 GBA
+frames against 33,648, `gato-battle` 24,663 against 24,669, each ending as
+ct_native does.
+
 **Measured** (2026-11-14, mGBA 0.10.5):
 
 | What | On the GBA |

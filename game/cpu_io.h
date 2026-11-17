@@ -60,6 +60,12 @@ void hw_port_write(GameState *g, uint8_t v);
 /* `count` bytes read through the port one after another, as that many
  * hw_port_read's: the cursor and the time where they leave them. */
 void hw_port_read_span(GameState *g, uint8_t *bytes, uint16_t count);
+/* The `count` bytes the port would read next, looked at without moving it or
+ * taking any time; and the port moved on past `count` bytes, charged as that
+ * many hw_port_read's. Together they read a stream ahead of where it is
+ * taken, where nothing writes the stream in between. */
+void hw_port_peek_span(const GameState *g, uint8_t *bytes, uint16_t count);
+void hw_port_skip(GameState *g, uint16_t count);
 /* `count` bytes written through the port one after another, as that many
  * hw_port_write's: the cursor and the time where they leave them. */
 void hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count);

@@ -399,13 +399,6 @@ typedef struct {
     uint8_t properties[MOST_COLUMNS], upper[MOST_COLUMNS], lower[MOST_COLUMNS];
 } AttributeRow;
 
-static void put_tile(AttributeRow *r, uint8_t column, TileAttributes a)
-{
-    r->properties[column] = a.properties;
-    r->upper[column] = a.upper;
-    r->lower[column] = a.lower;
-}
-
 /* The next tile, the row written where it is the row's last: false past the
  * map's last row. */
 static bool next_tile_written(GameState *g, MapSize size, MapPlace *p, const AttributeRow *r)
@@ -418,30 +411,78 @@ static bool next_tile_written(GameState *g, MapSize size, MapPlace *p, const Att
     return next_tile(size, p);
 }
 
+/* `count` tiles with the same attributes from `p` on, each row written as
+ * it fills: as many at once as the row has room for, as a run of them lays
+ * them one after another. False past the map's last row, where the rest of
+ * the run goes nowhere. */
+static bool put_tiles(GameState *g, MapSize size, MapPlace *p, AttributeRow *r, TileAttributes a, unsigned count)
+{
+    while (count) {
+        unsigned room = p->column < size.columns ? (unsigned)(size.columns - p->column) : 1u;
+        unsigned n = count < room ? count : room;
+        for (unsigned k = 0; k < n; k++) {
+            r->properties[p->column + k] = a.properties;
+            r->upper[p->column + k] = a.upper;
+            r->lower[p->column + k] = a.lower;
+        }
+        p->column = (uint8_t)(p->column + n - 1);
+        count -= n;
+        if (!next_tile_written(g, size, p, r))
+            return false;
+    }
+    return true;
+}
+
+/* The attributes' stream, looked at ahead of the port a window at a time
+ * (it never reaches the tables it fills, field_tile_maps_fit) and taken a
+ * byte at a time, each charged as the port's read of it. */
+enum { STREAM_WINDOW = 48 };
+
+typedef struct {
+    uint8_t bytes[STREAM_WINDOW];
+    uint8_t at;
+} AttributeStream;
+
+static void look_ahead(GameState *g, AttributeStream *s)
+{
+    hw_port_skip(g, s->at);
+    hw_port_peek_span(g, s->bytes, STREAM_WINDOW);
+    s->at = 0;
+}
+
+static uint8_t take_byte(GameState *g, AttributeStream *s)
+{
+    if (s->at == STREAM_WINDOW)
+        look_ahead(g, s);
+    return s->bytes[s->at++];
+}
+
+/* The port left past what was taken. */
+static void stream_taken(GameState *g, const AttributeStream *s) { hw_port_skip(g, s->at); }
+
 /* The attributes: three bytes a tile, over BG1's size. A first byte with RUN
  * set starts a run: the tile's bytes (RUN taken off) repeat for the count
- * after them, 0 meaning 256. The stream never reaches the tables it fills
- * (field_tile_maps_fit), so a tile's three bytes are read together and its
- * row written whole. */
+ * after them, 0 meaning 256. A row is written whole once it is filled. */
 static void unpack_attributes(GameState *g, MapSize size)
 {
     MapPlace p = { 0, 0 };
     AttributeRow row;
+    AttributeStream in = { .at = 0 };
+    look_ahead(g, &in);
     for (;;) {
-        uint8_t bytes[TILE_BYTES];
-        hw_port_read_span(g, bytes, TILE_BYTES);
-        TileAttributes a = { .properties = (uint8_t)(bytes[0] & ~RUN), .upper = bytes[1], .lower = bytes[2] };
-        put_tile(&row, p.column, a);
-        if (bytes[0] & RUN) {
-            uint8_t count = hw_port_read(g);
-            for (unsigned repeats = (count == RUN_OF_256 ? 0x100u : count) - 1; repeats != 0; repeats--) {
-                if (!next_tile_written(g, size, &p, &row))
-                    return;
-                put_tile(&row, p.column, a);
-            }
+        uint8_t first = take_byte(g, &in);
+        TileAttributes a = { .properties = (uint8_t)(first & ~RUN) };
+        a.upper = take_byte(g, &in);
+        a.lower = take_byte(g, &in);
+        unsigned count = 1;
+        if (first & RUN) {
+            uint8_t run = take_byte(g, &in);
+            count = run == RUN_OF_256 ? 0x100u : run;
         }
-        if (!next_tile_written(g, size, &p, &row))
+        if (!put_tiles(g, size, &p, &row, a, count)) {
+            stream_taken(g, &in);
             return;
+        }
     }
 }
 
