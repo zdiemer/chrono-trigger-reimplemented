@@ -62,18 +62,22 @@ static void widen_to_sixteen_colours(GameState *g, uint16_t from, uint16_t to, u
 
 // $C2:960B
 /* Three-plane tiles from the ROM made sixteen-colour ones: their first two
- * planes as they are, the third a byte a row with a clear fourth beside it. */
+ * planes as they are, the third a byte a row with a clear fourth beside it,
+ * the last two planes read and written a tile at a time, each byte's time as
+ * before. */
 static void widen_three_plane_tiles(GameState *g, uint16_t from, uint16_t to, unsigned tiles)
 {
     for (unsigned t = 0; t < tiles; t++) {
         uint16_t tile = (uint16_t)(from + t * THREE_PLANE_TILE);
         uint16_t into = (uint16_t)(to + t * SIXTEEN_COLOUR_TILE);
         move_from_rom(g, ASSET_MENU_THREE_PLANE_TILES, tile, into, FOUR_COLOUR_TILE);
+        uint8_t third[TILE_ROWS], last_planes[LAST_PLANES];
+        menu_three_plane_tile_bytes(g, (uint16_t)(tile + FOUR_COLOUR_TILE), third, TILE_ROWS);
         for (unsigned row = 0; row < TILE_ROWS; row++) {
-            uint8_t third = menu_three_plane_tile_byte(g, (uint16_t)(tile + FOUR_COLOUR_TILE + row));
-            put_tile_byte(g, (uint16_t)(into + LAST_PLANES + 2 * row), third);
-            put_tile_byte(g, (uint16_t)(into + LAST_PLANES + 2 * row + 1), 0);
+            last_planes[2 * row] = third[row];
+            last_planes[2 * row + 1] = 0;
         }
+        wram_write_span(g, in_work_ram((uint16_t)(into + LAST_PLANES)), last_planes, LAST_PLANES);
     }
 }
 
