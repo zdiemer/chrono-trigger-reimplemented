@@ -375,6 +375,22 @@ void hw_port_read_span(GameState *g, uint8_t *bytes, uint16_t count)
     g->port = (g->port + count) & PORT_MASK;
 }
 
+void hw_port_peek_span(const GameState *g, uint8_t *bytes, uint16_t count)
+{
+    uint32_t port = g->port, room = PORT_MASK + 1u - port;
+    if (count > room) {
+        vars_host_read_span(&g->head.vars, 0x7E0000u + port, bytes, room);
+        bytes += room, count = (uint16_t)(count - room), port = 0;
+    }
+    vars_host_read_span(&g->head.vars, 0x7E0000u + port, bytes, count);
+}
+
+void hw_port_skip(GameState *g, uint16_t count)
+{
+    state_host_game_access(g, (uint32_t)count * IO_ACCESS_CLOCKS);
+    g->port = (g->port + count) & PORT_MASK;
+}
+
 void hw_port_write_span(GameState *g, const uint8_t *bytes, uint16_t count)
 {
     state_host_game_access(g, (uint32_t)count * IO_ACCESS_CLOCKS);
