@@ -1657,9 +1657,22 @@ mode 0's four tiled layers and its sprites:
   the GBA shows the one of the higher priority. The game masks with that:
   Crono's covers in his bed are sprites of the lowest priority before his,
   which hide him and are hidden by the bed. A sprite with one of a higher
-  priority after it in the table overlapping it is the GBA's sprite window
-  instead, inside which a line shows no sprites; the overlaps are looked
-  for only where a 32-dot square of the screen has a sprite in front of it.
+  priority after it in the table overlapping it is raised to that priority
+  where that leaves fewer of its dots wrong (`raise_shows_more`): where the
+  GBA layers between the two priorities have dots under fewer than half of
+  its own, as the picture on the screen shows those layers (the last
+  frame's line registers, windows included, over the GBA's maps and tiles,
+  every fourth line looked at). Else it is the GBA's sprite window, inside
+  which a line shows no sprites. The overlaps are looked for only where a
+  32-dot square of the screen has a sprite in front of it, at most 16 looks
+  a frame, and a sprite and the lines that stand as they were keep their
+  last look. Masked alone (until 2026-11-16), Crono stepping out of the
+  time gate's light showed as the room the light's window cuts away
+  (`events-end-of-time-gate` 4473-4714, 368,065 dots summed, now 62,025),
+  and Marle was missing beside him in the hall before the jet bike race
+  (`events-jetbike-race` 3120-3129, 821 dots, now 20; issue #560). Crono's
+  covers stay masked. The looks cost `new-game` 7 GBA frames over 2 more
+  (90 against 83) and `events-end-of-time-gate` 34 (907 against 873).
 - **Line by line**: the line effects' tables (HDMA) are read down the frame
   as the observer reads them (32 bytes at a time, a transfer's bytes at once
   where they lie in one 32, passing over a slot's lines between its
@@ -1894,7 +1907,9 @@ Approximated, or not shown yet (issue #483):
   the End of Time's lamp lit its floor in streaks. A
   split takes its copies' room from the tile caches.
 - A sprite mask hides every sprite inside it, not only those after it in
-  the table, and doesn't show itself where no layer covers it.
+  the table, and doesn't show itself where no layer covers it; a sprite
+  raised instead shows over the dots of the layers between where they
+  cover fewer than half of its own.
 - Colour math: the fixed colour on layers is a grey's brightening or
   darkening (above), so a colour that isn't a grey isn't added to layers,
   and the shading is near the SNES's rather than its own: the dialog's
