@@ -2998,6 +2998,72 @@ is 1,168 bytes above its floor. What is left of the menus' openings is
 the menus' tiles and glyphs, a slot's sum and the sends; of the loads, the
 field's drawing and unpacking through the accessors and the sends.
 
+**Mode 2's lines kept down a frame, spans and rows read whole** (issue
+#568). Timed a part at a time with the GBA's cycle count, the attract
+demo's heaviest pictures were the rising palace's curtain (frames
+8865-8885 and 19914-19936): mode 2 with a window and a scroll that change
+every line, 2.5M cycles of lines a picture, each of 160 lines worked out
+whole. What a line reads that stands down the frame is now worked out once
+and kept until the frame's lines are done (`work_out_lines` forgets it):
+
+- **The third layer's offsets** (`line_offsets`): its map and scroll stand
+  while the first layer's scroll and the windows change, and the two rows
+  of offsets were read from the SNES's VRAM again each line.
+- **The runs of moved columns** (`moved_columns_kept`), four kept by layer,
+  scroll and moved column: the shimmer pushes every other line across by
+  the same strength, so most lines find runs a line before them found.
+- **The windows' four regions** (`regions`), by the layers shown and the
+  layers the windows mask: line effects move the windows' edges and change
+  which layers they mask, never how.
+- **Each layer's control** for the map a line shows it from, where no band
+  cuts it (`layer_control_kept`): the maps a line notes for the next layout
+  are noted by the first line that shows them.
+
+The palace's lines fell to 1.9M cycles a picture. Two of the game's reads
+went a byte at a time where they needn't:
+
+- **Spans by address** (`rom_read_span`, `game/data/assets.c`): a span into
+  work RAM (the field's sprite tiles, unpacked there a tile at a time) is
+  read where it lies (`wram_data_read_span`), and a span that runs past its
+  resource's end (a song read with its length, two or three bytes past) as
+  each resource's run, a byte at a time only where no run holds it. Each
+  byte is charged as before.
+- **A field line's map row** (`game/field/streaming.c`): a line along a row
+  reads the map tiles it takes and their properties as runs of the tables
+  (`field_layer_maps_run`, `field_tile_properties_run`, a read run beside
+  the write runs, STATE.md "The flat state"), the same bytes as many times,
+  rather than two reads a map tile.
+
+`read_game`, which the picture reads the game's memory through, had
+`state_host_read_span` inlined into it in fast RAM; with a second caller it
+wasn't, and the span's read is named in `toolchain/fast_code.ld` itself.
+With `--fast-rom`, in GBA frames, before and after, the end states as
+ct_native's throughout:
+
+| Frame | Before | After |
+|---|---|---|
+| `attract-demo`'s heaviest game frame / picture | 11.57 / 11.93 | 11.47 / 10.43 |
+| The rising palace's curtain (`attract-demo` 8867), its picture | 11.93 | under the battles' 10.43, out of the longest gaps |
+| `gato-battle`'s heaviest (11580, a location's load) | 13.34 | 12.06 |
+| A location's load (`new-game` 5801) | 11.21 | 10.92 |
+| The field's menu opening (`menus-sweep` 2640) | 12.48 | 12.45 |
+
+`attract-demo` takes 30,940 GBA frames rather than 31,362, `gato-battle`
+24,227 rather than 24,228, `new-game` 7,652 rather than 7,647 and
+`menus-sweep` 7,288 rather than 7,404. `run.py --own-time` finds the
+attract's 50 places. A census of seven movies (`title-start`, `new-game`,
+`gato-battle`, `menus-sweep`, `attract-demo`, `events-jetbike-race`,
+`menus-save-point`) finds 1,559 picture clusters against 1,560; the 17 that
+overlap none of the base run's each last a GBA frame (a line or two at the
+screen's top, the most 735 pixels). Fast RAM keeps 576 bytes spare and work
+RAM is 848 bytes above its floor. The heaviest pictures left are a battle's
+first, laid out twice: its first pass's lines note a map the layout lacks,
+and the second lays out and converts the maps again (about 0.7M and 1.3M
+cycles). The loads' heaviest are copies bound by work RAM's bandwidth
+(`memcpy`, `vars_host_read_span`), the SRAM's cold top and the field's
+entries staged a byte pair at a time; the menu's opening, its tiles, a
+slot's sum read from SRAM and the sends.
+
 ## Scene map fills
 
 `vid_fill_vram_half` fills the chosen low or high byte of VRAM words, preserving
