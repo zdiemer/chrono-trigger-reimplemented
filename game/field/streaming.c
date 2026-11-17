@@ -80,26 +80,39 @@ static uint16_t index_mask(const GameState *g, unsigned layer)
  * into it (field/field.h); a layer drawn whole at a map's load runs on from
  * the first buffer's start through the next. */
 
+/* Entries bound for the game's buffers are held a few at a time and staged
+ * together, each buffer's part as one run: the same bytes as staging each
+ * entry as it is built, since a line reads nothing it stages. */
+enum { HELD_ENTRIES = 32 };
+
 typedef struct {
-    uint16_t at;   /* from the first buffer's start */
+    uint16_t at;   /* from the first buffer's start, past what is held */
     uint8_t *own;  /* or a line of a wider view's own (below), which isn't the game's memory */
+    uint8_t held_bytes;
+    uint8_t held[HELD_ENTRIES * ENTRY_BYTES];
 } Staging;
 
-static void stage_byte(GameState *g, uint16_t at, uint8_t v)
+/* The entries held, staged in the buffers they fall in. */
+static void stage_held(GameState *g, Staging *s)
 {
-    set_field_layer_staging_byte(g, at / FIELD_LAYER_STAGING_BYTES, at % FIELD_LAYER_STAGING_BYTES, v);
+    uint16_t at = (uint16_t)(s->at - s->held_bytes);
+    const uint8_t *from = s->held;
+    while (s->held_bytes) {
+        unsigned in = at % FIELD_LAYER_STAGING_BYTES, room = FIELD_LAYER_STAGING_BYTES - in;
+        unsigned n = s->held_bytes < room ? s->held_bytes : room;
+        set_field_layer_staging_byte_run(g, at / FIELD_LAYER_STAGING_BYTES, in, from, n);
+        at = (uint16_t)(at + n), from += n, s->held_bytes = (uint8_t)(s->held_bytes - n);
+    }
 }
 
 static void stage(GameState *g, Staging *s, uint16_t entry)
 {
-    if (s->own) {
-        s->own[s->at] = (uint8_t)entry;
-        s->own[s->at + 1] = (uint8_t)(entry >> 8);
-    } else {
-        stage_byte(g, s->at, (uint8_t)entry);
-        stage_byte(g, (uint16_t)(s->at + 1), (uint8_t)(entry >> 8));
-    }
+    uint8_t *to = s->own ? &s->own[s->at] : &s->held[s->held_bytes];
+    to[0] = (uint8_t)entry;
+    to[1] = (uint8_t)(entry >> 8);
     s->at = (uint16_t)(s->at + ENTRY_BYTES);
+    if (!s->own && (s->held_bytes = (uint8_t)(s->held_bytes + ENTRY_BYTES)) == sizeof s->held)
+        stage_held(g, s);
 }
 
 /* A line of entries: along a row or down a column, from the 8-pixel tile
@@ -173,6 +186,7 @@ static void build_line(GameState *g, unsigned layer, Line line, Staging *out)
     }
     if (odd && odd_start_counts(layer, line.way))   /* the second half again: see above */
         stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p), true);
+    stage_held(g, out);
     /* the original's rows leave the map tile after the last, its columns the last */
 }
 
@@ -369,7 +383,7 @@ static void build_line_charged(GameState *g, unsigned layer, Line line, Staging 
 static void bring_in(GameState *g, unsigned layer, Side side)
 {
     Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), side);
-    Staging out = { (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)), NULL };
+    Staging out = { .at = (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)) };
     build_line_charged(g, layer, line, &out, line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
     charge_io_accesses(g, 3); /* the completed staging cursor */
     move_place_in_tile_map(g, layer, side);
@@ -435,7 +449,7 @@ void stream_the_right_columns(GameState *g)
         if (layer != FIELD_BG1 && drawn_whole(g, layer))
             continue;
         Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), SIDE_RIGHT);
-        Staging out = { (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)), NULL };
+        Staging out = { .at = (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)) };
         build_line_charged(g, layer, line, &out, ACCESSES_16_COLUMN_ENTRIES);
         charge_io_accesses(g, 3); /* the completed staging cursor */
         set_field_layer_upload_flags(g, SIDE_RIGHT, (uint8_t)(field_layer_upload_flags(g, SIDE_RIGHT) | 1u << layer));
@@ -499,7 +513,7 @@ enum { DRAW_BG1 = 0xC075E9, DRAW_BG2 = 0xC078EC, DRAW_BG3 = 0xC07CB5, ACCESSES_A
 void draw_layer_at_the_maps_load(GameState *g, unsigned layer)
 {
     static const uint32_t drawing[FIELD_LAYERS] = { DRAW_BG1, DRAW_BG2, DRAW_BG3 };
-    Staging out = { 0, NULL };
+    Staging out = { .at = 0 };
     uint32_t mark = 0;
     mark = charge_uncounted_begin(g);   /* the entries' charge below stands for it */
     (void)mark;
@@ -638,7 +652,7 @@ static uint8_t clamp_to_the_room(const GameState *g, unsigned layer, int column)
 static void build_a_margin_column(GameState *g, unsigned layer, int column, uint8_t line[(RING_ROWS + 2) * ENTRY_BYTES])
 {
     ScreenEdges e = screen_edges(g, keeps_own_edges(g, layer));
-    Staging out = { 0, line };
+    Staging out = { .at = 0, .own = line };
     build_line(g, layer, (Line){ DOWN_A_COLUMN, clamp_to_the_room(g, layer, column), (uint8_t)(e.top - 1), RING_ROWS / 2 },
                &out);
 }

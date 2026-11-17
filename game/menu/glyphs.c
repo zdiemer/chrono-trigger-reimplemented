@@ -159,6 +159,67 @@ static void draw_glyph_line_from(GameState *g, Tiles t, const uint8_t *left, con
 
 enum { GLYPH_LINE = 0xC25E89 };   /* the drawer's routine for a line of a glyph */
 
+/* The glyph's lines as runs: in each column's tile, its first lines in the
+ * pen's row and the rest in the row below, each part's bytes one after
+ * another. Where the runs lie apart, a part's bytes in each column are
+ * worked out together and put in one go, the pen's tile read first where the
+ * glyph joins what is there: the same bytes as putting the lines one at a
+ * time, which write each byte once. Each line's reads and writes are charged
+ * as the line's own. */
+enum { GLYPH_PARTS = 2, MOST_COLUMNS = 3, MOST_PART_LINES = GLYPH_BYTES - BYTES_IN_THE_PEN_ROW };
+static const struct {
+    uint8_t first, lines;
+} glyph_parts[GLYPH_PARTS] = { { 0, BYTES_IN_THE_PEN_ROW }, { BYTES_IN_THE_PEN_ROW, GLYPH_BYTES - BYTES_IN_THE_PEN_ROW } };
+
+typedef struct {
+    uint32_t at[GLYPH_PARTS][MOST_COLUMNS];
+    unsigned columns;
+} GlyphRuns;
+
+static bool runs_overlap(uint32_t a, unsigned a_bytes, uint32_t b, unsigned b_bytes) { return a < b + b_bytes && b < a + a_bytes; }
+
+/* Where each part's run starts in each column, and whether they all lie apart. */
+static bool glyph_runs(Tiles t, Columns c, Pen p, uint32_t first, GlyphRuns *r)
+{
+    r->columns = reaches_a_third_tile(p.offset) ? 3 : 2;
+    for (unsigned part = 0; part < GLYPH_PARTS; part++)
+        for (unsigned k = 0; k < r->columns; k++)
+            r->at[part][k] = (glyph_byte_place(t, first, glyph_parts[part].first) + c.of[k]) & 0xFFFFFFu;
+    for (unsigned i = 0; i < GLYPH_PARTS * r->columns; i++)
+        for (unsigned j = i + 1; j < GLYPH_PARTS * r->columns; j++) {
+            unsigned pi = i / r->columns, pj = j / r->columns;
+            if (runs_overlap(r->at[pi][i % r->columns], glyph_parts[pi].lines, r->at[pj][j % r->columns],
+                             glyph_parts[pj].lines))
+                return false;
+        }
+    return true;
+}
+
+static void put_glyph_runs(GameState *g, const GlyphRuns *r, const uint8_t *left, const uint8_t *right, Glyph glyph,
+                           Pen p)
+{
+    uint32_t mark = charge_uncounted_begin(g);
+    for (unsigned part = 0; part < GLYPH_PARTS; part++) {
+        unsigned lines = glyph_parts[part].lines;
+        uint8_t bytes[MOST_COLUMNS][MOST_PART_LINES];
+        if (p.offset != 0)
+            wram_read_span(g, r->at[part][0], bytes[0], lines);
+        for (unsigned i = 0; i < lines; i++) {
+            uint8_t byte = (uint8_t)(glyph_parts[part].first + i);
+            uint32_t across = (uint32_t)line_pixels(glyph, left[byte], right[byte]) << TILE_WIDTH >> p.offset;
+            uint8_t mine = (uint8_t)(across >> 16);
+            bytes[0][i] = p.offset == 0 ? mine : (uint8_t)(mine | bytes[0][i]);
+            bytes[1][i] = (uint8_t)(across >> 8);
+            bytes[2][i] = (uint8_t)across;
+        }
+        for (unsigned k = 0; k < r->columns; k++)
+            wram_write_span(g, r->at[part][k], bytes[k], lines);
+    }
+    charge_uncounted_end(g, mark);
+    charge_rom_accesses(g, GLYPH_BYTES * (2u + 2u * r->columns));
+    charge_accesses(g, GLYPH_BYTES * (r->columns + (p.offset != 0 ? 1u : 0u)));
+}
+
 static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t first)
 {
     unsigned columns = reaches_a_third_tile(p.offset) ? 3 : 2;
@@ -168,6 +229,11 @@ static void draw_glyph_from(GameState *g, Tiles t, Glyph glyph, Pen p, uint32_t 
         Columns c = { { 0, 0, 0 } };
         for (unsigned k = 0; k < columns; k++)
             c.of[k] = (uint16_t)(offsets[2 * k] | offsets[2 * k + 1] << 8);
+        GlyphRuns runs;
+        if (glyph_runs(t, c, p, first, &runs)) {
+            TIMED_AS(g, GLYPH_LINE, put_glyph_runs(g, &runs, left, right, glyph, p));
+            return;
+        }
         for (uint8_t byte = 0; byte < GLYPH_BYTES; byte++)
             TIMED_AS(g, GLYPH_LINE, draw_glyph_line_from(g, t, left, right, glyph, c, p, first, byte));
         return;
