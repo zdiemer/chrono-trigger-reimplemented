@@ -511,11 +511,12 @@ class Var:
         # (a `leave_stray_*` write the gate needs): it gets a second, unchecked
         # pair of accessors, and says why.
         # A table of rows a port writes a run of a row at a time (a map's tile
-        # maps unpacked): it gets set_<name>_run and fill_<name>_run beside
-        # its pair, which the flat state writes in one go.
+        # maps unpacked), or a buffer of bytes it writes a run at a time (a
+        # layer's entries staged): it gets set_<name>_run and fill_<name>_run
+        # beside its pair, which the flat state writes in one go.
         self.runs = raw.get("runs", False)
-        if self.runs not in (False, True) or (self.runs and (self.rows is None or self.fields)):
-            raise MapError("%s: runs marks a table of rows written a run at a time" % where)
+        if self.runs not in (False, True) or (self.runs and (self.fields or (self.rows is None and self.size <= WIDEST))):
+            raise MapError("%s: runs marks a table of rows or a buffer written a run at a time" % where)
 
         self.unchecked = raw.get("unchecked")
         if self.unchecked is not None:
@@ -1139,13 +1140,13 @@ class Accessor:
         return out
 
     def runs(self):
-        """Whether the accessor has a run pair: a table of rows the map says
-        is written a run of a row at a time."""
-        return self.var.runs and self.table and not self.unchecked
+        """Whether the accessor has a run pair: a table of rows, or a buffer
+        of bytes, the map says is written a run at a time."""
+        return self.var.runs and (self.table or (self.blob and not self.whole)) and not self.unchecked
 
     def run_signature(self, fill):
-        """set_<name>_run, `count` bytes from `v` along a row from `column` on;
-        or fill_<name>_run, `count` of one byte."""
+        """set_<name>_run, `count` bytes from `v` along a row from `column` on
+        (a buffer's from `at` on); or fill_<name>_run, `count` of one byte."""
         args = ", ".join(["GameState *g"] + [d for d, _ in self.params(False)]
                          + ["uint8_t v" if fill else "const uint8_t *v", "unsigned count"])
         return "void %s_%s_run(%s)" % ("fill" if fill else "set", self.name, args)
@@ -1153,7 +1154,7 @@ class Accessor:
     def run_each(self, fill):
         """A run as that many set_ calls, a byte at a time."""
         args = [a for _, a in self.params(False)]
-        args[-1] = "column + k"
+        args[-1] += " + k"
         return "for (unsigned k = 0; k < count; k++) set_%s(g, %s, %s);" % (self.name, ", ".join(args),
                                                                           "v" if fill else "v[k]")
 
@@ -1370,8 +1371,8 @@ def render_vars_header(m):
                 out.append("%s;" % a.signature(False))
                 out.append("%s;" % a.signature(True))
                 if a.runs():
-                    out += comment("`count` bytes along a row from `column` on, as that many set_%s's: "
-                                   "from `v`, or each `v` (fill)." % a.name)
+                    out += comment("`count` bytes along %s on, as that many set_%s's: "
+                                   "from `v`, or each `v` (fill)." % ("a row from `column`" if a.table else "it from `at`", a.name))
                     out.append("%s;" % a.run_signature(False))
                     out.append("%s;" % a.run_signature(True))
     out += ["", "#endif", ""]
@@ -1692,7 +1693,8 @@ def render_runs(a, flat):
         name = ("fill_" if fill else "set_") + a.name + "_run"
         checks = "".join("IN_RANGE(g, %d, \"%s\", \"%s\", %s, %s); " % (id_, name, what, arg, limit)
                          for arg, limit, what in a.bounds())
-        apart = "count == 0 || column + count > %du" % a.size + (" || " + bad if bad else "")
+        along = a.params(False)[-1][1]
+        apart = "count == 0 || %s + count > %du" % (along, a.size) + (" || " + bad if bad else "")
         first = "kept(g, %s, 0x%06Xu)" % (a.address(), top)
         last = "kept(g, %s + count - 1u, 0x%06Xu)" % (a.address(), top)
         put = "memset(p, v, count);" if fill else "memcpy(p, v, count);"

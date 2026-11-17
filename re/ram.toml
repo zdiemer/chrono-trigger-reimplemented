@@ -26239,6 +26239,7 @@ size = 0x800
 count = 3
 stride = 0x800
 index = "layer (BG1-BG3)"
+runs = true
 subsystem = "field"
 meaning = "Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0, the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's load, the whole screen's rows"
 source = "game/field/streaming.c, build_line ($C0:7612-$C0:7F57)"

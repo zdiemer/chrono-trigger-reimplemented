@@ -2021,9 +2021,14 @@ Approximated, or not shown yet (issue #483):
   target and behind the sprites of the highest priority (the battle's),
   the same sum. Before, Flea's red cross in the attract demo covered Crono
   and the damage shown; sprites of the lower priorities still stand behind
-  it there. The flash across the battlefield as the cross begins (the sub
-  screen's third layer, which no window keeps in, where the main screen's is
-  windowed) is not shown.
+  it there. The flash across the battlefield as the cross begins is the
+  fixed colour, added where the sub screen's third layer is windowed to the
+  cross and so shows nothing: there the first two layers are first targets
+  too, over the backdrop at the fixed colour. A line effect that sets both
+  screens' layers sets the sub screen's windows with them; the GBA's lines
+  had kept only the main screen's, so the flash was missing (1.15M and
+  1.13M pixel-frames in the census at attract-demo frames 4098-4108 and
+  15150-15160, now none).
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it; a sprite
   raised instead shows over the dots of the layers between where they
@@ -2472,6 +2477,35 @@ frame of `attract-demo` falls from 15.3 GBA frames to 13.7 and `gato-battle`'s
 map load at 11580 from 17.7 to 16.5; `attract-demo` takes 33,627 GBA
 frames against 33,648, `gato-battle` 24,663 against 24,669, each ending as
 ct_native does.
+
+**The game's loops charged once** (issue #568). What was left of the
+longest frames past the video service and the cartridge's reads looked like
+the game's own work held to the original's time: loops whose every access
+is charged as the original's. It isn't held there. An access only adds its
+bus clocks to the account (`state_host_game_access`), priced at the rate of
+the routine it is timed as where that rate changes or the time model takes
+the work, so a run of accesses at one rate is the same time charged once as
+one at a time; and the GBA (`CT_UNTIMED`) charges nothing, so what the loops
+cost it is the accessors' calls. Three loops now do their work a block at a
+time in an uncounted stretch and charge the original's accesses at once
+(`charge_accesses`, `charge_rom_accesses`), at the same rate, before the
+time model next looks: the menus' tiles inked a tile at a time
+(`ink_tiles`, `game/menu/graphics.c`), a glyph's lines put as a run in each
+column's tile wherever the runs lie apart (`put_glyph_runs`,
+`game/menu/glyphs.c`), and the field's layer entries held and staged a run
+at a time (`set_field_layer_staging_byte_run`, `game/field/streaming.c`;
+`runs` now marks a buffer of bytes as well as a table of rows). ct_native's
+account is the same to the clock and its movies end as before. The heaviest
+game frames (`run.py --fast-rom`, GBA frames, against before): the field
+menu's opening (`menus-sweep` 1705 and 2640) 11.98 and 12.63 against 12.84
+and 13.56, the load screen's (`new-game` 1742) 10.67 against 11.46, a
+location load (`new-game` 5801) 11.27 against 11.81, `gato-battle`'s
+heaviest (11580) 15.21 against 15.76 and its loads at 9123 and 12832 11.41
+and 11.78 against 12.25 and 12.38, and `attract-demo`'s heaviest 11.78
+against 12.22; each movie ends as ct_native does. The rest of those frames
+is the video service's conversions, the cartridge's reads, work RAM's spans
+copied, and loops whose cost is their own arithmetic rather than their
+accesses (a slot's sum, `game_sum`, 0.9 GBA frames of the menus' opening).
 
 **Measured** (2026-11-14, mGBA 0.10.5):
 

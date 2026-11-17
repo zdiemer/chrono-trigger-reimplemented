@@ -10021,6 +10021,8 @@ void set_field_layer_staging_byte(GameState *g, unsigned layer, unsigned at, uin
     uint32_t address = 0x7EC800u + (uint32_t)layer * 0x800u + at;
     vars_host_write8(h, address + 0u, (uint8_t)(v >> 0));
 }
+void set_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_layer_staging_byte(g, layer, at + k, v[k]); }
+void fill_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_layer_staging_byte(g, layer, at + k, v); }
 uint8_t field_window_staging(const GameState *g, unsigned i)
 {
     IN_RANGE(g, 143, "field_window_staging", "count", i, 1024u);
