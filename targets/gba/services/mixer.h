@@ -11,11 +11,13 @@
  * come from or by their bytes: the packing step (targets/gba/host/samples.py)
  * lists each block the driver can write with where the SNES cartridge holds
  * it and a hash of it, and the samples in it already
- * converted to 8-bit PCM, which the voices play from the cartridge. Only
- * the driver's own sample, which it rewrites as it plays, is decoded here.
+ * converted to 8-bit PCM at the mix's rate, which the voices play from the
+ * cartridge. Only the driver's own sample, which it rewrites as it plays, is
+ * decoded here.
  *
- * Eight voices are mixed 32 output samples at a time, at the GBA's own rate
- * (services/direct_sound.h), each voice at its pitch and envelope, scaled by
+ * Eight voices are mixed a quarter of the ring (88 output samples) at a
+ * time, at the GBA's own rate (services/direct_sound.h), what each plays
+ * planned once a GBA frame: each voice at its pitch and envelope, scaled by
  * its volume on each side and the master volume, as the playback asks for
  * them: the driver's calls set what the voices play as the game's frames
  * pass, and the mix plays them in the GBA's time. */
@@ -33,6 +35,7 @@
 typedef struct {
     uint16_t blocks, samples;
     uint32_t noise_at;             /* the noise generator's sequence, MIXER_NOISE_LENGTH samples */
+    uint16_t mix_a_frame, unused;  /* the mix's samples a GBA frame the PCM was made for */
 } MixerSamples;
 typedef struct {
     uint32_t length, hash;         /* the block's bytes as the driver writes them */
@@ -40,12 +43,16 @@ typedef struct {
     uint16_t first, count;         /* its samples */
 } MixerSampleBlock;
 typedef struct {
-    uint16_t start, unused;        /* where in its block it starts */
+    uint16_t start;                /* where in its block it starts */
+    uint16_t rate;                 /* MIXER_RATE_ONE's: its samples an output sample at the pitch $1000 */
     uint32_t loop;                 /* the PCM sample it loops from, or MIXER_NO_LOOP */
     uint32_t pcm_at, length;       /* its PCM, from the table's start */
     uint16_t peak, unused2;        /* its loudest sample, 15 bits, which the PCM's 127 stands for */
 } MixerSample;
-enum { MIXER_NO_LOOP = 0xFFFFFFFFu, MIXER_NOISE_LENGTH = 0x7FFF };
+enum { MIXER_NO_LOOP = 0xFFFFFFFFu, MIXER_NOISE_LENGTH = 0x7FFF, MIXER_RATE_ONE = 4096, MIXER_SILENCE = 128 };
+/* A packed sample that loops, and the noise, has this many samples of its
+ * loop again past its end (samples.py's LOOP_SPARE). */
+enum { MIXER_LOOP_SPARE = 256 };
 
 enum {
     MIXER_DIRECTORY = 48,          /* the samples a voice can name: the boot's, the driver's own ($10), a song's ($20-$2F) */
@@ -56,10 +63,11 @@ enum {
 
 typedef enum { MIXER_RELEASE, MIXER_ATTACK, MIXER_DECAY, MIXER_SUSTAIN } MixerPhase;
 
-/* A sample as a voice plays it: its PCM, its length and where it loops from
- * (MIXER_NO_LOOP: it ends), in samples; NULL: silence. */
+/* A sample as a voice plays it: its PCM (offset by MIXER_SILENCE), its
+ * length and where it loops from (MIXER_NO_LOOP: it ends), in samples; NULL:
+ * silence. */
 typedef struct {
-    const int8_t *pcm;
+    const uint8_t *pcm;
     uint32_t length, loop;
 } MixerWave;
 
@@ -72,7 +80,10 @@ typedef struct {
     uint16_t until;                /* frames of the S-DSP's to the envelope's next step */
     MixerWave wave;
     uint16_t peak;                 /* the wave's loudest, 15 bits */
+    uint16_t rate;                 /* the wave's, MIXER_RATE_ONE's (MixerSample's) */
     uint32_t position;             /* in 4096ths of a sample */
+    uint32_t step;                 /* planned: its position's step an output sample; 0: silent */
+    int32_t gains;                 /* planned: both sides' (mixer.c's gains_of); 0: not heard */
 } MixerVoice;
 
 /* A block the driver wrote into sound memory, known. */
@@ -89,7 +100,7 @@ typedef struct Mixer {
     void (*watch)(void *ctx, uint16_t at);
     void *watch_ctx;
 
-    MixerVoice play[AU_VOICES];
+    /* what each voice plays, where its note is: in fast RAM (mixer.c's `playing`), the mix reading it all the time */
     AuVoiceSet noise_voices;
     uint8_t noise_clock;
     bool silenced, resetting;
@@ -108,10 +119,10 @@ typedef struct Mixer {
     uint8_t own_brr[VOICES_OWN_SAMPLE_BYTES];
     uint16_t own_loop;
     bool own_changed;
-    int8_t own_pcm[MIXER_OWN_SAMPLES];
+    uint8_t own_pcm[MIXER_OWN_SAMPLES];
     uint16_t own_peak;
 
-    uint32_t owed;                /* at the chunk's start, toward its first output sample: 448 a frame of the S-DSP's, 1,065 a sample */
+    uint32_t owed;                /* at the plan's start, toward its first output sample: 352 a frame of the S-DSP's, 1,065 a sample */
     volatile uint8_t writing;     /* the driver's calls under way (mixer_fill waits them out) */
 } Mixer;
 

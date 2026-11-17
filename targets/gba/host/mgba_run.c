@@ -89,6 +89,7 @@ static FILE *log_out;
 static uint32_t box;                       /* the drive box's address; 0 until named */
 static uint32_t ring;                      /* the sound's ring's address; 0 until named */
 static uint32_t ring_samples = 1, ring_left, ring_right;   /* its length, and where each side starts in it */
+static uint32_t ring_rate;                 /* its samples a second, as the program names them */
 static int reported, sampling;
 static char end_crcs[40];                  /* the report's "END SAVE" */
 static unsigned width, height;
@@ -198,10 +199,10 @@ static void log_line(struct mLogger *logger, int category, enum mLogLevel level,
     fprintf(log_out, "%s\n", text);
     fflush(log_out);
     unsigned at, end, sram;
-    unsigned samples, left, right;
-    if (sscanf(text, "ct_gba: sound ring at %8X, %u samples, left at +%u, right at +%u", &at, &samples, &left,
-               &right) == 4)
-        ring = at, ring_samples = samples, ring_left = left, ring_right = right;
+    unsigned samples, left, right, rate;
+    if (sscanf(text, "ct_gba: sound ring at %8X, %u samples, left at +%u, right at +%u, %u a second", &at, &samples,
+               &left, &right, &rate) == 5)
+        ring = at, ring_samples = samples, ring_left = left, ring_right = right, ring_rate = rate;
     if (sscanf(text, "ct_gba: drive box at %8X", &at) == 1) {
         /* armed before the program looks, as it logs the line */
         box = at;
@@ -262,8 +263,8 @@ static int wav_close(Wav *w)
     return fclose(w->f) ? -1 : 0;
 }
 
-/* The ring's rate (services/direct_sound.h). */
-enum { STREAM_RATE = 13379, WAV_RATE = 32768 };
+/* The ring's rate until the program names it (services/direct_sound.h). */
+enum { STREAM_RATE = 10512, WAV_RATE = 32768 };
 
 static Wav heard, streamed;
 static int recording;
@@ -697,6 +698,8 @@ static int play_movie(const char *path, unsigned long frames, Shot *shots, unsig
         fprintf(stderr, "mgba_run: cannot write %s\n", pictures_path);
         rc = 2;
     }
+    if (ring_rate)
+        streamed.rate = ring_rate;
     if (wav_close(&heard) || wav_close(&streamed)) {
         fprintf(stderr, "mgba_run: cannot write the sound's files\n");
         rc = 2;

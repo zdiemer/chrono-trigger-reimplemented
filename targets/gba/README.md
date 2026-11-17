@@ -80,9 +80,10 @@ platform services' backends. Nothing here is included from `game/`.
   - `mixer.c`, `mixer.h`: the sound driver's voices played, in the native
     mixer's place (frontend/sound_native.c takes it through
     `SOUND_NATIVE_MIXER` and `SOUND_NATIVE_MIXER_PLAYS`): the packed samples
-    mixed at the GBA's rate, 32 samples at a time, as the playback asks.
-  - `mix.s`: the mixer's loops, ARM in fast RAM: a voice's wave into the
-    mix four samples a turn, and the mix to each side's 8 bits.
+    mixed at the GBA's rate, a quarter of the ring at a time, as the
+    playback asks, what the voices play planned once a GBA frame.
+  - `mix.s`: the mixer's loops, ARM in fast RAM: two voices' waves into
+    the mix at once, or one, and the mix to each side's 8 bits.
   - `direct_sound.c`, `direct_sound.h`: the mix played on Direct Sound A and
     B from a ring by the sound DMA, a timer's interrupt every quarter of it
     starting the DMA again and having the mixer fill what was played.
@@ -97,9 +98,10 @@ platform services' backends. Nothing here is included from `game/`.
     `.gba` is never committed.
     `--fast-rom` asks for the cartridge's faster waits, `--bios` puts in
     the logo a GBA checks (Building and running, below).
-  - `samples.py`: the sound's samples converted from BRR to 8-bit PCM for
-    the pack, their loops kept, each listed by its block's length, hash
-    and place in the SNES cartridge.
+  - `samples.py`: the sound's samples converted from BRR to 8-bit PCM at
+    the mix's rate for the pack, low-passed, their loops kept and repeated
+    past their ends, each listed by its block's length, hash and place in
+    the SNES cartridge.
   - `streams.py`: the cartridge's packed streams unpacked for the pack, by
     the game's own steps, each with the counts its unpacking's time comes
     from; the game copies one in rather than unpacking it, where the place

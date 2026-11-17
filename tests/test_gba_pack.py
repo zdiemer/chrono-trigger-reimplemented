@@ -134,7 +134,18 @@ class SamplesTest(unittest.TestCase):
         self.assertEqual((len(out), loop), (32, 16))
         self.assertEqual((out[0], out[16]), (2048, -2048))
         pcm, peak = samples.to_pcm8(out)
-        self.assertEqual((peak, pcm[0], pcm[16]), (2048, 127, 0x81))
+        self.assertEqual((peak, pcm[0], pcm[16]), (2048, 128 + 127, 128 - 127))
+
+    def test_resample(self):
+        # a loop of 16 samples at the mix's ratio (176 of 532.5) becomes 5, its rate 5/16 of the ratio's
+        out, loop, rate = samples.resample([0] * 16 + [1000] * 16, 16)
+        self.assertEqual((loop, len(out) - loop), (5, 5))
+        self.assertEqual(rate, round(4096 * (5 / 16) / (176 / 532.5)))
+        self.assertTrue(all(abs(s - 1000) <= 1 for s in out[loop:]))   # a constant loop stays constant
+        # a sample that ends keeps the mix's ratio
+        out, loop, rate = samples.resample([500] * 100, None)
+        self.assertEqual((loop, len(out), rate), (None, 34, 4096))
+        self.assertEqual(out[10], 500)
 
     def test_end_without_loop(self):
         # the block that ends without looping isn't played
@@ -145,7 +156,7 @@ class SamplesTest(unittest.TestCase):
     def test_noise(self):
         sequence = samples.noise()
         self.assertEqual(len(sequence), 0x7FFF)
-        self.assertEqual(sequence[0], 0x80)   # the generator starts at $4000: twice it is -32768
+        self.assertEqual(sequence[0], 0x00)   # the generator starts at $4000: twice it is -32768, offset by 128
 
 
 if __name__ == "__main__":

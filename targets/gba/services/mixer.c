@@ -4,12 +4,14 @@
  * (runtime/platform/native/mixer.c) keeps it, and set up what the voices
  * play. Where the S-DSP's own detail costs more than the GBA can give, it is
  * approximated (docs/PLATFORM.md, "The GBA build, as built", "The sound"):
- * a voice takes the nearest sample rather than the Gaussian four, its
- * envelope steps once a mix by as many of its rate's steps as fell in it,
- * key ons and offs take effect at the next mix in the order they came, and
- * the echo and the pitch modulation aren't heard. */
+ * a voice takes the nearest sample of its PCM, made at the mix's rate when
+ * the cartridge was packed, rather than the Gaussian four; its envelope
+ * steps once a GBA frame by as many of its rate's steps as fell in it; key
+ * ons and offs take effect at the next plan in the order they came; and the
+ * echo and the pitch modulation aren't heard. */
 #include "services/mixer.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "services/direct_sound.h"
@@ -17,7 +19,22 @@
 
 static const MixerSamples *packed;
 
-void mixer_use_samples(const MixerSamples *samples) { packed = samples; }
+/* What each voice plays and where its note is, which the mix reads every
+ * chunk: in fast RAM rather than in the Mixer, in work RAM, the one mixer
+ * there is (mixer_init) having them. */
+static MixerVoice playing[AU_VOICES] __attribute__((section(".iwram_bss")));
+
+/* The packed samples, made for this mix's rate: a pack made for another
+ * plays nothing rather than every note out of tune. */
+void mixer_use_samples(const MixerSamples *samples)
+{
+    if (samples->mix_a_frame != DIRECT_SOUND_FRAME) {
+        fprintf(stderr, "ct_gba: the samples were packed for %u a frame, the mix plays %u: no sound\n",
+                (unsigned)samples->mix_a_frame, (unsigned)DIRECT_SOUND_FRAME);
+        return;
+    }
+    packed = samples;
+}
 
 static const MixerSampleBlock *packed_block(uint16_t k) { return (const MixerSampleBlock *)(packed + 1) + k; }
 
@@ -26,20 +43,23 @@ static const MixerSample *packed_sample(uint16_t k)
     return (const MixerSample *)(packed_block(packed->blocks)) + k;
 }
 
-static const int8_t *packed_pcm(uint32_t at) { return (const int8_t *)packed + at; }
+static const uint8_t *packed_pcm(uint32_t at) { return (const uint8_t *)packed + at; }
 
 /* ---- Time --------------------------------------------------------------------------------- */
 
 /* The mix is made as the GBA plays it, a chunk whenever the ring has room
- * for one (mixer_fill), so its time is the GBA's: 224 samples a GBA frame,
- * 448 output samples every 1,065 of the S-DSP's frames, a chunk's envelopes
- * stepped by the S-DSP's frames its samples last. The driver's time, which
+ * for one (mixer_fill), so its time is the GBA's: 176 samples a GBA frame,
+ * 352 output samples every 1,065 of the S-DSP's frames. What the voices play
+ * is planned PLANNED chunks (a GBA frame) at a time, their envelopes stepped
+ * by the S-DSP's frames those samples last (plan). The driver's time, which
  * passes with the game's frames, only changes what the voices play. Where
  * the game keeps its time the two are the same; where its frames take
  * longer, the voices go on sounding as the driver last set them rather than
  * the sound stopping, and the music's own steps come as the game's frames
  * do. */
-enum { OUT_PER = 448, FRAMES_PER = 1065, CHUNK = DIRECT_SOUND_FILL };
+enum { OUT_PER = 2 * DIRECT_SOUND_FRAME, FRAMES_PER = 1065, CHUNK = DIRECT_SOUND_FILL, PLANNED = 2 };
+/* The driver's own sample, at the S-DSP's rate: its samples an output sample at the pitch $1000. */
+enum { OWN_RATE = MIXER_RATE_ONE * FRAMES_PER / OUT_PER };
 
 enum { NOISE_PEAK = 0x4000 };   /* the noise's 15 bits at their loudest */
 
@@ -68,11 +88,12 @@ enum {
     BENT_KNEE = 0x600, BENT_STEP = 0x08, RELEASE_STEP = 8, DIRECT_GAIN_SCALE = 0x10
 };
 
-__attribute__((target("arm"), section(".iwram"))) static uint8_t envelope_rate(const AuEnvelope *e, const MixerVoice *v)
+/* The envelope's rate in its phase. */
+static inline uint8_t envelope_rate(const AuEnvelope *e, uint8_t gain_value, uint8_t phase)
 {
     if (!e->adsr)
-        return v->gain_value & 0x1F;
-    switch (v->phase) {
+        return gain_value & 0x1F;
+    switch (phase) {
     case MIXER_ATTACK: return (uint8_t)((e->attack & 0x0F) * 2 + 1);
     case MIXER_DECAY: return (uint8_t)((e->decay & 7) * 2 + 16);
     default: return e->sustain_rate & 0x1F;
@@ -80,74 +101,94 @@ __attribute__((target("arm"), section(".iwram"))) static uint8_t envelope_rate(c
 }
 
 /* Where the decay ends: the sustain level, or with the gain on, its top bits. */
-__attribute__((target("arm"), section(".iwram"))) static int decay_end(const AuEnvelope *e, const MixerVoice *v)
+static inline int decay_end(const AuEnvelope *e, uint8_t gain_mode, uint8_t gain_value)
 {
     if (e->adsr)
         return e->sustain_level;
-    return v->gain_mode == AU_GAIN_DIRECT ? (v->gain_value & 0x7F) >> 5 : 3 + v->gain_mode;
+    return gain_mode == AU_GAIN_DIRECT ? (gain_value & 0x7F) >> 5 : 3 + gain_mode;
 }
 
-/* One step of the envelope at its rate, as the S-DSP takes it: in the
- * cartridge, as Thumb, since it runs only at the envelope's steps and fast
- * RAM's room does more as the picture's code (toolchain/fast_code.ld). */
-__attribute__((noinline)) static void envelope_step(const AuEnvelope *e, MixerVoice *v)
+/* `level` after `steps` of the S-DSP's exponential fall (each takes 1, then
+ * a 256th of what is left): as a 256th falls, (level + 255) times 255/256 to
+ * the steps, less 255, the power taken by squaring in 16-bit fractions. */
+static int falls_by(int level, uint32_t steps)
 {
-    int level = v->level;
-    if (e->adsr) {
-        if (v->phase == MIXER_ATTACK) {
-            level += envelope_rate(e, v) < FASTEST_RATE ? ATTACK_STEP : ATTACK_STEP_FASTEST;
-        } else {
-            level -= 1;
-            level -= level >> 8;
-        }
-    } else {
-        switch (v->gain_mode) {
-        case AU_GAIN_DECREASE_LINEAR: level -= LINEAR_STEP; break;
-        case AU_GAIN_DECREASE_EXPONENTIAL: level -= 1; level -= level >> 8; break;
-        case AU_GAIN_INCREASE_LINEAR: level += LINEAR_STEP; break;
-        default: level += level >= BENT_KNEE ? BENT_STEP : LINEAR_STEP; break;
-        }
+    uint32_t power = 0x10000, base = 0xFF00;
+    for (; steps; steps >>= 1) {
+        if (steps & 1)
+            power = power * base >> 16;
+        base = base * base >> 16;
     }
-    if (v->phase == MIXER_DECAY && (level >> 8) == decay_end(e, v))
-        v->phase = MIXER_SUSTAIN;
-    if (level < 0 || level > LEVEL_MAX) {
-        level = level < 0 ? 0 : LEVEL_MAX;
-        if (v->phase == MIXER_ATTACK)
-            v->phase = MIXER_DECAY;
-    }
-    v->level = (int16_t)level;
+    int fallen = (int)(((uint32_t)(level + 255) * power) >> 16) - 255;
+    return fallen < 0 ? 0 : fallen;
 }
 
 /* The envelope over `frames` of the S-DSP's: a released note falls every
  * frame, a direct gain holds its level, and otherwise each of its rate's
- * steps that fell in them is taken. */
-__attribute__((target("arm"), section(".iwram"), noinline)) static void run_envelope(const AuEnvelope *e, MixerVoice *v, uint32_t frames)
+ * steps that fell in them is taken: one at a time as the S-DSP takes them
+ * where a step can change the phase, and all at once where the level only
+ * falls on, the voice's envelope kept in registers until it is done. */
+__attribute__((target("arm"), section(".iwram"), noinline, optimize("Os"))) static void run_envelope(const AuEnvelope *e, MixerVoice *v, uint32_t frames)
 {
     if (v->phase == MIXER_RELEASE) {
         int level = v->level - (int)(RELEASE_STEP * frames);
         v->level = (int16_t)(level < 0 ? 0 : level);
         return;
     }
-    if (!e->adsr && v->gain_mode == AU_GAIN_DIRECT) {
-        v->level = (int16_t)((v->gain_value & 0x7F) * DIRECT_GAIN_SCALE);
+    uint8_t gain_mode = v->gain_mode, gain_value = v->gain_value;
+    if (!e->adsr && gain_mode == AU_GAIN_DIRECT) {
+        v->level = (int16_t)((gain_value & 0x7F) * DIRECT_GAIN_SCALE);
         return;
     }
+    int level = v->level, end = decay_end(e, gain_mode, gain_value);
+    uint8_t phase = v->phase;
+    uint32_t until = v->until;
     for (;;) {
-        uint8_t rate = envelope_rate(e, v);
+        uint8_t rate = envelope_rate(e, gain_value, phase);
         if (!rate)
-            return;
-        uint16_t period = rate_period[rate];
-        if (v->until > period || !v->until)
-            v->until = period;
-        if (v->until > frames) {
-            v->until = (uint16_t)(v->until - frames);
-            return;
+            break;
+        uint32_t period = rate_period[rate];
+        if (until > period || !until)
+            until = period;
+        if (until > frames) {
+            until -= frames;
+            break;
         }
-        frames -= v->until;
-        uint8_t phase = v->phase;
-        envelope_step(e, v);
-        v->until = phase == v->phase ? period : 0;
+        /* the steps at this rate, one each period while the phase holds */
+        uint8_t was = phase;
+        bool falls = e->adsr ? phase != MIXER_ATTACK : gain_mode == AU_GAIN_DECREASE_EXPONENTIAL;
+        if (falls && phase != MIXER_DECAY) {
+            uint32_t steps = 1 + (frames - until) / period;
+            level = falls_by(level, steps);
+            until = period - (frames - until - (steps - 1) * period);
+            break;
+        }
+        bool bent = !e->adsr && gain_mode == AU_GAIN_INCREASE_BENT;
+        int delta = !e->adsr ? (gain_mode == AU_GAIN_DECREASE_LINEAR ? -LINEAR_STEP : LINEAR_STEP)
+                             : rate < FASTEST_RATE ? ATTACK_STEP : ATTACK_STEP_FASTEST;
+        do {
+            frames -= until;
+            until = period;
+            if (falls) {
+                level -= 1;
+                level -= level >> 8;
+            } else {
+                level += bent && level >= BENT_KNEE ? BENT_STEP : delta;
+            }
+            if (phase == MIXER_DECAY && (level >> 8) == end)
+                phase = MIXER_SUSTAIN;
+            if (level < 0 || level > LEVEL_MAX) {
+                level = level < 0 ? 0 : LEVEL_MAX;
+                if (phase == MIXER_ATTACK)
+                    phase = MIXER_DECAY;
+            }
+        } while (phase == was && until <= frames);
+        if (phase != was)
+            until = 0;   /* the next phase's rate starts its own period */
     }
+    v->level = (int16_t)level;
+    v->phase = phase;
+    v->until = (uint16_t)until;
 }
 
 /* ---- BRR, for the driver's own sample ---------------------------------------------------- */
@@ -181,7 +222,8 @@ static void decode_block(const uint8_t *block, int16_t *out, int history[2])
 }
 
 /* The driver's own sample as it plays (samples.py's decode, here because the
- * driver rewrites it as it plays), scaled to 8 bits. */
+ * driver rewrites it as it plays), scaled to 8 bits and offset as the packed
+ * samples are, but at the S-DSP's rate (OWN_RATE). */
 static void decode_own_sample(Mixer *m)
 {
     int16_t decoded[MIXER_OWN_SAMPLES];
@@ -196,7 +238,7 @@ static void decode_own_sample(Mixer *m)
         if (decoded[i] > peak || -decoded[i] > peak)
             peak = decoded[i] < 0 ? -decoded[i] : decoded[i];
     for (unsigned i = 0; i < MIXER_OWN_SAMPLES; i++)
-        m->own_pcm[i] = (int8_t)(decoded[i] * 127 / peak);
+        m->own_pcm[i] = (uint8_t)(MIXER_SILENCE + decoded[i] * 127 / peak);
     m->own_peak = (uint16_t)peak;
     m->own_changed = false;
 }
@@ -290,6 +332,7 @@ static void find_sample(Mixer *m, MixerVoice *v)
         v->wave = (MixerWave){ m->own_pcm, MIXER_OWN_SAMPLES,
                                loop < VOICES_OWN_SAMPLE_BYTES ? loop / BLOCK_BYTES * BLOCK_SAMPLES : MIXER_NO_LOOP };
         v->peak = m->own_peak;
+        v->rate = OWN_RATE;
         return;
     }
     if (!packed)
@@ -305,6 +348,7 @@ static void find_sample(Mixer *m, MixerVoice *v)
             if (s->start == offset && s->length) {
                 v->wave = (MixerWave){ packed_pcm(s->pcm_at), s->length, s->loop };
                 v->peak = s->peak;
+                v->rate = s->rate;
                 return;
             }
         }
@@ -316,16 +360,34 @@ static void find_sample(Mixer *m, MixerVoice *v)
 
 /* The mix is kept a word an output sample, both sides in it: a voice's
  * sample times its gains, the left's in the top half and the right's in the
- * bottom, adds to both sides at once, one multiply rather than two. Each
- * side's gain is at most 127, so the sides keep apart until the mix is twice
- * as loud as 8 bits can say (to_8_bits). */
+ * bottom, adds to both sides at once, one multiply rather than two. The
+ * sides keep apart until the mix is twice as loud as 8 bits can say
+ * (to_8_bits). The PCM being offset by MIXER_SILENCE, a voice adds that
+ * times its gains more than it says, which the chunk's offset takes off
+ * again, with MIX_ZERO put on: each side's 0x4000 that to_8_bits finds its
+ * range by. */
 static int32_t gains_of(int left, int right) { return (int32_t)((uint32_t)left << 16) + right; }
+
+#define MIX_ZERO (int32_t)0x40004000
 
 /* The mixer's loops (services/mix.s: ARM, in fast RAM). A wave's `count`
  * samples added into `mix` at `gains`, from `position` in 4096ths of a
  * sample stepping `step`; false where the wave ended. */
 __attribute__((long_call)) bool mix_wave(int32_t *mix, unsigned count, const MixerWave *w, uint32_t *position,
                                          uint32_t step, int32_t gains);
+/* Two voices' waves added at once, where neither ends in `count` samples;
+ * the positions are left to the caller to move on. */
+typedef struct {
+    const uint8_t *pcm;
+    uint32_t at, step;
+    int32_t gains;
+} MixerPairVoice;
+typedef struct {
+    MixerPairVoice voice[2];
+} MixerPair;
+__attribute__((long_call)) void mix_pair(int32_t *mix, unsigned count, const MixerPair *pair);
+/* The mix's `count` words set to `offset` (a multiple of 8). */
+__attribute__((long_call)) void mix_start(int32_t *mix, int32_t offset, unsigned count);
 /* The mix to 8 bits, each side, `count` a multiple of 4. */
 __attribute__((long_call)) void to_8_bits(const int32_t *mix, int8_t *left, int8_t *right, unsigned count);
 
@@ -344,9 +406,9 @@ static void take_keys(Mixer *m)
         for (uint8_t n = 0; n < AU_VOICES; n++)
             if (m->keys[e].voices & (1u << n)) {
                 if (m->keys[e].on)
-                    key_on(m, &m->play[n]);
+                    key_on(m, &playing[n]);
                 else
-                    m->play[n].phase = MIXER_RELEASE;
+                    playing[n].phase = MIXER_RELEASE;
             }
     m->key_events = 0;
 }
@@ -355,64 +417,156 @@ static void take_keys(Mixer *m)
  * envelope's level, its volume and the master's, so that the PCM's 127 times
  * it is that much of 16 bits over 2^7 (the S-DSP's voice puts out twice a
  * 15-bit sample at full level). */
-static int gain(const MixerVoice *v, int8_t volume, int8_t master)
+static int gain(int full, int8_t volume, int8_t master)
 {
-    int full = (2 * v->peak * v->level) >> 11;
     return ((((full * volume) >> 7) * master >> 7) + 128) >> 8;
 }
 
-static int32_t gains(const MixerVoice *v, const AuVoiceSettings *set, const AuMixSettings *mix)
+/* Both sides' gains for a voice whose wave's peak is `peak`, at `level`. */
+static int32_t gains(uint16_t peak, int level, const AuVoiceSettings *set, const AuMixSettings *mix)
 {
-    return gains_of(gain(v, set->volume_left, mix->master_left), gain(v, set->volume_right, mix->master_right));
+    int full = (2 * peak * level) >> 11;
+    return gains_of(gain(full, set->volume_left, mix->master_left), gain(full, set->volume_right, mix->master_right));
 }
 
 static int32_t mix[CHUNK] __attribute__((section(".iwram_bss")));
 
-__attribute__((target("arm"), section(".iwram"), long_call, noinline)) static void mix_chunk(Mixer *m, unsigned count, uint32_t frames)
+/* A voice not heard this chunk (both its gains 0) goes on through its wave
+ * as if it were; false where the wave ended. */
+__attribute__((target("arm"), section(".iwram"), noinline)) static bool pass_wave(const MixerWave *w, uint32_t *position, uint32_t step, unsigned count)
 {
-    uint32_t began = cycles_now();
-    take_keys(m);
-    memset(mix, 0, sizeof mix[0] * count);
-    for (uint8_t n = 0; n < AU_VOICES; n++) {
-        MixerVoice *v = &m->play[n];
-        const AuEnvelope *e = &m->voice[n].envelope;
-        if (m->resetting)
-            v->phase = MIXER_RELEASE, v->level = 0;
-        run_envelope(e, v, frames);
-        bool noisy = m->noise_voices & (1u << n);
-        if ((!v->wave.pcm && !noisy) || !v->level)
-            continue;
-        const AuVoiceSettings *set = &m->voice[n];
-        if (noisy) {
-            /* the noise generator, stepping at its clock, played as a wave */
-            uint16_t period = rate_period[m->noise_clock & 0x1F];
-            if (!period)
-                continue;
-            MixerVoice noise = *v;
-            noise.wave = (MixerWave){ packed_pcm(packed->noise_at), MIXER_NOISE_LENGTH, 0 };
-            noise.peak = NOISE_PEAK;
-            mix_wave(mix, count, &noise.wave, &v->position, 4096u * FRAMES_PER / OUT_PER / period,
-                     gains(&noise, set, &m->mix));
-            continue;
-        }
-        uint32_t step = (uint32_t)(set->pitch & 0x3FFF) * FRAMES_PER / OUT_PER;
-        if (!mix_wave(mix, count, &v->wave, &v->position, step, gains(v, set, &m->mix)))
-            v->wave.pcm = NULL, v->level = 0, v->phase = MIXER_RELEASE;
+    uint32_t at = *position + step * count, end = w->length << 12;
+    if (at < end) {
+        *position = at;
+        return true;
     }
-    int8_t *left, *right;
-    if (m->silenced)
-        memset(mix, 0, sizeof mix[0] * count);
-    direct_sound_next(&left, &right);
-    to_8_bits(mix, left, right, count);
-    direct_sound_queued();
-    mixing_cycles += cycles_now() - began;
+    if (w->loop == MIXER_NO_LOOP)
+        return false;
+    uint32_t back = end - (w->loop << 12);
+    while (at >= end)
+        at -= back;
+    *position = at;
+    return true;
 }
 
-/* The S-DSP's frames from a chunk's start, `owed` toward its first sample,
- * to the one its last sample falls due at. */
-static uint16_t frames_to_chunk(uint32_t owed)
+/* Whether `count` samples of a wave from `position` can be read straight on:
+ * short of its end, or of the loop repeated past it (MIXER_LOOP_SPARE), which
+ * the driver's own sample hasn't. */
+static inline bool goes_on(const Mixer *m, const MixerWave *w, uint32_t position, uint32_t step, unsigned count)
 {
-    return (uint16_t)((CHUNK * FRAMES_PER - owed + OUT_PER - 1) / OUT_PER);
+    uint32_t spare = w->loop != MIXER_NO_LOOP && w->pcm != m->own_pcm ? MIXER_LOOP_SPARE : 0;
+    return (count - 1) * step < ((w->length + spare) << 12) - position;
+}
+
+/* The voices played as noise when the chunks were planned. */
+static AuVoiceSet planned_noise __attribute__((section(".iwram_bss")));
+
+/* What the next PLANNED chunks play, over the S-DSP's `frames` they last:
+ * the keys the driver pressed taken, each voice's envelope moved on, and
+ * its step and gains set (gains 0: not heard, step 0 as well: silent). */
+__attribute__((target("arm"), section(".iwram"), noinline)) static void plan(Mixer *m, uint32_t frames)
+{
+    if (m->key_events)
+        take_keys(m);
+    bool resetting = m->resetting;
+    AuVoiceSet noisy = m->noise_voices;
+    planned_noise = noisy;
+    uint16_t noise_period = rate_period[m->noise_clock & 0x1F];
+    for (uint8_t n = 0; n < AU_VOICES; n++) {
+        MixerVoice *v = &playing[n];
+        v->gains = 0, v->step = 0;
+        if (resetting)
+            v->phase = MIXER_RELEASE, v->level = 0;
+        if (v->phase == MIXER_RELEASE && !v->level)
+            continue;   /* silent until its next key on, which starts its wave over */
+        const AuVoiceSettings *set = &m->voice[n];
+        run_envelope(&set->envelope, v, frames);
+        if (!v->level)
+            continue;
+        uint32_t step;
+        uint16_t peak = v->peak;
+        if (noisy & (1u << n)) {
+            /* the noise generator, stepping at its clock, played as a wave */
+            if (!noise_period)
+                continue;
+            step = MIXER_RATE_ONE * FRAMES_PER / OUT_PER / noise_period;
+            peak = NOISE_PEAK;
+        } else if (v->wave.pcm) {
+            step = (uint32_t)(set->pitch & 0x3FFF) * v->rate >> 12;
+        } else {
+            continue;
+        }
+        v->step = step;
+        v->gains = gains(peak, v->level, set, &m->mix);
+    }
+}
+
+/* A chunk of the mix, as planned: the voices whose waves go on through it
+ * mixed two at a time, one left waiting for a second mixed alone at the end,
+ * and the rest a voice at a time. */
+__attribute__((target("arm"), section(".iwram"), noinline)) static void mix_chunk(Mixer *m)
+{
+    /* the mix starts from its offset: MIX_ZERO, less each heard voice's silence */
+    uint32_t offset = (uint32_t)MIX_ZERO;
+    for (uint8_t n = 0; n < AU_VOICES; n++)
+        if (playing[n].step)
+            offset -= (uint32_t)playing[n].gains * MIXER_SILENCE;
+    mix_start(mix, m->silenced ? (int32_t)MIX_ZERO : (int32_t)offset, CHUNK);
+    MixerPair pair;
+    MixerVoice *waiting = NULL;
+    const MixerWave *waiting_wave = NULL;
+    MixerWave noise = { packed_pcm(packed->noise_at), MIXER_NOISE_LENGTH, 0 };
+    for (uint8_t n = 0; n < AU_VOICES; n++) {
+        MixerVoice *v = &playing[n];
+        uint32_t step = v->step;
+        int32_t g = v->gains;
+        if (!step)
+            continue;
+        bool noisy = planned_noise & (1u << n);
+        const MixerWave *wave = noisy ? &noise : &v->wave;
+        bool going;
+        if (!g) {
+            going = pass_wave(wave, &v->position, step, CHUNK);
+        } else if (goes_on(m, wave, v->position, step, CHUNK)) {
+            if (!waiting) {
+                pair.voice[0] = (MixerPairVoice){ wave->pcm, v->position, step, g };
+                waiting = v, waiting_wave = wave;
+                continue;
+            }
+            pair.voice[1] = (MixerPairVoice){ wave->pcm, v->position, step, g };
+            mix_pair(mix, CHUNK, &pair);
+            pass_wave(waiting_wave, &waiting->position, waiting->step, CHUNK);
+            waiting = NULL;
+            going = pass_wave(wave, &v->position, step, CHUNK);
+        } else {
+            going = mix_wave(mix, CHUNK, wave, &v->position, step, g);
+        }
+        if (!going && !noisy) {
+            v->wave.pcm = NULL, v->level = 0, v->phase = MIXER_RELEASE;
+            v->gains = 0, v->step = 0;
+        }
+    }
+    if (waiting)
+        mix_wave(mix, CHUNK, waiting_wave, &waiting->position, waiting->step, waiting->gains);
+    int8_t *left, *right;
+    if (m->silenced)
+        mix_start(mix, MIX_ZERO, CHUNK);
+    direct_sound_next(&left, &right);
+    to_8_bits(mix, left, right, CHUNK);
+    direct_sound_queued();
+}
+
+/* The S-DSP's frames from the planned chunks' start, `owed` toward their
+ * first sample (under OUT_PER), to the one their last sample falls due at:
+ * (PLANNED_FRAMES - owed) over OUT_PER, rounded up, which is one of two
+ * counts, found without a division. */
+enum {
+    PLANNED_FRAMES = PLANNED * CHUNK * FRAMES_PER,
+    FEWEST_FRAMES = (PLANNED_FRAMES - OUT_PER + 1 + OUT_PER - 1) / OUT_PER
+};
+static uint32_t frames_to_plan(uint32_t owed)
+{
+    return FEWEST_FRAMES + (PLANNED_FRAMES - owed > (uint32_t)FEWEST_FRAMES * OUT_PER);
 }
 
 /* The driver's time makes no sound of its own here (the playback asks for
@@ -423,20 +577,29 @@ void mixer_pass(Mixer *m, uint32_t frames) { (void)m, (void)frames; }
 static Mixer *played;
 
 /* Chunks mixed until the ring is full, from the playback's interrupt with
- * the other interrupts on (services/direct_sound.h). The driver's calls run
- * between the game's frames and in its waits, never inside this; where the
- * interrupt came in the middle of one (`writing`), the voices may be half
- * set, and the ring is filled at the next interrupt instead, 16 samples on. */
-__attribute__((target("arm"), section(".iwram"), noinline)) void mixer_fill(void)
+ * the other interrupts on (services/direct_sound.h), planned PLANNED at a
+ * time. The driver's calls run between the game's frames and in its waits,
+ * never inside this; where the interrupt came in the middle of one
+ * (`writing`), the voices may be half set, and the ring is filled at the
+ * next interrupt instead, a quarter on. */
+__attribute__((noinline)) void mixer_fill(void)
 {
+    static uint8_t unplanned __attribute__((section(".iwram_bss")));   /* chunks left of the plan */
     Mixer *m = played;
-    if (!m || m->writing)
+    if (!m || m->writing || !packed)
         return;
+    uint32_t began = cycles_now();
     while (direct_sound_room() >= CHUNK) {
-        uint32_t frames = frames_to_chunk(m->owed);
-        mix_chunk(m, CHUNK, frames);
-        m->owed = m->owed + frames * OUT_PER - CHUNK * FRAMES_PER;
+        if (!unplanned) {
+            uint32_t frames = frames_to_plan(m->owed);
+            plan(m, frames);
+            m->owed = m->owed + frames * OUT_PER - PLANNED * CHUNK * FRAMES_PER;
+            unplanned = PLANNED;
+        }
+        mix_chunk(m);
+        unplanned--;
     }
+    mixing_cycles += cycles_now() - began;
 }
 
 /* ---- The voices' calls ------------------------------------------------------------------- */
@@ -458,7 +621,7 @@ static void start(AuVoices *v) { (void)v; }
 static void set_sample(AuVoices *v, uint8_t n, uint8_t sample)
 {
     Mixer *w = begin_write(v);
-    mixer(v)->play[n & 7].sample = sample;
+    playing[n & 7].sample = sample;
     end_write(w);
 }
 
@@ -473,7 +636,7 @@ static void set_envelope(AuVoices *v, uint8_t n, AuEnvelope e)
 static void set_gain(AuVoices *v, uint8_t n, AuGain g)
 {
     Mixer *w = begin_write(v);
-    MixerVoice *p = &mixer(v)->play[n & 7];
+    MixerVoice *p = &playing[n & 7];
     p->gain_mode = (uint8_t)g.mode;
     p->gain_value = g.mode == AU_GAIN_DIRECT ? (uint8_t)(g.value & 0x7F) : (uint8_t)(g.value & 0x1F);
     end_write(w);
@@ -530,10 +693,11 @@ static void hold(AuVoices *v, bool held)
  * level. The game never turns the meter on (docs/SOUND.md). */
 static int8_t output(AuVoices *v, uint8_t n)
 {
-    const MixerVoice *p = &mixer(v)->play[n & 7];
+    (void)v;
+    const MixerVoice *p = &playing[n & 7];
     if (!p->wave.pcm || (p->position >> 12) >= p->wave.length)
         return 0;
-    return (int8_t)((p->wave.pcm[p->position >> 12] * ((2 * p->peak * p->level) >> 11)) >> 15);
+    return (int8_t)(((p->wave.pcm[p->position >> 12] - MIXER_SILENCE) * ((2 * p->peak * p->level) >> 11)) >> 15);
 }
 
 static void master_volume(AuVoices *v, int8_t left, int8_t right)
@@ -741,6 +905,7 @@ AuVoices *mixer_voices(Mixer *m)
 void mixer_init(Mixer *m)
 {
     memset(m, 0, sizeof *m);
+    memset(playing, 0, sizeof playing);
     m->voices.ops = &gba_ops;
     m->silenced = m->resetting = true;
     m->run_next = NOT_WRITING;
