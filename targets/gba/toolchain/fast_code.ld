@@ -8,7 +8,6 @@
  * suffix after the name is the compiler's copy of it); a name the build no
  * longer has places nothing. */
 *(.text.state_host_read8 .text.state_host_read8.*)
-*(.text.note_if_unread .text.note_if_unread.*)
 *(.text.read_game .text.read_game.*)
 *(.text.place_of .text.place_of.*)
 *(.text.vars_host_read_span .text.vars_host_read_span.*)
@@ -47,3 +46,4 @@
 *(.text.convert_tile .text.convert_tile.*)
 *(.text.convert_map_units .text.convert_map_units.*)
 *(.text.convert_map .text.convert_map.*)
+*(.text.convert_cut_row .text.convert_cut_row.*)

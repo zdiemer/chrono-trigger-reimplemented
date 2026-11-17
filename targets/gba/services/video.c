@@ -2515,12 +2515,6 @@ static inline __attribute__((always_inline)) uint32_t entry_in(Cache *c, uint32_
 
 static uint32_t high_palettes(const Layer *l) { return l->bpp == 2 ? HIGH_PALETTES : 0; }
 
-/* A map entry as the GBA's, for a layer. */
-static uint16_t map_entry(uint16_t e, const Layer *l)
-{
-    return (uint16_t)entry_in(&caches[l->cache], e, high_palettes(l));
-}
-
 static const Layer *map_layer(uint32_t byte)
 {
     for (unsigned n = 0; n < 4; n++)
@@ -2567,15 +2561,19 @@ __attribute__((noinline)) static void convert_front(uint32_t first, const Layer 
 
 
 /* A row of a map cut (LineMap): each of its 32 columns from the column
- * the cut puts there. */
-static void convert_cut_row(const LineMap *lm, uint32_t row)
+ * the cut puts there. From fast RAM: a battle's bands are cut maps, whose
+ * every row a layout converts. */
+ARM_CODE __attribute__((noinline, optimize("Os"))) static void convert_cut_row(const LineMap *lm, uint32_t row)
 {
+    const Layer *l = &layers[lm->layer];
+    Cache *cache = &caches[l->cache];
+    uint32_t high = high_palettes(l);
     unsigned cut = lm->cut & CUT_COLUMN, columns = lm->cut >> CUT_COLUMNS_SHIFT;
-    const uint8_t *from = &snes.vram[(lm->byte + row * 64) & (VRAM_BYTES - 1)];
+    const Halfword *from = (const Halfword *)&snes.vram[(lm->byte + row * 64) & (VRAM_BYTES - 1)];
     volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + (lm->gba_byte + row * 64) / 2;
     for (unsigned column = 0; column < 32; column++) {
         unsigned c = column < cut ? column : (column + columns) % 32;
-        gba[column] = map_entry((uint16_t)(from[2 * c] | from[2 * c + 1] << 8), &layers[lm->layer]);
+        gba[column] = (uint16_t)entry_in(cache, from[c], high);
     }
 }
 
