@@ -131,6 +131,7 @@ static const uint8_t *pack_form(void *ctx, uint8_t form, AssetId id, uint32_t *l
 }
 
 static void read_game(void *ctx, uint32_t addr, uint8_t *out, uint32_t len) { state_host_read_span(ctx, addr, out, len); }
+static const uint8_t *game_in_place(void *ctx, uint32_t addr, uint32_t len) { return state_host_span_in_place(ctx, addr, len); }
 static void run_main_thread(Platform *pf, void *ctx) { program_main_thread(ctx, pf); }
 static void run_vblank(Platform *pf, void *ctx) { program_vblank(ctx, pf); }
 static void run_line(Platform *pf, void *ctx) { program_line(ctx, pf); }
@@ -397,6 +398,7 @@ int main(void)
     *canary() = CANARY;
     pf.save.bytes = state_host_sram(g);
     vid_host_start(&pf, read_game, g);
+    gba_video_read_in_place(game_in_place);
     gba_video_use_colours(head->colours_at ? (const uint16_t *)((const uint8_t *)head + head->colours_at) : NULL);
     mixer_use_samples((const MixerSamples *)((const uint8_t *)head + head->samples_at));
     SoundNative *sound = sound_native_create(g, &pf);

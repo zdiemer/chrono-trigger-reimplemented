@@ -90,6 +90,11 @@ uint8_t state_host_read8(const GameState *g, uint32_t addr);
 /* `len` bytes from `addr` on, each as state_host_read8 reads it: the sources
  * the video service's sends name by address, read in one call. */
 void state_host_read_span(const GameState *g, uint32_t addr, uint8_t *out, uint32_t len);
+/* Where the host keeps the `len` bytes from `addr` on in one run of its own
+ * memory, as state_host_read_span would read them: a send's source read
+ * where it lies rather than copied out first. NULL where they aren't so
+ * kept (the typed state, the flat state's cold top, anything but work RAM). */
+const uint8_t *state_host_span_in_place(const GameState *g, uint32_t addr, uint32_t len);
 void state_host_write8(GameState *g, uint32_t addr, uint8_t v);
 /* Whether an address is the cartridge's, whose bytes the asset store serves
  * (rom_host.c) rather than the host's memory. */

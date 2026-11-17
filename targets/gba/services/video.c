@@ -153,6 +153,7 @@ typedef struct {
     uint32_t changed[UNITS / 32];     /* the 32-byte units the game changed since the picture was made */
     bool palette_written, settings_changed, sprites_changed;
     PfReadGame *read;
+    const uint8_t *(*in_place)(void *ctx, uint32_t addr, uint32_t len);   /* gba_video_read_in_place */
     void *ctx;
 } Snes;
 
@@ -295,31 +296,62 @@ static void vram_put_run(const uint8_t *bytes, uint8_t fill, uint32_t n, uint32_
 typedef uint32_t __attribute__((may_alias)) Word;
 typedef uint16_t __attribute__((may_alias)) Halfword;
 
+/* Whole units compared and stored where they differ, the answer's bit k set
+ * where the kth changed (services/units.s, ARM in fast RAM): 1 to 32 units,
+ * `to` and `from` word-aligned, `from` stepped 16 bytes a half unit, or 0
+ * for a fill of the same 16 bytes. */
+uint32_t vram_units_take(uint32_t *to, const uint32_t *from, uint32_t units, uint32_t step);
+enum { UNIT_STEP = UNIT_BYTES / 2 };
+
 /* `n` bytes into VRAM from `at` (not past its end), marking the units they
  * change: the game sends much of its VRAM again as it was. `bytes` has the
- * same alignment to a word as `at` (and `snes.vram`, a word's). */
-static void vram_take(uint32_t at, const uint8_t *bytes, uint32_t n)
+ * same alignment to a word as `at` (and `snes.vram`, a word's); where it is
+ * NULL, every byte is `fill`. Whole units go through units.s, as many at
+ * once as share a word of the changed units' bits; the parts of units at
+ * the ends a byte or a word at a time. */
+static void vram_take_or_fill(uint32_t at, const uint8_t *bytes, uint8_t fill, uint32_t n)
 {
     while (n) {
         uint32_t k = UNIT_BYTES - at % UNIT_BYTES;
-        if (k > n)
-            k = n;
-        uint8_t *to = &snes.vram[at];
-        uint32_t i = 0;
-        while (i < k && (at + i) % 4 && to[i] == bytes[i])
-            i++;
-        if ((at + i) % 4 == 0)
-            while (k - i >= 4 && *(const Word *)(to + i) == *(const Word *)(bytes + i))
-                i += 4;
-        while (i < k && to[i] == bytes[i])
-            i++;
-        if (i < k) {
-            memcpy(to + i, bytes + i, k - i);
-            unit_changed(at);
+        if (k == UNIT_BYTES && n >= UNIT_BYTES) {
+            uint32_t units = n / UNIT_BYTES, unit = at / UNIT_BYTES, room = 32 - unit % 32;
+            if (units > room)
+                units = room;
+            uint32_t *to = (uint32_t *)(void *)&snes.vram[at];
+            const uint32_t fills[4] = { fill * 0x01010101u, fill * 0x01010101u, fill * 0x01010101u, fill * 0x01010101u };
+            uint32_t changed = bytes ? vram_units_take(to, (const uint32_t *)(const void *)bytes, units, UNIT_STEP)
+                                     : vram_units_take(to, fills, units, 0);
+            snes.changed[unit / 32] |= changed << (unit % 32);
+            k = units * UNIT_BYTES;
+        } else {
+            if (k > n)
+                k = n;
+            uint8_t *to = &snes.vram[at];
+            const uint8_t *from = bytes;
+            if (!bytes) {
+                memset(piece, fill, UNIT_BYTES + 4);
+                from = piece + at % 4;
+            }
+            uint32_t i = 0;
+            while (i < k && (at + i) % 4 && to[i] == from[i])
+                i++;
+            if ((at + i) % 4 == 0)
+                while (k - i >= 4 && *(const Word *)(to + i) == *(const Word *)(from + i))
+                    i += 4;
+            while (i < k && to[i] == from[i])
+                i++;
+            if (i < k) {
+                memcpy(to + i, from + i, k - i);
+                unit_changed(at);
+            }
         }
-        at += k, bytes += k, n -= k;
+        at += k, n -= k;
+        if (bytes)
+            bytes += k;
     }
 }
+
+static void vram_take(uint32_t at, const uint8_t *bytes, uint32_t n) { vram_take_or_fill(at, bytes, 0, n); }
 
 /* Whether words through the port go straight into VRAM's next bytes: a
  * port that steps a word after the high byte, with no remapping. */
@@ -340,6 +372,17 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
             uint32_t n = (len - i) & ~1u;
             if (n > VRAM_BYTES - at)
                 n = VRAM_BYTES - at;
+            const uint8_t *from = src.ptr ? src.ptr + i
+                                  : !src.byte_at && snes.read && snes.in_place ? snes.in_place(snes.ctx, src.addr + i, n)
+                                                                               : NULL;
+            if (from && (uintptr_t)from % 4 == at % 4) {
+                /* a host's bytes or the game's in one run, aligned as
+                 * VRAM's: taken where they are */
+                vram_take(at, from, n);
+                snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
+                i += n;
+                continue;
+            }
             if (n > PIECE)
                 n = PIECE;
             data_bytes(src, i, piece + at % 4, n);
@@ -357,23 +400,20 @@ static void vram_put_bytes(PfData src, uint32_t len, int half)
 }
 
 /* `len` bytes of `fill` through the VRAM port as words. Through a port that
- * takes them in order they are compared against VRAM and put a piece at a
- * time, as a send's bytes are (vram_put_bytes), rather than a byte at a
- * time: the menus clear all 64 KiB of VRAM as they open, which a byte at a
- * time took several GBA frames. */
+ * takes them in order they are compared against VRAM and put a unit at a
+ * time (vram_take_or_fill), rather than a byte at a time: the menus clear
+ * all 64 KiB of VRAM as they open, which a byte at a time took several GBA
+ * frames. */
 static void vram_fill(uint8_t fill, uint32_t len)
 {
     uint32_t i = 0;
     if (port_takes_words_in_order()) {
-        memset(piece, fill, sizeof piece_words);
         while (len - i >= 2) {
             uint32_t at = (uint32_t)(snes.vram_addr & 0x7FFF) << 1;
             uint32_t n = (len - i) & ~1u;
             if (n > VRAM_BYTES - at)
                 n = VRAM_BYTES - at;
-            if (n > PIECE)
-                n = PIECE;
-            vram_take(at, piece + at % 4, n);
+            vram_take_or_fill(at, NULL, fill, n);
             snes.vram_addr = (uint16_t)(snes.vram_addr + n / 2);
             i += n;
         }
@@ -482,6 +522,11 @@ static bool offsets_written;                          /* mode 2's columns' offse
 static const uint16_t *shown_colours;
 
 void gba_video_use_colours(const uint16_t *colours) { shown_colours = colours; }
+
+void gba_video_read_in_place(const uint8_t *(*in_place)(void *ctx, uint32_t addr, uint32_t len))
+{
+    snes.in_place = in_place;
+}
 
 static uint16_t shown(uint16_t colour) { return shown_colours ? shown_colours[colour & 0x7FFF] : colour; }
 
@@ -1065,6 +1110,16 @@ void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value)
 {
     (void)pf, (void)o;
     vram_put(high, value);
+}
+
+/* A run of them, as vram_put_run takes a send's: one half of successive
+ * words compared and put a unit at a time where the port steps a word after
+ * that half. */
+void vid_write_vram_bytes(Platform *pf, PfOrigin o, bool high, const uint8_t *bytes, uint32_t count)
+{
+    (void)pf, (void)o;
+    if (count)
+        vram_put_run(bytes, 0, count, 0, high ? 1 : 0);
 }
 
 void vid_set_palette_address(Platform *pf, PfOrigin o, uint8_t first) { (void)pf, (void)o, (void)first; }
@@ -2460,12 +2515,6 @@ static inline __attribute__((always_inline)) uint32_t entry_in(Cache *c, uint32_
 
 static uint32_t high_palettes(const Layer *l) { return l->bpp == 2 ? HIGH_PALETTES : 0; }
 
-/* A map entry as the GBA's, for a layer. */
-static uint16_t map_entry(uint16_t e, const Layer *l)
-{
-    return (uint16_t)entry_in(&caches[l->cache], e, high_palettes(l));
-}
-
 static const Layer *map_layer(uint32_t byte)
 {
     for (unsigned n = 0; n < 4; n++)
@@ -2512,15 +2561,19 @@ __attribute__((noinline)) static void convert_front(uint32_t first, const Layer 
 
 
 /* A row of a map cut (LineMap): each of its 32 columns from the column
- * the cut puts there. */
-static void convert_cut_row(const LineMap *lm, uint32_t row)
+ * the cut puts there. From fast RAM: a battle's bands are cut maps, whose
+ * every row a layout converts. */
+ARM_CODE __attribute__((noinline, optimize("Os"))) static void convert_cut_row(const LineMap *lm, uint32_t row)
 {
+    const Layer *l = &layers[lm->layer];
+    Cache *cache = &caches[l->cache];
+    uint32_t high = high_palettes(l);
     unsigned cut = lm->cut & CUT_COLUMN, columns = lm->cut >> CUT_COLUMNS_SHIFT;
-    const uint8_t *from = &snes.vram[(lm->byte + row * 64) & (VRAM_BYTES - 1)];
+    const Halfword *from = (const Halfword *)&snes.vram[(lm->byte + row * 64) & (VRAM_BYTES - 1)];
     volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + (lm->gba_byte + row * 64) / 2;
     for (unsigned column = 0; column < 32; column++) {
         unsigned c = column < cut ? column : (column + columns) % 32;
-        gba[column] = map_entry((uint16_t)(from[2 * c] | from[2 * c + 1] << 8), &layers[lm->layer]);
+        gba[column] = (uint16_t)entry_in(cache, from[c], high);
     }
 }
 
@@ -2683,9 +2736,15 @@ static void convert_block(unsigned k, uint32_t units)
         const LineMap *lm = shown_maps[j];
         uint32_t offset = (block - lm->byte) & (VRAM_BYTES - 1);
         if (lm->cut != NO_CUT) {
-            for (unsigned i = 0; i < 16; i++)
-                if (units >> i & 1)
-                    convert_cut_row(lm, (offset + i * UNIT_BYTES) / 64);
+            /* a row is two units: converted once where both changed */
+            uint32_t converted = UINT32_MAX;   /* none yet */
+            for (unsigned i = 0; i < 16; i++) {
+                uint32_t row = (offset + i * UNIT_BYTES) / 64;
+                if (units >> i & 1 && row != converted) {
+                    convert_cut_row(lm, row);
+                    converted = row;
+                }
+            }
             continue;
         }
         /* a shared copy is its owner's, converted as its map */

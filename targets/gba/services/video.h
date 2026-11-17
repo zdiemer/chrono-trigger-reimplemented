@@ -21,6 +21,10 @@ void gba_video_await_blank(void);
 /* The colours as the GBA shows them: a table of the 32,768 BGR555 colours'
  * own (the pack's, pack.py --profile), or NULL for the colours as they are. */
 void gba_video_use_colours(const uint16_t *colours);
+/* Where the game keeps the `len` bytes a send names from `addr` on, in one
+ * run of memory, or NULL where it doesn't (state_host_span_in_place): such a
+ * source is compared into VRAM where it lies rather than copied out first. */
+void gba_video_read_in_place(const uint8_t *(*in_place)(void *ctx, uint32_t addr, uint32_t len));
 /* The bytes the SNES's video memory and settings take. */
 size_t gba_video_bytes(void);
 

@@ -927,6 +927,9 @@ static inline VidSetting vid_setting_at(uint16_t address)
 PF_API void vid_set_vram_address(Platform *pf, PfOrigin o, uint16_t vram_addr);
 PF_API void vid_write_vram(Platform *pf, PfOrigin o, uint16_t value);
 PF_API void vid_write_vram_byte(Platform *pf, PfOrigin o, bool high, uint8_t value);
+/* `count` bytes written through the port one after another, as that many
+ * vid_write_vram_byte's: a row of pixels or of a map's tile numbers. */
+PF_API void vid_write_vram_bytes(Platform *pf, PfOrigin o, bool high, const uint8_t *bytes, uint32_t count);
 /* Fill one half of each word from the current VRAM cursor, preserving the
  * other half. The active port supplies the stride and which half advances
  * the cursor. A zero length leaves the cursor and memory unchanged. */
