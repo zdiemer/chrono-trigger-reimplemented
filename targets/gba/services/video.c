@@ -95,7 +95,7 @@ enum {
     DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
     DISPCNT_OBJ_WINDOW = 0x8000, OBJ_WINDOW = 0x0800,
     BGCNT_4BPP = 0x0000,
-    BLD_DARKEN = 0x00C0, BLD_LIGHTEN = 0x0080, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
+    BLD_DARKEN = 0x00C0, BLD_LIGHTEN = 0x0080, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F, BLD_BACKDROP_SECOND = 0x2000,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
     UNIT_BYTES = 32, UNITS = VRAM_BYTES / UNIT_BYTES,
     TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
@@ -3798,7 +3798,8 @@ static uint16_t backdrop(const LineState *st)
 /* The fixed colour added to or subtracted from layers, where it is a grey
  * (the dialog's and the battle window's shading, a few lines at each
  * strength; the darkness a scene falls into; a sub screen with no layers on
- * it is the fixed colour too): the GBA's blending can't add a colour, but
+ * it is the fixed colour too) and the blending can't add it exactly
+ * (add_by_blending, below): the GBA's blending can't take a colour away, but
  * it can brighten its first targets toward white or darken them toward
  * black by sixteenths. A grey of strength k added to a colour of strength c
  * raises it by k, as brightening by 16k / (31 - c) does; subtracted, it
@@ -3833,6 +3834,51 @@ static void fixed_shading(LineRegisters *r, const LineState *st)
         steps /= 2;
     r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
     r->bldy = (uint16_t)(steps > BLEND_STEPS ? BLEND_STEPS : steps);
+}
+
+/* The fixed colour added to layers with nothing behind them but the
+ * backdrop (the windows' and the dialog's shading, a grey added down their
+ * top half): the GBA's blending of those layers with the backdrop at full
+ * weight, at half where the SNES halves, the line's backdrop the fixed
+ * colour. The GBA's blending adds as the SNES's does, each channel held at
+ * 31, and halves as it does, rounding down, so the sum is the SNES's exactly,
+ * any colour, not only a grey. Where the SNES's backdrop shows on such a
+ * line, the GBA's shows the fixed colour rather than its own; where the
+ * colour window keeps the math to part of the line, it is done across it. */
+static uint16_t layers_through_windows(const LineRegisters *r)
+{
+    return (uint16_t)((r->winin | r->winin >> 8 | r->winout) & 0xF);
+}
+
+/* Whether GBA layer `h` stands behind layer `g` on a line. */
+static bool behind(const LineRegisters *r, unsigned h, unsigned g)
+{
+    unsigned ph = r->bgcnt[h] & 3, pg = r->bgcnt[g] & 3;
+    return ph > pg || (ph == pg && h > g);
+}
+
+static bool add_by_blending(LineRegisters *r, const LineState *st)
+{
+    const VidColorMath *m = &st->math;
+    uint8_t layers = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+    if (st->brightness < 15 || st->mode == 7 || sub_screen_shows_a_layer(st) || !layers || m->subtract ||
+        m->prevent_math == VID_REGION_ALWAYS || m->clip_black != VID_REGION_NEVER)
+        return false;
+    uint16_t added = (uint16_t)(line_layer_bits(st, layers) & 0xF), through = layers_through_windows(r);
+    if (!added)
+        return false;
+    for (unsigned g = 0; g < 4; g++)
+        for (unsigned h = 0; (added >> g & 1) && h < 4; h++)
+            if ((through >> h & 1) && !(added >> h & 1) && behind(r, h, g))
+                return false;
+    /* the sub screen showing nothing is the fixed colour, unhalved */
+    bool half = m->half && !m->sub_screen;
+    if (!st->fixed_color && !half)
+        return true;
+    r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
+    r->bldalpha = half ? 0x0808 : 0x1010;
+    r->backdrop = shown(st->fixed_color);
+    return true;
 }
 
 /* The layers' scroll on a band's line of the GBA's screen, the SNES's line
@@ -3952,7 +3998,7 @@ static void line_blending(LineRegisters *r, const LineState *st)
         uint16_t own = show_the_sub_screens_own(r, st, line_layer_bits(st, first));
         r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | (line_layer_bits(st, second) | own) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
-    } else {
+    } else if (!add_by_blending(r, st)) {
         fixed_shading(r, st);
     }
 }
