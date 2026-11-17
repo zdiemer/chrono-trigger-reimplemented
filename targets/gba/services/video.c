@@ -3101,6 +3101,18 @@ static bool raise_shows_more(const uint8_t *e, int x, int y, unsigned w, unsigne
 static bool sprites_overlap IN_FAST_RAM;   /* the sprites looked at again as the lines change under them */
 static uint8_t lines_made IN_FAST_RAM, lines_looked_at IN_FAST_RAM;   /* counts of the lines shown, made anew */
 
+/* Whether a sprite behind one later (of priority `front`) shown as it is
+ * now was raised or masked when the sprites were last made, and if so
+ * which (`raised`): with the lines unchanged since, it stands. */
+static bool was_looked_at(const uint16_t *shown_as, const uint16_t attributes[3], uint8_t front, bool *raised)
+{
+    if ((shown_as[0] & ~OBJ_WINDOW) != attributes[0] || shown_as[1] != attributes[1] ||
+        (shown_as[2] & ~(3u << 10)) != attributes[2])
+        return false;
+    *raised = (shown_as[2] >> 10 & 3) == front && !(shown_as[0] & OBJ_WINDOW);
+    return *raised || (shown_as[0] & OBJ_WINDOW);
+}
+
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
  * panel shows none. */
 static void present_sprites(void)
@@ -3109,6 +3121,7 @@ static void present_sprites(void)
     Squares squares;
     unsigned count = 0;
     unsigned looked = 0;
+    bool lines_stand = lines_looked_at == lines_made;   /* since the sprites were last looked at */
     lines_looked_at = lines_made;
     memset(squares, 0, sizeof squares);
     sprites_mask = false;
@@ -3160,11 +3173,17 @@ static void present_sprites(void)
             for (unsigned k = 0; k < count; k++)
                 if (shown[k].priority < front && overlap(&here, &shown[k]))
                     front = shown[k].priority;
+        uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
+        uint16_t tile = (uint16_t)((name >> 4) * 32 + sprite_page * PAGE_COLUMNS + (name & 15));
+        uint16_t attributes[3] = { (uint16_t)(gy | shape << 14),
+                                   (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14),
+                                   (uint16_t)(tile | ((e[3] >> 1) & 7) << 12) };
         bool mask = false;
         if (front < priority) {
             bool raised = false;
             sprites_overlap = true;
-            if (looked < RAISES_LOOKED_AT) {
+            bool known = lines_stand && was_looked_at(to, attributes, front, &raised);
+            if (!known && looked < RAISES_LOOKED_AT) {
                 looked++;
                 raised = raise_shows_more(e, here.x, here.y, w, h, priority, front);
             }
@@ -3175,11 +3194,9 @@ static void present_sprites(void)
         over_squares(squares, &here, true);
         shown[count++] = here;
         sprites_mask |= mask;
-        uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
-        uint16_t tile = (uint16_t)((name >> 4) * 32 + sprite_page * PAGE_COLUMNS + (name & 15));
-        set_sprite(to, 0, (uint16_t)(gy | (mask ? OBJ_WINDOW : 0) | shape << 14));
-        set_sprite(to, 1, (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14));
-        set_sprite(to, 2, (uint16_t)(tile | priority << 10 | ((e[3] >> 1) & 7) << 12));
+        set_sprite(to, 0, (uint16_t)(attributes[0] | (mask ? OBJ_WINDOW : 0)));
+        set_sprite(to, 1, attributes[1]);
+        set_sprite(to, 2, (uint16_t)(attributes[2] | priority << 10));
     }
 }
 
