@@ -4902,9 +4902,11 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
  * lines worked out whole, about twenty GBA frames a picture. Not where a
  * line's registers are its own line's as well as its looks': a Mode 7
  * line's plane, a drawn panel's line, mode 2's runs of a layer whose tiles
- * in front are shown again (runs_in_front); nor a line showing a copy of a
- * layer's moved columns, whose place a later line's copy may take
- * (show_columns_copied). */
+ * in front are shown again (runs_in_front), a band that cuts its maps,
+ * whose cut layer_control moves with each line's scroll (a line taken
+ * again would leave the cut where an earlier line put it); nor a line
+ * showing a copy of a layer's moved columns, whose place a later line's
+ * copy may take (show_columns_copied). */
 typedef struct {
     LineState st[2];
     const Band *band[2];
@@ -4927,7 +4929,7 @@ static bool shows_a_copy(const LineRegisters *r)
  * of its band that looks the same takes them. */
 static bool looks_alone(const LineState *st, const Band *b)
 {
-    return st->mode != 7 && !b->drawn && !(st->mode == 2 && (layers[0].overlaid || layers[1].overlaid));
+    return st->mode != 7 && !b->drawn && !b->cut_dots && !(st->mode == 2 && (layers[0].overlaid || layers[1].overlaid));
 }
 
 /* The change made for a kept line of band `b` that shows what `st` does, or
