@@ -1908,9 +1908,8 @@ mode 0's four tiled layers and its sprites:
   colour of 20 halved with the grey, and so where several of the math's
   layers stand over one another, which blending with the backdrop leaves
   whole (`halved_shading_steps`). Math the colour window limits to part of
-  the line is done across it, as the added blending's is (the menus'
-  windows darken toward their foot inside a window 16 dots short of either
-  side, which was left undone). In the census (replayed) the save screen's
+  the line is kept to that part by the GBA's windows (below, "Colour
+  math"). In the census (replayed) the save screen's
   picture clusters in `events-jetbike-race` and `menus-sweep` (1.6M and
   1.5M pixels summed) fell to 0.1M; with `--colours port-style`
   `menus-sweep`'s picture mismatches fell from 18.7M to 2.3M, `new-game`'s
@@ -2078,8 +2077,22 @@ Approximated, or not shown yet (issue #483):
   cover fewer than half of its own.
 - Colour math: the fixed colour added to layers with only the backdrop
   behind them is exact, but where the SNES's backdrop shows on those lines
-  the GBA's shows the fixed colour, and math the colour window confines is
-  done across the line, the brightening and darkening too. Elsewhere the fixed colour on layers is a grey's
+  the GBA's shows the fixed colour (the backdrop is one colour a line).
+  Math the colour window keeps to inside or outside itself is kept there:
+  each of the GBA's window regions blends (its effects bit) only where the
+  SNES's colour window lets the math through (`math_in_region`), the
+  windows taken for it where the layers' windows leave them free. Where
+  they don't, the math is done across the line as before: a frame laid out
+  for mode 2, whose moved columns take the windows, and a line whose
+  layers' and colour windows together make four different regions. Magus's
+  spell in `battle-menu-buttons` (frames 4464-4588) draws a thin ring of
+  red, two windows' difference; added across the line, the whole
+  battlefield had turned red. In the census (replayed) that cluster fell
+  from 5.65M pixels summed to 1.84M (what is left is the backdrop's red
+  outside the ring, above), `battle-menu-buttons`' picture mismatches from
+  7.37M to 3.56M (8.31M to 4.33M with `--colours port-style`), and the
+  other eight movies' within 1%, none with a new picture cluster.
+  Elsewhere the fixed colour on layers is a grey's
   brightening or darkening (above), so a colour that isn't a grey isn't
   added to them (Magus's castle's candle flames, issue #554), and the
   shading taken away is near the SNES's rather than its own: a window's
