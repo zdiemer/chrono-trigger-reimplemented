@@ -1913,7 +1913,16 @@ Approximated, or not shown yet (issue #483):
   GBA's, and those moved up and down on a split layer past them, show as
   their layer lies; the clouds before the Ocean Palace in
   the attract sequence, mode 2 too, still show black.
-- Where both windows cover a dot, the GBA shows window 1's choice.
+- Where both windows cover a dot, the GBA shows its first window's choice,
+  so `window_regions` gives that one whichever SNES window shows the same
+  there. Where neither does, it carries the windows' meeting, and the second
+  carries whatever of the rest differs from outside them. The palace rising
+  in the attract sequence masks its layers outside both windows (its
+  ragged edges and its curtain), so it shows only where they meet; it had
+  shown nothing but a sliver at the left (issue #565). Its census picture
+  cluster went from 16,797 pixels a frame to 6,191, what is left being its
+  shimmer and ripple. A line whose four regions all show differently keeps
+  window 1's choice where they meet.
 - A sprite whose tiles run past a SNES tile table's row or table end takes
   the next row's on the GBA.
 

@@ -4463,19 +4463,18 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
  * first carries the windows' meeting and the second whatever of the rest
  * differs from outside them. Four regions all different can't be shown and
  * keep window 1's choice where they meet. */
-static void window_regions(LineRegisters *r, const LineState *st, const Band *b)
+static void window_regions(LineRegisters *r, const LineState *st, const Band *b, uint16_t neither)
 {
     const VidWindows *w = &st->windows;
     uint16_t one = line_layer_bits(st, region_layers(st, true, false));
     uint16_t two = line_layer_bits(st, region_layers(st, false, true));
-    uint16_t both = line_layer_bits(st, region_layers(st, true, true));
-    uint16_t neither = line_layer_bits(st, region_layers(st, false, false));
     uint16_t win1 = gba_window(w->w1_left, w->w1_right, b), win2 = gba_window(w->w2_left, w->w2_right, b);
     uint8_t meet_left = w->w1_left > w->w2_left ? w->w1_left : w->w2_left;
     uint8_t meet_right = w->w1_right < w->w2_right ? w->w1_right : w->w2_right;
     bool meet = w->w1_left <= w->w1_right && w->w2_left <= w->w2_right && meet_left <= meet_right;
+    uint16_t both = meet ? line_layer_bits(st, region_layers(st, true, true)) : one;
     bool four_kinds = one != two && one != neither && two != neither;
-    if (!meet || both == one || (both != two && four_kinds)) {
+    if (both == one || (both != two && four_kinds)) {
         r->win0h = win1;
         r->win1h = win2;
         r->winin = (uint16_t)(one | two << 8);
@@ -4520,10 +4519,9 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
             controls[n] = layer_control(n, st->map[n], b, st->hofs[n]);
     if ((layers_enabled & VID_BG4_BIT) && !b->drawn && !mode7)
         controls[3] = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
-    if (st->windows.win_main & (VID_ALL_LAYERS)) {
-        window_regions(&r, st, b);
-    }
     r.winout = line_layer_bits(st, region_layers(st, false, false));
+    if (st->windows.win_main & (VID_ALL_LAYERS))
+        window_regions(&r, st, b, r.winout);
     /* Inside the sprite window, what the line shows outside the windows but
      * the sprites. */
     if (sprites_mask) {
