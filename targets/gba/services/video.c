@@ -3858,7 +3858,7 @@ enum {
     SETS_SUB = 0x40, SETS_SCROLL_H = 0x80, SETS_SCROLL_V = 0x400, SETS_MAPS = 0x2000, SETS_BRIGHTNESS = 0x10000,
     SETS_FIXED = 0x20000, SETS_MATH_CONTROL = 0x40000, SETS_MATH_LAYERS = 0x80000,
     SETS_MODE = 0x100000, SETS_M7_A = 0x200000, SETS_M7_B = 0x400000, SETS_M7_C = 0x800000,
-    SETS_M7_D = 0x1000000, SETS_M7_CENTER = 0x2000000,
+    SETS_M7_D = 0x1000000, SETS_M7_CENTER = 0x2000000, SETS_WIN_SUB = 0x4000000,
 };
 
 static uint32_t target_sets(VidLineTarget target)
@@ -3880,7 +3880,7 @@ static uint32_t target_sets(VidLineTarget target)
     case VID_LINE_SCROLL_BG2_V: return SETS_SCROLL_V << 1;
     case VID_LINE_SCROLL_BG3_V: return SETS_SCROLL_V << 2;
     case VID_LINE_BRIGHTNESS: return SETS_BRIGHTNESS;
-    case VID_LINE_SCREENS: return SETS_MAIN | SETS_SUB | SETS_WIN_MAIN;
+    case VID_LINE_SCREENS: return SETS_MAIN | SETS_SUB | SETS_WIN_MAIN | SETS_WIN_SUB;
     case VID_LINE_MAIN_SCREEN: return SETS_MAIN;
     case VID_LINE_SUB_SCREEN: return SETS_SUB;
     case VID_LINE_BG_MAPS: return SETS_MAPS * 7;
@@ -3998,7 +3998,7 @@ static void unit_apply(LineState *st, VidLineTarget target, const uint8_t *v)
     case VID_LINE_SCROLL_BG3_H: scroll_byte(&st->hofs[2], 0, v[0]), scroll_byte(&st->hofs[2], 1, v[1]); break;
     case VID_LINE_SCROLL_BG3_V: scroll_byte(&st->vofs[2], 0, v[0]), scroll_byte(&st->vofs[2], 1, v[1]); break;
     case VID_LINE_BRIGHTNESS: st->brightness = v[0] & 15; st->blank = (v[0] & 0x80) != 0; break;
-    case VID_LINE_SCREENS: st->main_layers = v[0], st->sub_layers = v[1], w->win_main = v[2]; break;
+    case VID_LINE_SCREENS: st->main_layers = v[0], st->sub_layers = v[1], w->win_main = v[2], w->win_sub = v[3]; break;
     case VID_LINE_MAIN_SCREEN: st->main_layers = v[0]; break;
     case VID_LINE_SUB_SCREEN: st->sub_layers = v[0]; break;
     case VID_LINE_BG_MAPS: st->map[0] = v[0], st->map[1] = v[1], st->map[2] = v[2]; break;
@@ -4478,8 +4478,14 @@ static void line_blending(LineRegisters *r, const LineState *st)
  * behind the sprites of the highest priority instead (the battle's
  * sprites), its GBA layer being the frontmost, and the blending adds it to
  * them as its first target: the same sum, the sub screen's dots over the
- * main screen's. With the priority, in a frame whose layers were assigned
- * without it, its tiles in front stand in front of every layer. */
+ * main screen's. Where the sub screen's third layer is windowed too (the
+ * cross's shape), the sub screen shows nothing outside it, and there the
+ * SNES adds the fixed colour instead: the flash that lights the battlefield
+ * as the cross begins. The first two layers are then first targets as
+ * well, over the backdrop as the second at the fixed colour; a tile of the
+ * first over one of the second would add the two, which the battlefield
+ * there doesn't have. With the priority, in a frame whose layers were
+ * assigned without it, its tiles in front stand in front of every layer. */
 static void third_layer_as_the_line_puts_it(LineRegisters *r, const LineState *st)
 {
     bool assigned_in_front = order == &third_in_front_order;
@@ -4500,8 +4506,15 @@ static void third_layer_as_the_line_puts_it(LineRegisters *r, const LineState *s
         else if (l->front || !layers[2].split)
             r->bgcnt[g] &= (uint16_t)~3u;
     }
-    if (added)
-        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, VID_BG3_BIT) | line_layer_bits(st, added_to) << 8);
+    if (!added)
+        return;
+    uint16_t first = line_layer_bits(st, VID_BG3_BIT), second = line_layer_bits(st, added_to);
+    if (st->fixed_color && !m->half && (st->windows.win_sub & VID_BG3_BIT)) {
+        first |= second;
+        second |= BLD_BACKDROP_SECOND >> 8;
+        r->backdrop = added_colour(st->fixed_color, false);
+    }
+    r->bldcnt = (uint16_t)(BLD_ALPHA | first | second << 8);
 }
 
 /* A line that shows nothing: black. The layers stay enabled, every line of
