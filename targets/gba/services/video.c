@@ -3877,7 +3877,7 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
         return true;
     r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
     r->bldalpha = half ? 0x0808 : 0x1010;
-    r->backdrop = st->fixed_color;
+    r->backdrop = shown(st->fixed_color);
     return true;
 }
 
