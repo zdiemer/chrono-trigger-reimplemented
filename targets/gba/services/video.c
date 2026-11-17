@@ -4454,6 +4454,53 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
     show_tiles_in_front_again(r, unused);
 }
 
+/* The GBA's two windows set to show the SNES's four regions of a line: in
+ * window 1 alone, in window 2 alone, in both and in neither. Where both
+ * windows are the GBA shows its first window's choice, so that one carries
+ * whichever SNES window shows the same there; where neither does (both
+ * masks inverted, so the picture shows only where the windows meet: the
+ * palace's edges and its curtain in the attract demo, issue #565), the
+ * first carries the windows' meeting and the second whatever of the rest
+ * differs from outside them. Four regions all different can't be shown and
+ * keep window 1's choice where they meet. */
+static void window_regions(LineRegisters *r, const LineState *st, const Band *b)
+{
+    const VidWindows *w = &st->windows;
+    uint16_t one = line_layer_bits(st, region_layers(st, true, false));
+    uint16_t two = line_layer_bits(st, region_layers(st, false, true));
+    uint16_t both = line_layer_bits(st, region_layers(st, true, true));
+    uint16_t neither = line_layer_bits(st, region_layers(st, false, false));
+    uint16_t win1 = gba_window(w->w1_left, w->w1_right, b), win2 = gba_window(w->w2_left, w->w2_right, b);
+    uint8_t meet_left = w->w1_left > w->w2_left ? w->w1_left : w->w2_left;
+    uint8_t meet_right = w->w1_right < w->w2_right ? w->w1_right : w->w2_right;
+    bool meet = w->w1_left <= w->w1_right && w->w2_left <= w->w2_right && meet_left <= meet_right;
+    bool four_kinds = one != two && one != neither && two != neither;
+    if (!meet || both == one || (both != two && four_kinds)) {
+        r->win0h = win1;
+        r->win1h = win2;
+        r->winin = (uint16_t)(one | two << 8);
+        return;
+    }
+    if (both == two) {
+        r->win0h = win2;
+        r->win1h = win1;
+        r->winin = (uint16_t)(two | one << 8);
+        return;
+    }
+    r->win0h = gba_window(meet_left, meet_right, b);
+    if (one == neither) {
+        r->win1h = win2;
+        r->winin = (uint16_t)(both | two << 8);
+        return;
+    }
+    /* Window 1 alone shows what window 2 alone does, or what neither does:
+     * the second window spans both, or window 1. */
+    uint8_t span_left = w->w1_left < w->w2_left ? w->w1_left : w->w2_left;
+    uint8_t span_right = w->w1_right > w->w2_right ? w->w1_right : w->w2_right;
+    r->win1h = two == neither ? win1 : gba_window(span_left, span_right, b);
+    r->winin = (uint16_t)(both | one << 8);
+}
+
 /* A line's registers: the SNES's line shown on a band's line `down` lines
  * further down the GBA's than the GBA's own. A layer's row on the SNES is
  * its line's (the first shown is its line 1) and its scroll, one further
@@ -4474,10 +4521,7 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     if ((layers_enabled & VID_BG4_BIT) && !b->drawn && !mode7)
         controls[3] = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
     if (st->windows.win_main & (VID_ALL_LAYERS)) {
-        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, b);
-        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, b);
-        r.winin = (uint16_t)(line_layer_bits(st, region_layers(st, true, false)) |
-                             line_layer_bits(st, region_layers(st, false, true)) << 8);
+        window_regions(&r, st, b);
     }
     r.winout = line_layer_bits(st, region_layers(st, false, false));
     /* Inside the sprite window, what the line shows outside the windows but
