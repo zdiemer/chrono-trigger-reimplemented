@@ -1714,8 +1714,16 @@ mode 0's four tiled layers and its sprites:
   then, and the first line's registers are set and the line effects' DMA
   armed there too. A frame whose work runs on past the vertical blank it
   began in (the naming screen's, as the cursor moves down a row) is shown
-  from the next picture's, the last frame's staying whole until then, unless
-  it shows the same as the last; before, the GBA showed such a frame's
+  from the next vertical blank, the last frame's staying whole until then,
+  unless it shows the same as the last: the line counter's interrupt there
+  shows it (`show_pending_at_blank`), arming itself where the frame shown
+  had no changes for it. Until 2026-11-16 it waited for the next picture to
+  be made, which where a game frame takes two GBA frames (the world map's
+  flyover, the jet bike race) is a game frame later: each picture went up
+  a game frame late, the flyover's layers a dot or two off the sprites
+  drawn over them and the racers in the last frame's places. The driver
+  tells a runner the frame whose picture went up as it goes up
+  (`gba_video_tell_shown`), not as it is made. Before, the GBA showed such a frame's
   sprites over the last frame's lines for a frame (the hand on the row
   below while the bands still made room for it on the row above, issue
   #520). A frame with more changes than the other end of the table has
@@ -1798,7 +1806,19 @@ mode 0's four tiled layers and its sprites:
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at
   its horizon, a scene's fall into darkness): on the backdrop it is worked
-  out exactly; on layers, where the colour is a grey, it is the GBA's
+  out exactly. Added to layers with nothing behind them but the backdrop
+  (a window's background, the text in front of it: the shading's top half),
+  it is exact too, any colour: the GBA's blending of those layers with the
+  backdrop at full weight (half where the SNES halves), the line's
+  backdrop the fixed colour, adds each channel held at 31 as the SNES does
+  (`add_by_blending`). Its steps are changes rather than strength steps,
+  about eight more a frame while a window shows. In the census (replayed,
+  fast waits) the colour mismatches fell 24% in `gato-battle`, 30% in
+  `menus-sweep`, 16% in `new-game`, 11% in `attract-demo` and 5% in
+  `events-jetbike-race`, with no new picture cluster; the GBA's frames for
+  `gato-battle` and `menus-sweep` rose 0.9% and 2.2% with the extra
+  changes. Elsewhere on layers, where
+  the colour is a grey, it is the GBA's
   brightening or darkening of them by sixteenths, a grey of k added
   brightening by 16k/24 (against a window's dark colours, 7 of 31) and
   subtracted darkening by 16k/20 (against a scene's brighter ones). A line where only
@@ -1913,11 +1933,15 @@ Approximated, or not shown yet (issue #483):
   the table, and doesn't show itself where no layer covers it; a sprite
   raised instead shows over the dots of the layers between where they
   cover fewer than half of its own.
-- Colour math: the fixed colour on layers is a grey's brightening or
-  darkening (above), so a colour that isn't a grey isn't added to layers,
-  and the shading is near the SNES's rather than its own: the dialog's
-  window a few steps lighter or darker at its edges than natively, the
-  race's fog a little deeper. The sub
+- Colour math: the fixed colour added to layers with only the backdrop
+  behind them is exact, but where the SNES's backdrop shows on those lines
+  the GBA's shows the fixed colour, and math the colour window confines is
+  done across the line. Elsewhere the fixed colour on layers is a grey's
+  brightening or darkening (above), so a colour that isn't a grey isn't
+  added to them (Magus's castle's candle flames, issue #554), and the
+  shading taken away is near the SNES's rather than its own: a window's
+  foot a few steps lighter or darker than natively, the race's fog a little
+  deeper. The sub
   screen added to the main screen is the GBA's blending at full weight
   where the sub screen's layers are on the main screen too, and halved only
   with those: where the sub screen shows nothing the SNES adds the fixed

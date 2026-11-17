@@ -95,7 +95,7 @@ enum {
     DISPCNT_FORCED_BLANK = 0x0080, DISPCNT_BG0 = 0x0100, DISPCNT_OBJ = 0x1000, DISPCNT_OBJ_2D = 0x0000,
     DISPCNT_OBJ_WINDOW = 0x8000, OBJ_WINDOW = 0x0800,
     BGCNT_4BPP = 0x0000,
-    BLD_DARKEN = 0x00C0, BLD_LIGHTEN = 0x0080, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F,
+    BLD_DARKEN = 0x00C0, BLD_LIGHTEN = 0x0080, BLD_ALPHA = 0x0040, BLD_ALL_FIRST = 0x003F, BLD_BACKDROP_SECOND = 0x2000,
     VRAM_BYTES = 0x10000, BLOCK_BYTES = 512, BLOCKS = VRAM_BYTES / BLOCK_BYTES,
     UNIT_BYTES = 32, UNITS = VRAM_BYTES / UNIT_BYTES,
     TILES_4BPP_BYTES = 1024 * 32, TILES_2BPP_BYTES = 1024 * 16, SCREEN_BYTES = 0x800,
@@ -4001,7 +4001,8 @@ static uint16_t backdrop(const LineState *st)
 /* The fixed colour added to or subtracted from layers, where it is a grey
  * (the dialog's and the battle window's shading, a few lines at each
  * strength; the darkness a scene falls into; a sub screen with no layers on
- * it is the fixed colour too): the GBA's blending can't add a colour, but
+ * it is the fixed colour too) and the blending can't add it exactly
+ * (add_by_blending, below): the GBA's blending can't take a colour away, but
  * it can brighten its first targets toward white or darken them toward
  * black by sixteenths. A grey of strength k added to a colour of strength c
  * raises it by k, as brightening by 16k / (31 - c) does; subtracted, it
@@ -4036,6 +4037,51 @@ static void fixed_shading(LineRegisters *r, const LineState *st)
         steps /= 2;
     r->bldcnt = (uint16_t)((m->subtract ? BLD_DARKEN : BLD_LIGHTEN) | line_layer_bits(st, layers));
     r->bldy = (uint16_t)(steps > BLEND_STEPS ? BLEND_STEPS : steps);
+}
+
+/* The fixed colour added to layers with nothing behind them but the
+ * backdrop (the windows' and the dialog's shading, a grey added down their
+ * top half): the GBA's blending of those layers with the backdrop at full
+ * weight, at half where the SNES halves, the line's backdrop the fixed
+ * colour. The GBA's blending adds as the SNES's does, each channel held at
+ * 31, and halves as it does, rounding down, so the sum is the SNES's exactly,
+ * any colour, not only a grey. Where the SNES's backdrop shows on such a
+ * line, the GBA's shows the fixed colour rather than its own; where the
+ * colour window keeps the math to part of the line, it is done across it. */
+static uint16_t layers_through_windows(const LineRegisters *r)
+{
+    return (uint16_t)((r->winin | r->winin >> 8 | r->winout) & 0xF);
+}
+
+/* Whether GBA layer `h` stands behind layer `g` on a line. */
+static bool behind(const LineRegisters *r, unsigned h, unsigned g)
+{
+    unsigned ph = r->bgcnt[h] & 3, pg = r->bgcnt[g] & 3;
+    return ph > pg || (ph == pg && h > g);
+}
+
+static bool add_by_blending(LineRegisters *r, const LineState *st)
+{
+    const VidColorMath *m = &st->math;
+    uint8_t layers = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT | VID_BG3_BIT | VID_BG4_BIT));
+    if (st->brightness < 15 || st->mode == 7 || sub_screen_shows_a_layer(st) || !layers || m->subtract ||
+        m->prevent_math == VID_REGION_ALWAYS || m->clip_black != VID_REGION_NEVER)
+        return false;
+    uint16_t added = (uint16_t)(line_layer_bits(st, layers) & 0xF), through = layers_through_windows(r);
+    if (!added)
+        return false;
+    for (unsigned g = 0; g < 4; g++)
+        for (unsigned h = 0; (added >> g & 1) && h < 4; h++)
+            if ((through >> h & 1) && !(added >> h & 1) && behind(r, h, g))
+                return false;
+    /* the sub screen showing nothing is the fixed colour, unhalved */
+    bool half = m->half && !m->sub_screen;
+    if (!st->fixed_color && !half)
+        return true;
+    r->bldcnt = (uint16_t)(BLD_ALPHA | added | BLD_BACKDROP_SECOND);
+    r->bldalpha = half ? 0x0808 : 0x1010;
+    r->backdrop = shown(st->fixed_color);
+    return true;
 }
 
 /* The layers' scroll on a band's line of the GBA's screen, the SNES's line
@@ -4116,7 +4162,7 @@ static void line_blending(LineRegisters *r, const LineState *st)
         uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | (m->half ? 0 : VID_BACK_BIT));
         r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
-    } else {
+    } else if (!add_by_blending(r, st)) {
         fixed_shading(r, st);
     }
 }
@@ -4811,7 +4857,10 @@ __attribute__((target("arm"), section(".iwram"))) static void await_change(void)
     DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | line << 8);
 }
 
-/* In the vertical blank, the first line's registers; on the line above a
+__attribute__((long_call, noinline)) static bool show_pending_at_blank(void);
+
+/* In the vertical blank, a picture made too late for the last one shown
+ * (show_the_frame), or else the first line's registers; on the line above a
  * change, its horizontal blank's interrupt; at that, the change's registers,
  * keeping the horizontal blank's interrupt where the next change is the
  * next line. In ARM, in fast RAM. */
@@ -4821,10 +4870,12 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
     uint16_t line = VCOUNT;
     if (by_line && (raised & IRQ_VCOUNT)) {
         if (line >= GBA_LINES) {
-            set_line(&change_registers[shown_place(0)]);
-            arm_the_lines();
-            next_change = 1;
-            await_change();
+            if (!show_pending_at_blank()) {
+                set_line(&change_registers[shown_place(0)]);
+                arm_the_lines();
+                next_change = 1;
+                await_change();
+            }
         } else {
             REG_IF = IRQ_HBLANK;
             DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
@@ -5247,13 +5298,17 @@ static bool frame_differs(bool made, uint8_t count)
 
 static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
 static uint8_t pending_count;
+static uint32_t made_frame IN_FAST_RAM, pending_frame IN_FAST_RAM;   /* the game's frames whose pictures they are */
+static void (*tell_shown)(uint32_t frame) IN_FAST_RAM;   /* told the frame whose picture goes on the screen */
 static bool picture_hidden;   /* black since hide_the_picture, until a frame is shown */
 
 /* The frame's picture shown from here, with the interrupts off; or, `at_blank`,
  * from the vertical blank, the line counter's interrupt there setting its
  * first line's registers (on_line), the picture hidden until then. */
-static void frame_shown(bool made, uint8_t count, bool at_blank)
+static void frame_shown(bool made, uint8_t count, bool at_blank, uint32_t frame)
 {
+    if (tell_shown)
+        tell_shown(frame);
     if (made) {
         if (lines_differ(count))
             looks_made_from++;
@@ -5308,39 +5363,74 @@ static void frame_shown(bool made, uint8_t count, bool at_blank)
     await_change();
 }
 
+/* The line counter's interrupt at the vertical blank, where the frame shown
+ * has none: its lines left as they stand, no change past those it has. */
+static void await_the_blank(void)
+{
+    if (by_line)
+        return;
+    gba_interrupt_handler(IRQ_VCOUNT | IRQ_HBLANK, on_line);
+    next_change = changes;
+    await_change();
+    DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_VCOUNT_IRQ);
+    REG_IF = IRQ_VCOUNT | IRQ_HBLANK;
+    REG_IE = (uint16_t)(REG_IE | IRQ_VCOUNT | IRQ_HBLANK);
+    by_line = true;
+}
+
 static void show_the_frame(bool made, uint8_t count)
 {
     bool late = VCOUNT < GBA_LINES, differs = late && (picture_hidden || frame_differs(made, count));
     REG_IME = 0;
     if (!late) {
-        frame_shown(made, count, false);
+        frame_shown(made, count, false, made_frame);
     } else if (!differs) {
         if (made)
             show_from_end(made_end);
         sprites_aside = false;
+        if (tell_shown)
+            tell_shown(made_frame);
     } else if (picture_hidden) {
         /* black meanwhile, so nothing is shown torn: shown whole from the
          * vertical blank, rather than from the next picture's, which a
          * scene's loading frames put off by a dozen GBA frames and more */
-        frame_shown(made, count, true);
+        frame_shown(made, count, true, made_frame);
     } else {
-        /* shown as the next picture's vertical blank begins */
+        /* shown from the next vertical blank (show_pending_at_blank) */
         pending_made = made;
         pending_count = count;
+        pending_frame = made_frame;
         show_pending = true;
+        await_the_blank();
     }
     REG_IME = 1;
 }
 
+/* A picture made too late for the vertical blank it was to be shown from,
+ * shown from the next: the line counter's interrupt there (on_line) shows
+ * it, so that a game frame that runs on for GBA frames after it doesn't
+ * keep it off the screen until the next picture is made. The world map's
+ * flyover, two GBA frames a game frame, showed each picture a game frame
+ * late, its layers a dot or two from the sprites drawn over them. False
+ * where none waits. In the vertical blank, from the interrupt. */
+__attribute__((long_call, noinline)) static bool show_pending_at_blank(void)
+{
+    if (!show_pending)
+        return false;
+    show_pending = false;
+    frame_shown(pending_made, pending_count, false, pending_frame);
+    return true;
+}
+
 /* A frame's picture made after the vertical blank it was to be shown from,
- * shown from the vertical blank the next picture is made in: before it, for
- * a frame whose lines stand are the last frame's. */
+ * where the interrupt at the next didn't show it (show_pending_at_blank):
+ * shown from the vertical blank the next picture is made in, before it. */
 static void show_the_pending_frame(void)
 {
     if (!show_pending)
         return;
     REG_IME = 0;
-    frame_shown(pending_made, pending_count, false);
+    frame_shown(pending_made, pending_count, false, pending_frame);
     show_pending = false;
     REG_IME = 1;
 }
@@ -5598,9 +5688,12 @@ static void black_where_nothing_shows(Platform *pf)
         hide_the_picture();
 }
 
-void gba_video_present(Platform *pf)
+void gba_video_tell_shown(void (*shown)(uint32_t frame)) { tell_shown = shown; }
+
+void gba_video_present(Platform *pf, uint32_t frame)
 {
     show_the_pending_frame();
+    made_frame = frame;
     /* Tiles that found no place have the caches started afresh: a second
      * on where a tile missed since the layout, eight where only the layout's
      * own misses stand (starting afresh from the same maps misses the same
