@@ -412,6 +412,7 @@ int main(void)
                   1);
     direct_sound_start(mixer_fill);
     bool driven = drive_open();
+    gba_video_tell_shown(drive_showing);
     fprintf(stderr, "ct_gba: playing, the pads from %s\n", driven ? "the runner" : "the keypad");
 
     /* Each frame's cycles: the game's, the sound driver's and the picture's,
@@ -444,8 +445,7 @@ int main(void)
             uint32_t blank = cycles_now();
             picture_shown(&run.pictures, blank);
             picture_paced(&run.pacing, blank, run.frames + 1);
-            drive_showing(run.frames + 1);
-            gba_video_present(&pf);
+            gba_video_present(&pf, run.frames + 1);
             picture = cycles_now() - blank;
             picture_made(&run.pacing, picture);
         }

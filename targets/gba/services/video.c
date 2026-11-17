@@ -4654,7 +4654,10 @@ __attribute__((target("arm"), section(".iwram"))) static void await_change(void)
     DISPSTAT = (uint16_t)((DISPSTAT & 0x00FF & ~DISPSTAT_HBLANK_IRQ) | line << 8);
 }
 
-/* In the vertical blank, the first line's registers; on the line above a
+__attribute__((long_call, noinline)) static bool show_pending_at_blank(void);
+
+/* In the vertical blank, a picture made too late for the last one shown
+ * (show_the_frame), or else the first line's registers; on the line above a
  * change, its horizontal blank's interrupt; at that, the change's registers,
  * keeping the horizontal blank's interrupt where the next change is the
  * next line. In ARM, in fast RAM. */
@@ -4664,10 +4667,12 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void on_line(
     uint16_t line = VCOUNT;
     if (by_line && (raised & IRQ_VCOUNT)) {
         if (line >= GBA_LINES) {
-            set_line(&change_registers[shown_place(0)]);
-            arm_the_lines();
-            next_change = 1;
-            await_change();
+            if (!show_pending_at_blank()) {
+                set_line(&change_registers[shown_place(0)]);
+                arm_the_lines();
+                next_change = 1;
+                await_change();
+            }
         } else {
             REG_IF = IRQ_HBLANK;
             DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_HBLANK_IRQ);
@@ -5086,13 +5091,17 @@ static bool frame_differs(bool made, uint8_t count)
 
 static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
 static uint8_t pending_count;
+static uint32_t made_frame IN_FAST_RAM, pending_frame IN_FAST_RAM;   /* the game's frames whose pictures they are */
+static void (*tell_shown)(uint32_t frame) IN_FAST_RAM;   /* told the frame whose picture goes on the screen */
 static bool picture_hidden;   /* black since hide_the_picture, until a frame is shown */
 
 /* The frame's picture shown from here, with the interrupts off; or, `at_blank`,
  * from the vertical blank, the line counter's interrupt there setting its
  * first line's registers (on_line), the picture hidden until then. */
-static void frame_shown(bool made, uint8_t count, bool at_blank)
+static void frame_shown(bool made, uint8_t count, bool at_blank, uint32_t frame)
 {
+    if (tell_shown)
+        tell_shown(frame);
     if (made)
         show_from_end(made_end);
     changes = count;
@@ -5144,39 +5153,74 @@ static void frame_shown(bool made, uint8_t count, bool at_blank)
     await_change();
 }
 
+/* The line counter's interrupt at the vertical blank, where the frame shown
+ * has none: its lines left as they stand, no change past those it has. */
+static void await_the_blank(void)
+{
+    if (by_line)
+        return;
+    gba_interrupt_handler(IRQ_VCOUNT | IRQ_HBLANK, on_line);
+    next_change = changes;
+    await_change();
+    DISPSTAT = (uint16_t)(DISPSTAT | DISPSTAT_VCOUNT_IRQ);
+    REG_IF = IRQ_VCOUNT | IRQ_HBLANK;
+    REG_IE = (uint16_t)(REG_IE | IRQ_VCOUNT | IRQ_HBLANK);
+    by_line = true;
+}
+
 static void show_the_frame(bool made, uint8_t count)
 {
     bool late = VCOUNT < GBA_LINES, differs = late && (picture_hidden || frame_differs(made, count));
     REG_IME = 0;
     if (!late) {
-        frame_shown(made, count, false);
+        frame_shown(made, count, false, made_frame);
     } else if (!differs) {
         if (made)
             show_from_end(made_end);
         sprites_aside = false;
+        if (tell_shown)
+            tell_shown(made_frame);
     } else if (picture_hidden) {
         /* black meanwhile, so nothing is shown torn: shown whole from the
          * vertical blank, rather than from the next picture's, which a
          * scene's loading frames put off by a dozen GBA frames and more */
-        frame_shown(made, count, true);
+        frame_shown(made, count, true, made_frame);
     } else {
-        /* shown as the next picture's vertical blank begins */
+        /* shown from the next vertical blank (show_pending_at_blank) */
         pending_made = made;
         pending_count = count;
+        pending_frame = made_frame;
         show_pending = true;
+        await_the_blank();
     }
     REG_IME = 1;
 }
 
+/* A picture made too late for the vertical blank it was to be shown from,
+ * shown from the next: the line counter's interrupt there (on_line) shows
+ * it, so that a game frame that runs on for GBA frames after it doesn't
+ * keep it off the screen until the next picture is made. The world map's
+ * flyover, two GBA frames a game frame, showed each picture a game frame
+ * late, its layers a dot or two from the sprites drawn over them. False
+ * where none waits. In the vertical blank, from the interrupt. */
+__attribute__((long_call, noinline)) static bool show_pending_at_blank(void)
+{
+    if (!show_pending)
+        return false;
+    show_pending = false;
+    frame_shown(pending_made, pending_count, false, pending_frame);
+    return true;
+}
+
 /* A frame's picture made after the vertical blank it was to be shown from,
- * shown from the vertical blank the next picture is made in: before it, for
- * a frame whose lines stand are the last frame's. */
+ * where the interrupt at the next didn't show it (show_pending_at_blank):
+ * shown from the vertical blank the next picture is made in, before it. */
 static void show_the_pending_frame(void)
 {
     if (!show_pending)
         return;
     REG_IME = 0;
-    frame_shown(pending_made, pending_count, false);
+    frame_shown(pending_made, pending_count, false, pending_frame);
     show_pending = false;
     REG_IME = 1;
 }
@@ -5430,9 +5474,12 @@ static void black_where_nothing_shows(Platform *pf)
         hide_the_picture();
 }
 
-void gba_video_present(Platform *pf)
+void gba_video_tell_shown(void (*shown)(uint32_t frame)) { tell_shown = shown; }
+
+void gba_video_present(Platform *pf, uint32_t frame)
 {
     show_the_pending_frame();
+    made_frame = frame;
     /* Tiles that found no place have the caches started afresh: a second
      * on where a tile missed since the layout, eight where only the layout's
      * own misses stand (starting afresh from the same maps misses the same
