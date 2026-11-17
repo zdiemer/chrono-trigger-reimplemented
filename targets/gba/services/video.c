@@ -3099,7 +3099,7 @@ static void set_sprite(uint16_t *to, unsigned attribute, uint16_t value)
 enum { RAISES_LOOKED_AT = 16, RAISED_WIDEST = 32, LINES_A_LOOK = 4, LINE_LOOKED_AT = 1 };
 static bool raise_shows_more(const uint8_t *e, int x, int y, unsigned w, unsigned h, uint8_t from, uint8_t to);
 static bool sprites_overlap IN_FAST_RAM;   /* the sprites looked at again as the lines change under them */
-static uint8_t lines_made IN_FAST_RAM, lines_looked_at IN_FAST_RAM;   /* counts of the lines shown, made anew */
+static uint8_t lines_made IN_FAST_RAM, lines_looked_at IN_FAST_RAM;   /* counts of the lines shown that changed */
 
 /* Whether a sprite behind one later (of priority `front`) shown as it is
  * now was raised or masked when the sprites were last made, and if so
@@ -5206,14 +5206,9 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
  * at once; one that shows what the last showed, as most do, takes the
  * GBA's frame as it stands. A frame of one change sets it alone; one of
  * more has the interrupts set the rest, line by line. */
-static bool frame_differs(bool made, uint8_t count)
+/* Whether the frame's `count` changes made differ from those shown. */
+static bool lines_differ(uint8_t count)
 {
-    if (sprites_aside)
-        return true;
-    if (plane_dma != plane_shown || strength_dma != strength_steps)
-        return true;
-    if (!made)
-        return false;
     if (count != changes || count * 2u > GBA_LINES)
         return true;
     for (unsigned k = 0; k < count; k++)
@@ -5221,6 +5216,15 @@ static bool frame_differs(bool made, uint8_t count)
             memcmp(&change_registers[change_place(shown_end, k)], made_change(k), sizeof(LineRegisters)) != 0)
             return true;
     return false;
+}
+
+static bool frame_differs(bool made, uint8_t count)
+{
+    if (sprites_aside)
+        return true;
+    if (plane_dma != plane_shown || strength_dma != strength_steps)
+        return true;
+    return made && lines_differ(count);
 }
 
 static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
@@ -5233,8 +5237,9 @@ static bool picture_hidden;   /* black since hide_the_picture, until a frame is 
 static void frame_shown(bool made, uint8_t count, bool at_blank)
 {
     if (made) {
+        if (lines_differ(count))
+            lines_made++;
         show_from_end(made_end);
-        lines_made++;
     }
     changes = count;
     plane_dma = plane_shown;
@@ -5292,10 +5297,8 @@ static void show_the_frame(bool made, uint8_t count)
     if (!late) {
         frame_shown(made, count, false);
     } else if (!differs) {
-        if (made) {
+        if (made)
             show_from_end(made_end);
-            lines_made++;
-        }
         sprites_aside = false;
     } else if (picture_hidden) {
         /* black meanwhile, so nothing is shown torn: shown whole from the
