@@ -1436,17 +1436,25 @@ static const Order *order_of_mode(void)
 
 /* Whether a layer not split stands in front of the sprites: where more of
  * its map's units have only tiles in front than only tiles behind; mode 1's
- * third layer put in front, where it has any tiles in front or its own map
- * isn't shown (its text and panels, which the mode puts in front of
- * everything; what it has behind is mostly blank). Mode 2 shows no third
- * layer; where a mode 1 line below shows it, it is the menus' text, put in
- * front so (their description of a tech or an item). */
+ * third layer put in front, where it has any tiles in front (its text and
+ * panels, which the mode puts in front of everything; what it has behind is
+ * mostly blank), or where its own map isn't shown and the maps the lines
+ * show in its place have no tiles behind either (a battle window's text, cut
+ * to the view). A third layer of tiles behind alone stays behind, as on the
+ * SNES, where the first two layers' tiles cover it: what a room keeps on it
+ * out of sight (12,000 BC's cave, Lucca's house at the End of Time's gate
+ * covered in light circles otherwise). Mode 2 shows no third layer; where a
+ * mode 1 line below shows it, it is the menus' text, put in front so (their
+ * description of a tech or an item). */
 static bool stands_in_front(unsigned n)
 {
     unsigned front, behind;
-    bool third_in_front = n == 2 && (order_of_mode() == &third_in_front_order || order_of_mode() == &mode2_order);
+    const Order *o = order_of_mode();
+    bool third_in_front = n == 2 && (o == &third_in_front_order || o == &mode2_order);
     count_priorities(n, !third_in_front, &front, &behind);
-    return third_in_front ? front > 0 || !layers[n].own_map : front > behind;
+    if (!third_in_front)
+        return front > behind;
+    return front > 0 || (!layers[n].own_map && (o == &mode2_order || !behind));
 }
 
 /* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
@@ -2601,6 +2609,7 @@ static void convert_block(unsigned k, uint32_t units)
                 convert_map_units(block, units, n, layers[n].map_byte, false, NULL, NO_PLACE, NO_PLACE);
         uint32_t front = owner->front_byte + ((block - owner->map_byte) & (VRAM_BYTES - 1));
         convert_map_units(block, units, 4, 0, false, owner, block, owner->split ? front : NO_PLACE);
+
         if (owner->overlaid)
             convert_map_units(block, units, 4, 0, false, owner, NO_PLACE, front);
     }
@@ -3882,6 +3891,10 @@ static const LineState *line_looks(const LineState *st, const Band *b, uint16_t 
  * its colour math. Adding the sub screen to the layers colour math takes
  * in is the GBA's blending of two targets at full weight (half at half): of
  * the sub screen, only what the main screen shows too, and the backdrop.
+ * Where the sub screen shows nothing the SNES adds the fixed colour and
+ * doesn't halve, so a halved sum leaves the backdrop out: the Millennial
+ * Fair's ground, halved with its sub screen's light where the GBA can't
+ * show it, stays as bright as natively rather than halved toward black.
  * The SNES's subtraction of a sub screen has no GBA counterpart. */
 static void line_blending(LineRegisters *r, const LineState *st)
 {
@@ -3897,7 +3910,7 @@ static void line_blending(LineRegisters *r, const LineState *st)
     const VidColorMath *m = &st->math;
     uint8_t first = (uint8_t)(m->layers & (st->main_layers | VID_BACK_BIT));
     if (st->brightness == 15 && sub_screen_shows_a_layer(st) && !m->subtract && first && m->prevent_math != VID_REGION_ALWAYS) {
-        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | VID_BACK_BIT);
+        uint8_t second = (uint8_t)((st->sub_layers & st->main_layers & VID_ALL_LAYERS) | (m->half ? 0 : VID_BACK_BIT));
         r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, first) | line_layer_bits(st, second) << 8);
         r->bldalpha = m->half ? 0x0808 : 0x1010;
     } else {

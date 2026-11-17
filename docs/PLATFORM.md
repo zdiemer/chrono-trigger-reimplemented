@@ -1874,7 +1874,11 @@ Approximated, or not shown yet (issue #483):
   the GBA has layers to spare: the field, with three layers that have them,
   splits one, and mode 0 none. Mode 1's third layer in front, where the mode
   puts it in front of every sprite, is in front of every layer but the
-  sprites of the lowest priority show in front of its tiles behind too. A
+  sprites of the lowest priority show in front of its tiles behind too.
+  With no tiles in front it stands behind the first two, as on the SNES,
+  even where only the lines show its map: the light circles 12,000 BC's
+  cave and Lucca's house keep on it out of sight covered both rooms, and
+  the End of Time's lamp lit its floor in streaks. A
   split takes its copies' room from the tile caches.
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it.
@@ -1884,7 +1888,11 @@ Approximated, or not shown yet (issue #483):
   window a few steps lighter or darker at its edges than natively, the
   race's fog a little deeper. The sub
   screen added to the main screen is the GBA's blending at full weight
-  where the sub screen's layers are on the main screen too; a sub screen's
+  where the sub screen's layers are on the main screen too, and halved only
+  with those: where the sub screen shows nothing the SNES adds the fixed
+  colour unhalved, so the Millennial Fair's ground, halved with a sub screen
+  of its own, stays as bright as natively (halved with the backdrop, the
+  whole Fair was drawn darker); a sub screen's
   layers subtracted, a sub screen of its own and the colour window aren't
   (colour math the colour window limits isn't done: the time warp shows its
   waves without the glow).
