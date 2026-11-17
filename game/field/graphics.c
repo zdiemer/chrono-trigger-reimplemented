@@ -59,6 +59,20 @@ static void copy_sprite_tile(GameState *g, ObjectGraphics set, uint16_t tile, ui
  * build bank. */
 static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
 {
+    /* graphics built in the build bank that overlap where the tile goes: a
+     * byte read and written at a time, as each write reaches the bytes still
+     * to be read */
+    uint16_t at = field_tile_offset(tile);
+    uint32_t source = ((uint32_t)set.bank << 16 | set.address) + at;
+    uint32_t into = (uint32_t)FIELD_BUILD_BANK << 16 | to;
+    if (source + FIELD_TILE_BYTES > into && into + FIELD_TILE_BYTES > source) {
+        uint32_t graphics = (uint32_t)set.bank << 16 | set.address;
+        for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++) {
+            uint8_t b = field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics + (uint16_t)(at + k)));
+            wram_write8(g, ((uint32_t)FIELD_BUILD_BANK << 16) + (uint16_t)(to + k), b);
+        }
+        return;
+    }
     uint8_t bytes[FIELD_TILE_BYTES];
     field_read_frame_tile(g, set, tile, bytes);
     if (to <= 0x10000u - FIELD_TILE_BYTES) {
@@ -76,12 +90,13 @@ static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t 
 void field_read_frame_tile(const GameState *g, ObjectGraphics set, uint16_t tile, uint8_t out[FIELD_TILE_BYTES])
 {
     if (tile & FIELD_TILE_MIRRORED) {
-        /* its bytes' places wrap in the bank, where the straight copy's carry */
+        /* each byte's place is the set's address plus the tile's offset and
+         * the byte's, that offset in 16 bits: it carries into the next bank
+         * past $FFFF, but the offset itself wraps */
         uint16_t at = field_tile_offset(tile);
         uint32_t graphics = (uint32_t)set.bank << 16 | set.address;
-        uint16_t first = (uint16_t)(set.address + at);
-        if (first <= 0x10000u - FIELD_TILE_BYTES)
-            field_sprite_graphics_read(g, (graphics & 0xFF0000u) | first, out, FIELD_TILE_BYTES);
+        if (at <= 0x10000u - FIELD_TILE_BYTES)
+            field_sprite_graphics_read(g, graphics + at, out, FIELD_TILE_BYTES);
         else
             for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++)
                 out[k] = field_sprite_graphics_byte(g, graphics + (uint16_t)(at + k));
