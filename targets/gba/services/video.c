@@ -3864,12 +3864,12 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
     if (st->brightness < 15 || st->mode == 7 || sub_screen_shows_a_layer(st) || !layers || m->subtract ||
         m->prevent_math == VID_REGION_ALWAYS || m->clip_black != VID_REGION_NEVER)
         return false;
-    uint16_t added = (uint16_t)(line_layer_bits(st, layers) & 0xF), shown = layers_through_windows(r);
+    uint16_t added = (uint16_t)(line_layer_bits(st, layers) & 0xF), through = layers_through_windows(r);
     if (!added)
         return false;
     for (unsigned g = 0; g < 4; g++)
         for (unsigned h = 0; (added >> g & 1) && h < 4; h++)
-            if ((shown >> h & 1) && !(added >> h & 1) && behind(r, h, g))
+            if ((through >> h & 1) && !(added >> h & 1) && behind(r, h, g))
                 return false;
     /* the sub screen showing nothing is the fixed colour, unhalved */
     bool half = m->half && !m->sub_screen;
