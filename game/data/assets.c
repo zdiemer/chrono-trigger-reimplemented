@@ -96,6 +96,14 @@ void asset_note_outside(uint32_t at)
         outside.first = at & 0xFFFFFFu;
 }
 
+/* A path taken seldom, kept out of line where the compiler can be asked:
+ * the paths that call it run from a small target's fast memory. */
+#if defined(__GNUC__)
+#define SELDOM __attribute__((noinline))
+#else
+#define SELDOM
+#endif
+
 /* ---- The store ---------------------------------------------------------------------------------- */
 
 static const AssetSource *source;
@@ -128,7 +136,7 @@ void assets_use(const AssetSource *s)
 /* A resource asked of the source and the catalogue, into its place among
  * those held: seldom, kept apart from held_resource, which runs from a small
  * target's fast memory. */
-__attribute__((noinline)) static const Held *hold_resource(AssetId id)
+SELDOM static const Held *hold_resource(AssetId id)
 {
     if (!holding)
         assets_use(source);
@@ -191,7 +199,7 @@ static inline const uint8_t *in_last_run(uint32_t at)
  * found afresh and kept as the one found last in its 4 KiB; NULL where `a`
  * lies in none. Kept apart from served, which runs from a small target's
  * fast memory. */
-__attribute__((noinline)) static const Held *find_anew(uint32_t at, uint32_t a)
+SELDOM static const Held *find_anew(uint32_t at, uint32_t a)
 {
     AssetId id = asset_containing(at);
     if (id == ASSET_NONE)
@@ -212,13 +220,13 @@ static const Held *found_at(uint32_t at, uint32_t a)
 /* The last run made the resource `f` holds in the bank `at` (cartridge
  * address `a`) lies in, within the part of the bank that is the cartridge's
  * (its upper half, in the banks that mirror only that). */
-__attribute__((noinline)) static void remember_run(const Held *f, uint32_t at, uint32_t a)
+SELDOM static void remember_run(const Held *f, uint32_t at, uint32_t a)
 {
     uint8_t bank = (uint8_t)(at >> 16);
     uint32_t whole = bank >= ROM_BANKS || (bank >= 0x40 && bank < 0x7E);
     uint32_t into = a - f->at, in_bank = (uint16_t)at - (whole ? 0 : UPPER_HALF);
     uint32_t back = into < in_bank ? into : in_bank;   /* not before the cartridge's part of the bank */
-    uint32_t ahead = f->length - into, bank_left = 0x10000u - in_bank;
+    uint32_t ahead = f->length - into, bank_left = 0x10000u - (uint16_t)at;   /* to the bank's end */
     last_run.at = at - back;
     last_run.length = back + (ahead < bank_left ? ahead : bank_left);
     last_run.bytes = f->bytes + (into - back);
