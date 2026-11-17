@@ -3685,6 +3685,7 @@ typedef struct {
     uint8_t brightness;
     bool blank;
     uint8_t mode;         /* the SNES's BG mode */
+    bool bg3_priority;    /* mode 1's: the third layer's tiles in front stand in front of everything */
     uint8_t m7_latch;
     VidMode7 m7;
 } LineState;
@@ -4014,7 +4015,12 @@ static void unit_apply(LineState *st, VidLineTarget target, const uint8_t *v)
         vid_color_math_decode(&st->math, VID_MATH_LAYERS, v[1]);
         break;
     case VID_LINE_BG2_MAP: st->map[1] = v[0]; break;
-    case VID_LINE_MODE: case VID_LINE_BG_MODE: st->mode = v[0] & 7; break;
+    case VID_LINE_MODE: case VID_LINE_BG_MODE: {
+        VidMode m = vid_mode_decode(v[0]);
+        st->mode = m.mode;
+        st->bg3_priority = m.bg3_priority;
+        break;
+    }
     /* the Mode 7 registers' pairs: each takes its two bytes through the latch */
     case VID_LINE_MODE7_AB: case VID_LINE_MODE7_CD: {
         int16_t *first = target == VID_LINE_MODE7_AB ? &st->m7.a : &st->m7.c;
@@ -4455,6 +4461,47 @@ static void line_blending(LineRegisters *r, const LineState *st)
     } else if (!add_by_blending(r, st)) {
         fixed_shading(r, st);
     }
+}
+
+/* The third layer on a mode 1 line that sets its priority otherwise than
+ * the frame's layers were assigned for (order_of_mode, from the mode the
+ * frame starts in): a line effect may set the mode again part of the way
+ * down, with the third layer's priority or without it. The battle's
+ * windows put their text in front of everything, and the battlefield below
+ * them takes the priority back, where a tech's picture on the third layer
+ * (Flea's red cross in the attract demo) stands behind the sprites and is
+ * added to the first two layers as the sub screen.
+ *
+ * Without the priority, the third layer stands behind every sprite and
+ * every tile of the first two; but where the line's colour math adds a sub
+ * screen it is on to the first two layers, it stands in front of them and
+ * behind the sprites of the highest priority instead (the battle's
+ * sprites), its GBA layer being the frontmost, and the blending adds it to
+ * them as its first target: the same sum, the sub screen's dots over the
+ * main screen's. With the priority, in a frame whose layers were assigned
+ * without it, its tiles in front stand in front of every layer. */
+static void third_layer_as_the_line_puts_it(LineRegisters *r, const LineState *st)
+{
+    bool assigned_in_front = order == &third_in_front_order;
+    if (st->mode != 1 || (order != &layers_order && !assigned_in_front) || st->bg3_priority == assigned_in_front)
+        return;
+    const VidColorMath *m = &st->math;
+    uint8_t added_to = (uint8_t)(m->layers & st->main_layers & (VID_BG1_BIT | VID_BG2_BIT));
+    bool added = assigned_in_front && (r->bldcnt & BLD_DARKEN) == BLD_ALPHA && m->sub_screen && !m->subtract &&
+                 (st->sub_layers & VID_BG3_BIT) && !(m->layers & VID_BG3_BIT) && added_to;
+    /* the first layer's tiles in front stand at the highest sprites' priority */
+    uint8_t behind = added ? order->priority[0][1] : order->priority[2][0];
+    for (unsigned g = 0; g < 4; g++) {
+        const GbaLayer *l = &gba_layers[g];
+        if (l->source != 2 || l->columns)
+            continue;
+        if (assigned_in_front)
+            r->bgcnt[g] = (uint16_t)((r->bgcnt[g] & ~3u) | behind);
+        else if (l->front || !layers[2].split)
+            r->bgcnt[g] &= (uint16_t)~3u;
+    }
+    if (added)
+        r->bldcnt = (uint16_t)(BLD_ALPHA | line_layer_bits(st, VID_BG3_BIT) | line_layer_bits(st, added_to) << 8);
 }
 
 /* A line that shows nothing: black. The layers stay enabled, every line of
@@ -5086,6 +5133,8 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
     else
         gba_controls(&r, controls, drawn_layers);
     line_blending(&r, st);
+    if (!mode7)
+        third_layer_as_the_line_puts_it(&r, st);
     if (laid_out_mode == 2 && !mode7)
         show_moved_columns(&r, st, b, down, at);
     return r;
@@ -5299,6 +5348,7 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     st->brightness = (uint8_t)(v->display.brightness & 15);
     st->blank = v->display.blank;
     st->mode = snes.mode.mode;
+    st->bg3_priority = snes.mode.bg3_priority;
     st->m7 = snes.m7;
     st->m7_latch = snes.m7_latch;
     for (unsigned n = 0; n < 3; n++)
@@ -5578,7 +5628,9 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 }
                 if (blended) {
                     LineState drawn;
-                    line_blending(&r, line_looks(&st, b, layers_enabled, &drawn));
+                    const LineState *looks = line_looks(&st, b, layers_enabled, &drawn);
+                    line_blending(&r, looks);
+                    third_layer_as_the_line_puts_it(&r, looks);
                     shown.math = st.math;
                     shown.fixed_color = st.fixed_color;
                     /* the strength alone changed: a step, not a change */
