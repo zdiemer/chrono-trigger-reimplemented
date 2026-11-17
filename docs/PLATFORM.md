@@ -1492,6 +1492,28 @@ mode 0's four tiled layers and its sprites:
   the next vertical blank, the line counter's interrupt setting its first
   line's registers there, rather than from the next picture's, which a
   scene's loading frames put off by a dozen GBA frames and more.
+  Windows overlap (each is 1,024 places from its char block, the next 512
+  on), so the caches are placed beside one another: a cache started afresh
+  takes the window with the most places free where its tiles fit there
+  beside the tiles the others have yet to place (`room_beside`,
+  `window_for`), the one with the most tiles first, and a cache with no
+  tile placed yet moves where its window can't hold them beside the
+  others' and another can; a cache with tiles placed moves only where
+  some window can hold them, since moving one that fits nowhere hides the
+  picture and its tiles miss as before. In the lab before the jet bike race
+  the dialog's map, shown on the first and third layers for a frame as each
+  dialog opened, named 347 tiles beside the floor's 475 and the text's, and
+  the floor's cache started afresh in the window where the text's cache
+  had its tiles: the floor went black in 16-dot squares from frame 4461 to
+  5447 as the text's tiles took its places (issue #589). With the bands
+  above, the census's pictures in `events-jetbike-race` fell from 10.7
+  million pixels to 3.2 (the scene's cluster gone; what is left there is
+  in clusters of 0.15 million and less) and `gato-battle`'s from 3.2 to
+  1.4, the other four movies within 0.02 million; each movie ends as
+  ct_native's. Two clusters came in: a frame or two of shading in Crono's
+  room (`new-game` 6164, 0.07 million) and eight frames of a
+  dialog's rows a line apart as it opens (`gato-battle` 15625, 0.11
+  million).
 - **A layout's work** is what the picture stops for, so it is kept short.
   Sampled only while a layout's picture is made (`mgba_run`'s sampler kept
   to a flag the program sets), it was the maps' conversion, a unit at a
@@ -1802,6 +1824,34 @@ mode 0's four tiled layers and its sprites:
   frames against 2,114, 8,131, 28,437, 15,810 and 8,792 (`title-start`,
   `new-game`, `gato-battle`, `events-jetbike-race`, `menus-sweep`), and
   work RAM keeps 30,240 bytes free against 30,824.
+  A line whose scroll alone changed, and which shows exactly what one of
+  the last two such lines worked out whole in its band showed, takes the
+  change made for that line again (`made_before`, `keep_the_line`): the
+  Ocean Palace's scenes in the attract sequence step the first layer's
+  scroll back and forth a few dots each line over the moved columns, and
+  every one of their 160 lines was worked out whole, the moved columns'
+  runs found again each time, about 20 GBA frames a picture (issue #568's
+  heaviest pictures). Lines whose registers are their own line's as well
+  as their looks' (Mode 7's plane, a drawn panel, runs in front of a layer
+  shown again, a band cutting its maps, whose cut follows each line's
+  scroll) and lines showing a copy of moved columns aren't kept. The
+  heaviest of those pictures came down from about 20 GBA frames to 12;
+  the rest of their cost is the lines where the palace's edge window also
+  moves, each a new look. Over the attract sequence's two Ocean Palace
+  stretches of slow pictures (game frames 8,796-10,067 and 19,845-21,083)
+  the census counts 2,497 and 2,456 GBA frames against 3,161 and 3,119,
+  and its clusters' visibility falls 16%; what it finds new are frames
+  that moved by one and a strip at the screen's right edge for one GBA
+  frame as each scene opens, which comes of the picture's new timing:
+  each line taken again was checked against the line worked out whole,
+  over 15,000 of them in `attract-idle`, and none differed.
+  `attract-demo` takes 32,389 GBA frames against 33,708, its heaviest
+  picture 13.99 against 20.21 and its pictures' 99th percentile under 4
+  GBA frames against 10.25. The kept lines live on the driver's stack
+  (3,162 bytes at most against 2,994), and the work stays out of the
+  lines' loop, which inlined took the menus and the race half a percent
+  longer; the five movies take 1,869, 7,724, 24,641, 12,872 and 7,799 GBA
+  frames against 1,869, 7,723, 24,631, 12,879 and 7,742.
 - **Colour math with the fixed colour** (the sub screen added where it has
   no layer on it is the fixed colour too, which is how the game does most
   of it: the dialog's and the battle window's shading, the race's fog at
@@ -1911,7 +1961,15 @@ mode 0's four tiled layers and its sprites:
 - **The bands** are worked out a run of lines at a time, between the lines
   where a panel starts or ends or a band passes the SNES's first or last
   line, rather than a line at a time: at the title that took the picture
-  from 0.21 GBA frames a frame to 0.12.
+  from 0.21 GBA frames a frame to 0.12. A band's lines whose rows a band
+  above showed already are black, the rest of it shown from the next row
+  (`black_out_rows_shown_above`); only where a drawn panel's rows would
+  be shown again does the view fall back to the camera's band alone. As a
+  dialog's window opens, the drawn panel looks like the rows the window
+  grows over and the camera's band below it reached back into them: each
+  opening fell back for four frames, the dialog's window where the SNES
+  has it, and the dialog's map those lines showed came into the layout
+  with its tiles (issue #589).
 - **Room.** The panel's room comes out of the tile caches' places. To give
   some back, a layout leaves out the maps no line showed since the last one
   (the field's layers' own maps, which its line effects replace on every
