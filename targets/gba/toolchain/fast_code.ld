@@ -9,6 +9,7 @@
  * longer has places nothing. */
 *(.text.state_host_read8 .text.state_host_read8.*)
 *(.text.read_game .text.read_game.*)
+*(.text.state_host_read_span .text.state_host_read_span.*)
 *(.text.place_of .text.place_of.*)
 *(.text.vars_host_read_span .text.vars_host_read_span.*)
 *(.text.rom_read8 .text.rom_read8.*)
