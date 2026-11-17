@@ -1492,6 +1492,28 @@ mode 0's four tiled layers and its sprites:
   the next vertical blank, the line counter's interrupt setting its first
   line's registers there, rather than from the next picture's, which a
   scene's loading frames put off by a dozen GBA frames and more.
+  Windows overlap (each is 1,024 places from its char block, the next 512
+  on), so the caches are placed beside one another: a cache started afresh
+  takes the window with the most places free where its tiles fit there
+  beside the tiles the others have yet to place (`room_beside`,
+  `window_for`), the one with the most tiles first, and a cache with no
+  tile placed yet moves where its window can't hold them beside the
+  others' and another can; a cache with tiles placed moves only where
+  some window can hold them, since moving one that fits nowhere hides the
+  picture and its tiles miss as before. In the lab before the jet bike race
+  the dialog's map, shown on the first and third layers for a frame as each
+  dialog opened, named 347 tiles beside the floor's 475 and the text's, and
+  the floor's cache started afresh in the window where the text's cache
+  had its tiles: the floor went black in 16-dot squares from frame 4461 to
+  5447 as the text's tiles took its places (issue #589). With the bands
+  above, the census's pictures in `events-jetbike-race` fell from 10.7
+  million pixels to 3.2 (the scene's cluster gone; what is left there is
+  in clusters of 0.15 million and less) and `gato-battle`'s from 3.2 to
+  1.4, the other four movies within 0.02 million; each movie ends as
+  ct_native's. Two clusters came in: a frame or two of shading in Crono's
+  room (`new-game` 6164, 0.07 million) and eight frames of a
+  dialog's rows a line apart as it opens (`gato-battle` 15625, 0.11
+  million).
 - **A layout's work** is what the picture stops for, so it is kept short.
   Sampled only while a layout's picture is made (`mgba_run`'s sampler kept
   to a flag the program sets), it was the maps' conversion, a unit at a
@@ -1936,7 +1958,15 @@ mode 0's four tiled layers and its sprites:
 - **The bands** are worked out a run of lines at a time, between the lines
   where a panel starts or ends or a band passes the SNES's first or last
   line, rather than a line at a time: at the title that took the picture
-  from 0.21 GBA frames a frame to 0.12.
+  from 0.21 GBA frames a frame to 0.12. A band's lines whose rows a band
+  above showed already are black, the rest of it shown from the next row
+  (`black_out_rows_shown_above`); only where a drawn panel's rows would
+  be shown again does the view fall back to the camera's band alone. As a
+  dialog's window opens, the drawn panel looks like the rows the window
+  grows over and the camera's band below it reached back into them: each
+  opening fell back for four frames, the dialog's window where the SNES
+  has it, and the dialog's map those lines showed came into the layout
+  with its tiles (issue #589).
 - **Room.** The panel's room comes out of the tile caches' places. To give
   some back, a layout leaves out the maps no line showed since the last one
   (the field's layers' own maps, which its line effects replace on every

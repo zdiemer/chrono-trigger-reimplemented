@@ -2071,6 +2071,82 @@ static bool line_splits_in_this_scene(uint8_t had)
 
 static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, bool added);
 
+/* The places window `block` has free for cache `c`'s tiles once the tiles
+ * the caches in `placed` (a bit each) have yet to place (`needed`) are
+ * counted out of it where their windows share places with it: a window is
+ * 1,024 places from its char block, and the next starts 512 on. */
+static int32_t room_beside(unsigned c, uint8_t block, uint8_t placed, const unsigned needed[CACHES])
+{
+    int32_t room = (int32_t)free_in_window(block);
+    for (unsigned d = 0; d < CACHES; d++)
+        if (d != c && (placed >> d & 1) && caches[d].used && caches[d].block + 1 >= block && caches[d].block <= block + 1)
+            room -= (int32_t)needed[d];
+    return room;
+}
+
+/* The window for a cache started afresh beside the caches in `placed`:
+ * the one with the most places free, where its tiles fit there beside
+ * theirs, or else the one with the most room left beside them. Two caches
+ * started afresh in the window with the most free took their places from
+ * it both, and where it couldn't hold both one's tiles missed: the floor of
+ * the lab before the jet bike race went black in sixteen-dot squares as
+ * each of Johnny's dialogs opened, the dialog's map naming its own tiles
+ * beside the floor's while its window grew (issue #589). */
+static uint8_t window_for(unsigned c, uint8_t placed, const unsigned needed[CACHES])
+{
+    uint8_t best = roomiest_window();
+    int32_t most = room_beside(c, best, placed, needed);
+    if (most >= (int32_t)needed[c])
+        return best;
+    for (uint8_t block = 0; block < 3; block++) {
+        int32_t room = room_beside(c, block, placed, needed);
+        if (room >= (int32_t)needed[c] && room > most)
+            most = room, best = block;
+    }
+    return best;
+}
+
+/* Whether cache `c`, which the last layout had, can't place its tiles in
+ * its window beside those the other caches it had (`had`) have yet to
+ * place there (`needed`: a cache that kept its places has them taken
+ * already and counts the rest), where another window has more room. */
+static bool crowded(unsigned c, uint8_t had, const unsigned needed[CACHES])
+{
+    uint8_t others = (uint8_t)(had & ~(1u << c));
+    return room_beside(c, caches[c].block, others, needed) < (int32_t)needed[c] &&
+           window_for(c, others, needed) != caches[c].block;
+}
+
+/* The caches the layout uses that keep no places (their bit clear in
+ * `had`) started afresh, the one with the most tiles to place first, each
+ * with its blank, in the window window_for finds beside those before it. */
+static void start_the_caches_afresh(uint8_t had, const unsigned needed[CACHES])
+{
+    uint8_t placed = 0;
+    for (unsigned c = 0; c < CACHES; c++)
+        if (caches[c].used && had >> c & 1)
+            placed |= (uint8_t)(1u << c);
+    for (;;) {
+        unsigned c = CACHES;
+        for (unsigned d = 0; d < CACHES; d++)
+            if (caches[d].used && !(placed >> d & 1) && (c == CACHES || needed[d] > needed[c]))
+                c = d;
+        if (c == CACHES)
+            return;
+        Cache *cache = &caches[c];
+        cache->next = cache->placed = 0;
+        cache->block = window_for(c, placed, needed);
+        memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
+        cache->blank = take_slot(cache);
+        if (cache->blank == NO_SLOT)
+            cache->blank = 0;
+        else
+            for (unsigned w = 0; w < 8; w++)
+                BG_VRAM[(cache->block * 512u + cache->blank) * 8u + w] = 0;
+        placed |= (uint8_t)(1u << c);
+    }
+}
+
 /* The layers mode 1, mode 2 and mode 0 have (Mode 7's aren't shown yet), the
  * places their maps take, the layers split by priority with their copies of
  * tiles in front, and their tiles' caches, each with the window the most
@@ -2245,21 +2321,32 @@ static uint8_t lay_out(bool pruned, bool keeps_windows)
      * picture while its tiles are converted again (the attract sequence's
      * battle blinked black where a screen's map took 64 of its window's
      * places and another window had all 1,024, and the title as the plane's
-     * room was given back). */
-    if (had) {
+     * room was given back), and only where a window can hold its tiles
+     * beside the other caches': moved where none can, its tiles missed as
+     * before and the picture was hidden as well. A cache none of whose
+     * tiles has a place yet starts afresh where its window can't hold them
+     * beside the other caches' and another window has more room (crowded). */
+    unsigned needed[CACHES] = { 0 };   /* each cache's tiles its maps name that have no place yet */
+    {
         uint32_t named[CACHES][CACHE_TILES / 32];
         uint32_t placed[CACHES][CACHE_TILES / 32];
         name_the_tiles(named, placed);
+        for (unsigned c = 0; c < CACHES; c++)
+            for (unsigned w = 0; caches[c].used && w < CACHE_TILES / 32; w++)
+                needed[c] += bits_set(named[c][w]);
         for (unsigned c = 0; c < CACHES; c++) {
             if (!caches[c].used || !(had >> c & 1))
                 continue;
-            unsigned tiles = 0, here = free_in_window(caches[c].block);
-            for (unsigned w = 0; keeps_windows && w < CACHE_TILES / 32; w++)
-                tiles += bits_set(named[c][w]);
-            if ((!keeps_windows || tiles >= here) && here < free_in_window(roomiest_window()))
+            unsigned here = free_in_window(caches[c].block);
+            uint8_t others = (uint8_t)(had & ~(1u << c));
+            bool fits = room_beside(c, window_for(c, others, needed), others, needed) >= (int32_t)needed[c];
+            if (((!keeps_windows || needed[c] >= here) && here < free_in_window(roomiest_window()) && fits) ||
+                (!caches[c].placed && crowded(c, had, needed)))
                 had &= (uint8_t)~(1u << c);
             else if (keep_places(&caches[c], named[c], placed[c]))
                 lost |= (uint8_t)(1u << c);
+            unsigned kept_tiles = had >> c & 1 ? caches[c].placed : 0;
+            needed[c] = needed[c] > kept_tiles ? needed[c] - kept_tiles : 0;
         }
     }
     for (unsigned m = 0; m < snes.line_map_count; m++) {
@@ -2271,20 +2358,7 @@ static uint8_t lay_out(bool pruned, bool keeps_windows)
         else
             lm->front_refused = true;
     }
-    for (unsigned c = 0; c < CACHES; c++) {
-        Cache *cache = &caches[c];
-        if (!cache->used || had >> c & 1)
-            continue;
-        cache->next = cache->placed = 0;
-        cache->block = roomiest_window();
-        memset(cache->slot_of, 0xFF, sizeof cache->slot_of);
-        cache->blank = take_slot(cache);
-        if (cache->blank == NO_SLOT)
-            cache->blank = 0;
-        else
-            for (unsigned w = 0; w < 8; w++)
-                BG_VRAM[(cache->block * 512u + cache->blank) * 8u + w] = 0;
-    }
+    start_the_caches_afresh(had, needed);
     uint8_t kept = 0;
     for (unsigned c = 0; c < CACHES; c++)
         if (caches[c].used && had >> c & 1 && !(lost >> c & 1))
@@ -2854,8 +2928,10 @@ static bool gba_size(unsigned w, unsigned h, uint16_t *shape, uint16_t *size)
  * panel's over them, its lines looking like the screen's lines their own
  * are spread over; or black, past the SNES's lines. Worked out from the
  * framing once a frame. The lines are worked out down the SNES's picture
- * (work_out_lines), so the bands must show its lines in their order; a
- * framing that doesn't shows the camera's alone. */
+ * (work_out_lines), so the bands must show its lines in their order: a
+ * band's lines whose rows a band above showed already are black
+ * (black_out_rows_shown_above), and a framing that can't be put in order so
+ * shows the camera's alone. */
 typedef struct {
     int16_t row, left;
     int16_t cut_at;         /* from its dot cut_at on, the SNES's dots cut_dots further on */
@@ -2947,6 +3023,53 @@ static unsigned next_change_of_band(unsigned y, const Band *b)
     return (unsigned)next;
 }
 
+/* The bands made to show the SNES's lines in their order, or false where
+ * they can't be: a camera's or a panel's band whose first rows a band
+ * above it showed already shows black on their lines, and the rest from
+ * the next row on; a drawn panel's band can't give up its rows. As a
+ * dialog's window opens, the drawn panel looks like the rows the window
+ * grows over, which the camera's band below it shows again: the view fell
+ * back to the camera's band alone for those frames, the dialog's window
+ * where the SNES has it, and the dialog's map its lines showed took the
+ * tiles' room from the scene's (the lab's floor before the jet bike race
+ * went black in sixteen-dot squares as each of Johnny's dialogs opened,
+ * issue #589). */
+static bool black_out_rows_shown_above(void)
+{
+    int row = -1;
+    if (band_count >= MOST_BANDS)
+        return false;
+    for (unsigned k = 0; k < band_count; k++) {
+        Band *b = &bands[k];
+        if (b->black)
+            continue;
+        if (b->row > row) {
+            row = b->row + b->rows - 1;
+            continue;
+        }
+        unsigned shown = (unsigned)(row - b->row + 1);
+        if (b->drawn)
+            return false;
+        if (shown >= b->lines) {
+            b->black = true;
+            band_columns[k] = (MovedColumn){ 0, 0 };
+            continue;
+        }
+        if (band_count >= MOST_BANDS)
+            return false;
+        memmove(&bands[k + 1], &bands[k], sizeof bands[0] * (band_count - k));
+        memmove(&band_columns[k + 1], &band_columns[k], sizeof band_columns[0] * (band_count - k));
+        band_count++;
+        bands[k] = (Band){ .row = -1, .at = b->at, .lines = (uint8_t)shown, .rows = (uint8_t)shown, .black = true };
+        band_columns[k] = (MovedColumn){ 0, 0 };
+        b = &bands[++k];
+        b->at = (uint8_t)(b->at + shown), b->row = (int16_t)(b->row + shown);
+        b->lines = (uint8_t)(b->lines - shown), b->rows = (uint8_t)(b->rows - shown);
+        row = b->row + b->rows - 1;
+    }
+    return true;
+}
+
 /* The bands, a run of lines at a time between the lines where they may change. */
 static void band_up_the_view(void)
 {
@@ -2970,14 +3093,7 @@ static void band_up_the_view(void)
         }
         y = past;
     }
-    int row = -1;
-    bool in_order = band_count < MOST_BANDS;
-    for (unsigned k = 0; k < band_count && in_order; k++)
-        if (!bands[k].black) {
-            in_order = bands[k].row > row;
-            row = bands[k].row + bands[k].rows - 1;
-        }
-    if (!in_order) {
+    if (!black_out_rows_shown_above()) {
         bands[0] = (Band){ .row = view_aim.top, .left = view_aim.left, .lines = GBA_VIEW_HEIGHT, .rows = GBA_VIEW_HEIGHT };
         band_columns[0] = (MovedColumn){ 0, 0 };
         band_count = 1;
