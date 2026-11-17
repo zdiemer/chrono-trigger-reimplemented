@@ -3093,6 +3093,40 @@ static void set_sprite(uint16_t *to, unsigned attribute, uint16_t value)
     }
 }
 
+/* An earlier sprite behind a later one on the GBA is raised to the later
+ * one's priority where that hides nothing (Sprites raised, below); else it
+ * is the sprite window, at most RAISES_LOOKED_AT looked at a frame. */
+enum { RAISES_LOOKED_AT = 16, RAISED_WIDEST = 32, LINES_A_LOOK = 4, LINE_LOOKED_AT = 1 };
+static bool raise_shows_more(const uint8_t *e, int x, int y, unsigned w, unsigned h, uint8_t from, uint8_t to);
+static bool sprites_overlap IN_FAST_RAM;   /* the sprites looked at again as the lines change under them */
+/* Counts of the changes to what the looks are made from: the lines shown,
+ * and video memory (the layers' maps and tiles, the sprites' tiles). */
+static uint8_t looks_made_from IN_FAST_RAM, looks_last_made_from IN_FAST_RAM;
+
+/* A look's result kept with the sprite in the GBA's sprite table, in its
+ * second attribute's bits 9-11, which a sprite not rotated leaves unused:
+ * that it was looked at, and the priority the table doesn't show, its own
+ * where it was raised (to `front`, its third attribute's), `front` where
+ * it was masked (at its own). */
+enum { LOOKED = 0x0800, LOOK_PRIORITY_SHIFT = 9, LOOK_BITS = 0x0E00 };
+
+static uint16_t look_kept(uint8_t other_priority) { return (uint16_t)(LOOKED | other_priority << LOOK_PRIORITY_SHIFT); }
+
+/* Whether a sprite of priority `own` behind one later of priority `front`,
+ * shown as it is now, was looked at when the sprites were last made with
+ * the same priorities, and if so whether it was raised (`raised`): with
+ * what the looks are made from unchanged since, the look stands. A sprite
+ * masked without a look, past the budget, has none. */
+static bool was_looked_at(const uint16_t *shown_as, const uint16_t attributes[3], uint8_t own, uint8_t front, bool *raised)
+{
+    if ((shown_as[0] & ~OBJ_WINDOW) != attributes[0] || (shown_as[1] & ~LOOK_BITS) != attributes[1] ||
+        (shown_as[2] & ~(3u << 10)) != attributes[2] || !(shown_as[1] & LOOKED))
+        return false;
+    unsigned shown_priority = shown_as[2] >> 10 & 3, kept = shown_as[1] >> LOOK_PRIORITY_SHIFT & 3;
+    *raised = !(shown_as[0] & OBJ_WINDOW);
+    return *raised ? shown_priority == front && kept == own : shown_priority == own && kept == front;
+}
+
 /* The sprites, each in the band its top line is in, or its foot's; the drawn
  * panel shows none. */
 static void present_sprites(void)
@@ -3100,8 +3134,12 @@ static void present_sprites(void)
     Shown shown[SPRITES];   /* the sprites after this one in the table, shown */
     Squares squares;
     unsigned count = 0;
+    unsigned looked = 0;
+    bool looks_stand = looks_last_made_from == looks_made_from;   /* since the sprites were last looked at */
+    looks_last_made_from = looks_made_from;
     memset(squares, 0, sizeof squares);
     sprites_mask = false;
+    sprites_overlap = false;
     note_band_rows();
     /* the size setting's small and large sprites, as the GBA has them */
     struct {
@@ -3143,17 +3181,40 @@ static void present_sprites(void)
         }
         uint8_t priority = order->sprite[(e[3] >> 4) & 3];
         Shown here = { (int16_t)gx, (int16_t)(gy >= 192 ? gy - 256 : gy), (uint8_t)w, (uint8_t)h, priority };
-        bool mask = false;
-        if (over_squares(squares, &here, true) & ((1u << priority) - 1))
-            for (unsigned k = 0; k < count && !mask; k++)
-                mask = shown[k].priority < priority && overlap(&here, &shown[k]);
-        shown[count++] = here;
-        sprites_mask |= mask;
+        /* the frontmost priority of the later sprites in front over it */
+        uint8_t front = priority;
+        if (over_squares(squares, &here, false) & ((1u << priority) - 1))
+            for (unsigned k = 0; k < count; k++)
+                if (shown[k].priority < front && overlap(&here, &shown[k]))
+                    front = shown[k].priority;
         uint16_t name = (uint16_t)(e[2] | (e[3] & 1) << 8);
         uint16_t tile = (uint16_t)((name >> 4) * 32 + sprite_page * PAGE_COLUMNS + (name & 15));
-        set_sprite(to, 0, (uint16_t)(gy | (mask ? OBJ_WINDOW : 0) | shape << 14));
-        set_sprite(to, 1, (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14));
-        set_sprite(to, 2, (uint16_t)(tile | priority << 10 | ((e[3] >> 1) & 7) << 12));
+        uint16_t attributes[3] = { (uint16_t)(gy | shape << 14),
+                                   (uint16_t)((gx & 0x1FF) | (e[3] & 0x40 ? 0x1000 : 0) | (e[3] & 0x80 ? 0x2000 : 0) | size << 14),
+                                   (uint16_t)(tile | ((e[3] >> 1) & 7) << 12) };
+        bool mask = false;
+        uint16_t look = 0;
+        if (front < priority) {
+            bool raised = false;
+            sprites_overlap = true;
+            bool known = looks_stand && was_looked_at(to, attributes, priority, front, &raised);
+            if (!known && looked < RAISES_LOOKED_AT) {
+                looked++;
+                raised = raise_shows_more(e, here.x, here.y, w, h, priority, front);
+                known = true;
+            }
+            if (known)
+                look = look_kept(raised ? priority : front);
+            if (raised)
+                priority = here.priority = front;
+            mask = !raised;
+        }
+        over_squares(squares, &here, true);
+        shown[count++] = here;
+        sprites_mask |= mask;
+        set_sprite(to, 0, (uint16_t)(attributes[0] | (mask ? OBJ_WINDOW : 0)));
+        set_sprite(to, 1, (uint16_t)(attributes[1] | look));
+        set_sprite(to, 2, (uint16_t)(attributes[2] | priority << 10));
     }
 }
 
@@ -3269,6 +3330,148 @@ static void show_from_end(uint8_t end)
     shown_end = end;
     shown_flip = end ? ~0u : 0;
     shown_add = end ? GBA_LINES : 0;
+}
+
+/* ---- Sprites raised rather than masked ---------------------------------------------------------
+ *
+ * The SNES draws the earlier of two overlapping sprites over the later and
+ * only then sets it against the layers by its own priority; the GBA draws
+ * the sprite of the higher priority in front. An earlier sprite behind a
+ * later one on the GBA is raised to the later one's priority where that
+ * shows fewer of its dots wrong than masking it: where the GBA layers of a
+ * priority between the two show fewer dots under the sprite's than not, a
+ * line at a time, as the picture on the screen shows its layers there (its
+ * changes' registers, windows and all, and the GBA's own maps and tiles: a
+ * frame behind, the sprites being worked out before the frame's lines, so
+ * looked at again each frame while any overlap). Otherwise, or past the
+ * frame's budget of such looks, it is the sprite window (sprites_mask,
+ * above), which shows the layers in its place: Crono's covers in bed.
+ * Masked, Crono stepping out of the time gate's light showed as the room
+ * the light's window cuts away, and Marle beside him in the hall before the
+ * jet bike race was missing (issue #560). Dots are counted eight to a word,
+ * a bit a dot in the low bit of its nibble, as the GBA packs a tile's row. */
+enum { DISPCNT_TEXT_ONLY = 0, BGCNT_8BPP = 0x0080, DOT_BITS = 0x11111111u };
+static uint32_t entry_row(const volatile uint32_t *tile, uint16_t e, unsigned y);
+static unsigned entry_at(unsigned col, unsigned row, unsigned w);
+
+/* A row of packed nibbles' dots, leftmost last. */
+static uint32_t nibbles_reversed(uint32_t w)
+{
+    w = w >> 16 | w << 16;
+    w = (w >> 8 & 0x00FF00FFu) | (w & 0x00FF00FFu) << 8;
+    return (w >> 4 & 0x0F0F0F0Fu) | (w & 0x0F0F0F0Fu) << 4;
+}
+
+/* The dots of eight on line `l` of a sprite `w` across and `h` down, its
+ * column `c` of them: the SNES's tiles named as it names them, a row's
+ * columns and a table's rows wrapping, and flipped as it is. */
+static uint32_t sprite_dots(const uint8_t *e, unsigned w, unsigned h, unsigned l, unsigned c)
+{
+    unsigned name = e[2] | (e[3] & 1) << 8, line = e[3] & 0x80 ? h - 1 - l : l;
+    unsigned column = e[3] & 0x40 ? w / 8 - 1 - c : c;
+    unsigned tile = (name & 0x100) | ((((name >> 4) + line / 8) & 15) << 4) | ((name + column) & 15);
+    uint32_t at = sprite_table(tile >> 8) + (tile & 0xFF) * 32 + (line % 8) * 2;
+    const uint8_t *v = snes.vram;
+    uint32_t dots = spread[v[at & (VRAM_BYTES - 1)] | v[(at + 1) & (VRAM_BYTES - 1)] | v[(at + 16) & (VRAM_BYTES - 1)] |
+                           v[(at + 17) & (VRAM_BYTES - 1)]];
+    return e[3] & 0x40 ? nibbles_reversed(dots) : dots;
+}
+
+/* The dots a GBA tile's row (packed nibbles) doesn't leave transparent. */
+static uint32_t opaque(uint32_t row) { return (row | row >> 1 | row >> 2 | row >> 3) & DOT_BITS; }
+
+/* Whether a window's edges (WIN0H's) take dot `x`. */
+static bool in_window(uint16_t edges, int x)
+{
+    return (edges >> 8) < (edges & 0xFF) && x >= (edges >> 8) && x < (edges & 0xFF);
+}
+
+/* The layers registers `r` show at dot `x`, through their windows. */
+static unsigned layers_at(const LineRegisters *r, int x)
+{
+    if (r->dispcnt & DISPCNT_WIN0 && in_window(r->win0h, x))
+        return r->winin;
+    if (r->dispcnt & DISPCNT_WIN1 && in_window(r->win1h, x))
+        return r->winin >> 8u;
+    return r->winout;
+}
+
+/* Whether a window's edge lies among the eight dots from `x` but the first. */
+static bool edge_within(const LineRegisters *r, int x)
+{
+    const uint16_t edges[4] = { (uint16_t)(r->win0h >> 8), (uint16_t)(r->win0h & 0xFF), (uint16_t)(r->win1h >> 8),
+                                (uint16_t)(r->win1h & 0xFF) };
+    for (unsigned i = 0; i < 4; i++)
+        if ((int)edges[i] > x && (int)edges[i] < x + 8)
+            return true;
+    return false;
+}
+
+/* Of eight dots from `x` on the screen's line `y`, those GBA layer `g`
+ * shows, as registers `r` show it through their windows. */
+static uint32_t gba_layer_dots(const LineRegisters *r, unsigned g, int y, int x)
+{
+    uint16_t control = r->bgcnt[g];
+    unsigned mw = control & 0x4000 ? 64 : 32, mh = control & 0x8000 ? 64 : 32;
+    const volatile uint16_t *map = (const volatile uint16_t *)BG_VRAM + (control >> 8 & 31) * 1024u;
+    const volatile uint32_t *tiles = BG_VRAM + (control >> 2 & 3) * 512u * 8u;
+    unsigned my = (unsigned)(y + r->vofs[g]) & (mh * 8 - 1), mx = (unsigned)(x + r->hofs[g]) & (mw * 8 - 1);
+    uint16_t e = map[entry_at(mx / 8, my / 8, mw)];
+    uint32_t dots = opaque(entry_row(tiles + (e & 0x3FF) * 8u, e, my % 8)) >> 4 * (mx % 8);
+    if (mx % 8) {
+        e = map[entry_at((mx / 8 + 1) & (mw - 1), my / 8, mw)];
+        dots |= opaque(entry_row(tiles + (e & 0x3FF) * 8u, e, my % 8)) << (32 - 4 * (mx % 8));
+    }
+    if (r->dispcnt & (DISPCNT_WIN0 | DISPCNT_WIN1 | DISPCNT_OBJ_WINDOW)) {
+        uint32_t shown = 0;
+        if (!edge_within(r, x))
+            shown = layers_at(r, x) >> g & 1u ? DOT_BITS : 0;
+        else
+            for (unsigned i = 0; i < 8; i++)
+                shown |= (layers_at(r, x + (int)i) >> g & 1u) << (4 * i);
+        dots &= shown;
+    }
+    return dots;
+}
+
+/* Whether sprite `e`, at `x`, `y` on the screen and `w` by `h`, raised from
+ * GBA priority `from` to `to`, shows fewer of its dots wrong than as the
+ * sprite window: raised, a dot is wrong where a layer between the two
+ * priorities has one under it, which the SNES shows; masked, where none
+ * does, which the SNES shows the sprite over. */
+static bool raise_shows_more(const uint8_t *e, int x, int y, unsigned w, unsigned h, uint8_t from, uint8_t to)
+{
+    if (w > RAISED_WIDEST || !changes)
+        return false;
+    unsigned k = 0, all = 0, wrong = 0;   /* the sprite's dots, and those a layer between covers */
+    for (unsigned l = LINE_LOOKED_AT; l < h; l += LINES_A_LOOK) {
+        int line = y + (int)l;
+        if (line < 0 || line >= GBA_LINES)
+            continue;
+        while (k + 1 < changes && change_line[shown_place(k + 1)] <= line)
+            k++;
+        const LineRegisters *r = &change_registers[shown_place(k)];
+        if ((r->dispcnt & DISPCNT_MODES) != DISPCNT_TEXT_ONLY)
+            return false;
+        uint8_t between = 0;
+        for (unsigned g = 0; g < 4; g++) {
+            unsigned priority = r->bgcnt[g] & 3;
+            if (!(r->dispcnt & (DISPCNT_BG0 << g)) || priority < to || priority >= from)
+                continue;
+            if (r->bgcnt[g] & BGCNT_8BPP)
+                return false;
+            between |= (uint8_t)(1u << g);
+        }
+        for (unsigned c = 0; c < w / 8; c++) {
+            uint32_t dots = sprite_dots(e, w, h, l, c), covered = 0;
+            for (unsigned g = 0; dots && g < 4; g++)
+                if (between >> g & 1)
+                    covered |= gba_layer_dots(r, g, line, x + 8 * (int)c);
+            all += bits_set(dots);
+            wrong += bits_set(dots & covered);
+        }
+    }
+    return 2 * wrong < all;
 }
 
 /* The registers the line effects change, as they stand. */
@@ -5072,14 +5275,9 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
  * at once; one that shows what the last showed, as most do, takes the
  * GBA's frame as it stands. A frame of one change sets it alone; one of
  * more has the interrupts set the rest, line by line. */
-static bool frame_differs(bool made, uint8_t count)
+/* Whether the frame's `count` changes made differ from those shown. */
+static bool lines_differ(uint8_t count)
 {
-    if (sprites_aside)
-        return true;
-    if (plane_dma != plane_shown || strength_dma != strength_steps)
-        return true;
-    if (!made)
-        return false;
     if (count != changes || count * 2u > GBA_LINES)
         return true;
     for (unsigned k = 0; k < count; k++)
@@ -5087,6 +5285,15 @@ static bool frame_differs(bool made, uint8_t count)
             memcmp(&change_registers[change_place(shown_end, k)], made_change(k), sizeof(LineRegisters)) != 0)
             return true;
     return false;
+}
+
+static bool frame_differs(bool made, uint8_t count)
+{
+    if (sprites_aside)
+        return true;
+    if (plane_dma != plane_shown || strength_dma != strength_steps)
+        return true;
+    return made && lines_differ(count);
 }
 
 static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
@@ -5102,8 +5309,11 @@ static void frame_shown(bool made, uint8_t count, bool at_blank, uint32_t frame)
 {
     if (tell_shown)
         tell_shown(frame);
-    if (made)
+    if (made) {
+        if (lines_differ(count))
+            looks_made_from++;
         show_from_end(made_end);
+    }
     changes = count;
     plane_dma = plane_shown;
     shown_plane_table = plane_table;
@@ -5388,14 +5598,18 @@ static void lay_out_again(bool keep_windows)
 /* VRAM's changes since the last picture converted, and the palettes. */
 static void convert_the_changes(bool laid_out)
 {
+    uint32_t written = 0;
     for (unsigned w = 0; w < UNITS / 32; w++) {
         uint32_t units = snes.changed[w];
+        written |= units;
         if (units & 0xFFFF)
             convert_block(2 * w, units & 0xFFFF);
         if (units >> 16)
             convert_block(2 * w + 1, units >> 16);
         snes.changed[w] = 0;
     }
+    if (written)
+        looks_made_from++;   /* the layers' maps or tiles or the sprites' tiles (Sprites raised) */
     if (turn_the_sprite_page())
         snes.sprites_changed = true;
     if (laid_out)
@@ -5429,7 +5643,7 @@ static uint16_t arrange_the_layers(bool laid_out)
         last_bands = banded;
         snes.sprites_changed = true;
     }
-    if (snes.sprites_changed) {
+    if (snes.sprites_changed || (sprites_overlap && looks_last_made_from != looks_made_from)) {
         present_sprites();
         snes.sprites_changed = false;
     }
