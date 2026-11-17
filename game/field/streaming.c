@@ -56,15 +56,19 @@ static uint16_t look_entry(const GameState *g, unsigned layer, uint16_t look, Qu
  * halves of the looks, as the tile's properties say. */
 enum { SECOND_HALF_OF_THE_LOOKS = 0x100 };
 
-static uint16_t look_of(const GameState *g, unsigned layer, MapPlace p)
+static uint16_t look_with_its_half(unsigned layer, uint8_t tile, uint8_t properties)
 {
-    uint16_t look = field_layer_maps(g, layer, p.row, p.column);
-    uint8_t properties = field_tile_properties(g, p.row, p.column);
+    uint16_t look = tile;
     if (layer == FIELD_BG1 && (properties & BG1_TILE_SET_HALF))
         look |= SECOND_HALF_OF_THE_LOOKS;
     if (layer == FIELD_BG2 && (properties & BG2_TILE_SET_HALF))
         look |= SECOND_HALF_OF_THE_LOOKS;
     return look;
+}
+
+static uint16_t look_of(const GameState *g, unsigned layer, MapPlace p)
+{
+    return look_with_its_half(layer, field_layer_maps(g, layer, p.row, p.column), field_tile_properties(g, p.row, p.column));
 }
 
 /* Where each layer's map repeats: a mask for the row and one for the column. */
@@ -145,8 +149,37 @@ typedef struct {
     bool second_across;
 } LinePoint;
 
-static uint16_t look_at(const GameState *g, unsigned layer, LineWay way, LinePoint p)
+/* A row of the map read once for a line along it: the map tiles the line
+ * takes and their properties, as runs of the tables (two where the line runs
+ * round its row's end, the layer's mask) rather than two reads a map tile,
+ * the same bytes read as many times. Where the line takes more tiles than
+ * the row repeats in, or its row lies past the tables, it reads a tile at a
+ * time. */
+typedef struct {
+    uint8_t tiles[FIELD_LAYER_MAPS_COLUMNS], properties[FIELD_TILE_PROPERTIES_COLUMNS];
+} MapRow;
+
+static bool read_the_row(const GameState *g, unsigned layer, uint8_t row, uint8_t first, unsigned count,
+                         uint8_t along_mask, MapRow *out)
 {
+    unsigned width = along_mask + 1u;
+    if (row >= FIELD_LAYER_MAPS_ROWS || width > FIELD_LAYER_MAPS_COLUMNS || count > width)
+        return false;
+    unsigned to_the_end = width - first < count ? width - first : count;
+    field_layer_maps_run(g, layer, row, first, &out->tiles[first], to_the_end);
+    field_tile_properties_run(g, row, first, &out->properties[first], to_the_end);
+    if (count > to_the_end) {
+        field_layer_maps_run(g, layer, row, 0, out->tiles, count - to_the_end);
+        field_tile_properties_run(g, row, 0, out->properties, count - to_the_end);
+    }
+    return true;
+}
+
+/* The look at a place on the line: from its row where that was read whole. */
+static uint16_t look_at(const GameState *g, unsigned layer, LineWay way, LinePoint p, const MapRow *row)
+{
+    if (row)
+        return look_with_its_half(layer, row->tiles[p.along], row->properties[p.along]);
     MapPlace place = way == ALONG_A_ROW ? (MapPlace){ p.across, p.along } : (MapPlace){ p.along, p.across };
     return look_of(g, layer, place);
 }
@@ -171,21 +204,24 @@ static void build_line(GameState *g, unsigned layer, Line line, Staging *out)
     LinePoint p = { (uint8_t)((along8 >> 1) & along_mask), (uint8_t)((across8 >> 1) & across_mask), (across8 & 1) != 0 };
     uint8_t tiles = line.tiles;
     bool odd = along8 & 1;
+    MapRow whole;   /* a tile a look, odd's first and last included */
+    const MapRow *row_read =
+        row && read_the_row(g, layer, p.across, p.along, tiles + odd, along_mask, &whole) ? &whole : NULL;
     if (odd) {
-        stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p), true);
+        stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p, row_read), true);
         p.along = (uint8_t)((p.along + 1) & along_mask);
         if (odd_start_counts(layer, line.way))
             tiles--;
     }
     while (tiles > 0) {
-        uint16_t look = look_at(g, layer, line.way, p);
+        uint16_t look = look_at(g, layer, line.way, p, row_read);
         stage_half(g, out, layer, line.way, p, look, false);
         stage_half(g, out, layer, line.way, p, look, true);
         tiles--;
         p.along = (uint8_t)((p.along + 1) & along_mask);
     }
     if (odd && odd_start_counts(layer, line.way))   /* the second half again: see above */
-        stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p), true);
+        stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p, row_read), true);
     stage_held(g, out);
     /* the original's rows leave the map tile after the last, its columns the last */
 }

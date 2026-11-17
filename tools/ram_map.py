@@ -513,7 +513,8 @@ class Var:
         # A table of rows a port writes a run of a row at a time (a map's tile
         # maps unpacked), or a buffer of bytes it writes a run at a time (a
         # layer's entries staged): it gets set_<name>_run and fill_<name>_run
-        # beside its pair, which the flat state writes in one go.
+        # beside its pair, which the flat state writes in one go, and
+        # <name>_run, which reads a run in one go.
         self.runs = raw.get("runs", False)
         if self.runs not in (False, True) or (self.runs and (self.fields or (self.rows is None and self.size <= WIDEST))):
             raise MapError("%s: runs marks a table of rows or a buffer written a run at a time" % where)
@@ -1144,19 +1145,25 @@ class Accessor:
         of bytes, the map says is written a run at a time."""
         return self.var.runs and (self.table or (self.blob and not self.whole)) and not self.unchecked
 
-    def run_signature(self, fill):
-        """set_<name>_run, `count` bytes from `v` along a row from `column` on
-        (a buffer's from `at` on); or fill_<name>_run, `count` of one byte."""
-        args = ", ".join(["GameState *g"] + [d for d, _ in self.params(False)]
-                         + ["uint8_t v" if fill else "const uint8_t *v", "unsigned count"])
-        return "void %s_%s_run(%s)" % ("fill" if fill else "set", self.name, args)
+    RUN_KINDS = ("set", "fill", "get")
 
-    def run_each(self, fill):
-        """A run as that many set_ calls, a byte at a time."""
+    def run_signature(self, kind):
+        """set_<name>_run, `count` bytes from `v` along a row from `column` on
+        (a buffer's from `at` on); fill_<name>_run, `count` of one byte; or
+        <name>_run, `count` bytes from there read into `v`."""
+        value = {"set": "const uint8_t *v", "fill": "uint8_t v", "get": "uint8_t *v"}[kind]
+        state = "const GameState *g" if kind == "get" else "GameState *g"
+        args = ", ".join([state] + [d for d, _ in self.params(False)] + [value, "unsigned count"])
+        return "void %s%s_run(%s)" % ("" if kind == "get" else kind + "_", self.name, args)
+
+    def run_each(self, kind):
+        """A run as that many calls of the pair, a byte at a time."""
         args = [a for _, a in self.params(False)]
         args[-1] += " + k"
+        if kind == "get":
+            return "for (unsigned k = 0; k < count; k++) v[k] = %s(g, %s);" % (self.name, ", ".join(args))
         return "for (unsigned k = 0; k < count; k++) set_%s(g, %s, %s);" % (self.name, ", ".join(args),
-                                                                          "v" if fill else "v[k]")
+                                                                          "v" if kind == "fill" else "v[k]")
 
     def signature(self, write):
         state = "GameState *g" if write else "const GameState *g"
@@ -1269,6 +1276,7 @@ def accessors(m):
             if a.runs():
                 take("set_" + a.name + "_run", names, "accessor")
                 take("fill_" + a.name + "_run", names, "accessor")
+                take(a.name + "_run", names, "accessor")
             if a.bytes_const:
                 take(a.bytes_const, consts, "constant")
             if a.rows_const:
@@ -1372,9 +1380,9 @@ def render_vars_header(m):
                 out.append("%s;" % a.signature(True))
                 if a.runs():
                     out += comment("`count` bytes along %s on, as that many set_%s's: "
-                                   "from `v`, or each `v` (fill)." % ("a row from `column`" if a.table else "it from `at`", a.name))
-                    out.append("%s;" % a.run_signature(False))
-                    out.append("%s;" % a.run_signature(True))
+                                   "from `v`, or each `v` (fill); or read into `v`, as that many %s's."
+                                   % ("a row from `column`" if a.table else "it from `at`", a.name, a.name))
+                    out += ["%s;" % a.run_signature(kind) for kind in Accessor.RUN_KINDS]
     out += ["", "#endif", ""]
     return "\n".join(out)
 
@@ -1676,30 +1684,31 @@ def render_backing(m, flat=False):
 
 
 def render_runs(a, flat):
-    """An accessor's run pair (Accessor.runs): a byte at a time through its
-    set_ accessor; or, in the flat state, where an owner keeps every byte
-    (`flat`: the accessor's out-of-range test, its last byte and its checks'
-    id), checked once and written in one go where the run's bytes lie
-    together, each byte's time as set_'s."""
+    """An accessor's runs (Accessor.runs): a byte at a time through its pair;
+    or, in the flat state, where an owner keeps every byte (`flat`: the
+    accessor's out-of-range test, its last byte and its checks' id), checked
+    once and written or read in one go where the run's bytes lie together,
+    each byte's time as the pair's."""
     if not a.runs():
         return []
     out = []
-    for fill in (False, True):
-        each = a.run_each(fill)
+    for kind in Accessor.RUN_KINDS:
+        each = a.run_each(kind)
         if flat is None:
-            out.append("%s { %s }" % (a.run_signature(fill), each))
+            out.append("%s { %s }" % (a.run_signature(kind), each))
             continue
         bad, top, id_ = flat
-        name = ("fill_" if fill else "set_") + a.name + "_run"
+        name = ("" if kind == "get" else kind + "_") + a.name + "_run"
         checks = "".join("IN_RANGE(g, %d, \"%s\", \"%s\", %s, %s); " % (id_, name, what, arg, limit)
                          for arg, limit, what in a.bounds())
         along = a.params(False)[-1][1]
         apart = "count == 0 || %s + count > %du" % (along, a.size) + (" || " + bad if bad else "")
         first = "kept(g, %s, 0x%06Xu)" % (a.address(), top)
         last = "kept(g, %s + count - 1u, 0x%06Xu)" % (a.address(), top)
-        put = "memset(p, v, count);" if fill else "memcpy(p, v, count);"
-        out.append("%s { %sif (%s) { %s return; } uint8_t *p = %s; if (%s != p + count - 1u) { %s return; } "
-                   "timed(g, 8u * count); %s }" % (a.run_signature(fill), checks, apart, each, first, last, each, put))
+        move = {"set": "memcpy(p, v, count);", "fill": "memset(p, v, count);", "get": "memcpy(v, p, count);"}[kind]
+        out.append("%s { %sif (%s) { %s return; } %suint8_t *p = %s; if (%s != p + count - 1u) { %s return; } "
+                   "timed(g, 8u * count); %s }" % (a.run_signature(kind), checks, apart, each,
+                                                   "const " if kind == "get" else "", first, last, each, move))
     return out
 
 

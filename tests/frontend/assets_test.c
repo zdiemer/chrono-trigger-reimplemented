@@ -46,6 +46,11 @@ uint8_t wram_data_read8(const GameState *g, uint32_t at)
     ram_read_at = at;
     return RAM_BYTE;
 }
+void wram_data_read_span(const GameState *g, uint32_t at, uint8_t *bytes, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++)
+        bytes[i] = wram_data_read8(g, at + i);
+}
 
 static unsigned memory_reads;
 static uint8_t marker;

@@ -9479,6 +9479,7 @@ void set_field_layer_maps(GameState *g, unsigned layer, unsigned row, unsigned c
 }
 void set_field_layer_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_layer_maps(g, layer, row, column + k, v[k]); }
 void fill_field_layer_maps_run(GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_layer_maps(g, layer, row, column + k, v); }
+void field_layer_maps_run(const GameState *g, unsigned layer, unsigned row, unsigned column, uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) v[k] = field_layer_maps(g, layer, row, column + k); }
 uint8_t field_tile_properties(const GameState *g, unsigned row, unsigned column)
 {
     IN_RANGE(g, 135, "field_tile_properties", "rows", row, 64u);
@@ -9507,6 +9508,7 @@ void set_field_tile_properties(GameState *g, unsigned row, unsigned column, uint
 }
 void set_field_tile_properties_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_properties(g, row, column + k, v[k]); }
 void fill_field_tile_properties_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_properties(g, row, column + k, v); }
+void field_tile_properties_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) v[k] = field_tile_properties(g, row, column + k); }
 uint8_t field_tile_upper_attributes(const GameState *g, unsigned row, unsigned column)
 {
     IN_RANGE(g, 136, "field_tile_upper_attributes", "rows", row, 64u);
@@ -9535,6 +9537,7 @@ void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column
 }
 void set_field_tile_upper_attributes_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_upper_attributes(g, row, column + k, v[k]); }
 void fill_field_tile_upper_attributes_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_upper_attributes(g, row, column + k, v); }
+void field_tile_upper_attributes_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) v[k] = field_tile_upper_attributes(g, row, column + k); }
 uint8_t field_tile_upper_attributes_unchecked(const GameState *g, unsigned row, unsigned column)
 {
     if (row >= 64u || column >= 64u) { return r8(g, 0x7E7000u + (uint32_t)row * 0x100u + column); }
@@ -9585,6 +9588,7 @@ void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column
 }
 void set_field_tile_lower_attributes_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_lower_attributes(g, row, column + k, v[k]); }
 void fill_field_tile_lower_attributes_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_lower_attributes(g, row, column + k, v); }
+void field_tile_lower_attributes_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) v[k] = field_tile_lower_attributes(g, row, column + k); }
 uint8_t field_tile_lower_attributes_unchecked(const GameState *g, unsigned row, unsigned column)
 {
     if (row >= 64u || column >= 64u) { return r8(g, 0x7E7040u + (uint32_t)row * 0x100u + column); }
@@ -9634,6 +9638,7 @@ void set_field_tile_exits(GameState *g, unsigned row, unsigned column, uint8_t v
 }
 void set_field_tile_exits_run(GameState *g, unsigned row, unsigned column, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_exits(g, row, column + k, v[k]); }
 void fill_field_tile_exits_run(GameState *g, unsigned row, unsigned column, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_tile_exits(g, row, column + k, v); }
+void field_tile_exits_run(const GameState *g, unsigned row, unsigned column, uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) v[k] = field_tile_exits(g, row, column + k); }
 uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column)
 {
     IN_RANGE(g, 139, "field_tile_walkable", "rows", row, 64u);
@@ -10023,6 +10028,7 @@ void set_field_layer_staging_byte(GameState *g, unsigned layer, unsigned at, uin
 }
 void set_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, const uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_layer_staging_byte(g, layer, at + k, v[k]); }
 void fill_field_layer_staging_byte_run(GameState *g, unsigned layer, unsigned at, uint8_t v, unsigned count) { for (unsigned k = 0; k < count; k++) set_field_layer_staging_byte(g, layer, at + k, v); }
+void field_layer_staging_byte_run(const GameState *g, unsigned layer, unsigned at, uint8_t *v, unsigned count) { for (unsigned k = 0; k < count; k++) v[k] = field_layer_staging_byte(g, layer, at + k); }
 uint8_t field_window_staging(const GameState *g, unsigned i)
 {
     IN_RANGE(g, 143, "field_window_staging", "count", i, 1024u);

@@ -239,7 +239,9 @@ of range, and the unchecked pairs, go by address. A table of rows marked
 `runs` (a map's tile maps, attributes and exits, which a location's load
 writes a row at a time), or a buffer of bytes (the field's staged layer
 entries, `set_field_layer_staging_byte_run`), also has `set_<name>_run` and
-`fill_<name>_run`, a run along a row or the buffer as that many single writes: the typed state makes them so,
+`fill_<name>_run`, a run along a row or the buffer as that many single writes,
+and `<name>_run`, a run read into a buffer as that many single reads (the
+field's rows of map tiles a line takes, `field_layer_maps_run`): the typed state makes them so,
 and the flat state copies or fills the row's bytes in one go where they lie
 together, charging each byte's time. The backing keeps the two banks (`vars_flat_host.c`), but for
 the top a target may keep in memory of its own from a 4 KiB step no value read
