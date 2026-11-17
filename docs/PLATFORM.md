@@ -2022,7 +2022,14 @@ end as ct_native's with the sound playing.
   5,000 to 8,000 Hz -20.8, -16.9 (folded back from above) and -23.7 (cut
   above the mix's 5,256 Hz). Aligned 4 seconds at a time, the loudness
   envelopes correlate with ct_native's 0.802 now and 0.802 before, and
-  differ by 3.1 dB on average now, 3.3 before.
+  differ by 3.1 dB on average now, 3.3 before. The census over its 16
+  movies and two runs by hand, against the mixer before: every movie ends
+  as ct_native's, no run hangs, and every run takes fewer GBA frames (0.2-6%,
+  `attract-idle` 26,700 against 27,769), its stretches of slow or left-out
+  frames cost less (8-25%) and its clusters' pixels times GBA frames are
+  fewer (but `title-start`, 1% more); only `attract-demo` has more slow
+  frames (2,792 against 2,760) and `field-12kbc-1f4` more pictures left out
+  (580 against 573).
 
 Approximated, or not heard (the S-DSP's own detail the GBA can't afford; issue #457):
 
