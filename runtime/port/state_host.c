@@ -458,7 +458,7 @@ bool wram_put_unpacked(GameState *g, const uint8_t *from, uint32_t at, uint32_t 
 #ifdef CT_FLAT_STATE
     /* work RAM as the original lays it out: a run of it in pages owners
      * keep whole reads back what is written there */
-    if (!bytes || !in_work_ram_banks(at) || (at & 0xFFFF) + bytes >= BANK_BYTES ||
+    if (!bytes || !in_work_ram_banks(at) || (at & 0xFFFF) + bytes > BANK_BYTES ||
         !vars_flat_wholly_owned((at & 0xFFFFFF) - WORK_RAM, bytes))
         return false;
     vars_host_write_span(&g->head.vars, at & 0xFFFFFF, from, bytes);

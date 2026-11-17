@@ -3903,6 +3903,11 @@ static inline uint8_t *vars_flat_byte(const VarsHost *h, uint32_t at)
 /* The target's memory for the cold top, 0x20000 - VARS_FLAT_COLD_FROM
  * bytes, where it keeps one. */
 uint8_t *vars_host_cold(void);
+/* Runs copied into the cold top and out of it, from and to ordinary memory
+ * that doesn't overlap it, a byte at a time at the cold top's end: the
+ * target's, as fast as its memory takes them. */
+void vars_host_cold_write(volatile uint8_t *to, const uint8_t *from, uint32_t n);
+void vars_host_cold_read(uint8_t *to, const volatile uint8_t *from, uint32_t n);
 /* Whether the map gives the address an owner: bytes no owner keeps read 0
  * and drop writes, as the typed state's address view does. */
 bool vars_flat_owned(uint32_t addr);

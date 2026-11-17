@@ -2,7 +2,9 @@
  * (CT_FLAT_STATE: port/vars_host.h, vars_flat.c), native or a small target's: its
  * two banks in the arena, a byte for each address, its pages one run of
  * memory, but for the top a target keeps in memory of its own
- * (VARS_FLAT_COLD_FROM, vars_host_cold), which is read a byte at a time.
+ * (VARS_FLAT_COLD_FROM, vars_host_cold), which is read a byte at a time,
+ * runs into and out of it through the target's copies (vars_host_cold_write,
+ * vars_host_cold_read).
  * Bytes the map gives no owner read 0 and drop writes, as the typed state's
  * address view does: they hold 0 from the start and are never written, so a
  * span of the banks reads as the address view reads it. */
@@ -15,6 +17,25 @@
 #include "port/vars_host.h"
 
 enum { WORK_RAM = 0x7E0000, WORK_RAM_BYTES = 0x20000, PAGE_MASK = VARS_FLAT_PAGE_BYTES - 1 };
+
+/* The cold top's runs in and out, where a target keeps one. */
+static void cold_write(volatile uint8_t *to, const uint8_t *from, uint32_t n)
+{
+#if VARS_FLAT_COLD_FROM < 0x20000
+    vars_host_cold_write(to, from, n);
+#else
+    memcpy((uint8_t *)to, from, n);
+#endif
+}
+
+static void cold_read(uint8_t *to, const volatile uint8_t *from, uint32_t n)
+{
+#if VARS_FLAT_COLD_FROM < 0x20000
+    vars_host_cold_read(to, from, n);
+#else
+    memcpy(to, (const uint8_t *)from, n);
+#endif
+}
 
 void vars_host_init(VarsHost *h)
 {
@@ -66,13 +87,10 @@ void vars_host_read_span(const VarsHost *h, uint32_t addr, uint8_t *out, uint32_
         }
         uint32_t end = at < VARS_FLAT_COLD_FROM ? VARS_FLAT_COLD_FROM : (at | PAGE_MASK) + 1;
         uint32_t n = len < end - at ? len : end - at;
-        if (at < VARS_FLAT_COLD_FROM) {
+        if (at < VARS_FLAT_COLD_FROM)
             memcpy(out, h->page[0] + at, n);
-        } else {
-            const volatile uint8_t *from = vars_flat_byte(h, at);
-            for (uint32_t i = 0; i < n; i++)
-                out[i] = from[i];
-        }
+        else
+            cold_read(out, vars_flat_byte(h, at), n);
         out += n, addr += n, len -= n;
     }
 }
@@ -141,19 +159,29 @@ static uint32_t run_from(uint32_t at)
     return at < VARS_FLAT_COLD_FROM ? VARS_FLAT_COLD_FROM - at : WORK_RAM_BYTES - at;
 }
 
+/* Which memory a byte of the storage is in. */
+typedef enum { ORDINARY, COLD } Memory;
+
+static Memory memory_at(uint32_t at) { return at < VARS_FLAT_COLD_FROM ? ORDINARY : COLD; }
+
 /* A span written where it is kept: as one copy, a word at a time where it
- * can, where both ends are ordinary memory and don't overlap; otherwise a
- * byte at a time from the first, as the cold top's memory takes them and so
- * that a copy over itself reads what it wrote. */
-static void put_bytes(volatile uint8_t *to, const volatile uint8_t *in, uint32_t n, bool in_words)
+ * can, where both ends are ordinary memory and don't overlap; through the
+ * cold top's copies where one end is in it; otherwise (a copy over itself,
+ * or within the cold top) a byte at a time from the first, so that a copy
+ * over itself reads what it wrote. */
+static void put_bytes(volatile uint8_t *to, Memory to_memory, const volatile uint8_t *in, Memory in_memory, uint32_t n)
 {
     uintptr_t from = (uintptr_t)in, at = (uintptr_t)to;
-    if (in_words && (at + n <= from || from + n <= at)) {
+    bool apart = at + n <= from || from + n <= at;
+    if (to_memory == ORDINARY && in_memory == ORDINARY && apart)
         memcpy((uint8_t *)to, (const uint8_t *)in, n);
-        return;
-    }
-    for (uint32_t i = 0; i < n; i++)
-        to[i] = in[i];
+    else if (to_memory == COLD && in_memory == ORDINARY)
+        cold_write(to, (const uint8_t *)in, n);
+    else if (to_memory == ORDINARY && in_memory == COLD)
+        cold_read((uint8_t *)to, in, n);
+    else
+        for (uint32_t i = 0; i < n; i++)
+            to[i] = in[i];
 }
 
 /* A span that reaches past one of the storage's runs or a byte no owner
@@ -166,23 +194,23 @@ __attribute__((noinline)) static void write_owned_bytes(VarsHost *h, uint32_t at
             *vars_flat_byte(h, at) = *in;
 }
 
-/* `len` bytes from `in` written from `at` (bytes from $7E:0000); `in` is in
- * ordinary memory where `in_words` says so, not the cold top's. Most spans
- * lie in one of the storage's runs, in pages owners keep whole, and go
- * straight in. */
-__attribute__((noinline)) static void put_span(VarsHost *h, uint32_t at, const volatile uint8_t *in, uint32_t len, bool in_words)
+/* `len` bytes from `in`, in `in_memory`, written from `at` (bytes from
+ * $7E:0000). Most spans lie in one of the storage's runs, in pages owners
+ * keep whole, and go straight in. */
+__attribute__((noinline)) static void put_span(VarsHost *h, uint32_t at, const volatile uint8_t *in, Memory in_memory,
+                                               uint32_t len)
 {
     if (!len || at >= WORK_RAM_BYTES)
         return;
     if (len <= run_from(at) && vars_flat_wholly_owned(at, len))
-        put_bytes(vars_flat_byte(h, at), in, len, in_words && at < VARS_FLAT_COLD_FROM);
+        put_bytes(vars_flat_byte(h, at), memory_at(at), in, in_memory, len);
     else
         write_owned_bytes(h, at, in, len);
 }
 
 void vars_host_write_span(VarsHost *h, uint32_t addr, const uint8_t *in, uint32_t len)
 {
-    put_span(h, addr - WORK_RAM, in, len, true);
+    put_span(h, addr - WORK_RAM, in, ORDINARY, len);
 }
 
 /* A copy whose source runs past one of the storage's runs, a byte at a time. */
@@ -200,7 +228,7 @@ void vars_host_copy_span(VarsHost *h, uint32_t from, uint32_t to, uint32_t len)
 {
     uint32_t source = from - WORK_RAM;
     if (source < WORK_RAM_BYTES && len <= run_from(source))
-        put_span(h, to - WORK_RAM, vars_flat_byte(h, source), len, source < VARS_FLAT_COLD_FROM);
+        put_span(h, to - WORK_RAM, vars_flat_byte(h, source), memory_at(source), len);
     else
         copy_bytes(h, from, to, len);
 }

@@ -279,7 +279,11 @@ static bool put_unpacked(GameState *g, uint32_t from, uint32_t to, Counts *n, ui
     charge_rom_accesses(g, FIRST_READS + u->reads);
     charge_io_accesses(g, u->literals + A_SEEK_S_ACCESSES * u->references);
     charge_accesses(g, 2 * u->reference_bytes);
-    hw_port_seek(g, (uint16_t)(to + u->length), (uint8_t)(to >> 16));   /* the seek unpacking starts with, to its end */
+    /* the seek unpacking starts with, to its end: one that fills its bank to
+     * the end leaves the port at the next bank's start, as writing through
+     * it does */
+    uint32_t end = to + u->length;
+    hw_port_seek(g, (uint16_t)end, (uint8_t)(end >> 16));
     *length = u->length;
     return true;
 }
