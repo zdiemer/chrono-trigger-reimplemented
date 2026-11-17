@@ -55,13 +55,27 @@ void view_follow(Platform *pf, ViewFocus focus, ViewLines open)
              open);
 }
 
+static VidAim centred_on(VidView view, ViewFocus focus, ViewLines open)
+{
+    return (VidAim){ (int16_t)(focus.x - view.width / 2), (int16_t)(focus.y - open.at - open.lines / 2) };
+}
+
 void view_centre_on(Platform *pf, ViewFocus focus, ViewLines open)
 {
     VidView view = vid_view(pf);
     if (!vid_view_is_smaller(view))
         return;
-    glide_to(pf, view, vid_view_aim(pf),
-             (VidAim){ (int16_t)(focus.x - view.width / 2), (int16_t)(focus.y - open.at - open.lines / 2) }, open);
+    glide_to(pf, view, vid_view_aim(pf), centred_on(view, focus, open), open);
+}
+
+void view_start_centred_on(Platform *pf, ViewFocus focus, ViewLines open)
+{
+    VidView view = vid_view(pf);
+    if (!vid_view_is_smaller(view))
+        return;
+    VidAim to = centred_on(view, focus, open);
+    to.top = clear_of_the_panel(to.top, open);
+    vid_aim_the_view(pf, to);
 }
 
 void view_keep_lines(Platform *pf, int16_t top, uint16_t lines, int16_t at)

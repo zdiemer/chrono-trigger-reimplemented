@@ -123,10 +123,11 @@ typedef struct {
     uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
 } LineMap;
 enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5 };
-/* The maps kept for the lines, beside the layers' own: a map a band shows
- * cut takes no more than CUT_LINE_MAPS of them, leaving room for a map a
- * line shows whole. */
-enum { LINE_MAPS = 7, CUT_LINE_MAPS = 6 };
+/* The maps kept for the lines, beside the layers' own (a battle's six, and
+ * the three its window cut to the view takes): a map a band shows cut takes
+ * no more than CUT_LINE_MAPS of them, leaving room for a map a line shows
+ * whole. */
+enum { LINE_MAPS = 10, CUT_LINE_MAPS = 9 };
 
 typedef struct {
     uint8_t vram[VRAM_BYTES] __attribute__((aligned(4)));
@@ -1981,6 +1982,7 @@ static bool keep_places(Cache *c, const uint32_t named[CACHE_TILES / 32], const 
  * layer's own (bit n) and each line map (bit LINE_MAPS_SHOWN + m). */
 enum { LINE_MAPS_SHOWN = 4 };
 static uint16_t maps_shown IN_FAST_RAM;
+_Static_assert(LINE_MAPS_SHOWN + LINE_MAPS <= 16, "a bit of maps_shown each");
 
 /* Whether background VRAM has room left for the copies of tiles in front
  * that the line effects' maps of layers split by them alone would take,
@@ -3724,12 +3726,18 @@ static uint16_t layer_control(unsigned n, uint8_t map, const Band *band, uint16_
     uint16_t size = (uint16_t)((b.map_w == 64 ? 1 : 0) | (b.map_h == 64 ? 2 : 0));
     uint16_t at = (uint16_t)(b.map_base << 1), bytes = map_bytes(&b);
     bool own = at == l->map_byte && bytes == l->map_bytes;
-    if (!own)
+    /* a band that cuts the map shows its cut copy, and the map whole only
+     * where the copy found no room: noted whole otherwise, it would be shown
+     * by no line, left out by the next layout and noted again, a layout a
+     * frame (the battle's menus) */
+    bool cuts = band->cut_dots && b.map_w == 32 && band->cut_dots % 8 == 0;
+    const LineMap *cut_copy = cuts ? line_map(n, at, true) : NULL;
+    if (!own && (!cuts || (cut_copy && cut_copy->gba_byte == NO_PLACE)))
         note_line_map(n, at, bytes, NO_CUT);
-    else if (!l->own_map)
+    else if (own && !l->own_map)
         snes.settings_changed = true;   /* left out by the last layout: the next has it */
     const LineMap *lm = line_map(n, at, false);
-    if (band->cut_dots && b.map_w == 32 && band->cut_dots % 8 == 0) {
+    if (cuts) {
         uint8_t cut = (uint8_t)(((band->cut_at + band->left + hofs) / 8 % 32) | band->cut_dots / 8 << CUT_COLUMNS_SHIFT);
         LineMap *cut_map = line_map(n, at, true);
         if (!cut_map) {
@@ -4446,6 +4454,52 @@ __attribute__((noinline)) static void show_moved_columns(LineRegisters *r, const
     show_tiles_in_front_again(r, unused);
 }
 
+/* The GBA's two windows set to show the SNES's four regions of a line: in
+ * window 1 alone, in window 2 alone, in both and in neither. Where both
+ * windows are the GBA shows its first window's choice, so that one carries
+ * whichever SNES window shows the same there; where neither does (both
+ * masks inverted, so the picture shows only where the windows meet: the
+ * palace's edges and its curtain in the attract demo, issue #565), the
+ * first carries the windows' meeting and the second whatever of the rest
+ * differs from outside them. Four regions all different can't be shown and
+ * keep window 1's choice where they meet. */
+static void window_regions(LineRegisters *r, const LineState *st, const Band *b, uint16_t neither)
+{
+    const VidWindows *w = &st->windows;
+    uint16_t one = line_layer_bits(st, region_layers(st, true, false));
+    uint16_t two = line_layer_bits(st, region_layers(st, false, true));
+    uint16_t win1 = gba_window(w->w1_left, w->w1_right, b), win2 = gba_window(w->w2_left, w->w2_right, b);
+    uint8_t meet_left = w->w1_left > w->w2_left ? w->w1_left : w->w2_left;
+    uint8_t meet_right = w->w1_right < w->w2_right ? w->w1_right : w->w2_right;
+    bool meet = w->w1_left <= w->w1_right && w->w2_left <= w->w2_right && meet_left <= meet_right;
+    uint16_t both = meet ? line_layer_bits(st, region_layers(st, true, true)) : one;
+    bool four_kinds = one != two && one != neither && two != neither;
+    if (both == one || (both != two && four_kinds)) {
+        r->win0h = win1;
+        r->win1h = win2;
+        r->winin = (uint16_t)(one | two << 8);
+        return;
+    }
+    if (both == two) {
+        r->win0h = win2;
+        r->win1h = win1;
+        r->winin = (uint16_t)(two | one << 8);
+        return;
+    }
+    r->win0h = gba_window(meet_left, meet_right, b);
+    if (one == neither) {
+        r->win1h = win2;
+        r->winin = (uint16_t)(both | two << 8);
+        return;
+    }
+    /* Window 1 alone shows what window 2 alone does, or what neither does:
+     * the second window spans both, or window 1. */
+    uint8_t span_left = w->w1_left < w->w2_left ? w->w1_left : w->w2_left;
+    uint8_t span_right = w->w1_right > w->w2_right ? w->w1_right : w->w2_right;
+    r->win1h = two == neither ? win1 : gba_window(span_left, span_right, b);
+    r->winin = (uint16_t)(both | one << 8);
+}
+
 /* A line's registers: the SNES's line shown on a band's line `down` lines
  * further down the GBA's than the GBA's own. A layer's row on the SNES is
  * its line's (the first shown is its line 1) and its scroll, one further
@@ -4465,13 +4519,9 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
             controls[n] = layer_control(n, st->map[n], b, st->hofs[n]);
     if ((layers_enabled & VID_BG4_BIT) && !b->drawn && !mode7)
         controls[3] = layer_control(3, map_byte_of(&snes.bg[3]), &(Band){ 0 }, 0);
-    if (st->windows.win_main & (VID_ALL_LAYERS)) {
-        r.win0h = gba_window(st->windows.w1_left, st->windows.w1_right, b);
-        r.win1h = gba_window(st->windows.w2_left, st->windows.w2_right, b);
-        r.winin = (uint16_t)(line_layer_bits(st, region_layers(st, true, false)) |
-                             line_layer_bits(st, region_layers(st, false, true)) << 8);
-    }
     r.winout = line_layer_bits(st, region_layers(st, false, false));
+    if (st->windows.win_main & (VID_ALL_LAYERS))
+        window_regions(&r, st, b, r.winout);
     /* Inside the sprite window, what the line shows outside the windows but
      * the sprites. */
     if (sprites_mask) {

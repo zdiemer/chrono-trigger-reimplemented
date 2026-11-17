@@ -108,5 +108,8 @@ PfData rom_data_mode(uint32_t at, uint32_t length, uint8_t mode);
  * gives; NULL for a cartridge byte no resource holds, which stops the program
  * there. */
 uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *served);
+/* `length` such reads one after another from `at`, all of them served from
+ * `served` on, into `to`: each byte's time as rom_cartridge_read's. */
+void rom_cartridge_read_span(const GameState *g, uint32_t at, const uint8_t *served, uint8_t *to, uint32_t length);
 
 #endif

@@ -844,8 +844,13 @@ made in `game/` as presentation and never as a rule:
   lines down at 240x160). It stays where it was aimed and starts in the
   middle. `core/view_framing.c` moves it a quarter of the way a frame (at
   least a dot): `view_follow` keeps a point in the middle third of the view,
-  `view_centre_on` puts it in the middle. It keeps nothing beside the game:
-  the camera's place is the view's own.
+  `view_centre_on` puts it in the middle, and `view_start_centred_on` puts
+  it there at once. It keeps nothing beside the game: the camera's place is
+  the view's own, so a mode that frames nothing shows what the last one
+  aimed at. The title, which frames nothing, starts it in the screen's
+  middle as at power-on: after the attract demo it was left where the
+  demo's last scene aimed it, and the logo and pendulum showed 22 lines
+  higher and 8 dots further left (issue #572).
 - **Panels** (`vid_keep_a_panel_in_view`, `VidViewPanel`): bands of the
   screen's lines shown at lines of the view's own over the camera's picture,
   whole as the original draws them (every layer, sprite, window and colour),
@@ -1330,10 +1335,18 @@ time model's rows aren't in the program. Its host decides instead
   through the same places as ct_native in the same order (`ct_native
   --locations`, the GBA's `location_id` read every 8 frames, the last
   allowed to differ): `attract-demo` through its 50 and `new-game` its 6,
-  where before the attract stopped at its 13th. What remains differs where the
-  GBA is slower than the SNES: the field's script turns in the castle's pan
-  cost the GBA about ten times the original's share of the window, and the
-  gargoyle's tiles are drawn some 35 frames after the pan reaches them (issue #555).
+  where before the attract stopped at its 13th. In the castle's pan the
+  gargoyle's tiles were drawn some 35 frames after the pan reached them
+  (issue #555): its frames are drawn from graphics built in bank $7F, a
+  word at a time through the state, and the frame builder's tile copy was
+  12.6% of the GBA's work over frames 5880-5990. A tile now goes in one
+  read and one write (`game/field/graphics.c`, `wram_read_span`,
+  `wram_write_span`, and from the cartridge `rom_read_span`, served in
+  one copy by `rom_cartridge_read_span`), each byte's time as before,
+  where its places neither leave the bank nor overlap; the copy falls to
+  0.9% and the frames' work over the window by 11%. Played so, the
+  gargoyle is drawn as the pan reaches it, the attract going through
+  ct_native's 50 places.
 
 In mGBA, with a late frame's picture left out (`Pictures`, below) and the
 fibers' stacks sized from the library as before, the movies (`title-start`,
@@ -1847,6 +1860,13 @@ mode 0's four tiled layers and its sprites:
   32-column map's, whole columns where the layer's scroll puts the cut),
   converted again only as the game changes them or the cut moves, and its
   windows' edges and sprites move across as the cut moves the dots.
+  The table of line effects' maps holds ten, nine of them cut at most: a
+  battle's line effects show six and the cut takes three more, which a
+  table of six or seven left no room for (the window shown whole, 16 dots
+  right of ct_native's, its gauges past the screen's edge). A band that cuts a map notes its cut copy alone, the
+  map whole only where the copy found no room: the whole map, shown by no
+  line, was left out by each layout and noted again, a layout a frame in
+  the battle's menus.
 - **The bands** are worked out a run of lines at a time, between the lines
   where a panel starts or ends or a band passes the SNES's first or last
   line, rather than a line at a time: at the title that took the picture
@@ -1898,7 +1918,16 @@ Approximated, or not shown yet (issue #483):
   GBA's, and those moved up and down on a split layer past them, show as
   their layer lies; the clouds before the Ocean Palace in
   the attract sequence, mode 2 too, still show black.
-- Where both windows cover a dot, the GBA shows window 1's choice.
+- Where both windows cover a dot, the GBA shows its first window's choice,
+  so `window_regions` gives that one whichever SNES window shows the same
+  there. Where neither does, it carries the windows' meeting, and the second
+  carries whatever of the rest differs from outside them. The palace rising
+  in the attract sequence masks its layers outside both windows (its
+  ragged edges and its curtain), so it shows only where they meet; it had
+  shown nothing but a sliver at the left (issue #565). Its census picture
+  cluster went from 16,797 pixels a frame to 6,191, what is left being its
+  shimmer and ripple. A line whose four regions all show differently keeps
+  window 1's choice where they meet.
 - A sprite whose tiles run past a SNES tile table's row or table end takes
   the next row's on the GBA.
 

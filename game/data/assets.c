@@ -299,8 +299,12 @@ const uint8_t *rom_bytes_on(uint32_t at, uint32_t length)
 void rom_read_span(const GameState *g, uint32_t at, uint8_t *to, uint32_t length)
 {
     const uint8_t *bytes = rom_bytes_on(at, length);
+    if (bytes) {
+        rom_cartridge_read_span(g, at, bytes, to, length);
+        return;
+    }
     for (uint32_t i = 0; i < length; i++)
-        to[i] = bytes ? rom_cartridge_read(g, at + i, bytes + i) : rom_read8(g, at + i);
+        to[i] = rom_read8(g, at + i);
 }
 
 const AssetUnpacked *rom_unpacked(uint32_t at)

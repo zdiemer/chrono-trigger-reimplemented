@@ -6,6 +6,8 @@
  * assets.c sends those reads to); a cartridge byte no resource holds (counted
  * by data/assets.c) has no answer here, and the program goes no further, the
  * address named where it stops. */
+#include <string.h>
+
 #include "core/program.h"
 #include "port/state_host.h"
 #include "port/vars_ram.h"
@@ -21,4 +23,12 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
     /* the stop is the backing's own record, not the game's state */
     program_fail((GameState *)g, at, "a cartridge byte in no resource of the catalogue");
     return 0;
+}
+
+void rom_cartridge_read_span(const GameState *g, uint32_t at, const uint8_t *served, uint8_t *to, uint32_t length)
+{
+    (void)at;
+    if (!vars_peeking())
+        state_host_game_access(g, STATE_HOST_CARTRIDGE_CLOCKS * length);
+    memcpy(to, served, length);
 }

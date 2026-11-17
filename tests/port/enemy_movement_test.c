@@ -28,6 +28,12 @@ uint8_t rom_cartridge_read(const GameState *g, uint32_t at, const uint8_t *serve
     return at == MOVEMENTS_TABLE + APPROACH_TO_REACH ? MOVEMENT_APPROACH : 0;
 }
 
+void rom_cartridge_read_span(const GameState *g, uint32_t at, const uint8_t *served, uint8_t *to, uint32_t length)
+{
+    for (uint32_t i = 0; i < length; i++)
+        to[i] = rom_cartridge_read(g, at + i, served + i);
+}
+
 int main(void)
 {
     GameState *g = state_host_create(NULL);
