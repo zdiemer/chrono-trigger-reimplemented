@@ -1506,11 +1506,14 @@ mode 0's four tiled layers and its sprites:
   the floor's cache started afresh in the window where the text's cache
   had its tiles: the floor went black in 16-dot squares from frame 4461 to
   5447 as the text's tiles took its places (issue #589). With the bands
-  above, the census's pictures in `events-jetbike-race` fell from 14.8
-  million pixels to 7.2 (the scene's cluster, 8.2 million, gone; what is
-  left there is in clusters of 0.15 million and less), `gato-battle` from 19.4
-  to 18.2, the other four movies the same or less; each movie ends as
-  ct_native's.
+  above, the census's pictures in `events-jetbike-race` fell from 10.7
+  million pixels to 3.2 (the scene's cluster gone; what is left there is
+  in clusters of 0.15 million and less) and `gato-battle`'s from 3.2 to
+  1.4, the other four movies within 0.02 million; each movie ends as
+  ct_native's. Two clusters came in: a frame or two of shading as Crono
+  leaves his room (`new-game` 6164, 0.07 million) and eight frames of a
+  dialog's rows a line apart as it opens (`gato-battle` 15625, 0.11
+  million).
 - **A layout's work** is what the picture stops for, so it is kept short.
   Sampled only while a layout's picture is made (`mgba_run`'s sampler kept
   to a flag the program sets), it was the maps' conversion, a unit at a
