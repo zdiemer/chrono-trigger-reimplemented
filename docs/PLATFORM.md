@@ -2021,9 +2021,14 @@ Approximated, or not shown yet (issue #483):
   target and behind the sprites of the highest priority (the battle's),
   the same sum. Before, Flea's red cross in the attract demo covered Crono
   and the damage shown; sprites of the lower priorities still stand behind
-  it there. The flash across the battlefield as the cross begins (the sub
-  screen's third layer, which no window keeps in, where the main screen's is
-  windowed) is not shown.
+  it there. The flash across the battlefield as the cross begins is the
+  fixed colour, added where the sub screen's third layer is windowed to the
+  cross and so shows nothing: there the first two layers are first targets
+  too, over the backdrop at the fixed colour. A line effect that sets both
+  screens' layers sets the sub screen's windows with them; the GBA's lines
+  had kept only the main screen's, so the flash was missing (1.15M and
+  1.13M pixel-frames in the census at attract-demo frames 4098-4108 and
+  15150-15160, now none).
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it; a sprite
   raised instead shows over the dots of the layers between where they
