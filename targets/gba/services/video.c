@@ -1519,6 +1519,30 @@ static uint8_t scroll_source[4];   /* each GBA layer's SNES layer, or the first 
 static uint8_t columns_layer[2];   /* NO_LAYER: none */
 static uint8_t columns_bits;
 
+/* The second layer's tiles in front shown with the first's ("Priority",
+ * above). Where mode 1 splits the first layer and the third takes the GBA's
+ * last layer, the second stands unsplit behind, after the first's tiles
+ * behind at the same priority, and those covered its tiles in front: the
+ * tops of the candelabra in Magus's castle's battle (issue #608). Where the
+ * two layers share their tiles and every line that shows the first's map
+ * `a` shows the second's `b` (as large) beside it alike (layers_alike: the
+ * same scroll, screens, windows and colour math), as the battle's lines do,
+ * the second's entries in front are put into the first's copy of its tiles
+ * in front wherever the first's entry stands behind (convert_merged), and
+ * stand there in front of the first's tiles behind as on the SNES. A line
+ * notes the pair; the next picture merges it, the copy converted again as
+ * either map changes. A line that shows `a` otherwise breaks the merge, and
+ * the pair is refused until `b` changes, as it is where `b` has no tiles in
+ * front or `a` no copy of its own. Its functions are kept out of line:
+ * inlined, they moved the link's inlining elsewhere and took 64 bytes of
+ * fast RAM. */
+typedef struct {
+    uint16_t a, b, bytes;   /* the maps (SNES bytes); bytes 0: none */
+} MapPair;
+static MapPair merge, merge_wanted, merge_refused;
+static uint16_t merge_front = NO_PLACE;   /* the first layer's copy of its tiles in front, merged; or none */
+static bool merge_broken;
+
 /* A SNES layer's tiles in front (or behind) put among the GBA's layers
  * `count` so far, kept front to back by how far back they stand (`depth`);
  * `front_copy`: from the split layer's copy of its tiles in front. */
@@ -2652,6 +2676,74 @@ static void note_map_priorities(unsigned n, uint32_t map_byte, uint32_t bytes, b
     }
 }
 
+/* Where the GBA keeps the first layer's copy of its tiles in front of map
+ * `a`, `bytes` long: its own map's, or a line map's; NO_PLACE: none. */
+static uint16_t front_copy_of(uint16_t a, uint16_t bytes)
+{
+    if (layers[0].own_map && layers[0].map_byte == a && layers[0].map_bytes == bytes)
+        return layers[0].front_byte;
+    for (unsigned m = 0; m < snes.line_map_count; m++) {
+        const LineMap *lm = &snes.line_maps[m];
+        if (lm->layer == 0 && lm->byte == a && lm->bytes == bytes && lm->cut == NO_CUT && lm->gba_byte != NO_PLACE)
+            return lm->front_byte;
+    }
+    return NO_PLACE;
+}
+
+/* The merged copy's units at `offset` into the pair's maps (`units`, a bit
+ * each): each entry the first map's where it stands in front, else the
+ * second's where that one does, else blank. */
+__attribute__((noinline)) static void convert_merged(uint32_t offset, uint32_t units)
+{
+    enum { NO_ENTRY = 0x10000 };
+    Cache *c = &caches[layers[0].cache];
+    uint32_t high = high_palettes(&layers[0]);
+    for (; units; units >>= 1, offset += UNIT_BYTES) {
+        if (!(units & 1))
+            continue;
+        const Halfword *a = (const Halfword *)&snes.vram[(merge.a + offset) & (VRAM_BYTES - 1)];
+        const Halfword *b = (const Halfword *)&snes.vram[(merge.b + offset) & (VRAM_BYTES - 1)];
+        volatile uint16_t *to = (volatile uint16_t *)BG_VRAM + (merge_front + offset) / 2;
+        for (unsigned i = 0; i < UNIT_BYTES / 2; i++) {
+            uint32_t e = a[i] & PRIORITY_BIT ? a[i] : b[i] & PRIORITY_BIT ? b[i] : NO_ENTRY;
+            to[i] = (uint16_t)(e == NO_ENTRY ? c->blank : entry_in(c, e, high));
+        }
+    }
+}
+
+static void map_units_changed(uint16_t byte, uint16_t bytes)
+{
+    for (uint32_t i = 0; i < bytes; i += UNIT_BYTES)
+        unit_changed((byte + i) & (VRAM_BYTES - 1));
+}
+
+/* The merge as the last picture's lines left it (MapPair): broken, asked
+ * for, or kept where the layout put the first map's copy of its tiles in
+ * front, its units converted again where it changes or a layout may have
+ * converted them plain. */
+__attribute__((noinline)) static void keep_the_merge(bool laid_out)
+{
+    MapPair pair = merge;
+    if (merge_broken)
+        merge_refused = merge, pair = (MapPair){ 0, 0, 0 };
+    else if (merge_wanted.bytes)
+        pair = merge_wanted;
+    uint16_t front = NO_PLACE;
+    if (pair.bytes && layers[0].split && !layers[1].split && layers[1].shown && layers[0].cache == layers[1].cache &&
+        has_tiles_in_front(pair.b, pair.bytes))
+        front = front_copy_of(pair.a, pair.bytes);
+    if (pair.bytes && front == NO_PLACE)
+        merge_refused = pair, pair = (MapPair){ 0, 0, 0 };
+    if (merge_front != NO_PLACE && (front != merge_front || memcmp(&pair, &merge, sizeof pair)))
+        map_units_changed(merge.a, merge.bytes);   /* its copy plain again */
+    if (front != NO_PLACE && (laid_out || front != merge_front || memcmp(&pair, &merge, sizeof pair)))
+        map_units_changed(pair.a, pair.bytes);
+    merge = pair;
+    merge_front = front;
+    merge_wanted = (MapPair){ 0, 0, 0 };
+    merge_broken = false;
+}
+
 /* The units of a block of VRAM the game changed (`units`, a bit each, the
  * first unit's lowest), each as what the settings make it. What a block is
  * for (the maps, line maps and caches it holds; every one starts on a
@@ -2734,6 +2826,15 @@ static void convert_block(unsigned k, uint32_t units)
         if (owner->overlaid)
             convert_map_units(block, units, 4, 0, false, owner, NO_PLACE, front);
     }
+    if (merge_front != NO_PLACE && within(block, merge.a, merge.bytes))
+        convert_merged((block - merge.a) & (VRAM_BYTES - 1), units);
+    else if (merge_front != NO_PLACE && within(block, merge.b, merge.bytes))
+        convert_merged((block - merge.b) & (VRAM_BYTES - 1), units);
+    /* a pair refused asks again once its second map has tiles in front (a
+     * battle's maps are sent after its lines first show them) */
+    for (unsigned i = 0; merge_refused.bytes && within(block, merge_refused.b, merge_refused.bytes) && i < 16; i++)
+        if (units >> i & 1 && has_tiles_in_front(block + i * UNIT_BYTES, UNIT_BYTES))
+            merge_refused = (MapPair){ 0, 0, 0 };
     for (unsigned i = 0; units; i++, units >>= 1) {
         if (!(units & 1))
             continue;
@@ -5207,6 +5308,43 @@ static void window_regions(LineRegisters *r, const LineState *st, const Band *b,
     r->winin = (uint16_t)(both | one << 8);
 }
 
+/* Whether a line shows the first two layers alike but for their maps:
+ * the same scroll, screens, windows and colour math, so that the second's
+ * tiles in front shown on the first's GBA layer (MapPair) look as they do
+ * on its own. */
+static bool layers_alike(const LineState *st)
+{
+    unsigned apart = (st->main_layers ^ st->main_layers >> 1) | (st->sub_layers ^ st->sub_layers >> 1) |
+                     (st->math.layers ^ st->math.layers >> 1) | (st->windows.win_main ^ st->windows.win_main >> 1) |
+                     (st->windows.win_sub ^ st->windows.win_sub >> 1);
+    if ((apart & 1) || st->hofs[0] != st->hofs[1] || st->vofs[0] != st->vofs[1])
+        return false;
+    for (unsigned in = 0; in < 4; in++)
+        if (masked(&st->windows, 0, in & 1, in >> 1) != masked(&st->windows, 1, in & 1, in >> 1))
+            return false;
+    return true;
+}
+
+/* A line's part in the merge (MapPair): the pair it shows alike noted, or
+ * the merge broken where it shows the merged map otherwise. */
+__attribute__((noinline)) static void note_the_merge(const LineState *st, const Band *b)
+{
+    if (laid_out_mode != 1 || b->drawn || b->cut_dots || !layers[0].split || layers[1].split || !layers[1].shown ||
+        !((st->main_layers | st->sub_layers) & VID_BG1_BIT))
+        return;
+    VidBg first = { 0 }, second = { 0 };
+    vid_bg_map_decode(&first, st->map[0]);
+    vid_bg_map_decode(&second, st->map[1]);
+    MapPair pair = { (uint16_t)(first.map_base << 1), (uint16_t)(second.map_base << 1), map_bytes(&first) };
+    bool alike = pair.a != pair.b && pair.bytes == map_bytes(&second) && layers_alike(st);
+    if (merge.bytes && pair.a == merge.a) {
+        if (!alike || memcmp(&pair, &merge, sizeof pair))
+            merge_broken = true;
+    } else if (alike && memcmp(&pair, &merge_refused, sizeof pair)) {
+        merge_wanted = pair;
+    }
+}
+
 /* A line's registers: the SNES's line shown on a band's line `down` lines
  * further down the GBA's than the GBA's own. A layer's row on the SNES is
  * its line's (the first shown is its line 1) and its scroll, one further
@@ -5249,10 +5387,12 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
                 r.vofs[g] = (uint16_t)(panel.vofs[s] - panel.at);
             }
     }
-    if (mode7)
+    if (mode7) {
         plane_layer(&r, &st->m7), plane_line((unsigned)at, &st->m7, b->left, at + down + 1);
-    else
+    } else {
         gba_controls(&r, controls, drawn_layers);
+        note_the_merge(st, b);
+    }
     line_blending(&r, st);
     if (!mode7)
         third_layer_as_the_line_puts_it(&r, st);
@@ -6155,6 +6295,7 @@ static void lay_out_again(bool keep_windows)
 /* VRAM's changes since the last picture converted, and the palettes. */
 static void convert_the_changes(bool laid_out)
 {
+    keep_the_merge(laid_out);
     uint32_t written = 0;
     for (unsigned w = 0; w < UNITS / 32; w++) {
         uint32_t units = snes.changed[w];

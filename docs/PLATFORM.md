@@ -2010,7 +2010,21 @@ Approximated, or not shown yet (issue #483):
   With no tiles in front it stands behind the first two, as on the SNES,
   even where only the lines show its map: the light circles 12,000 BC's
   cave and Lucca's house keep on it out of sight covered both rooms, and
-  the End of Time's lamp lit its floor in streaks. A
+  the End of Time's lamp lit its floor in streaks. Where mode 1 splits the
+  first layer and the second stands unsplit behind, the first's tiles
+  behind covered the second's in front; where the two share their tiles
+  and every line that shows the first's map shows the second's beside it
+  alike (scroll, screens, windows and colour math: `layers_alike`), as a
+  battle's lines do, the second's entries in front go into the first's copy
+  of its tiles in front wherever the first's entry stands behind
+  (`MapPair`, `convert_merged`), converted again as either map changes, and
+  a line that shows the first map otherwise undoes it. The candelabra's
+  tops in Magus's castle's battle show (the census's clusters at
+  `attract-demo` frames 6629-7230 and 17680-18277, 420,287 and 447,594
+  pixels, now none; `menus-new-game-plus`'s pictures 4.36 million pixels
+  against 0.32 and `battle-menu-buttons`'s 7.09 against 8.89; over the
+  census's default movies 28.7 million against 34.7, in 0.2% more GBA
+  frames, no movie's more than 0.7%). A
   split takes its copies' room from the tile caches. The layers are
   assigned for the mode the frame starts in; a line effect that sets the
   mode again part of the way down sets the third layer's priority with it
