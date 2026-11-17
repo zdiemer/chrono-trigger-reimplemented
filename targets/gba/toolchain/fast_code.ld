@@ -8,7 +8,6 @@
  * suffix after the name is the compiler's copy of it); a name the build no
  * longer has places nothing. */
 *(.text.state_host_read8 .text.state_host_read8.*)
-*(.text.state_host_write8 .text.state_host_write8.lto_priv.*)   /* not a .constprop copy: its callers are the scenes, in the cartridge */
 *(.text.note_if_unread .text.note_if_unread.*)
 *(.text.read_game .text.read_game.*)
 *(.text.place_of .text.place_of.*)
@@ -27,14 +26,10 @@
 *(.text.slot_entry .text.slot_entry.*)
 /* With the fibers' stacks sized from the movie library's deepest use
  * (system/fiber.c): the next functions by the GBA's work a byte */
-*(.text.vars_host_fill_span .text.vars_host_fill_span.*)
-*(.text.sprite_table_set_byte .text.sprite_table_set_byte.*)
 *(.text.vid_send_palette .text.vid_send_palette.*)
 *(.text.w8 .text.w8.*)
 *(.text.offset_row .text.offset_row.*)
-*(.text.r16 .text.r16.*)
 *(.text.load_sprite_list .text.load_sprite_list.*)
-*(.text.wram_copy .text.wram_copy.*)
 *(.text.plane_line .text.plane_line.*)
 *(.text.vid_send_vram_fill .text.vid_send_vram_fill.*)
 *(.text.next_of .text.next_of.*)

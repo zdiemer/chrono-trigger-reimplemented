@@ -39,7 +39,8 @@ enum {
     TIMER_ON = 0x0080, TIMER_IRQ = 0x0040, TIMER_COUNTS_THE_LAST = 0x0004,
     QUARTERS = DIRECT_SOUND_RING / DIRECT_SOUND_QUARTER,
 };
-_Static_assert(DIRECT_SOUND_RING % DIRECT_SOUND_FILL == 0, "a fill never wraps the ring");
+_Static_assert(DIRECT_SOUND_QUARTER % DIRECT_SOUND_FILL == 0 && DIRECT_SOUND_FILL % 4 == 0,
+               "a fill never wraps the ring, the quarters fall between fills, and a fill is whole words");
 
 DirectSound ct_gba_sound;
 static void (*filler)(void);
@@ -48,8 +49,9 @@ static unsigned quarter;
 
 /* The DMA given the ring's start with the FIFOs emptied: what they held is
  * what the DMA read on past the ring's end, the sample just played being the
- * ring's last. */
-__attribute__((target("arm"), section(".iwram"), noinline)) static void play_from_the_start(void)
+ * ring's last. Once every two GBA frames: in the cartridge, as Thumb, where
+ * fast RAM does more as the mixer's. */
+__attribute__((noinline)) static void play_from_the_start(void)
 {
     DMA1CNT_H = 0;
     DMA2CNT_H = 0;
@@ -60,6 +62,22 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void play_fro
     DMA2DAD = FIFO_B;
     DMA1CNT_H = SOUND_DMA;
     DMA2CNT_H = SOUND_DMA;
+}
+
+/* What is playing now, to `needed`, wasn't filled in time: silence from
+ * where it was. Seldom, so in the cartridge, as Thumb. */
+__attribute__((noinline)) static void silence_unfilled(DirectSound *s, uint32_t played, uint32_t needed)
+{
+    uint32_t queued = s->queued;
+    uint32_t from = (int32_t)(played - queued) > 0 ? played : queued;
+    uint32_t at = from % DIRECT_SOUND_RING;
+    for (uint32_t n = needed - from; n; n--) {
+        s->left[at] = s->right[at] = 0;
+        if (++at == DIRECT_SOUND_RING)
+            at = 0;
+    }
+    s->silent += needed - queued;
+    s->queued = needed;
 }
 
 /* A quarter of the ring played: the DMA back to its start after the last
@@ -76,20 +94,10 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void quarter_
     }
     uint32_t played = s->played + DIRECT_SOUND_QUARTER, queued = s->queued;
     s->played = played;
-    /* the quarter now playing, to the fill's next place */
-    uint32_t needed = (played + DIRECT_SOUND_QUARTER + DIRECT_SOUND_FILL - 1) & ~(uint32_t)(DIRECT_SOUND_FILL - 1);
-    if (!filling && (int32_t)(needed - queued) > 0) {
-        /* what is playing now wasn't filled in time: silence from where it was */
-        uint32_t from = (int32_t)(played - queued) > 0 ? played : queued;
-        uint32_t at = from % DIRECT_SOUND_RING;
-        for (uint32_t n = needed - from; n; n--) {
-            s->left[at] = s->right[at] = 0;
-            if (++at == DIRECT_SOUND_RING)
-                at = 0;
-        }
-        s->silent += needed - queued;
-        s->queued = needed;
-    }
+    /* the quarter now playing, which ends where a fill does */
+    uint32_t needed = played + DIRECT_SOUND_QUARTER;
+    if (!filling && (int32_t)(needed - queued) > 0)
+        silence_unfilled(s, played, needed);
     if (filler && !filling && direct_sound_room() >= DIRECT_SOUND_FILL) {
         filling = true;
         gba_interrupt_nested(filler);
@@ -103,9 +111,9 @@ __attribute__((target("arm"), section(".iwram"), noinline)) static void quarter_
 void direct_sound_start(void (*fill)(void))
 {
     DirectSound *s = &ct_gba_sound;
-    fprintf(stderr, "ct_gba: sound ring at %08X, %u samples, left at +%u, right at +%u\n",
+    fprintf(stderr, "ct_gba: sound ring at %08X, %u samples, left at +%u, right at +%u, %u a second\n",
             (unsigned)(uintptr_t)s, (unsigned)DIRECT_SOUND_RING, (unsigned)offsetof(DirectSound, left),
-            (unsigned)offsetof(DirectSound, right));
+            (unsigned)offsetof(DirectSound, right), (unsigned)DIRECT_SOUND_RATE);
     filler = fill;
     memset(s->left, 0, sizeof s->left);
     memset(s->right, 0, sizeof s->right);

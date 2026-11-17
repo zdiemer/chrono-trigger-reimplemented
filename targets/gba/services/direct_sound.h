@@ -1,5 +1,5 @@
 /* The GBA's sound out: the mixer's 8-bit samples played on Direct Sound A
- * (left) and B (right) at DIRECT_SOUND_RATE, 224 a GBA frame.
+ * (left) and B (right) at DIRECT_SOUND_RATE, 176 a GBA frame.
  *
  * The GBA plays it by itself. The mixer writes what it mixes into a ring of
  * two frames; timer 0 plays a sample from each channel's FIFO at the rate,
@@ -19,11 +19,12 @@
 #include <stdint.h>
 
 enum {
-    DIRECT_SOUND_CYCLES = 1254,                      /* cycles a sample: 16,777,216 / 1254 = 13,379 a second */
-    DIRECT_SOUND_FRAME = 224,                        /* samples a GBA frame (280,896 cycles) */
+    DIRECT_SOUND_CYCLES = 1596,                      /* cycles a sample: 16,777,216 / 1596 = 10,512 a second */
+    DIRECT_SOUND_FRAME = 176,                        /* samples a GBA frame (280,896 cycles) */
+    DIRECT_SOUND_RATE = 10512,                       /* samples a second, as a runner records them */
     DIRECT_SOUND_RING = 2 * DIRECT_SOUND_FRAME,      /* samples in the ring, each channel */
     DIRECT_SOUND_QUARTER = DIRECT_SOUND_RING / 4,    /* samples between timer 1's interrupts */
-    DIRECT_SOUND_FILL = 32                           /* samples the mixer queues at a time, a power of two dividing the ring */
+    DIRECT_SOUND_FILL = DIRECT_SOUND_QUARTER         /* samples the mixer queues at a time, a multiple of 4 */
 };
 
 /* The ring, where a runner that records the sound finds it
