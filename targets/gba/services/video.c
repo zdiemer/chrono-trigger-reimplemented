@@ -2738,9 +2738,15 @@ static void convert_block(unsigned k, uint32_t units)
         const LineMap *lm = shown_maps[j];
         uint32_t offset = (block - lm->byte) & (VRAM_BYTES - 1);
         if (lm->cut != NO_CUT) {
-            for (unsigned i = 0; i < 16; i++)
-                if (units >> i & 1)
-                    convert_cut_row(lm, (offset + i * UNIT_BYTES) / 64);
+            /* a row is two units: converted once where both changed */
+            uint32_t converted = UINT32_MAX;   /* none yet */
+            for (unsigned i = 0; i < 16; i++) {
+                uint32_t row = (offset + i * UNIT_BYTES) / 64;
+                if (units >> i & 1 && row != converted) {
+                    convert_cut_row(lm, row);
+                    converted = row;
+                }
+            }
             continue;
         }
         /* a shared copy is its owner's, converted as its map */
