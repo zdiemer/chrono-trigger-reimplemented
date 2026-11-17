@@ -9,7 +9,13 @@
 
 #include "platform/platform.h"
 
-void gba_video_present(Platform *pf);
+/* The picture of the game's frame `frame` (counted from 1), made and put on
+ * the screen, or from the next vertical blank where it was made too late
+ * for this one. */
+void gba_video_present(Platform *pf, uint32_t frame);
+/* `shown` told the frame whose picture goes on the screen, as it goes on
+ * (drive_showing). */
+void gba_video_tell_shown(void (*shown)(uint32_t frame));
 /* Waits for the vertical blank, where the driver makes the picture. */
 void gba_video_await_blank(void);
 /* The colours as the GBA shows them: a table of the 32,768 BGR555 colours'
