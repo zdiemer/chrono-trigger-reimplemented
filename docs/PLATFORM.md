@@ -2028,7 +2028,14 @@ Approximated, or not shown yet (issue #483):
   screens' layers sets the sub screen's windows with them; the GBA's lines
   had kept only the main screen's, so the flash was missing (1.15M and
   1.13M pixel-frames in the census at attract-demo frames 4098-4108 and
-  15150-15160, now none).
+  15150-15160, now none). Where the third layer keeps its priority but is
+  the light the sub screen adds to the first two layers, and isn't split,
+  it stands behind every layer on those lines, as the blending's second
+  target, its few tiles in front with it
+  (`third_layer_behind_where_it_lights`): in Guardia's throne room its glow,
+  nearly all tiles behind, had covered the stained glass in front of it (the
+  census's clusters at `attract-demo` frames 3281-3504 and 14330-14553,
+  428,178 and 427,116 pixels, now none).
 - A sprite mask hides every sprite inside it, not only those after it in
   the table, and doesn't show itself where no layer covers it; a sprite
   raised instead shows over the dots of the layers between where they
