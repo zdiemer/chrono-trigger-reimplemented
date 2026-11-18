@@ -3210,9 +3210,9 @@ accessors. Timed a part at a time, an ordinary battle picture took 16K
 cycles converting VRAM's changes, 18K the sprites and 58K the lines: a
 third of a GBA frame out of the next game frame's.
 
-Most of that touches nothing the GBA shows, so where the game frame ends
-before its blank the driver has it made then (`gba_video_prepare`,
-`services/video.c`, "The picture begun before the blank"): the sprites'
+Most of that touches nothing the GBA shows, so where the game frame ended
+before its blank the driver had it made then (since replaced by the picture
+made ahead of its blank, below): the sprites'
 tiles turned onto the page not shown, the sprites into the table kept
 aside, the lines into the changes and strengths the screen isn't reading
 (the strengths are now kept at two ends, as the changes are). The blank
@@ -3356,6 +3356,96 @@ attract's and the battles' window edges, a battle's cut panel. `run.py
 --own-time` finds the attract's 50 places.
 Reading a slot's units in place outside the stretches, a transfer at a
 time, cost more than the reads it spared (`gato-battle` 24,015).
+
+**Pictures made ahead of their blank** (issue #568). Sampled with the
+driver's part of the frame noted (`--fast-rom`), the GBA spent a fifth to
+over a third of its time waiting for a vertical blank: a picture's changes
+to what the screen shows had to be made in a blank, so after each game
+frame the driver waited for the next one, made the picture there and only
+then began the next frame, though the game ran below the GBA's time and had
+no reason to idle. Now a frame's picture is made as the frame ends
+(`gba_video_make_ahead`, `services/video.c`, "The picture made ahead of its
+blank") and the next frame begins at once; the line counter's interrupt at
+the next blank shows it. The lines, the sprites and the sprites' tiles were
+already made where the screen doesn't read them (above). What the screen
+does read waits aside: each 32 bytes of a map's units the game sent, of a
+cache's tiles it wrote again, and of each palette that changes (the
+palettes are now made only where the game wrote them, known from the
+colours its sends name), in a place of background VRAM that nothing has and
+no cache's next tiles reach, with where it goes; the interrupt copies them
+there before it shows the picture, and the places are given back before the
+next one is made. Work RAM holds only the list (64 places, 256 bytes). A
+picture not shown by the time the next is made gives way to it, what it put
+aside staying under what the next puts there, and the sprites' tiles then go
+onto the page the shown sprites still don't name. A layout, Mode 7's plane,
+mode 2's columns, copied columns and a drawn panel (whose memory the game
+writes where the screen reads it as the next frame goes on: the dialog's
+last row showed two dots to the side a GBA frame at a time) are made in the
+blank as before, and so is the rest of a picture whose places or list run
+out (a battle's caches leave few free) or whose lines need more of the
+change tables than the shown frame's leave.
+
+The driver now holds the game to the GBA's time itself (`Clock`,
+`system/main.c`), which the wait for each picture's blank did before: a
+frame begins no sooner than a GBA frame after the last, on the GBA's
+blanks, and at once where the game is behind, until it has caught up, at
+most a second of it. A picture is left out only where the game is over a
+GBA frame behind: where the last one made ahead still waits for its blank,
+or where the last picture's making and this frame's game and sound take more
+than a GBA frame (never two in a row). A picture made ahead is shown from
+the blank, or at once only where it is the shown picture as it stands (its
+lines kept as the shown frame's, nothing waiting aside, its sprites the
+same): shown at once where its lines were worked out again the same, the
+menus' page turns showed pictures that weren't their frames'. The rooms
+looked for from the top of VRAM (the fill's, the copies') and a first copy
+of columns are made in the blank, which a picture's places aside would
+otherwise refuse or leave reading maps not yet converted; and a cache's
+window lends places aside only while it keeps 256 free past its next tile,
+so that a menu list's new tiles always find one. The report gives the
+pictures shown, those left out (and of them those with the last still
+waiting) and those that gave way, and the GBA frames spent holding the game
+back and waiting for blanks; a frame's work filled now counts its own
+picture's making. Showing the picture from the interrupt took the
+interrupts' stack to 272 bytes in `events-jetbike-race` (main's 248 of 256):
+it is 320 now, the pacing counted outside the interrupt; `convert_cut_row`
+left fast RAM to make the room.
+
+With `--fast-rom`, main against this, each end state as ct_native's; the
+GBA's time spent waiting (main's sampled, this one's from the report), and
+the share of game frames whose work fills one, two, three or more GBA
+frames:
+
+| Movie | Waiting | Speed | Pictures a second | 1 / 2 / 3 / 4+ GBA frames |
+|---|---|---|---|---|
+| `new-game` | 35% → 31% | 93.4% → 98.6% | 47.5 → 46.6 | 82.4 / 16.4 / 0.8 / 0.5% → 79.9 / 18.6 / 1.0 / 0.5% |
+| `gato-battle` | 21% → 15% | 90.0% → 95.1% | 42.8 → 40.2 | 77.4 / 19.3 / 2.6 / 0.7% → 69.4 / 27.4 / 2.6 / 0.6% |
+| `attract-demo` | 22% → 13% | 73.3% → 76.2% | 34.1 → 30.8 | 72.4 / 15.8 / 5.7 / 6.1% → 67.8 / 19.5 / 5.2 / 7.4% |
+| `events-jetbike-race` | 17% → 13% | 78.1% → 79.0% | 34.0 → 31.9 | 67.1 / 21.8 / 9.0 / 2.0% → 63.2 / 25.0 / 9.0 / 2.7% |
+
+The time the wait gave back went to the game, not to pictures. In
+`new-game`'s 7,301 GBA frames 5,692 pictures were shown: 1,411 frames had
+theirs left out (257 with the last still waiting, the rest overrunning a GBA
+frame over a frame behind, mostly loads), 96 were made ahead and gave way,
+and the loads' long frames fill the other blanks. Making every picture
+(leaving none out for overrunning) showed 6,649 in 8,477 GBA frames, the
+game at 84.9%: a picture costs about as much made ahead as in the blank,
+and showing one only from the blank after it means the next frame often
+ends first. What waiting is left is the game held to the GBA's time where it
+is ahead (`new-game` 779 GBA frames) and the pictures still made in the
+blank (1,497, 1,969, 2,365 and 1,339 GBA frames): mode 2's columns and Mode
+7's plane, which read what VRAM's conversion writes, are the next to make
+ahead.
+
+A census of the seven movies finds 1,743 clusters against main's 2,326
+with the original colours and 1,655 against 2,096 with `port-style`'s,
+torn ones 13 against 41. The picture clusters that overlap none of main's
+are each one or two GBA frames, the largest 688 pixels (a frame of
+`events-jetbike-race` main left out). The first frame of Magus's spell in
+the attract (4082), which an earlier version showed for five GBA frames with
+the fill's red over its window's whole region, is drawn the same made in
+the blank: the picture of a frame main leaves out. `run.py --own-time`
+finds the attract's 50 places. Fast RAM keeps 792 bytes spare and work RAM
+is 488 bytes above its floor.
 
 ## Scene map fills
 

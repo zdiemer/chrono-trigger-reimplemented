@@ -122,7 +122,7 @@ typedef struct {
     uint16_t gba_byte;    /* NO_PLACE: no room for it */
     uint16_t front_byte;  /* its tiles in front, where its layer is split; or NO_PLACE */
 } LineMap;
-enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5 };
+enum { NO_PLACE = 0xFFFF, NO_CUT = 0xFF, CUT_COLUMN = 0x1F, CUT_COLUMNS_SHIFT = 5, ALL_PALETTES = 0xFFFF };
 /* The maps kept for the lines, beside the layers' own (a battle's six, and
  * the three its window cut to the view takes): a map a band shows cut takes
  * no more than CUT_LINE_MAPS of them, leaving room for a map a line shows
@@ -151,7 +151,8 @@ typedef struct {
     LineMap line_maps[LINE_MAPS];
     uint8_t line_map_count;
     uint32_t changed[UNITS / 32];     /* the 32-byte units the game changed since the picture was made */
-    bool palette_written, settings_changed, sprites_changed;
+    uint16_t palettes_written;   /* the SNES's palettes of 16 colours the game wrote since the picture, a bit each */
+    bool settings_changed, sprites_changed;
     PfReadGame *read;
     const uint8_t *(*in_place)(void *ctx, uint32_t addr, uint32_t len);   /* gba_video_read_in_place */
     void *ctx;
@@ -536,7 +537,8 @@ void vid_host_start(Platform *pf, PfReadGame *read, void *ctx)
     (void)pf;
     snes.read = read;
     snes.ctx = ctx;
-    snes.settings_changed = snes.palette_written = snes.sprites_changed = true;
+    snes.settings_changed = snes.sprites_changed = true;
+    snes.palettes_written = ALL_PALETTES;
     view_aim = (VidAim){ (VID_ORIGINAL_VIEW_WIDTH - GBA_VIEW_WIDTH) / 2, (VID_ORIGINAL_VIEW_HEIGHT - GBA_VIEW_HEIGHT) / 2 };
     view_panel_count = 0;
     DISPCNT = DISPCNT_FORCED_BLANK;
@@ -998,6 +1000,19 @@ void vid_send_vram_fill(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData val
     vram_upload(vram_addr, value, len, true, port);
 }
 
+/* The SNES's palettes of 16 colours that `count` colours from `first` on
+ * fall in, a bit each, CGRAM's 256 colours wrapping round. */
+static uint16_t palettes_of(uint8_t first, uint32_t count)
+{
+    if (!count)
+        return 0;
+    if (count > 240)   /* past 15 palettes from anywhere: all 16 */
+        return ALL_PALETTES;
+    unsigned from = first / 16u, to = ((first + count - 1u) & 0xFFu) / 16u;
+    uint32_t up_to = (2u << to) - 1u, from_on = 0xFFFFu << from & 0xFFFFu;
+    return (uint16_t)(from <= to ? up_to & from_on : up_to | from_on);
+}
+
 void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint16_t count)
 {
     (void)o;
@@ -1009,7 +1024,7 @@ void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src, uint1
         for (uint32_t k = 0; k < n; k++)
             snes.cgram[at++] = (uint16_t)((piece[2 * k + 1] & 0x7F) << 8 | piece[2 * k]);
     }
-    snes.palette_written = true;
+    snes.palettes_written |= palettes_of(first, count);
 }
 
 void vid_fill_vram_half(Platform *pf, PfOrigin o, PfData value, uint32_t len, VidVramHalf half)
@@ -1128,7 +1143,7 @@ void vid_set_palette_color(Platform *pf, PfOrigin o, uint8_t index, uint16_t col
 {
     (void)pf, (void)o;
     snes.cgram[index] = color & 0x7FFF;
-    snes.palette_written = true;
+    snes.palettes_written |= (uint16_t)(1u << index / 16);
 }
 
 void vid_set_oam_address(Platform *pf, PfOrigin o, uint16_t word_addr, bool priority_rotation)
@@ -1267,12 +1282,13 @@ static const uint32_t nibble_dots[16] = {
 
 static uint32_t plane_dots(uint32_t byte) { return nibble_dots[byte >> 4] | nibble_dots[byte & 15] << 16; }
 
-/* A cache's tile, 2bpp (widened to 4bpp) or 4bpp, into its place. A tile
- * starts on its size in VRAM, so a word. */
-static void convert_tile(const Cache *c, uint16_t tile, uint16_t slot)
+/* A cache's tile, 2bpp (widened to 4bpp) or 4bpp, written to `to`: its
+ * place, or where it waits for the blank (stage_writes). A tile starts on
+ * its size in VRAM, so a word. */
+static void convert_tile(const Cache *c, uint16_t tile, volatile uint32_t *to)
 {
     const uint8_t *from = &snes.vram[(c->char_byte + tile * tile_bytes(c->bpp)) & (VRAM_BYTES - 1)];
-    tile_to_gba(BG_VRAM + (c->block * 512u + slot) * 8u, (const uint32_t *)(const void *)from, c->bpp == 4);
+    tile_to_gba(to, (const uint32_t *)(const void *)from, c->bpp == 4);
 }
 
 /* A tile's place in its cache, given one (and the tile converted into it)
@@ -1291,7 +1307,8 @@ __attribute__((noinline)) static uint16_t slot_for(Cache *c, uint16_t tile)
             return c->blank;
         }
         c->placed++;
-        convert_tile(c, tile, *slot);
+        /* a place nothing had: written where it goes, as nothing shows it */
+        convert_tile(c, tile, BG_VRAM + (c->block * 512u + *slot) * 8u);
     }
     return *slot;
 }
@@ -1338,6 +1355,161 @@ static int32_t room_from_the_top(uint32_t count, uint32_t step)
             return first;
         }
     return -1;
+}
+
+/* ---- The picture made ahead of its blank ---------------------------------------------------------
+ *
+ * A picture made away from the vertical blank (gba_video_make_ahead) must
+ * not change what the screen shows while it shows the last one, yet most
+ * pictures change some of it: a map's units the game sent, a cache's tiles
+ * it wrote again, the palettes. Those writes wait aside, each 32 bytes in a
+ * place of background VRAM that nothing has and no cache's window takes
+ * (so that no tile a map names is refused a place for them), taken
+ * meanwhile, with where they go; the blank that shows the picture copies
+ * them there (apply_the_staged), from the line counter's interrupt, and the
+ * places are given back before the next picture is made. Where the places
+ * or the list run out, or the picture asks for a layout, the picture waits
+ * for the blank after all: what waits aside is copied there, and the rest is
+ * written where it goes (stage_no_further). The work RAM a list of places
+ * takes is all it costs: VRAM's free places hold the bytes. */
+enum { STAGED_MOST = 64, PALETTE_TO = 0x8000, FIRST_FOUR = 0x4000, NOT_STAGED = 0xFFFF };
+typedef struct {
+    uint16_t place;   /* where the 32 bytes wait */
+    uint16_t to;      /* the place they go to; or PALETTE_TO and the palette, 16 colours (its first four
+                       * alone with FIRST_FOUR: the rest of a 2bpp copy's are the lines', the fill's),
+                       * or NOT_STAGED */
+} Staged;
+static Staged staged[STAGED_MOST];
+static uint8_t staged_count;
+static volatile bool staged_applied;   /* copied where they go, the places not given back yet */
+static bool staging;                   /* the picture's writes to what is shown wait aside */
+static uint32_t stage_below = PLACES;  /* where to look for a free place next, down */
+
+static void stage_no_further(void);
+
+/* A cache's window lends places to wait in only past WINDOW_MARGIN beyond
+ * the next it hands out, and only while it keeps WINDOW_KEEP free past that
+ * next besides: a menu's list scrolling names new tiles every frame, and a
+ * window lent down to its last places refused them (the list's rows shown
+ * blank until the caches started afresh). */
+enum { WINDOW_MARGIN = 128, WINDOW_KEEP = 256 };
+static uint16_t window_spare[CACHES];   /* the places past its next each window has free, less those lent */
+
+/* Each window's free places past its next, as a picture begins to put
+ * writes aside. */
+static void count_window_spares(void)
+{
+    for (unsigned c = 0; c < CACHES; c++) {
+        window_spare[c] = 0;
+        uint32_t first = caches[c].block * 512u, end = first + CACHE_TILES < PLACES ? first + CACHE_TILES : PLACES;
+        for (uint32_t place = first + caches[c].next; caches[c].used && place < end; place++)
+            window_spare[c] = (uint16_t)(window_spare[c] + !is_taken(place));
+    }
+}
+
+/* Whether a free place may hold bytes waiting aside: none of the caches'
+ * windows has it, or each that has it lends it (WINDOW_MARGIN, above). */
+static bool place_aside(uint32_t place)
+{
+    for (unsigned c = 0; c < CACHES; c++)
+        if (caches[c].used && place - caches[c].block * 512u < CACHE_TILES &&
+            (place - caches[c].block * 512u < (uint32_t)caches[c].next + WINDOW_MARGIN || window_spare[c] <= WINDOW_KEEP))
+            return false;
+    return true;
+}
+
+/* A free place for 32 bytes to wait in, taken; or NO_SLOT. A byte of
+ * places at a time is passed over where all of them are taken. */
+static uint16_t stage_place(void)
+{
+    if (stage_below == PLACES)
+        count_window_spares();
+    while (stage_below > 0) {
+        uint32_t place = --stage_below;
+        if (place % 8 == 7 && taken[place / 8] == 0xFF)
+            stage_below -= 7;
+        else if (!is_taken(place) && place_aside(place)) {
+            take(place);
+            for (unsigned c = 0; c < CACHES; c++)
+                if (caches[c].used && place - caches[c].block * 512u < CACHE_TILES)
+                    window_spare[c]--;
+            return (uint16_t)place;
+        }
+    }
+    return NO_SLOT;
+}
+
+/* Where `n` (1 or 2) runs of 32 bytes for `to` (places of background VRAM,
+ * or PALETTE_TO and a palette) are written: aside where the picture is
+ * made ahead, else where they go. Both or neither wait aside, so that what
+ * the blank copies is whole. In the cartridge: the maps' conversion in fast
+ * RAM calls it once a unit, and fast RAM has no room for it. */
+__attribute__((noinline)) static void stage_writes(unsigned n, const uint16_t to[2], volatile uint32_t *out[2])
+{
+    if (staging) {
+        uint16_t place[2] = { NO_SLOT, NO_SLOT };
+        if (staged_count + n <= STAGED_MOST)
+            for (unsigned i = 0; i < n && (i == 0 || place[0] != NO_SLOT); i++)
+                place[i] = stage_place();
+        if (place[n - 1] != NO_SLOT) {
+            for (unsigned i = 0; i < n; i++) {
+                staged[staged_count++] = (Staged){ place[i], to[i] };
+                out[i] = BG_VRAM + place[i] * 8u;
+            }
+            return;
+        }
+        if (place[0] != NO_SLOT)
+            taken[place[0] / 8] &= (uint8_t)~(1u << place[0] % 8);
+        stage_no_further();
+    }
+    for (unsigned i = 0; i < n; i++)
+        out[i] = to[i] & PALETTE_TO ? (volatile uint32_t *)(volatile void *)&BG_PALETTE[(to[i] & 63u) * 16u] : BG_VRAM + to[i] * 8u;
+}
+
+/* Where a unit of background VRAM at `byte` is written (stage_writes). */
+__attribute__((noinline)) static volatile uint32_t *vram_out(uint32_t byte)
+{
+    uint16_t to[2] = { (uint16_t)(byte / 32), 0 };
+    volatile uint32_t *out[2];
+    stage_writes(1, to, out);
+    return out[0];
+}
+
+/* What waits aside copied where it goes: in the vertical blank, with the
+ * interrupts off or from one. */
+static void apply_the_staged(void)
+{
+    if (staged_applied)
+        return;
+    for (unsigned i = 0; i < staged_count; i++) {
+        uint16_t to = staged[i].to;
+        if (to == NOT_STAGED)
+            continue;
+        const volatile uint32_t *from = BG_VRAM + staged[i].place * 8u;
+        volatile uint32_t *dest = to & PALETTE_TO ? (volatile uint32_t *)(volatile void *)&BG_PALETTE[(to & 63u) * 16u]
+                                                  : BG_VRAM + to * 8u;
+        for (unsigned w = 0, words = to & PALETTE_TO && to & FIRST_FOUR ? 2 : 8; w < words; w++)
+            dest[w] = from[w];
+    }
+    staged_applied = true;
+}
+
+/* The places of what was copied given back, outside the interrupts. */
+static void release_the_staged(void)
+{
+    if (!staged_applied)
+        return;
+    for (unsigned i = 0; i < staged_count; i++) {
+        uint32_t place = staged[i].place;
+        taken[place / 8] &= (uint8_t)~(1u << place % 8);
+        /* a cache whose next tiles passed over it takes it again */
+        for (unsigned c = 0; c < CACHES; c++)
+            if (caches[c].used && place - caches[c].block * 512u < caches[c].next)
+                caches[c].next = (uint16_t)(place - caches[c].block * 512u);
+    }
+    staged_count = 0;
+    staged_applied = false;
+    stage_below = PLACES;
 }
 
 /* The mode the layers' tiles and maps are laid out for: the one the
@@ -2003,7 +2175,7 @@ static void make_room_for_the_plane(void)
             take_room(at, PLANE_TABLE_PLACES);
     }
     if (plane_room != was)
-        snes.palette_written = true;
+        snes.palettes_written = ALL_PALETTES;
 }
 
 /* A unit of the plane's VRAM: its 16 map bytes and 16 pixels, apart. */
@@ -2719,7 +2891,10 @@ ARM_CODE __attribute__((noinline, noclone)) static void convert_map(uint32_t fir
     Cache *c = &caches[l->cache];
     const Halfword *entries = (const Halfword *)&snes.vram[first];
     uint32_t high = high_palettes(l), blank = c->blank;
-    volatile uint16_t *back = (volatile uint16_t *)BG_VRAM + to / 2, *front = (volatile uint16_t *)BG_VRAM + front_to / 2;
+    uint16_t places[2] = { (uint16_t)(to / 32), (uint16_t)(front_to / 32) };
+    volatile uint32_t *out[2];
+    stage_writes(front_to == NO_PLACE ? 1 : 2, places, out);
+    volatile uint16_t *back = (volatile uint16_t *)out[0], *front = (volatile uint16_t *)out[1];
     for (unsigned i = 0; i < UNIT_BYTES / 2; i++) {
         uint32_t e = entries[i], entry = entry_in(c, e, high);
         if (front_to == NO_PLACE) {
@@ -2740,26 +2915,29 @@ __attribute__((noinline)) static void convert_front(uint32_t first, const Layer 
 {
     Cache *c = &caches[l->cache];
     const Halfword *entries = (const Halfword *)&snes.vram[first];
-    volatile uint16_t *front = (volatile uint16_t *)BG_VRAM + front_to / 2;
+    volatile uint16_t *front = (volatile uint16_t *)vram_out(front_to);
     for (unsigned i = 0; i < UNIT_BYTES / 2; i++)
         front[i] = (uint16_t)(entries[i] & PRIORITY_BIT ? entry_in(c, entries[i], high_palettes(l)) : c->blank);
 }
 
 
 /* A row of a map cut (LineMap): each of its 32 columns from the column
- * the cut puts there. From fast RAM: a battle's bands are cut maps, whose
- * every row a layout converts. */
-ARM_CODE __attribute__((noinline, optimize("Os"))) static void convert_cut_row(const LineMap *lm, uint32_t row)
+ * the cut puts there. A battle's bands are cut maps, whose every row a
+ * layout converts; it left fast RAM for the room the pictures made ahead
+ * of their blank took there. */
+__attribute__((noinline)) static void convert_cut_row(const LineMap *lm, uint32_t row)
 {
     const Layer *l = &layers[lm->layer];
     Cache *cache = &caches[l->cache];
     uint32_t high = high_palettes(l);
     unsigned cut = lm->cut & CUT_COLUMN, columns = lm->cut >> CUT_COLUMNS_SHIFT;
     const Halfword *from = (const Halfword *)&snes.vram[(lm->byte + row * 64) & (VRAM_BYTES - 1)];
-    volatile uint16_t *gba = (volatile uint16_t *)BG_VRAM + (lm->gba_byte + row * 64) / 2;
+    uint16_t places[2] = { (uint16_t)((lm->gba_byte + row * 64) / 32), (uint16_t)((lm->gba_byte + row * 64) / 32 + 1) };
+    volatile uint32_t *out[2];
+    stage_writes(2, places, out);
     for (unsigned column = 0; column < 32; column++) {
         unsigned c = column < cut ? column : (column + columns) % 32;
-        gba[column] = (uint16_t)entry_in(cache, from[c], high);
+        ((volatile uint16_t *)out[column / 16])[column % 16] = (uint16_t)entry_in(cache, from[c], high);
     }
 }
 
@@ -2805,28 +2983,16 @@ enum { SPRITE_TILES_BOTH = 2 * 256, PAGE_COLUMNS = 16 };
 static uint32_t tiles_changed[SPRITE_TILES_BOTH / 32];   /* since the last turn, a bit each */
 static uint32_t tiles_behind[SPRITE_TILES_BOTH / 32];    /* that the page not shown lacks */
 static uint8_t sprite_page;                              /* the page the sprites name */
+static uint8_t sprite_page_shown;                        /* the page the sprites shown name (frame_shown) */
 
 static void sprite_tile_changed(int tile) { tiles_changed[tile / 32] |= 1u << (tile % 32); }
 
-/* Whether the sprites' tiles the game sent since the last picture were
- * taken already, before the vertical blank (take_the_sprite_tiles_sent):
- * the conversion of VRAM's changes leaves them. */
-static bool sprite_tiles_taken;
-
-static void take_the_sprite_tiles_sent(void)
-{
-    for (unsigned k = 0; k < BLOCKS; k++) {
-        uint32_t units = snes.changed[k / 2] >> (k % 2 * 16) & 0xFFFF;
-        int sprites = units && roles[k] & SPRITE_TILES ? sprite_tile((uint32_t)k * BLOCK_BYTES) : -1;
-        for (unsigned i = 0; sprites >= 0 && units; i++, units >>= 1)
-            if (units & 1)
-                sprite_tile_changed(sprites + (int)i);
-    }
-    sprite_tiles_taken = true;
-}
-
 /* The tiles that changed onto the page not shown, which the sprites then
- * name. False where none changed. */
+ * name. False where none changed. Where the last picture's sprites, which
+ * turned the page, were never shown (a picture made ahead of its blank
+ * gives way to the next), the page they turned to is still the one not
+ * shown: the tiles that changed since go onto it too, and the shown page
+ * lacks those as well. */
 static bool turn_the_sprite_page(void)
 {
     uint32_t any = 0;
@@ -2834,10 +3000,11 @@ static bool turn_the_sprite_page(void)
         any |= tiles_changed[w];
     if (!any)
         return false;
-    sprite_page ^= 1;
+    bool turned = sprite_page != sprite_page_shown;
+    sprite_page = (uint8_t)(sprite_page_shown ^ 1);
     for (unsigned w = 0; w < SPRITE_TILES_BOTH / 32; w++) {
-        uint32_t bits = tiles_changed[w] | tiles_behind[w];
-        tiles_behind[w] = tiles_changed[w];
+        uint32_t bits = turned ? tiles_changed[w] : tiles_changed[w] | tiles_behind[w];
+        tiles_behind[w] = turned ? tiles_behind[w] | tiles_changed[w] : tiles_changed[w];
         tiles_changed[w] = 0;
         for (unsigned b = 0; bits; b++, bits >>= 1) {
             if (!(bits & 1))
@@ -2919,7 +3086,7 @@ __attribute__((noinline)) static void convert_merged(uint32_t offset, uint32_t u
             continue;
         const Halfword *a = (const Halfword *)&snes.vram[(merge.a + offset) & (VRAM_BYTES - 1)];
         const Halfword *b = (const Halfword *)&snes.vram[(merge.b + offset) & (VRAM_BYTES - 1)];
-        volatile uint16_t *to = (volatile uint16_t *)BG_VRAM + (merge_front + offset) / 2;
+        volatile uint16_t *to = (volatile uint16_t *)vram_out(merge_front + offset);
         for (unsigned i = 0; i < UNIT_BYTES / 2; i++) {
             uint32_t e = a[i] & PRIORITY_BIT ? a[i] : b[i] & PRIORITY_BIT ? b[i] : NO_ENTRY;
             to[i] = (uint16_t)(e == NO_ENTRY ? c->blank : entry_in(c, e, high));
@@ -3000,7 +3167,7 @@ static void convert_block(unsigned k, uint32_t units)
             tiled |= (uint8_t)(1u << c);
             first_tile[c] = (uint16_t)(((block - caches[c].char_byte) & (VRAM_BYTES - 1)) >> tile_shift(caches[c].bpp));
         }
-    int sprites = role & SPRITE_TILES && !sprite_tiles_taken ? sprite_tile(block) : -1;   /* its first sprite tile */
+    int sprites = role & SPRITE_TILES ? sprite_tile(block) : -1;   /* its first sprite tile */
     if (!line_maps && !owner && !tiled && sprites < 0 && !plane && !offsets && !copied_from)
         return;   /* tiles none of which has a place yet, as a scene's are as it loads */
     for (unsigned j = 0; j < line_maps; j++) {
@@ -3071,7 +3238,7 @@ static void convert_block(unsigned k, uint32_t units)
                 uint16_t tile = (uint16_t)(first_tile[c] + i * per_unit + t);
                 uint16_t slot = cache->slot_of[tile & (CACHE_TILES - 1)];
                 if (slot != NO_SLOT) {
-                    convert_tile(cache, tile, slot);
+                    convert_tile(cache, tile, vram_out((cache->block * 512u + slot) * UNIT_BYTES));
                     /* and from tiles that changed */
                     if (copied.made && c == layers[copied.key.layer].cache)
                         copied.stale = offsets_written = true;
@@ -3204,11 +3371,16 @@ static void panel_bytes_taken(uint32_t byte, const uint8_t *bytes, uint32_t coun
     }
 }
 
+static void await_the_picture_ahead(void);
+
 void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t len)
 {
     (void)pf;
     if (!panel.drawn || !panel_room.made)
         return;
+    /* the panel is written where the screen reads it: not under the last
+     * frame's picture, still waiting for its blank */
+    await_the_picture_ahead();
     uint32_t at = (uint32_t)(vram_addr & 0x7FFF) << 1;
     if (src.ptr) {
         panel_bytes_taken(at, src.ptr, len);
@@ -3221,23 +3393,75 @@ void vid_send_panel_vram(Platform *pf, uint16_t vram_addr, PfData src, uint32_t 
     }
 }
 
-static void present_palettes(void)
+/* The GBA's palettes, 16 colours each: the background's 16 and then the
+ * sprites' 8. */
+enum { GBA_PALETTES = 24, NO_PALETTE = 0xFF };
+
+/* The SNES's palette of 16 colours the GBA's palette `p` is made from, or
+ * NO_PALETTE: the first eight the 4bpp layers', the upper eight of the
+ * background's the 2bpp palettes' copies (`copies`, the four colours of
+ * each in the first four of one), but where the plane has them and no 2bpp
+ * layer is shown, and the sprites' the SNES's upper eight. */
+static uint8_t palette_from(unsigned p, bool copies)
 {
-    /* the upper 128 are the 2bpp palettes' copies, but where the plane has
-     * them and no 2bpp layer is shown */
+    if (p < 8)
+        return (uint8_t)p;
+    if (p < 16)
+        return copies ? (uint8_t)((p - 8) / 4) : plane_room ? (uint8_t)p : NO_PALETTE;
+    return (uint8_t)(p - 8);
+}
+
+/* The palettes made from the SNES's palettes the game wrote (`written`, a
+ * bit each), into the GBA's, all of them where what the upper eight of the
+ * background's are changed; where the picture is made ahead, each waiting
+ * aside whole. The backdrop is each line's own (set_line). */
+static void present_palettes(uint16_t written)
+{
+    static bool had_copies;
     bool copies = !plane_room;
     for (unsigned c = 0; c < CACHES; c++)
         copies |= caches[c].used && caches[c].bpp == 2;
-    for (unsigned i = 1; i < 128; i++)   /* 0: the backdrop, each line's own (set_line) */
-        BG_PALETTE[i] = shown(snes.cgram[i]);
-    if (plane_room && !copies)
-        for (unsigned i = 128; i < 256; i++)
-            BG_PALETTE[i] = shown(snes.cgram[i]);
-    for (unsigned p = 0; copies && p < 8; p++)
-        for (unsigned c = 0; c < 4; c++)
-            BG_PALETTE[(8 + p) * 16 + c] = shown(snes.cgram[p * 4 + c]);
-    for (unsigned i = 0; i < 128; i++)
-        OBJ_PALETTE[i] = shown(snes.cgram[128 + i]);
+    if (copies != had_copies)
+        written = ALL_PALETTES;
+    had_copies = copies;
+    uint32_t made = 0;   /* the GBA's palettes made again, a bit each */
+    for (unsigned p = 0; p < GBA_PALETTES; p++) {
+        uint8_t from = palette_from(p, copies);
+        if (from != NO_PALETTE && written >> from & 1)
+            made |= 1u << p;
+    }
+    for (unsigned i = 0; staging && i < staged_count; i++)
+        if (staged[i].to != NOT_STAGED && staged[i].to & PALETTE_TO && made >> (staged[i].to & 63u) & 1)
+            staged[i].to = NOT_STAGED;   /* a picture's that gave way, made again */
+    for (unsigned p = 0; p < GBA_PALETTES; p++) {
+        uint8_t from = palette_from(p, copies);
+        if (!(made >> p & 1))
+            continue;
+        bool copy = p >= 8 && p < 16 && copies;
+        unsigned count = copy ? 4 : 16;
+        const uint16_t *cgram = &snes.cgram[from * 16 + (copy ? (p - 8) * 4 % 16 : 0)];
+        volatile uint16_t *to = &BG_PALETTE[p * 16];
+        if (staging) {
+            uint16_t colours[16];
+            bool differs = false;
+            for (unsigned c = 0; c < 16; c++) {
+                colours[c] = c < count && (p || c) ? shown(cgram[c]) : to[c];
+                differs |= colours[c] != to[c];
+            }
+            if (!differs)
+                continue;
+            uint16_t place[2] = { (uint16_t)(PALETTE_TO | (copy ? FIRST_FOUR : 0) | p), 0 };
+            volatile uint32_t *out[2];
+            stage_writes(1, place, out);
+            if (staging) {
+                for (unsigned w = 0; w < 8; w++)
+                    out[0][w] = (uint32_t)colours[2 * w] | (uint32_t)colours[2 * w + 1] << 16;
+                continue;
+            }
+        }
+        for (unsigned c = p ? 0 : 1; c < count; c++)
+            to[c] = shown(cgram[c]);
+    }
 }
 
 /* The SNES's sprite sizes, small and large, for each of its size settings. */
@@ -4801,10 +5025,19 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
  * backdrop's dots show the fixed colour, as before. The fill's colour rides
  * in the line's strength, which blending two targets doesn't use, marked
  * (FILL_MARK), and the line sets it in the palette (set_line). */
+/* The fill's room made where the lines first want it, in the blank: a
+ * picture made ahead holds places aside that the search would be refused
+ * and leave it missed until the next layout. */
+static bool room_for_the_fill(void)
+{
+    stage_no_further();
+    return make_room_for_the_fill(false);
+}
+
 static void fill_behind_the_added(LineRegisters *r, const LineState *st)
 {
     if ((r->bldcnt & (BLD_DARKEN | BLD_BACKDROP_SECOND)) != (BLD_ALPHA | BLD_BACKDROP_SECOND) || !math_windowed(st) ||
-        plane_room || (!fill_room.made && (fill_room.missed || !make_room_for_the_fill(false))))
+        plane_room || (!fill_room.made && (fill_room.missed || !room_for_the_fill())))
         return;
     uint16_t through = layers_through_windows(r);
     /* the highest-numbered layer free, which stands behind the others of its
@@ -5455,6 +5688,11 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
         key.moved[columns++] = down & names ? (uint16_t)((down & OFFSET_SCROLL) - key.vofs) : 0;
     }
     unsigned screens = (key.control & 0x4000 ? 2u : 1u) * (key.control & 0x8000 ? 2u : 1u);
+    /* the copies' room, and a copy, made in the blank: a picture made ahead
+     * holds places aside the room's search would be refused, and the maps a
+     * copy is made from may have units still aside */
+    if (!copy_room.made && !copy_room.missed)
+        stage_no_further();
     if (!copy_room.made && (copy_room.missed || !make_room_for_the_copies(screens, false)))
         return false;
     if (copy_room.screens < screens)
@@ -5463,6 +5701,7 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
     if (!copied.made || copied.stale || memcmp(&key, &copied.key, sizeof key) != 0) {
         if (copied.fresh)
             return false;
+        stage_no_further();
         bool stale = copied.stale;
         copied.made = copied.stale = false;
         copied.fresh = true;   /* made, or tried, once a frame */
@@ -6663,6 +6902,16 @@ static bool frame_differs(bool made, uint8_t count)
 }
 
 static bool show_pending, pending_made;   /* a frame's picture to show (show_the_pending_frame, below) */
+
+/* A picture made ahead of its blank shown, where one waits: the game's
+ * writes to what the screen reads as it goes (the drawn panel's) would
+ * otherwise show a frame early, the dialog's next letters under the
+ * last frame's picture. */
+static void await_the_picture_ahead(void)
+{
+    while (*(volatile bool *)&show_pending && by_line)
+        ;
+}
 static uint8_t pending_count;
 static uint32_t made_frame IN_FAST_RAM, pending_frame IN_FAST_RAM;   /* the game's frames whose pictures they are */
 static void (*tell_shown)(uint32_t frame) IN_FAST_RAM;   /* told the frame whose picture goes on the screen */
@@ -6680,6 +6929,7 @@ static void frame_shown(bool made, uint8_t count, bool at_blank, uint32_t frame)
             looks_made_from++;
         show_from_end(made_end);
     }
+    sprite_page_shown = sprite_page;
     changes = count;
     plane_dma = plane_shown;
     shown_plane_table = plane_table;
@@ -6785,6 +7035,7 @@ __attribute__((long_call, noinline)) static bool show_pending_at_blank(void)
     if (!show_pending)
         return false;
     show_pending = false;
+    apply_the_staged();
     frame_shown(pending_made, pending_count, false, pending_frame);
     return true;
 }
@@ -6797,6 +7048,7 @@ static void show_the_pending_frame(void)
     if (!show_pending)
         return;
     REG_IME = 0;
+    apply_the_staged();
     frame_shown(pending_made, pending_count, false, pending_frame);
     show_pending = false;
     REG_IME = 1;
@@ -6880,6 +7132,9 @@ static void lines_leave(const LineState *st)
  * the opening's first words). */
 static void hide_the_picture(void)
 {
+    REG_IME = 0;
+    apply_the_staged();   /* what waited aside, where the black hides it going in */
+    REG_IME = 1;
     if (by_line) {
         by_line = false;
         REG_IE = (uint16_t)(REG_IE & ~(IRQ_VCOUNT | IRQ_HBLANK));
@@ -6962,7 +7217,6 @@ static void lay_out_again(bool keep_windows)
         hide_the_picture();
     layout_changed(kept, missed);
     snes.settings_changed = false;
-    sprite_tiles_taken = false;   /* the layout's sprite tiles converted again with the rest */
 }
 
 /* VRAM's changes since the last picture converted, and the palettes. */
@@ -6983,12 +7237,11 @@ static void convert_the_changes(bool laid_out)
         looks_made_from++;   /* the layers' maps or tiles or the sprites' tiles (Sprites raised) */
     if (turn_the_sprite_page())
         snes.sprites_changed = true;
-    sprite_tiles_taken = false;
     if (laid_out)
         layout_misses = misses;
-    if (snes.palette_written) {
-        present_palettes();
-        snes.palette_written = false;
+    if (snes.palettes_written) {
+        present_palettes(snes.palettes_written);
+        snes.palettes_written = 0;
     }
 }
 
@@ -7051,15 +7304,6 @@ static bool layout_wanted(bool restart)
     return settings_ask_for_a_layout() || restart || (plane_room && !plane_wanted());
 }
 
-/* The picture made from the SNES's memory and registers as the frame left
- * them: laid out again where it must be, VRAM's changes converted, the
- * palettes, the GBA's layers and sprites, then the lines worked out. A frame
- * whose lines ask for a layout the picture doesn't have yet (a map a line
- * effect shows, the lines' mode) is laid out again and its lines worked out
- * once more before it is shown: shown first, it would show a map not yet
- * converted, and the next frame's layout would convert the scene a second
- * time under the picture shown (the dialog window's first row in stray
- * tiles as the opening's narration begins). */
 /* The picture black from here where the frame shows nothing. */
 static void black_where_nothing_shows(Platform *pf)
 {
@@ -7080,94 +7324,108 @@ static bool restart_due(uint32_t frames)
     return misses && (frames >= (misses > layout_misses ? 60u : 480u) || (scene_misses && idle_line_maps()));
 }
 
-/* The line maps aged once a picture, before its lines are worked out
- * (map_shown_on_a_line): by gba_video_prepare where it began the picture,
- * else by gba_video_present. */
-static bool line_maps_aged;
-
-static void age_the_line_maps_once(void)
-{
-    if (!line_maps_aged)
-        line_maps_age();
-    line_maps_aged = true;
-}
-
-/* ---- The picture begun before the blank ----------------------------------------------------------
+/* ---- The picture made ahead of its blank, or in it ---------------------------------------------
  *
- * A frame's picture is made in the vertical blank after its game frame,
- * and what it takes there comes out of the next game frame's GBA frame: a
- * battle's lines and sprites, about a third of a GBA frame, put a fifth of
- * its game frames past one. Most of it touches nothing the GBA shows: the
- * lines are worked out into the change tables and strengths the screen
- * isn't reading (made_end; a frame whose changes would reach the shown
- * frame's places is made again in the blank), the sprites into the table
- * kept aside, and the sprites' tiles converted onto the page the shown
- * sprites don't name. So where the
- * game frame leaves time before the blank, the driver has those made then
- * (gba_video_prepare), and the blank converts VRAM's changes, which the
- * shown picture reads, and shows the picture. VRAM's changes are converted
- * from the SNES's video memory, which the lines read too, so the lines
- * made before them stand; but where the conversion noted new priorities in
- * a map (the GBA's layers assigned again), the lines are worked out again,
- * and the sprites where what their looks are made from changed. Pictures
- * that are laid out, show Mode 7's plane (whose lines' table the screen
- * reads as it draws), mode 2's columns or a layer's columns copied (made
- * from the GBA's converted maps), or wait on a picture shown late, are
- * made whole in the blank as before. */
-typedef struct {
-    bool ready, made;
-    uint8_t count;
-    LineState left;
-} Prepared;
-static Prepared prepared;
+ * A frame's picture is made as its game frame ends (gba_video_make_ahead),
+ * and the driver goes on to the next game frame at once rather than wait
+ * for the vertical blank: what of it the screen reads waits until the blank
+ * that shows it. The lines are worked out into the change tables and
+ * strengths the screen isn't reading (made_end, in the room the shown
+ * frame's changes leave), the sprites into the table kept aside, the
+ * sprites' tiles onto the page the shown sprites don't name, and VRAM's
+ * changes and the palettes that change into places aside (stage_writes);
+ * the line counter's interrupt at the blank copies those where they go and
+ * shows the picture (show_pending_at_blank). A picture not shown by the
+ * time the next is made gives way to it: what it put aside stays, under
+ * what the next puts there, and the next frame's picture is the one shown.
+ * Pictures that are laid out, show Mode 7's plane (whose lines' table the
+ * screen reads as it draws), mode 2's columns or a layer's columns copied
+ * (made from the GBA's converted maps), or come out of a black screen, are
+ * made in the blank as before (gba_video_present), and so is the rest of a
+ * picture made ahead whose places or lines ran out, or that asks for a
+ * layout (stage_no_further). */
 
-bool gba_video_prepare(Platform *pf)
+/* Lines past this one of the blank leave too little of it for what waits
+ * aside and the first line's registers: a picture made after it is shown
+ * from the next blank. */
+enum { BLANK_LINES_TO_SHOW_IN = 52 };
+
+/* Making ahead given up: the rest of the picture made in a blank with room
+ * left in it, what waited aside copied where it goes first. */
+static void stage_no_further(void)
 {
-    prepared.ready = false;
-    age_the_line_maps_once();
-    bool restart = restart_due(frames_since_layout + 1u);
-    if (show_pending || picture_hidden || !usage_known || layout_wanted(restart) || laid_out_mode == 2 || plane_room ||
-        plane_dma || copied.made || strips.made)
-        return false;
-    take_the_sprite_tiles_sent();
-    if (turn_the_sprite_page())
-        snes.sprites_changed = true;
-    made_room = (uint8_t)(GBA_LINES - changes);
-    line_map_woken = false;
-    prepared.count = make_lines(pf, arrange_the_layers(false), false, &prepared.made, &prepared.left);
-    /* a resting map the lines show is converted again first, and the lines
-     * worked out after it, in the blank */
-    prepared.ready = (!prepared.made || prepared.count <= made_room) && !line_map_woken;
-    made_room = GBA_LINES;
-    /* lines that had no room are worked out again in the blank, whole:
-     * not kept as the last frame's, which the shown frame's are */
-    if (!prepared.ready)
-        asked_anew = true;
-    return prepared.ready;
+    if (!staging)
+        return;
+    staging = false;
+    while (VCOUNT < GBA_LINES || VCOUNT >= GBA_LINES + BLANK_LINES_TO_SHOW_IN / 2)
+        ;
+    REG_IME = 0;
+    apply_the_staged();
+    REG_IME = 1;
+    release_the_staged();
 }
 
-/* Whether the lines made before the blank stand after VRAM's changes are
- * converted: the conversion noted no map's priorities changed, and moved no
- * column's offsets or copy. */
-static bool prepared_stands(void) { return !priorities_noted && !offsets_written && !copied.stale; }
-
-void gba_video_present(Platform *pf, uint32_t frame)
+/* Whether anything waits aside for the blank. */
+static bool staged_waiting(void)
 {
-    show_the_pending_frame();
+    for (unsigned i = 0; !staged_applied && i < staged_count; i++)
+        if (staged[i].to != NOT_STAGED)
+            return true;
+    return false;
+}
+
+/* A picture made ahead shown: from here where it was made inside a blank
+ * with room left in it; at once where it is the shown picture as it stands,
+ * nothing waiting aside, its lines kept as the shown frame's and its sprites
+ * the same; else from the next blank, by its interrupt. One whose lines were
+ * worked out again the same was shown at once at first, but the menus' page
+ * turns showed pictures that weren't their frames' (`menus-sweep`
+ * 2903-2925). */
+static void show_ahead(bool made, uint8_t count)
+{
+    staging = false;
+    made_room = GBA_LINES;
+    REG_IME = 0;
+    uint16_t line = VCOUNT;
+    if (line >= GBA_LINES && line < GBA_LINES + BLANK_LINES_TO_SHOW_IN) {
+        apply_the_staged();
+        frame_shown(made, count, false, made_frame);
+    } else if (!made && !staged_waiting() && !frame_differs(made, count)) {
+        if (tell_shown)
+            tell_shown(made_frame);
+    } else {
+        pending_made = made;
+        pending_count = count;
+        pending_frame = made_frame;
+        show_pending = true;
+        await_the_blank();
+    }
+    REG_IME = 1;
+}
+
+/* The picture made from the SNES's memory and registers as the frame left
+ * them: laid out again where it must be, VRAM's changes converted, the
+ * palettes, the GBA's layers and sprites, then the lines worked out. A frame
+ * whose lines ask for a layout the picture doesn't have yet (a map a line
+ * effect shows, the lines' mode) is laid out again and its lines worked out
+ * once more before it is shown: shown first, it would show a map not yet
+ * converted, and the next frame's layout would convert the scene a second
+ * time under the picture shown (the dialog window's first row in stray
+ * tiles as the opening's narration begins). */
+static void make_the_picture(Platform *pf, uint32_t frame)
+{
     made_frame = frame;
-    age_the_line_maps_once();
-    line_maps_aged = false;
+    line_maps_age();
     bool restart = restart_due(++frames_since_layout);
-    /* lines made before the blank that ask for a layout have it after
-     * VRAM's changes are converted, as lines made in the blank do */
-    bool ready = prepared.ready;
-    prepared.ready = false;
-    bool keep_windows = !settings_ask_for_a_layout(), laid_out = !ready && layout_wanted(restart), made;
+    bool keep_windows = !settings_ask_for_a_layout(), laid_out = layout_wanted(restart), made;
     LineState left;
     uint8_t count;
     for (unsigned pass = 0;; pass++) {
-        if (laid_out)
+        if (laid_out) {
+            stage_no_further();
+            made_room = GBA_LINES;
             lay_out_again(pass == 0 ? keep_windows : !settings_ask_for_a_layout());
+        }
         /* a layout's lines worked out first, before its maps are converted:
          * where they ask for another, that one's maps are converted alone */
         if (laid_out && pass == 0) {
@@ -7177,28 +7435,75 @@ void gba_video_present(Platform *pf, uint32_t frame)
             copied.made = strips.made = false;   /* made from maps not converted yet */
         }
         convert_the_changes(laid_out);
-        if (ready && pass == 0 && prepared_stands()) {
-            present_sprites_where_changed();
-            made = prepared.made, count = prepared.count, left = prepared.left;
-        } else {
-            if (ready && pass == 0)
-                asked_anew = true;   /* the lines made before the blank aren't the shown frame's to keep */
-            uint16_t layers_enabled = arrange_the_layers(laid_out);
-            line_map_woken = false;
+        uint16_t layers_enabled = arrange_the_layers(laid_out);
+        line_map_woken = false;
+        uint8_t room = made_room;
+        count = make_lines(pf, layers_enabled, laid_out, &made, &left);
+        if (line_map_woken) {
+            /* a resting map the lines show, converted again first */
+            convert_the_changes(false);
+            room = made_room;
             count = make_lines(pf, layers_enabled, laid_out, &made, &left);
-            if (line_map_woken) {
-                /* a resting map the lines show, converted again first */
-                convert_the_changes(false);
-                count = make_lines(pf, layers_enabled, laid_out, &made, &left);
-            }
+        }
+        if (made && count > room) {
+            /* more changes than the shown frame's leave room for: worked
+             * out again in the blank */
+            stage_no_further();
+            made_room = GBA_LINES;
+            asked_anew = true;
+            count = make_lines(pf, layers_enabled, laid_out, &made, &left);
         }
         if (pass == 1 || !layout_wanted(false))
             break;
         laid_out = true;
     }
     lines_leave(&left);
-    show_the_frame(made, count);
+    if (staging) {
+        show_ahead(made, count);
+    } else {
+        made_room = GBA_LINES;
+        show_the_frame(made, count);
+    }
     usage_known = true;
+}
+
+/* Whether the frame's picture can only be made in the blank. A drawn
+ * panel's too: the game writes its memory where the screen reads it as the
+ * next frame goes on, and the frame draws it afresh (the dialog's last row
+ * showed two dots to the side a GBA frame at a time in `gato-battle`'s
+ * scenes), and its frames leave the GBA the time to wait. */
+static bool made_in_the_blank(void)
+{
+    return panel.drawn || picture_hidden || !usage_known || layout_wanted(restart_due(frames_since_layout + 1u)) ||
+           laid_out_mode == 2 || plane_room || plane_dma || copied.made || strips.made;
+}
+
+bool gba_video_make_ahead(Platform *pf, uint32_t frame)
+{
+    if (made_in_the_blank())
+        return false;
+    REG_IME = 0;
+    bool given_way = show_pending;
+    show_pending = false;
+    REG_IME = 1;
+    /* the lines kept as the last frame's were the picture not shown's */
+    if (given_way && pending_made)
+        asked_anew = true;
+    release_the_staged();
+    staging = true;
+    made_room = (uint8_t)(GBA_LINES - changes);
+    make_the_picture(pf, frame);
+    return true;
+}
+
+void gba_video_present(Platform *pf, uint32_t frame)
+{
+    show_the_pending_frame();
+    REG_IME = 0;
+    apply_the_staged();
+    REG_IME = 1;
+    release_the_staged();
+    make_the_picture(pf, frame);
 }
 
 size_t gba_video_bytes(void) { return sizeof snes; }
