@@ -3377,13 +3377,13 @@ there before it shows the picture, and the places are given back before the
 next one is made. Work RAM holds only the list (64 places, 256 bytes). A
 picture not shown by the time the next is made gives way to it, what it put
 aside staying under what the next puts there, and the sprites' tiles then go
-onto the page the shown sprites still don't name. A layout, Mode 7's plane,
-mode 2's columns, copied columns and a drawn panel (whose memory the game
-writes where the screen reads it as the next frame goes on: the dialog's
-last row showed two dots to the side a GBA frame at a time) are made in the
-blank as before, and so is the rest of a picture whose places or list run
-out (a battle's caches leave few free) or whose lines need more of the
-change tables than the shown frame's leave.
+onto the page the shown sprites still don't name. A layout and a drawn panel
+(whose memory the game writes where the screen reads it as the next frame
+goes on: the dialog's last row showed two dots to the side a GBA frame at a
+time) are made in the blank as before, and so is the rest of a picture whose
+places or list run out (a battle's caches leave few free) or whose lines need
+more of the change tables than the shown frame's leave (Mode 7, mode 2 and
+copied columns made ahead, below).
 
 The driver now holds the game to the GBA's time itself (`Clock`,
 `system/main.c`), which the wait for each picture's blank did before: a
@@ -3432,9 +3432,8 @@ game at 84.9%: a picture costs about as much made ahead as in the blank,
 and showing one only from the blank after it means the next frame often
 ends first. What waiting is left is the game held to the GBA's time where it
 is ahead (`new-game` 779 GBA frames) and the pictures still made in the
-blank (1,497, 1,969, 2,365 and 1,339 GBA frames): mode 2's columns and Mode
-7's plane, which read what VRAM's conversion writes, are the next to make
-ahead.
+blank (1,497, 1,969, 2,365 and 1,339 GBA frames), most of them mode 2's
+columns, Mode 7's plane and copied columns (below).
 
 A census of the seven movies finds 1,743 clusters against main's 2,326
 with the original colours and 1,655 against 2,096 with `port-style`'s,

@@ -5725,9 +5725,8 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
         key.moved[columns++] = down & names ? (uint16_t)((down & OFFSET_SCROLL) - key.vofs) : 0;
     }
     unsigned screens = (key.control & 0x4000 ? 2u : 1u) * (key.control & 0x8000 ? 2u : 1u);
-    /* the copies' room, and a copy, made in the blank: a picture made ahead
-     * holds places aside the room's search would be refused, and the maps a
-     * copy is made from may have units still aside */
+    /* the copies' room made in the blank: a picture made ahead holds places
+     * aside the room's search would be refused */
     if (!copy_room.made && !copy_room.missed)
         stage_no_further();
     if (!copy_room.made && (copy_room.missed || !make_room_for_the_copies(screens, false)))
@@ -5738,7 +5737,6 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
     if (!copied.made || copied.stale || memcmp(&key, &copied.key, sizeof key) != 0) {
         if (copied.fresh)
             return false;
-        stage_no_further();
         bool stale = copied.stale;
         copied.made = copied.stale = false;
         copied.fresh = true;   /* made, or tried, once a frame */
