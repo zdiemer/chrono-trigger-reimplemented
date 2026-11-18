@@ -5005,10 +5005,19 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
  * backdrop's dots show the fixed colour, as before. The fill's colour rides
  * in the line's strength, which blending two targets doesn't use, marked
  * (FILL_MARK), and the line sets it in the palette (set_line). */
+/* The fill's room made where the lines first want it, in the blank: a
+ * picture made ahead holds places aside that the search would be refused
+ * and leave it missed until the next layout. */
+static bool room_for_the_fill(void)
+{
+    stage_no_further();
+    return make_room_for_the_fill(false);
+}
+
 static void fill_behind_the_added(LineRegisters *r, const LineState *st)
 {
     if ((r->bldcnt & (BLD_DARKEN | BLD_BACKDROP_SECOND)) != (BLD_ALPHA | BLD_BACKDROP_SECOND) || !math_windowed(st) ||
-        plane_room || (!fill_room.made && (fill_room.missed || !make_room_for_the_fill(false))))
+        plane_room || (!fill_room.made && (fill_room.missed || !room_for_the_fill())))
         return;
     uint16_t through = layers_through_windows(r);
     /* the highest-numbered layer free, which stands behind the others of its
@@ -5659,6 +5668,11 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
         key.moved[columns++] = down & names ? (uint16_t)((down & OFFSET_SCROLL) - key.vofs) : 0;
     }
     unsigned screens = (key.control & 0x4000 ? 2u : 1u) * (key.control & 0x8000 ? 2u : 1u);
+    /* the copies' room, and a copy, made in the blank: a picture made ahead
+     * holds places aside the room's search would be refused, and the maps a
+     * copy is made from may have units still aside */
+    if (!copy_room.made && !copy_room.missed)
+        stage_no_further();
     if (!copy_room.made && (copy_room.missed || !make_room_for_the_copies(screens, false)))
         return false;
     if (copy_room.screens < screens)
@@ -5667,6 +5681,7 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
     if (!copied.made || copied.stale || memcmp(&key, &copied.key, sizeof key) != 0) {
         if (copied.fresh)
             return false;
+        stage_no_further();
         bool stale = copied.stale;
         copied.made = copied.stale = false;
         copied.fresh = true;   /* made, or tried, once a frame */
@@ -7322,7 +7337,6 @@ static void stage_no_further(void)
     if (!staging)
         return;
     staging = false;
-    made_room = GBA_LINES;
     while (VCOUNT < GBA_LINES || VCOUNT >= GBA_LINES + BLANK_LINES_TO_SHOW_IN / 2)
         ;
     REG_IME = 0;
@@ -7387,6 +7401,7 @@ static void make_the_picture(Platform *pf, uint32_t frame)
     for (unsigned pass = 0;; pass++) {
         if (laid_out) {
             stage_no_further();
+            made_room = GBA_LINES;
             lay_out_again(pass == 0 ? keep_windows : !settings_ask_for_a_layout());
         }
         /* a layout's lines worked out first, before its maps are converted:
@@ -7412,6 +7427,7 @@ static void make_the_picture(Platform *pf, uint32_t frame)
             /* more changes than the shown frame's leave room for: worked
              * out again in the blank */
             stage_no_further();
+            made_room = GBA_LINES;
             asked_anew = true;
             count = make_lines(pf, layers_enabled, laid_out, &made, &left);
         }
@@ -7420,10 +7436,12 @@ static void make_the_picture(Platform *pf, uint32_t frame)
         laid_out = true;
     }
     lines_leave(&left);
-    if (staging)
+    if (staging) {
         show_ahead(made, count);
-    else
+    } else {
+        made_room = GBA_LINES;
         show_the_frame(made, count);
+    }
     usage_known = true;
 }
 
