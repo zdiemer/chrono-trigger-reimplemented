@@ -1506,6 +1506,41 @@ static bool stands_in_front(unsigned n)
     return front > 0 || (!layers[n].own_map && (o == &mode2_order || !behind));
 }
 
+/* Whether a map a band shows cut (the battle's windows, cut to the view)
+ * stands in front of the sprites, by its own entries as stands_in_front
+ * decides for a layer: where more of its units have only entries in front
+ * than only behind, or on mode 1's third layer put in front, where any has
+ * one. Its layer's stand, made from the layer's other maps, isn't its own:
+ * in Magus's battle the third layer's second map, the candles' flames, is
+ * all behind, and the menu's text in the window stood behind the first
+ * layer's tiles there, the window's frame shown without its words
+ * (battle-menu-buttons frames 3632-3934). Decided at the layout, the map as
+ * it stands then: a band's cut maps are its windows, whose entries keep
+ * their priority as the words change. Kept by the GBA's screen block of the
+ * map's copy, a bit each: those of a cut map, and those of one in front. */
+static uint32_t cut_blocks, cut_blocks_in_front;
+
+static bool cut_map_stands_in_front(const LineMap *lm)
+{
+    const Word *words = (const Word *)snes.vram;
+    unsigned any_front = 0, front = 0, behind = 0;
+    for (uint32_t u = 0; u < lm->bytes; u += UNIT_BYTES) {
+        uint32_t any = 0, all = ~0u;
+        for (unsigned w = 0; w < UNIT_BYTES / 4; w++) {
+            uint32_t word = words[((lm->byte + u) & (VRAM_BYTES - 1)) / 4 + w];
+            any |= word, all &= word;
+        }
+        bool f = any & PRIORITY_BITS, b = (all & PRIORITY_BITS) != PRIORITY_BITS;
+        any_front += f;
+        front += f && !b;
+        behind += b && !f;
+    }
+    const Order *o = order_of_mode();
+    if (lm->layer == 2 && (o == &third_in_front_order || o == &mode2_order))
+        return any_front > 0;
+    return front > behind;
+}
+
 /* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
  * its tiles in front alone (`front`, a split layer's) or the rest, or in
  * mode 2 the columns its offsets move (`columns`, Mode 2's columns below),
@@ -2475,17 +2510,26 @@ static uint8_t lay_out(bool pruned, bool keeps_windows, uint16_t rest)
         if (l->split && l->front_byte != NO_PLACE)
             front_block[l->map_byte / SCREEN_BYTES] = (uint8_t)(l->front_byte / SCREEN_BYTES);
     }
+    cut_blocks = cut_blocks_in_front = 0;
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
-        if (lm->gba_byte == NO_PLACE || !layers[lm->layer].split)
+        if (lm->gba_byte == NO_PLACE)
             continue;
-        const Layer *owner = lm->shared ? map_layer(lm->byte) : NULL;
         if (lm->cut != NO_CUT) {
             /* a map cut has no copy of its tiles in front: all of it stands
-             * where the layer would stand not split */
-            if (stands_in_front(lm->layer))
-                front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->gba_byte / SCREEN_BYTES);
-        } else if (owner && owner->split)
+             * where its own tiles do, on its layer's GBA layer of tiles
+             * behind (gba_controls), split or not; shown on both a split
+             * layer's, the copy over the other blended with nothing, and the
+             * battle's windows lost their shading */
+            cut_blocks |= 1u << lm->gba_byte / SCREEN_BYTES;
+            if (cut_map_stands_in_front(lm))
+                cut_blocks_in_front |= 1u << lm->gba_byte / SCREEN_BYTES;
+            continue;
+        }
+        if (!layers[lm->layer].split)
+            continue;
+        const Layer *owner = lm->shared ? map_layer(lm->byte) : NULL;
+        if (owner && owner->split)
             lm->front_byte = owner->front_byte;
         else if (!layers[lm->layer].own_map)
             low |= (uint16_t)(1u << m);   /* placed once the caches have kept their places */
@@ -4815,7 +4859,12 @@ static void gba_controls(LineRegisters *r, const uint16_t controls[4], uint8_t d
             }
             control = (uint16_t)((control & ~0x1F00) | block << 8);
         }
-        r->bgcnt[g] = control | l->priority;
+        unsigned screen = control >> 8 & 31;
+        uint8_t priority = l->priority;
+        /* a cut map stands where its own tiles do (cut_map_stands_in_front) */
+        if (!l->front && !l->columns && (cut_blocks >> screen & 1))
+            priority = order->priority[l->source][cut_blocks_in_front >> screen & 1];
+        r->bgcnt[g] = control | priority;
     }
 }
 
