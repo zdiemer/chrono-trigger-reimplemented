@@ -2091,8 +2091,10 @@ Approximated, or not shown yet (issue #483):
   cover fewer than half of its own.
 - Colour math: the fixed colour added to layers with only the backdrop
   behind them is exact, but where the SNES's backdrop shows on those lines
-  the GBA's shows the fixed colour (the backdrop is one colour a line).
-  Math the colour window keeps to inside or outside itself is kept there:
+  the GBA's shows the fixed colour (the backdrop is one colour a line),
+  except where the colour window keeps the math to part of the line and a
+  GBA layer is free there (below). Math the colour window keeps to inside
+  or outside itself is kept there:
   each of the GBA's window regions blends (its effects bit) only where the
   SNES's colour window lets the math through (`math_in_region`), the
   windows taken for it where the layers' windows leave them free. Where
@@ -2102,10 +2104,30 @@ Approximated, or not shown yet (issue #483):
   spell in `battle-menu-buttons` (frames 4464-4588) draws a thin ring of
   red, two windows' difference; added across the line, the whole
   battlefield had turned red. In the census (replayed) that cluster fell
-  from 5.65M pixels summed to 1.84M (what is left is the backdrop's red
-  outside the ring, above), `battle-menu-buttons`' picture mismatches from
-  7.37M to 3.56M (8.31M to 4.33M with `--colours port-style`), and the
-  other eight movies' within 1%, none with a new picture cluster.
+  from 5.65M pixels summed to 1.84M, `battle-menu-buttons`' picture
+  mismatches from 7.37M to 3.56M (8.31M to 4.33M with `--colours
+  port-style`), and the other eight movies' within 1%, none with a new
+  picture cluster.
+  What was left was the backdrop's red outside the ring: the battlefield's
+  black corners. On such a line a GBA layer that no region shows (there, the
+  battle's text layer, which shows only in its window above) shows the
+  fill instead (`fill_behind_the_added`): one colour, the fixed colour's, in
+  the regions with the math alone, behind every other layer, as the
+  blending's second target in the backdrop's place, and the backdrop keeps
+  its own colour. The fill is a screen block every byte of which is one
+  nibble N of 8-15 twice (`FillRoom`): each entry then names tile N*0x111
+  in palette N, a 2bpp copy's palette whose colours past the fourth no tile
+  uses, and for a char block that puts that tile inside the screen block
+  itself, the tile is solid colour N, so the block is both the map and its
+  tile, 64 places taken only while a line wants it. Its colour rides in the
+  line's strength, which blending two targets doesn't read, and the line
+  sets it in the palette. A line after one with the fill is worked out
+  whole where the math changes, the fill taken away. In the census
+  (replayed) the cluster fell from 1.84M to 55,417 (1.87M to 74,563 with
+  `--colours port-style`), `battle-menu-buttons`' picture mismatches from
+  3.56M to 1.79M (4.33M to 2.53M), the other movies' within 3%, none with
+  a new picture cluster. Inside the math the backdrop's own dots still show the
+  fixed colour, and a line with no layer free keeps it on the backdrop.
   Elsewhere the fixed colour on layers is a grey's
   brightening or darkening (above), so a colour that isn't a grey isn't
   added to them (Magus's castle's candle flames, issue #554), and the
