@@ -1387,18 +1387,33 @@ static uint32_t stage_below = PLACES;  /* where to look for a free place next, d
 
 static void stage_no_further(void);
 
-/* Places of a cache's window short of this many past the next it hands
- * out are left to its tiles. */
-enum { WINDOW_MARGIN = 128 };
+/* A cache's window lends places to wait in only past WINDOW_MARGIN beyond
+ * the next it hands out, and only while it keeps WINDOW_KEEP free past that
+ * next besides: a menu's list scrolling names new tiles every frame, and a
+ * window lent down to its last places refused them (the list's rows shown
+ * blank until the caches started afresh). */
+enum { WINDOW_MARGIN = 128, WINDOW_KEEP = 256 };
+static uint16_t window_spare[CACHES];   /* the places past its next each window has free, less those lent */
+
+/* Each window's free places past its next, as a picture begins to put
+ * writes aside. */
+static void count_window_spares(void)
+{
+    for (unsigned c = 0; c < CACHES; c++) {
+        window_spare[c] = 0;
+        uint32_t first = caches[c].block * 512u, end = first + CACHE_TILES < PLACES ? first + CACHE_TILES : PLACES;
+        for (uint32_t place = first + caches[c].next; caches[c].used && place < end; place++)
+            window_spare[c] = (uint16_t)(window_spare[c] + !is_taken(place));
+    }
+}
 
 /* Whether a free place may hold bytes waiting aside: none of the caches'
- * windows has it, or it lies well past where each that has it hands out its
- * next tile, which a picture's new tiles don't reach. */
+ * windows has it, or each that has it lends it (WINDOW_MARGIN, above). */
 static bool place_aside(uint32_t place)
 {
     for (unsigned c = 0; c < CACHES; c++)
         if (caches[c].used && place - caches[c].block * 512u < CACHE_TILES &&
-            place - caches[c].block * 512u < (uint32_t)caches[c].next + WINDOW_MARGIN)
+            (place - caches[c].block * 512u < (uint32_t)caches[c].next + WINDOW_MARGIN || window_spare[c] <= WINDOW_KEEP))
             return false;
     return true;
 }
@@ -1407,12 +1422,17 @@ static bool place_aside(uint32_t place)
  * places at a time is passed over where all of them are taken. */
 static uint16_t stage_place(void)
 {
+    if (stage_below == PLACES)
+        count_window_spares();
     while (stage_below > 0) {
         uint32_t place = --stage_below;
         if (place % 8 == 7 && taken[place / 8] == 0xFF)
             stage_below -= 7;
         else if (!is_taken(place) && place_aside(place)) {
             take(place);
+            for (unsigned c = 0; c < CACHES; c++)
+                if (caches[c].used && place - caches[c].block * 512u < CACHE_TILES)
+                    window_spare[c]--;
             return (uint16_t)place;
         }
     }
