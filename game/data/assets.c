@@ -407,9 +407,19 @@ uint16_t rom_read16(const GameState *g, uint32_t at)
     return (uint16_t)(low | rom_read8(g, at + 1) << 8);
 }
 
+/* Whether a transfer's bytes are all in the lower half of a bank that maps
+ * the system area there (work RAM's first 8 KiB, SRAM): the game's memory,
+ * none of it the cartridge's. A battle's sprites are sent from there. */
+static bool in_system_area(uint32_t at, uint32_t length)
+{
+    return cartridge_address(at) == NOT_ROM && (uint16_t)at < UPPER_HALF && length <= UPPER_HALF - (uint16_t)at;
+}
+
 PfData rom_data(uint32_t at, uint32_t length)
 {
-    if ((at >> 16) == 0x7E || (at >> 16) == 0x7F)
+    /* the game's memory, read where it lies rather than a byte at a time:
+     * the same bytes, as no resource holds them */
+    if ((at >> 16) == 0x7E || (at >> 16) == 0x7F || in_system_area(at, length))
         return PF_GAME(at);
     PfData data = { .addr = at, .byte_at = served };
     uint32_t left = length, cursor = at;

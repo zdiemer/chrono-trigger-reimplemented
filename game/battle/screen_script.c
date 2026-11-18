@@ -119,18 +119,22 @@ static ScreenTriple decoded_triple(const GameState *g, uint16_t at, ScreenArg a)
     return t;
 }
 
-static ScreenCommand decode(const GameState *g, const ScreenOpcode *row, ScreenChannel channel, uint16_t at)
+/* A command decoded into `c`, which holds none of its parameters yet: a row
+ * names the few its operation reads, and the rest stay 0. */
+static void decode(const GameState *g, const ScreenOpcode *row, ScreenChannel channel, uint16_t at, ScreenCommand *c)
 {
-    ScreenCommand c = { 0 };
-    c.channel = channel;
-    c.at = at;
-#define SCREEN_DECODE_FIELD(type, name) c.name = (type)decoded(g, at, row->name);
+    c->channel = channel;
+    c->at = at;
+#define SCREEN_DECODE_FIELD(type, name)                                                           \
+    if (row->name.kind != ARG_NONE)                                                               \
+        c->name = (type)decoded(g, at, row->name);
     SCREEN_PARAMETERS(SCREEN_DECODE_FIELD)
 #undef SCREEN_DECODE_FIELD
-#define SCREEN_DECODE_TRIPLE(name) c.name = decoded_triple(g, at, row->name);
+#define SCREEN_DECODE_TRIPLE(name)                                                                \
+    if (row->name.kind == ARG_TRIPLE)                                                             \
+        c->name = decoded_triple(g, at, row->name);
     SCREEN_TRIPLE_PARAMETERS(SCREEN_DECODE_TRIPLE)
 #undef SCREEN_DECODE_TRIPLE
-    return c;
 }
 
 /* Filling window 1 ($88's fills from the fourth) hands back a value the
@@ -411,7 +415,7 @@ static CommandRun run_command(GameState *g, uint8_t opcode, ScreenChannel channe
     *row_of = row;
     *c = (ScreenCommand){ 0 };
     if (row)
-        *c = decode(g, row, channel, at);
+        decode(g, row, channel, at, c);
     if (!runs_here(g, row, c))
         return COMMAND_NOT_OURS;
     if (row->waits_for_line) {
