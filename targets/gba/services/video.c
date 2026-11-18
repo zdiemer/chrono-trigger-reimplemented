@@ -3960,24 +3960,27 @@ typedef struct {
     bool applied;       /* whether `last` holds the unit its last transfer applied */
     uint8_t last[4] __attribute__((aligned(4)));
     uint16_t cursor, indirect, line;
+    const struct ReadLine *held;   /* the read of the tables its last transfer took its unit from, or NULL */
 } Slot;
 
 /* The tables are read 32 bytes at a time, kept for the frame's reading of
  * them (the game's memory doesn't change while the picture is made): in
  * fast RAM, since each of a frame's transfers reads them. */
 enum { READ_LINES = 8, READ_LINE_BYTES = 32 };
-typedef struct {
-    uint32_t tag;    /* the line's address / READ_LINE_BYTES, plus one; 0: none */
+enum { LINE_KEPT = 0x80000000u };   /* a tag's mark: the line is among the lines read (below) */
+typedef struct ReadLine {
+    uint32_t tag;    /* the line's address / READ_LINE_BYTES, plus one, and LINE_KEPT; 0: none */
     uint8_t bytes[READ_LINE_BYTES];
 } ReadLine;
 static ReadLine read_lines[READ_LINES] IN_FAST_RAM;
 
-/* Where each 32 bytes of the tables a frame's lines read came from, as they
- * read them, and a 32-bit FNV-1a hash of all their bytes in that order (a
- * word at a time), so
- * that the next frame can tell whether its tables are the same (below):
- * the places in work RAM, written once for each 32 bytes read, the rest in
- * fast RAM; a hash rather than the bytes, which neither has the room for. */
+/* Where each 32 bytes of the values a frame's indirect slots read came
+ * from, each once, as they read them, and a 32-bit FNV-1a hash of all their
+ * bytes in that order (a word at a time), so that the next frame can tell
+ * whether its tables are the same (below): the places in work RAM, the rest
+ * in fast RAM; a hash rather than the bytes, which neither has the room
+ * for. A slot's own table (its counts, its pointers, a direct slot's
+ * values) is kept apart, by where it starts (TablesRead, below). */
 enum { LINES_READ_KEPT = 64 };
 static uint32_t lines_read[LINES_READ_KEPT];
 static uint32_t lines_read_hash IN_FAST_RAM;
@@ -4012,6 +4015,9 @@ static uint32_t hash_on(uint32_t h, const void *bytes, size_t count)
 
 ARM_CODE static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE_BYTES])
 {
+    for (unsigned i = 0; i < lines_read_count; i++)
+        if (lines_read[i] == line)
+            return;   /* read again, after the cache let it go */
     if (lines_read_count == LINES_READ_KEPT) {
         lines_read_overflowed = true;
         return;
@@ -4020,33 +4026,37 @@ ARM_CODE static void keep_line_read(uint32_t line, const uint8_t bytes[READ_LINE
     lines_read_hash = hash_on(lines_read_hash, bytes, READ_LINE_BYTES);
 }
 
-/* The 32 bytes of the tables at `line` (an address / READ_LINE_BYTES). */
-ARM_CODE static const uint8_t *line_bytes(uint32_t line)
+/* The 32 bytes of the tables at `line` (an address / READ_LINE_BYTES);
+ * `values`, read for an indirect slot's values, which the lines read keep. */
+ARM_CODE __attribute__((noinline)) static const uint8_t *line_bytes(uint32_t line, bool values)
 {
     ReadLine *r = &read_lines[line % READ_LINES];
-    if (r->tag != line + 1) {
+    if ((r->tag & ~LINE_KEPT) != line + 1) {
         r->tag = line + 1;
         read_table_line(line, r->bytes);
-        if (lines_read_kept)
-            keep_line_read(line, r->bytes);
+    }
+    if (values && lines_read_kept && !(r->tag & LINE_KEPT)) {
+        r->tag |= LINE_KEPT;
+        keep_line_read(line, r->bytes);
     }
     return r->bytes;
 }
 
-ARM_CODE static uint8_t line_read(uint32_t addr)
+ARM_CODE static uint8_t line_read(uint32_t addr, bool values)
 {
-    return line_bytes(addr / READ_LINE_BYTES)[addr % READ_LINE_BYTES];
+    return line_bytes(addr / READ_LINE_BYTES, values)[addr % READ_LINE_BYTES];
 }
 
 /* A transfer's `n` bytes from `at` on in `bank`, the address wrapping in the
  * bank as HDMA's does: from one read of the tables where they lie in one 32
- * bytes (which a bank's end never splits), a byte at a time where not. */
-ARM_CODE static void table_unit(uint8_t bank, uint16_t at, uint8_t n, uint8_t out[4])
+ * bytes (which a bank's end never splits), a byte at a time where not;
+ * `values`, an indirect slot's values. */
+ARM_CODE __attribute__((noinline)) static void table_unit(uint8_t bank, uint16_t at, uint8_t n, uint8_t out[4], bool values)
 {
     uint32_t from = (uint32_t)bank << 16;
     if ((at % READ_LINE_BYTES) + n <= READ_LINE_BYTES) {
         /* a unit is 1, 2 or 4 bytes (unit_bytes): copied as such, not by a call */
-        const uint8_t *p = line_bytes((from | at) / READ_LINE_BYTES) + at % READ_LINE_BYTES;
+        const uint8_t *p = line_bytes((from | at) / READ_LINE_BYTES, values) + at % READ_LINE_BYTES;
         out[0] = p[0];
         if (n > 1)
             out[1] = p[1];
@@ -4055,12 +4065,55 @@ ARM_CODE static void table_unit(uint8_t bank, uint16_t at, uint8_t n, uint8_t ou
         return;
     }
     for (unsigned k = 0; k < n; k++)
-        out[k] = line_read(from | (uint16_t)(at + k));
+        out[k] = line_read(from | (uint16_t)(at + k), values);
 }
 
-/* Whether the tables still hold what the last frame's lines read of them. */
+/* What of each slot's own table a frame's lines read: as many bytes from
+ * its start (`bytes`; none for a slot that didn't run), whose hash is
+ * `hash`. Kept by the bytes rather than by where they lie, so
+ * that a table the game keeps two of and sets the slot to each in turn, as
+ * it writes the other, stands where both say the same: the battles' windows
+ * flip between two copies every few frames, which had their lines worked out
+ * again each time, more than a GBA frame each with all eight slots running. */
+typedef struct {
+    uint16_t bytes[8];
+    uint32_t hash;
+} TablesRead;
+static TablesRead tables_read;
+
+/* The hash of what the slots' tables hold where the slots start now, as
+ * many bytes of each as `bytes` says, 32 at a time from each table's start. */
+static uint32_t tables_hash(const uint16_t bytes[8])
+{
+    uint32_t h = FNV_START;
+    uint8_t chunk[READ_LINE_BYTES];
+    for (unsigned i = 0; i < 8; i++) {
+        uint32_t bank = snes.slot[i].table.addr & 0xFF0000u;
+        uint16_t at = (uint16_t)snes.slot[i].table.addr;
+        for (unsigned left = bytes[i]; left;) {
+            /* the bank's end wraps, as the walk does */
+            unsigned n = left < READ_LINE_BYTES ? left : READ_LINE_BYTES;
+            if (n > 0x10000u - at)
+                n = 0x10000u - at;
+            if (snes.read)
+                snes.read(snes.ctx, bank | at, chunk, n);
+            else
+                memset(chunk, 0, n);
+            h = hash_on(h, chunk, n);   /* chunks from the table's start: the same bytes, the same hash */
+            at = (uint16_t)(at + n);
+            left -= n;
+        }
+    }
+    return h;
+}
+
+/* Whether the tables still hold what the last frame's lines read of them:
+ * the slots' own where they start now, and the values the indirect slots
+ * read where they read them. */
 static bool tables_unchanged(void)
 {
+    if (tables_hash(tables_read.bytes) != tables_read.hash)
+        return false;
     uint8_t bytes[READ_LINE_BYTES];
     uint32_t h = FNV_START;
     for (unsigned i = 0; i < lines_read_count; i++) {
@@ -4073,10 +4126,10 @@ static bool tables_unchanged(void)
 ARM_CODE static void slot_entry(Slot *sl, const VidLineEffect *e)
 {
     uint32_t bank = (uint32_t)sl->bank << 16;
-    sl->count = line_read(bank | sl->cursor);
+    sl->count = line_read(bank | sl->cursor, false);
     sl->cursor++;
     if (e->indirect) {
-        sl->indirect = (uint16_t)(line_read(bank | sl->cursor) | line_read(bank | (uint16_t)(sl->cursor + 1)) << 8);
+        sl->indirect = (uint16_t)(line_read(bank | sl->cursor, false) | line_read(bank | (uint16_t)(sl->cursor + 1), false) << 8);
         sl->cursor = (uint16_t)(sl->cursor + 2);
     }
     if (sl->count == 0)
@@ -5893,6 +5946,8 @@ static void lines_from(LinesFrom *f, const VidHost *v, uint16_t layers_enabled)
     for (unsigned n = 0; n < 3; n++)
         st->hofs[n] = snes.bg[n].hofs, st->vofs[n] = snes.bg[n].vofs, st->map[n] = map_byte_of(&snes.bg[n]);
     memcpy(f->slot, snes.slot, sizeof f->slot);
+    for (unsigned i = 0; i < 8; i++)
+        f->slot[i].table.addr &= 0xFF0000u;   /* where in the bank is the tables' to say (TablesRead) */
     f->display_below = v->display_below;
     f->display_from = v->display_from;
     f->effects_from = v->effects_from;
@@ -5978,13 +6033,27 @@ ARM_CODE static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_
         bool applies = false;
         if (sl->transfer) {
             uint8_t unit[4] __attribute__((aligned(4))) = { 0 };
-            if (e->indirect) {
-                table_unit(e->indirect_bank, sl->indirect, sl->unit, unit);
-                sl->indirect = (uint16_t)(sl->indirect + sl->unit);
+            bool values = e->indirect;
+            uint16_t *at = values ? &sl->indirect : &sl->cursor;
+            uint8_t bank = values ? e->indirect_bank : sl->bank;
+            unsigned within = *at % READ_LINE_BYTES;
+            if (within + sl->unit <= READ_LINE_BYTES) {
+                /* most transfers read on in the 32 bytes the last one read:
+                 * taken from that read where the cache still holds it */
+                uint32_t read = ((uint32_t)bank << 16 | *at) / READ_LINE_BYTES;
+                const ReadLine *h = sl->held;
+                if (!h || (h->tag & ~LINE_KEPT) != read + 1)
+                    sl->held = h = (const ReadLine *)(line_bytes(read, values) - offsetof(ReadLine, bytes));
+                const uint8_t *from = h->bytes + within;
+                unit[0] = from[0];
+                if (sl->unit > 1)
+                    unit[1] = from[1];
+                if (sl->unit > 2)
+                    unit[2] = from[2], unit[3] = from[3];
             } else {
-                table_unit(sl->bank, sl->cursor, sl->unit, unit);
-                sl->cursor = (uint16_t)(sl->cursor + sl->unit);
+                table_unit(bank, *at, sl->unit, unit, values);
             }
+            *at = (uint16_t)(*at + sl->unit);
             /* compared a word at a time: the bytes past the unit are 0 in both */
             uint32_t now, was;
             memcpy(&now, unit, sizeof now);
@@ -6027,7 +6096,7 @@ ARM_CODE static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint1
     while (sl->line < stop && (sl->count & 0x7F) > 1 && *at % READ_LINE_BYTES + sl->unit <= READ_LINE_BYTES) {
         uint32_t read = (bank | *at) / READ_LINE_BYTES;
         if (!bytes || read != held)
-            bytes = line_bytes(read), held = read;
+            bytes = line_bytes(read, e->indirect), held = read;
         const uint8_t *unit = bytes + *at % READ_LINE_BYTES;
         for (unsigned k = 0; k < sl->unit; k++)
             if (unit[k] != sl->last[k])
@@ -6239,6 +6308,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
         line = soonest;
     }
     count = black_bands_above(GBA_VIEW_HEIGHT, count, &next_black, layers_enabled);
+    for (unsigned i = 0; i < 8; i++)
+        tables_read.bytes[i] = (enabled | below) >> i & 1 ? (uint16_t)(slots[i].cursor - (uint16_t)snes.slot[i].table.addr) : 0;
     *st_out = st;
     return count;
 }
@@ -6452,6 +6523,8 @@ static uint8_t make_lines(Platform *pf, uint16_t layers_enabled, bool laid_out, 
         made = true;
         copied.fresh = false;
         count = work_out_lines(&pf->video, &st, layers_enabled);
+        if (lines_read_kept)
+            tables_read.hash = tables_hash(tables_read.bytes);
         if (plane_shown)
             step_the_plane();
         if (strength_steps)
