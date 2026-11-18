@@ -1494,6 +1494,15 @@ static void apply_the_staged(void)
     staged_applied = true;
 }
 
+/* Whether any of background VRAM's writes waits aside. */
+static bool vram_staged(void)
+{
+    for (unsigned i = 0; staging && i < staged_count; i++)
+        if (staged[i].to != NOT_STAGED && !(staged[i].to & PALETTE_TO))
+            return true;
+    return false;
+}
+
 /* The places of what was copied given back, outside the interrupts. */
 static void release_the_staged(void)
 {
@@ -1974,6 +1983,10 @@ typedef struct {
     bool made, fresh, stale;
 } Copied;
 static Copied copied;
+/* The copy the frame on the screen shows from, which the next is never made
+ * into: a picture made ahead of its blank that gave way to the next was never
+ * shown, and the copy after it goes where it went. */
+static uint8_t copy_on_screen;
 
 /* The tiles of the columns the lines show, each run of a column's rows
  * whose tiles aren't blank flipped as the map shows them, one run after
@@ -2139,32 +2152,52 @@ static volatile void *plane_table IN_FAST_RAM;   /* the table of the plane's lin
  * back (the title's pendulum, a part of the plane, fell apart through the
  * layout that left Mode 7). */
 static volatile void *shown_plane_table;
+/* The layout's two tables, one after the other, as the lines' changes are
+ * kept at two ends: the frame being made writes one while DMA reads the
+ * shown frame's from the other, so that a picture with the plane is made
+ * ahead of its blank like any other. NULL where VRAM had room for one
+ * alone, whose pictures are made in the blank. */
+static volatile uint8_t *plane_tables;
 /* the GBA's 160 lines and the blank after them, 16 bytes each (checked by PlaneLine's assert) */
 enum { PLANE_TABLE_BYTES = (160 + 1) * 16, PLANE_TABLE_PLACES = (PLANE_TABLE_BYTES + 31) / 32 };
 
 static bool plane_wanted(void) { return snes.mode.mode == 7 || plane_on_lines; }
 
-/* The plane's room, where it is wanted and free: its places taken. */
+/* The highest place from which `count` places past the plane are free, or
+ * 0 where there is none. */
+static uint32_t room_for_plane_tables(uint32_t count)
+{
+    for (uint32_t table = PLACES - count; table >= PLANE_BYTES / 32; table--)
+        if (room_at(table, count))
+            return table;
+    return 0;
+}
+
+/* The plane's room, where it is wanted and free: its places taken, and two
+ * tables of its lines, or one where two don't fit. */
 static void make_room_for_the_plane(void)
 {
     bool was = plane_room;
     plane_room = false;
     plane_refused = false;
     plane_table = NULL;
+    plane_tables = NULL;
     if (plane_wanted()) {
         for (unsigned k = 0; k < PLANE_BYTES / BLOCK_BYTES; k++)
             if (roles[k] & MAP)
                 plane_refused = true;
-        uint32_t table = PLACES - PLANE_TABLE_PLACES;
-        while (!plane_refused && table >= PLANE_BYTES / 32 && !room_at(table, PLANE_TABLE_PLACES))
-            table--;
-        plane_refused |= table < PLANE_BYTES / 32;
+        uint32_t tables = 2, table = plane_refused ? 0 : room_for_plane_tables(2 * PLANE_TABLE_PLACES);
+        if (!plane_refused && !table)
+            tables = 1, table = room_for_plane_tables(PLANE_TABLE_PLACES);
+        plane_refused |= !table;
         plane_room = !plane_refused;
         if (plane_room) {
             for (uint32_t place = 0; place < PLANE_BYTES / 32; place++)
                 take(place);
-            take_room(table, PLANE_TABLE_PLACES);
+            take_room(table, tables * PLANE_TABLE_PLACES);
             plane_table = (volatile uint8_t *)BG_VRAM + table * 32;
+            if (tables == 2)
+                plane_tables = (volatile uint8_t *)plane_table;
         }
     }
     /* the table the frame shown reads its plane's lines from stays taken
@@ -2178,15 +2211,19 @@ static void make_room_for_the_plane(void)
         snes.palettes_written = ALL_PALETTES;
 }
 
-/* A unit of the plane's VRAM: its 16 map bytes and 16 pixels, apart. */
-static void convert_plane_unit(uint32_t first)
+/* Two units of the plane's VRAM from `first` (a multiple of 64 bytes): a
+ * place of the map's bytes and one of the pixels, apart, written where
+ * stage_writes says, so that a picture made ahead changes the plane only
+ * from the blank that shows it. */
+static void convert_plane_pair(uint32_t first)
 {
-    volatile uint16_t *vram = (volatile uint16_t *)BG_VRAM;
+    uint16_t to[2] = { (uint16_t)(first / 2 / UNIT_BYTES), (uint16_t)((PLANE_MAP_BYTE + first / 2) / UNIT_BYTES) };
+    volatile uint32_t *out[2];
+    stage_writes(2, to, out);
     const uint8_t *bytes = &snes.vram[first];
-    uint32_t at = first / 2;   /* the first's byte of the map and of the tiles */
-    for (unsigned k = 0; k < UNIT_BYTES / 4; k++) {
-        vram[(PLANE_MAP_BYTE + at) / 2 + k] = (uint16_t)(bytes[4 * k] | bytes[4 * k + 2] << 8);
-        vram[at / 2 + k] = (uint16_t)(bytes[4 * k + 1] | bytes[4 * k + 3] << 8);
+    for (unsigned k = 0; k < UNIT_BYTES / 4; k++, bytes += 8) {
+        out[0][k] = (uint32_t)(bytes[1] | bytes[3] << 8 | bytes[5] << 16 | (uint32_t)bytes[7] << 24);
+        out[1][k] = (uint32_t)(bytes[0] | bytes[2] << 8 | bytes[4] << 16 | (uint32_t)bytes[6] << 24);
     }
 }
 
@@ -3220,13 +3257,13 @@ static void convert_block(unsigned k, uint32_t units)
     for (unsigned i = 0; merge_refused.bytes && within(block, merge_refused.b, merge_refused.bytes) && i < 16; i++)
         if (units >> i & 1 && has_tiles_in_front(block + i * UNIT_BYTES, UNIT_BYTES))
             merge_refused = (MapPair){ 0, 0, 0 };
+    for (unsigned i = 0; plane && i < 16; i += 2)
+        if (units >> i & 3)
+            convert_plane_pair(block + i * UNIT_BYTES);
     for (unsigned i = 0; units; i++, units >>= 1) {
         if (!(units & 1))
             continue;
-        uint32_t first = block + i * UNIT_BYTES;
         offsets_written |= offsets;
-        if (plane)
-            convert_plane_unit(first);
         if (copied_from)
             copied.stale = offsets_written = true;
         for (unsigned c = 0; tiled >> c; c++) {
@@ -5705,7 +5742,12 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
         bool stale = copied.stale;
         copied.made = copied.stale = false;
         copied.fresh = true;   /* made, or tried, once a frame */
-        if (stale || !strips.made || strips.control != key.control || strips.hofs != key.hofs) {
+        bool strips_again = stale || !strips.made || strips.control != key.control || strips.hofs != key.hofs;
+        /* the strips and the copy are made from the GBA's maps and tiles:
+         * those this picture changed, where they go first */
+        if (strips_again && vram_staged())
+            stage_no_further();
+        if (strips_again) {
             unsigned w = key.control & 0x4000 ? 64 : 32;
             uint8_t col[COPY_COLUMNS];
             col[0] = (uint8_t)((key.hofs >> 3) & (w - 1));
@@ -5715,7 +5757,7 @@ static bool show_columns_copied(LineRegisters *r, const LineState *st, unsigned 
             if (!make_strips(key.control, col, columns))
                 return false;
         }
-        unsigned c = copied.shown ^ 1;
+        unsigned c = copy_on_screen ^ 1u;
         if (!copy_the_columns(key.moved, c))
             return false;
         VidBg map = { 0 };
@@ -6896,7 +6938,7 @@ static bool frame_differs(bool made, uint8_t count)
 {
     if (sprites_aside)
         return true;
-    if (plane_dma != plane_shown || strength_dma != strength_steps)
+    if (plane_dma != plane_shown || strength_dma != strength_steps || (plane_shown && plane_table != shown_plane_table))
         return true;
     return made && lines_differ(count);
 }
@@ -6930,6 +6972,7 @@ static void frame_shown(bool made, uint8_t count, bool at_blank, uint32_t frame)
         show_from_end(made_end);
     }
     sprite_page_shown = sprite_page;
+    copy_on_screen = copied.shown;
     changes = count;
     plane_dma = plane_shown;
     shown_plane_table = plane_table;
@@ -7089,6 +7132,8 @@ static uint8_t make_lines(Platform *pf, uint16_t layers_enabled, bool laid_out, 
             lines_read_kept = worked_out < 2 || ++tries % 16 == 0;
         st = from.st;
         made_end = shown_end ^ 1;
+        if (plane_tables)
+            plane_table = plane_tables + made_end * PLANE_TABLE_PLACES * 32u;
         made = true;
         copied.fresh = false;
         count = work_out_lines(&pf->video, &st, layers_enabled);
@@ -7475,7 +7520,7 @@ static void make_the_picture(Platform *pf, uint32_t frame)
 static bool made_in_the_blank(void)
 {
     return panel.drawn || picture_hidden || !usage_known || layout_wanted(restart_due(frames_since_layout + 1u)) ||
-           laid_out_mode == 2 || plane_room || plane_dma || copied.made || strips.made;
+           ((plane_room || plane_dma) && !plane_tables) || changes * 2u > GBA_LINES;
 }
 
 bool gba_video_make_ahead(Platform *pf, uint32_t frame)
