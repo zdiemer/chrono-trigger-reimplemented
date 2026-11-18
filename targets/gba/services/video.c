@@ -7365,11 +7365,22 @@ static void stage_no_further(void)
     release_the_staged();
 }
 
+/* Whether anything waits aside for the blank. */
+static bool staged_waiting(void)
+{
+    for (unsigned i = 0; !staged_applied && i < staged_count; i++)
+        if (staged[i].to != NOT_STAGED)
+            return true;
+    return false;
+}
+
 /* A picture made ahead shown: from here where it was made inside a blank
- * with room left in it, else from the next blank, by its interrupt. One
- * whose lines matched the shown picture's was shown at once at first, but
- * the menus' page turns showed pictures that weren't their frames'
- * (`menus-sweep` 2903-2925). */
+ * with room left in it; at once where it is the shown picture as it stands,
+ * nothing waiting aside, its lines kept as the shown frame's and its sprites
+ * the same; else from the next blank, by its interrupt. One whose lines were
+ * worked out again the same was shown at once at first, but the menus' page
+ * turns showed pictures that weren't their frames' (`menus-sweep`
+ * 2903-2925). */
 static void show_ahead(bool made, uint8_t count)
 {
     staging = false;
@@ -7379,6 +7390,9 @@ static void show_ahead(bool made, uint8_t count)
     if (line >= GBA_LINES && line < GBA_LINES + BLANK_LINES_TO_SHOW_IN) {
         apply_the_staged();
         frame_shown(made, count, false, made_frame);
+    } else if (!made && !staged_waiting() && !frame_differs(made, count)) {
+        if (tell_shown)
+            tell_shown(made_frame);
     } else {
         pending_made = made;
         pending_count = count;
