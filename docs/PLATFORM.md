@@ -1672,8 +1672,22 @@ mode 0's four tiled layers and its sprites:
   own map, its tiles from the same cache (the field's second layer shows
   the first's), is shown from that layer's copy rather than a copy of its
   own, which leaves the caches the room a split takes. A map a band shows
-  cut isn't split: all of it stands where its layer would not split (the
-  battle's windows' text in front). The field's layers show their line
+  cut isn't split: all of it stands where its own entries put it, decided
+  at the layout as a layer's stand is (`cut_map_stands_in_front`), on its
+  layer's GBA layer of tiles behind, split or not (the battle's windows'
+  text in front). Its layer's stand was taken before, made from the layer's
+  other maps: in Magus's battle the third layer's second map, the candles'
+  flames, is all behind, so the menu's text stood behind the first layer's
+  window and the windows showed no words (`battle-menu-buttons` frames
+  3632-3934, 787,954 pixels summed in the census (replayed), now 17,521 in
+  seven clusters of a frame or two; 799,627 to 23,189 with `--colours
+  port-style`). Shown on both GBA layers of a split layer, the copy in
+  front blended with nothing under it, and the windows lost their shading.
+  Over the nine movies of the colour window's census (below, "Colour
+  math") no picture cluster came in, `battle-menu-buttons`' picture
+  mismatches fell from 3.56M to 2.79M (4.33M to 3.67M), and the other
+  movies' moved by under 5%, `events-jetbike-race`'s falling most. The
+  field's layers show their line
   effects' maps on every line and never their own, so which units have
   tiles in front is taken from those maps too: counted from the own maps
   alone, the field's first layer had none, wasn't split, and stood behind
