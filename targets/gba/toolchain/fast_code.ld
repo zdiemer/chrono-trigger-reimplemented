@@ -23,6 +23,9 @@
 *(.text.table_unit .text.table_unit.*)
 *(.text.line_bytes .text.line_bytes.*)
 *(.text.slot_entry .text.slot_entry.*)
+/* Mode 7's runs of lines whose transfers change the plane alone (the jet
+ * bike race's track) */
+*(.text.plane_stretch .text.plane_stretch.*)
 /* With the fibers' stacks sized from the movie library's deepest use
  * (system/fiber.c): the next functions by the GBA's work a byte */
 *(.text.vid_send_palette .text.vid_send_palette.*)

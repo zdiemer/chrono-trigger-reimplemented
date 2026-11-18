@@ -493,8 +493,11 @@ typedef struct {
 } DrawnPanel;
 static DrawnPanel panel IN_FAST_RAM;
 
-/* The view's own memory (vid_view_memory), cleared by each layout. */
-static uint8_t view_memory[VID_VIEW_MEMORY] IN_FAST_RAM;
+/* The view's own memory (vid_view_memory), cleared by each layout: in work
+ * RAM, the dialog's and the battle camera's copy in and out once a frame,
+ * so that fast RAM has the room for Mode 7's stretches of lines
+ * (plane_stretch). */
+static uint8_t view_memory[VID_VIEW_MEMORY];
 
 uint8_t *vid_view_memory(Platform *pf)
 {
@@ -1857,7 +1860,7 @@ enum { PLANE_BYTES = 0x8000, PLANE_MAP_BYTE = 0x4000, PLANE_MAP_BLOCK = PLANE_MA
 static bool plane_room;        /* the layout keeps the GBA's first 32 KiB for the plane */
 static bool plane_refused;     /* a layer's map lies where the plane would */
 static bool plane_on_lines;    /* a line of the last frame showed Mode 7 */
-static volatile void *plane_table;   /* the table of the plane's lines, in background VRAM; NULL: no room */
+static volatile void *plane_table IN_FAST_RAM;   /* the table of the plane's lines, in background VRAM; NULL: no room */
 /* The table the frame shown reads its plane's lines from: the last frame's
  * stays where it is until this one is shown, though a layout gave its room
  * back (the title's pendulum, a part of the plane, fell apart through the
@@ -3644,8 +3647,8 @@ typedef struct {
 } PlaneLine;
 _Static_assert(sizeof(PlaneLine) * (GBA_LINES + 1) == PLANE_TABLE_BYTES, "the table is the lines' and the blank's, 16 bytes each");
 #define plane_lines ((volatile PlaneLine *)plane_table)
-static uint8_t plane_set[(GBA_LINES + 7) / 8];   /* the lines a change set, a bit each */
-static bool plane_shown;                         /* whether a line of the frame shows Mode 7 */
+static uint8_t plane_set[(GBA_LINES + 7) / 8] IN_FAST_RAM;   /* the lines a change set, a bit each */
+static bool plane_shown IN_FAST_RAM;                         /* whether a line of the frame shows Mode 7 */
 
 /* The blending's strength (BLDY) on each line, where the colour math's
  * fixed colour changes it every few lines (the dialog's shading, the race's
@@ -3879,6 +3882,13 @@ typedef struct {
     VidMode7 m7;
 } LineState;
 
+/* A transfer's bytes, as many as its target takes (unit_bytes), the rest 0:
+ * compared and kept a word at a time. */
+typedef union {
+    uint8_t bytes[4];
+    uint32_t word;
+} Unit;
+
 /* A slot's progress through its table, as HDMA's, and the line it next
  * does anything at (an entry's lines between its one transfer and the next
  * entry are passed over), with the unit it last applied. */
@@ -3887,8 +3897,9 @@ typedef struct {
     uint8_t bank, count;
     uint8_t unit;       /* the bytes a transfer takes, by its target */
     uint8_t changes;    /* what of a line's registers its transfers change (Changed) */
+    uint8_t plane[2];   /* the plane's registers its transfers set (plane_registers), or NO_REGISTER */
     bool applied;       /* whether `last` holds the unit its last transfer applied */
-    uint8_t last[4] __attribute__((aligned(4)));
+    Unit last;
     uint16_t cursor, indirect, line;
     const struct ReadLine *held;   /* the read of the tables its last transfer took its unit from, or NULL */
 } Slot;
@@ -4183,24 +4194,52 @@ static void scroll_byte(uint16_t *value, unsigned k, uint8_t v)
     *value = k & 1 ? (uint16_t)((*value & 0xFF) | (v & 3) << 8) : (uint16_t)((*value & 0x300) | v);
 }
 
-/* A Mode 7 register's byte: they take a value a byte at a time through
- * their shared latch, as the native observer does. */
-static void plane_byte(LineState *st, int16_t *value, uint8_t v)
-{
-    *value = (int16_t)((uint16_t)v << 8 | st->m7_latch);
-    st->m7_latch = v;
-}
-
-/* The first layer's scroll is Mode 7's too, its 13 bits through the latch. */
-static void plane_scroll_byte(LineState *st, int16_t *value, uint8_t v)
-{
-    plane_byte(st, value, v);
-    *value = vid_mode7_13bit((uint16_t)*value);
-}
-
 static void fixed_byte(LineState *st, uint8_t v)
 {
     st->fixed_color = fixed_channels(st->fixed_color, (uint8_t)(v >> 5), (uint8_t)(v & 31));
+}
+
+/* The registers of Mode 7's plane a line effect's target sets, where it
+ * sets the plane and nothing else the GBA shows of a Mode 7 line: each a
+ * VidMode7 field's place, two at most (its matrix's values, its centre, or
+ * the first layer's scroll, which is the plane's too); NO_REGISTER for the
+ * rest. */
+enum { NO_REGISTER = 0xFF };
+static void plane_registers(VidLineTarget target, uint8_t reg[2])
+{
+    reg[0] = reg[1] = NO_REGISTER;
+    switch (target) {
+    case VID_LINE_MODE7_AB: reg[0] = offsetof(VidMode7, a), reg[1] = offsetof(VidMode7, b); break;
+    case VID_LINE_MODE7_CD: reg[0] = offsetof(VidMode7, c), reg[1] = offsetof(VidMode7, d); break;
+    case VID_LINE_MODE7_A: reg[0] = offsetof(VidMode7, a); break;
+    case VID_LINE_MODE7_B: reg[0] = offsetof(VidMode7, b); break;
+    case VID_LINE_MODE7_C: reg[0] = offsetof(VidMode7, c); break;
+    case VID_LINE_MODE7_D: reg[0] = offsetof(VidMode7, d); break;
+    case VID_LINE_MODE7_CENTER: reg[0] = offsetof(VidMode7, cx), reg[1] = offsetof(VidMode7, cy); break;
+    case VID_LINE_SCROLL_BG1: reg[0] = offsetof(VidMode7, hofs), reg[1] = offsetof(VidMode7, vofs); break;
+    case VID_LINE_SCROLL_BG1_H: reg[0] = offsetof(VidMode7, hofs); break;
+    case VID_LINE_SCROLL_BG1_V: reg[0] = offsetof(VidMode7, vofs); break;
+    default: break;
+    }
+}
+
+/* What a transfer to Mode 7's plane changes (plane_registers, `reg`): each
+ * two of its bytes `v`, low then high, a register's value, through the latch
+ * the Mode 7 registers share, which keeps the last high byte; the centre and
+ * the first layer's scroll keep 13 bits, as the PPU does (the matrix's
+ * values, 16), and the scroll is the first layer's own too, in 10. */
+__attribute__((always_inline)) static inline void plane_unit_apply(LineState *st, const uint8_t reg[2], const uint8_t *v)
+{
+    for (unsigned k = 0; k < 2 && reg[k] != NO_REGISTER; k++, v += 2) {
+        uint16_t value = (uint16_t)(v[1] << 8 | v[0]);
+        int16_t *to = (int16_t *)((uint8_t *)&st->m7 + reg[k]);
+        *to = reg[k] >= offsetof(VidMode7, cx) ? vid_mode7_13bit(value) : (int16_t)value;
+        if (reg[k] == offsetof(VidMode7, hofs))
+            st->hofs[0] = value & 0x3FF;
+        else if (reg[k] == offsetof(VidMode7, vofs))
+            st->vofs[0] = value & 0x3FF;
+        st->m7_latch = v[1];
+    }
 }
 
 /* What a transfer of a line effect changes of what the GBA shows: its
@@ -4209,6 +4248,16 @@ static void unit_apply(LineState *st, VidLineTarget target, const uint8_t *v)
 {
     VidWindows *w = &st->windows;
     switch (target) {
+    case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3: {
+        unsigned bg = (unsigned)(target - VID_LINE_SCROLL_BG1);
+        for (unsigned k = 0; k < 4; k++)
+            scroll_byte(k < 2 ? &st->hofs[bg] : &st->vofs[bg], k, v[k]);
+        break;
+    }
+    case VID_LINE_SCROLL_BG2_H: scroll_byte(&st->hofs[1], 0, v[0]), scroll_byte(&st->hofs[1], 1, v[1]); break;
+    case VID_LINE_SCROLL_BG2_V: scroll_byte(&st->vofs[1], 0, v[0]), scroll_byte(&st->vofs[1], 1, v[1]); break;
+    case VID_LINE_SCROLL_BG3_H: scroll_byte(&st->hofs[2], 0, v[0]), scroll_byte(&st->hofs[2], 1, v[1]); break;
+    case VID_LINE_SCROLL_BG3_V: scroll_byte(&st->vofs[2], 0, v[0]), scroll_byte(&st->vofs[2], 1, v[1]); break;
     case VID_LINE_WINDOWS:
         w->w1_left = v[0], w->w1_right = v[1], w->w2_left = v[2], w->w2_right = v[3];
         break;
@@ -4218,27 +4267,6 @@ static void unit_apply(LineState *st, VidLineTarget target, const uint8_t *v)
     case VID_LINE_WINDOW1_RIGHT: w->w1_right = v[0]; break;
     case VID_LINE_WINDOW2_LEFT: w->w2_left = v[0]; break;
     case VID_LINE_WINDOW2_RIGHT: w->w2_right = v[0]; break;
-    case VID_LINE_SCROLL_BG1: case VID_LINE_SCROLL_BG2: case VID_LINE_SCROLL_BG3: {
-        unsigned bg = (unsigned)(target - VID_LINE_SCROLL_BG1);
-        for (unsigned k = 0; k < 4; k++) {
-            scroll_byte(k < 2 ? &st->hofs[bg] : &st->vofs[bg], k, v[k]);
-            if (bg == 0)
-                plane_scroll_byte(st, k < 2 ? &st->m7.hofs : &st->m7.vofs, v[k]);
-        }
-        break;
-    }
-    case VID_LINE_SCROLL_BG1_H: case VID_LINE_SCROLL_BG1_V: {
-        bool across = target == VID_LINE_SCROLL_BG1_H;
-        for (unsigned k = 0; k < 2; k++) {
-            scroll_byte(across ? &st->hofs[0] : &st->vofs[0], k, v[k]);
-            plane_scroll_byte(st, across ? &st->m7.hofs : &st->m7.vofs, v[k]);
-        }
-        break;
-    }
-    case VID_LINE_SCROLL_BG2_H: scroll_byte(&st->hofs[1], 0, v[0]), scroll_byte(&st->hofs[1], 1, v[1]); break;
-    case VID_LINE_SCROLL_BG2_V: scroll_byte(&st->vofs[1], 0, v[0]), scroll_byte(&st->vofs[1], 1, v[1]); break;
-    case VID_LINE_SCROLL_BG3_H: scroll_byte(&st->hofs[2], 0, v[0]), scroll_byte(&st->hofs[2], 1, v[1]); break;
-    case VID_LINE_SCROLL_BG3_V: scroll_byte(&st->vofs[2], 0, v[0]), scroll_byte(&st->vofs[2], 1, v[1]); break;
     case VID_LINE_BRIGHTNESS: st->brightness = v[0] & 15; st->blank = (v[0] & 0x80) != 0; break;
     case VID_LINE_SCREENS: st->main_layers = v[0], st->sub_layers = v[1], w->win_main = v[2], w->win_sub = v[3]; break;
     case VID_LINE_MAIN_SCREEN: st->main_layers = v[0]; break;
@@ -4263,26 +4291,6 @@ static void unit_apply(LineState *st, VidLineTarget target, const uint8_t *v)
         st->bg3_priority = m.bg3_priority;
         break;
     }
-    /* the Mode 7 registers' pairs: each takes its two bytes through the latch */
-    case VID_LINE_MODE7_AB: case VID_LINE_MODE7_CD: {
-        int16_t *first = target == VID_LINE_MODE7_AB ? &st->m7.a : &st->m7.c;
-        int16_t *second = target == VID_LINE_MODE7_AB ? &st->m7.b : &st->m7.d;
-        *first = (int16_t)((uint16_t)v[1] << 8 | v[0]);
-        *second = (int16_t)((uint16_t)v[3] << 8 | v[2]);
-        st->m7_latch = v[3];
-        break;
-    }
-    case VID_LINE_MODE7_A: case VID_LINE_MODE7_B: case VID_LINE_MODE7_C: case VID_LINE_MODE7_D: {
-        int16_t *value = target == VID_LINE_MODE7_A ? &st->m7.a : target == VID_LINE_MODE7_B ? &st->m7.b
-                       : target == VID_LINE_MODE7_C ? &st->m7.c : &st->m7.d;
-        *value = (int16_t)((uint16_t)v[1] << 8 | v[0]);
-        st->m7_latch = v[1];
-        break;
-    }
-    case VID_LINE_MODE7_CENTER:
-        for (unsigned k = 0; k < 4; k++)
-            plane_scroll_byte(st, k < 2 ? &st->m7.cx : &st->m7.cy, v[k]);
-        break;
     default: break;
     }
 }
@@ -5902,7 +5910,7 @@ static const Band *band_down_to(unsigned *from, int row)
  * changes nothing and is passed over. */
 ARM_CODE static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint16_t stop);
 
-ARM_CODE static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, bool apart)
+ARM_CODE __attribute__((noinline)) static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_t stop, bool apart)
 {
     bool passed = false;   /* whether a transfer here changed nothing */
     while (sl->active && sl->line < stop) {
@@ -5914,7 +5922,8 @@ ARM_CODE static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_
         uint16_t line = sl->line;
         bool applies = false;
         if (sl->transfer) {
-            uint8_t unit[4] __attribute__((aligned(4))) = { 0 };
+            Unit u = { .word = 0 };
+            uint8_t *unit = u.bytes;
             bool values = e->indirect;
             uint16_t *at = values ? &sl->indirect : &sl->cursor;
             uint8_t bank = values ? e->indirect_bank : sl->bank;
@@ -5936,14 +5945,10 @@ ARM_CODE static uint16_t next_transfer(Slot *sl, const VidLineEffect *e, uint16_
                 table_unit(bank, *at, sl->unit, unit, values);
             }
             *at = (uint16_t)(*at + sl->unit);
-            /* compared a word at a time: the bytes past the unit are 0 in both */
-            uint32_t now, was;
-            memcpy(&now, unit, sizeof now);
-            memcpy(&was, sl->last, sizeof was);
-            applies = !(apart && sl->applied && now == was);
+            applies = !(apart && sl->applied && u.word == sl->last.word);
             passed = !applies;
             if (applies) {
-                memcpy(sl->last, unit, sizeof unit);
+                sl->last = u;
                 sl->applied = true;
             }
         }
@@ -5981,11 +5986,271 @@ ARM_CODE static void pass_over_unchanged(Slot *sl, const VidLineEffect *e, uint1
             bytes = line_bytes(read, e->indirect), held = read;
         const uint8_t *unit = bytes + *at % READ_LINE_BYTES;
         for (unsigned k = 0; k < sl->unit; k++)
-            if (unit[k] != sl->last[k])
+            if (unit[k] != sl->last.bytes[k])
                 return;
         *at = (uint16_t)(*at + sl->unit);
         sl->count--;
         sl->line++;
+    }
+}
+
+/* The slots' walk down a frame's lines (work_out_lines): each slot's
+ * progress, the line it stops at and the line of its next transfer, the
+ * slots with transfers still to apply in their order, and the lines visited
+ * whatever the slots do, in order (the display's change below a line, each
+ * band's first line and the lines asked of), with where the walk has reached
+ * in them and in the bands. */
+typedef struct {
+    Slot slots[8];
+    uint16_t stop[8], next[8];
+    uint8_t running[8], running_count;
+    bool apart;
+    unsigned stops, next_stop, band_at;
+    uint16_t stop_line[1 + MOST_BANDS + ASKED_LINES];
+} Walk;
+
+/* What the line effects set of the plane (plane_registers), as `from` has
+ * it: the rest of a VidMode7 (its flips, what lies outside it) they never
+ * set. A field at a time, the struct's halfwords not being a word's. */
+static inline void plane_registers_shown(VidMode7 *to, const VidMode7 *from)
+{
+    to->a = from->a, to->b = from->b, to->c = from->c, to->d = from->d;
+    to->cx = from->cx, to->cy = from->cy, to->hofs = from->hofs, to->vofs = from->vofs;
+}
+
+/* A stretch of a run of the plane's lines (plane_run) whose every line takes
+ * a transfer from each slot that sets the plane, the next one in the same
+ * repeating entry, and nothing else happens: down the race's track, the
+ * matrix's two rows and the scroll, line after line. Its units are read
+ * where the game keeps the tables (gba_video_read_in_place) a line at a time
+ * as the walk takes them, rather than through next_transfer: a unit applies
+ * where it differs from the one before, or where the targets aren't apart,
+ * as there; each line a unit applied at is followed by its plane, on a line
+ * the view shows (`b`, the band showing its row), as the walk's step for the
+ * plane alone makes it, and outside the view by nothing, what the units
+ * changed `touched` for the walk. From `line`, the slots' units there still
+ * to apply; the result is the line it reached, visited, its transfers still
+ * to apply (each slot's next found by next_transfer, as the walk had it), or
+ * `line` where no stretch of two lines or more can be taken: a frame that
+ * keeps what it reads of the tables (lines_read_kept), a slot that sets
+ * anything else at `line` or skips it, a unit that isn't where the game
+ * keeps it. In fast RAM (toolchain/fast_code.ld). */
+__attribute__((noinline, optimize("Os"))) static uint16_t plane_stretch(Walk *w, LineState *st, LineState *shown,
+                                                                         uint8_t *touched, uint16_t line, uint8_t count,
+                                                                         unsigned next_black)
+{
+    if (lines_read_kept || !snes.in_place || (*touched & ~(CHANGED_PLANE | CHANGED_SCROLL)))
+        return line;
+    while (w->next_stop < w->stops && w->stop_line[w->next_stop] <= line)
+        w->next_stop++;
+    /* the lines it can visit: up to another slot's next transfer, a slot's
+     * stop or its entry's last transfer, a line the walk visits whatever the
+     * slots do, the band's end, a black band, the next band */
+    unsigned end = SNES_LINES - 1;
+    uint8_t changes = 0;
+    for (unsigned r = 0; r < w->running_count; r++) {
+        unsigned i = w->running[r];
+        const Slot *sl = &w->slots[i];
+        if (sl->plane[0] == NO_REGISTER) {
+            if (w->next[i] < end)
+                end = w->next[i];
+            continue;
+        }
+        if (w->next[i] != line || !sl->transfer || !(sl->count & 0x80) || !snes.slot[i].indirect)
+            return line;
+        changes |= sl->changes;
+        if (line + (sl->count & 0x7Fu) < end)
+            end = line + (sl->count & 0x7Fu);
+        if (w->stop[i] < end)
+            end = w->stop[i];
+    }
+    if (w->next_stop < w->stops && w->stop_line[w->next_stop] <= end)
+        end = w->stop_line[w->next_stop] - 1u;
+    const Band *b = band_down_to(&w->band_at, line);
+    if (b) {
+        if (b->drawn || st->mode != 7 || shown->mode != 7 || !count ||
+            ((changes & CHANGED_SCROLL) && (b->cut_dots || (split_wanted >> OVERLAY_SHIFT))))
+            return line;
+        if ((unsigned)(b->row + b->rows) < end)
+            end = (unsigned)(b->row + b->rows);
+        if (next_black < band_count && bands[next_black].at + 1 + b->row - b->at < (int)end)
+            end = (unsigned)(bands[next_black].at + 1 + b->row - b->at);
+    } else {
+        for (unsigned k = w->band_at; k < band_count; k++)
+            if (!bands[k].black) {
+                if ((unsigned)bands[k].row < end)
+                    end = (unsigned)bands[k].row;
+                break;
+            }
+    }
+    if (!changes || end < line + 2u)
+        return line;
+    /* each slot's units from the line after, where the game keeps them */
+    unsigned units = end - line - 1u, slots = 0;
+    struct {
+        Slot *sl;
+        const uint8_t *at;
+        Unit last;
+    } stream[8];
+    for (unsigned r = 0; r < w->running_count; r++) {
+        unsigned i = w->running[r];
+        Slot *sl = &w->slots[i];
+        if (sl->plane[0] == NO_REGISTER)
+            continue;
+        uint32_t bytes = (units + 1u) * sl->unit;   /* and the unit at `end` */
+        const uint8_t *at = sl->indirect + bytes <= 0x10000u
+                          ? snes.in_place(snes.ctx, (uint32_t)snes.slot[i].indirect_bank << 16 | sl->indirect, bytes) : NULL;
+        if (!at)
+            return line;
+        stream[slots].sl = sl, stream[slots].at = at, stream[slots].last = sl->last;
+        slots++;
+    }
+    bool visited = false;
+    for (unsigned l = line; l < end; l++) {
+        for (unsigned k = 0; k < slots; k++) {
+            Slot *sl = stream[k].sl;
+            Unit u = stream[k].last;   /* at `line`, the unit next_transfer found to apply */
+            if (l != line) {
+                const uint8_t *from = stream[k].at;
+                u.word = from[0];
+                if (sl->unit > 1)
+                    u.bytes[1] = from[1];
+                if (sl->unit > 2)
+                    u.bytes[2] = from[2], u.bytes[3] = from[3];
+                stream[k].at = from + sl->unit;
+                if (w->apart && u.word == stream[k].last.word)
+                    continue;
+            }
+            plane_unit_apply(st, sl->plane, u.bytes);
+            stream[k].last = u;
+            *touched |= sl->changes;
+        }
+        if (b && *touched) {
+            plane_line((unsigned)(b->at + ((int)l - b->row)), &st->m7, b->left, (int)l + 1);
+            *touched = 0;
+            visited = true;
+        }
+    }
+    /* what the last line visited showed, as the walk's step keeps it */
+    if (visited) {
+        plane_registers_shown(&shown->m7, &st->m7);
+        shown->m7_latch = st->m7_latch;
+        /* a value at a time: as a loop GCC calls the C library's memmove for it */
+        shown->hofs[0] = st->hofs[0], shown->hofs[1] = st->hofs[1], shown->hofs[2] = st->hofs[2];
+        shown->vofs[0] = st->vofs[0], shown->vofs[1] = st->vofs[1], shown->vofs[2] = st->vofs[2];
+    }
+    if (b)
+        plane_on_lines = true;
+    /* each slot's next transfer: its unit at the line reached, where that
+     * applies, taken as next_transfer takes it; else from there by
+     * next_transfer */
+    unsigned still = 0;
+    for (unsigned r = 0, k = 0; r < w->running_count; r++) {
+        unsigned i = w->running[r];
+        Slot *sl = &w->slots[i];
+        if (sl->plane[0] != NO_REGISTER) {
+            const uint8_t *from = stream[k].at;
+            Unit u = { .word = from[0] };
+            if (sl->unit > 1)
+                u.bytes[1] = from[1];
+            if (sl->unit > 2)
+                u.bytes[2] = from[2], u.bytes[3] = from[3];
+            sl->indirect = (uint16_t)(sl->indirect + units * sl->unit);
+            sl->count = (uint8_t)(sl->count - units);
+            sl->line = (uint16_t)end;
+            sl->last = stream[k++].last;
+            if (end < w->stop[i] && !(w->apart && u.word == sl->last.word)) {
+                sl->last = u;
+                sl->indirect = (uint16_t)(sl->indirect + sl->unit);
+                sl->line++;
+                if (!(--sl->count & 0x7F))
+                    slot_entry(sl, &snes.slot[i]);
+                w->next[i] = (uint16_t)end;
+            } else {
+                w->next[i] = next_transfer(sl, &snes.slot[i], w->stop[i], w->apart);
+            }
+        }
+        if (w->next[i] != NO_LINE)
+            w->running[still++] = (uint8_t)i;
+    }
+    w->running_count = (uint8_t)still;
+    return (uint16_t)end;
+}
+
+/* A run of Mode 7 lines whose transfers change nothing but the plane: down
+ * the jet bike race's track each line takes its own matrix and scroll from
+ * the line effects, and nothing else changes for dozens of lines. The walk
+ * goes on here while it can do no more than that: the transfers at a line
+ * all the plane's or the scroll's, and the line it visits next one that
+ * shows nothing new but the plane (plane_line, as the walk's step for the
+ * plane alone) or one outside the view, which shows nothing; most of it in
+ * stretches (plane_stretch), the lines between them a line at a time. From
+ * the line the walk is at, its transfers still to apply, with what the
+ * transfers since its last visit `touched`; the result is the line the walk
+ * goes on at, `*at_visit` where only its visit is left (else its transfers
+ * too), as the walk would have. */
+__attribute__((noinline, optimize("Os"))) static uint16_t plane_run(Walk *w, LineState *st, LineState *shown, uint8_t *touched,
+                                                            uint16_t line, uint8_t count, unsigned next_black,
+                                                            bool *at_visit)
+{
+    for (*at_visit = false;; *at_visit = false) {
+        for (unsigned r = 0; r < w->running_count; r++) {
+            unsigned i = w->running[r];
+            if (w->next[i] == line && w->slots[i].plane[0] == NO_REGISTER)
+                return line;
+        }
+        uint16_t reached = plane_stretch(w, st, shown, touched, line, count, next_black);
+        if (reached != line) {
+            line = reached;
+            continue;
+        }
+        uint16_t soonest = NO_LINE;
+        unsigned still = 0;
+        for (unsigned r = 0; r < w->running_count; r++) {
+            unsigned i = w->running[r];
+            if (w->next[i] == line) {
+                Slot *sl = &w->slots[i];
+                const VidLineEffect *e = &snes.slot[i];
+                plane_unit_apply(st, sl->plane, sl->last.bytes);
+                *touched |= sl->changes;
+                w->next[i] = next_transfer(sl, e, w->stop[i], w->apart);
+                if (w->next[i] == NO_LINE)
+                    continue;
+            }
+            w->running[still++] = (uint8_t)i;
+            if (w->next[i] < soonest)
+                soonest = w->next[i];
+        }
+        w->running_count = (uint8_t)still;
+        while (w->next_stop < w->stops && w->stop_line[w->next_stop] <= line)
+            w->next_stop++;
+        bool stop_next = w->next_stop < w->stops && w->stop_line[w->next_stop] <= soonest;
+        if (stop_next)
+            soonest = w->stop_line[w->next_stop];
+        if (*touched && line + 1 < soonest && band_down_to(&w->band_at, line))
+            soonest = (uint16_t)(line + 1), stop_next = false;
+        line = soonest;
+        *at_visit = true;
+        if (line >= SNES_LINES || (stop_next && w->stop_line[w->next_stop] == line))
+            return line;
+        const Band *b = band_down_to(&w->band_at, (int)line - 1);
+        if (!b)
+            continue;   /* outside the view: nothing shown */
+        int at = b->at + ((int)line - 1 - b->row);
+        if (b->drawn || at == b->at || st->mode != 7 || shown->mode != 7 || !count ||
+            (next_black < band_count && bands[next_black].at < at) || (*touched & ~(CHANGED_PLANE | CHANGED_SCROLL)) ||
+            ((*touched & CHANGED_SCROLL) && (b->cut_dots || (split_wanted >> OVERLAY_SHIFT))))
+            return line;
+        plane_on_lines = true;
+        if (*touched) {
+            plane_line((unsigned)at, &st->m7, b->left, (int)line);
+            plane_registers_shown(&shown->m7, &st->m7);
+            shown->m7_latch = st->m7_latch;
+            /* the layers' scroll, a value at a time: as a loop GCC calls the C library's memmove for it */
+            shown->hofs[0] = st->hofs[0], shown->hofs[1] = st->hofs[1], shown->hofs[2] = st->hofs[2];
+            shown->vofs[0] = st->vofs[0], shown->vofs[1] = st->vofs[1], shown->vofs[2] = st->vofs[2];
+        }
+        *touched = 0;
     }
 }
 
@@ -6018,35 +6283,28 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
     /* A slot the effects below their line leave out stops there. */
     uint16_t effects_from = v->below_line_effects && v->effects_from ? v->effects_from : SNES_LINES;
     uint16_t display_at = v->below_display && v->display_from ? v->display_from : NO_LINE;
-    Slot slots[8];
-    uint16_t stop[8], next[8];
+    Walk w = { .apart = apart, .running_count = 0, .stops = 0, .next_stop = 0, .band_at = 0 };
     for (unsigned i = 0; i < 8; i++) {
-        slots[i] = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
-                           .unit = unit_bytes(snes.slot[i].target), .changes = target_changes(snes.slot[i].target),
-                           .cursor = (uint16_t)snes.slot[i].table.addr };
-        stop[i] = (below >> i) & 1 ? SNES_LINES : effects_from;
-        if (slots[i].active)
-            slot_entry(&slots[i], &snes.slot[i]);
-        next[i] = next_transfer(&slots[i], &snes.slot[i], stop[i], apart);
+        Slot *sl = &w.slots[i];
+        *sl = (Slot){ .active = (enabled >> i) & 1, .bank = (uint8_t)(snes.slot[i].table.addr >> 16),
+                      .unit = unit_bytes(snes.slot[i].target), .changes = target_changes(snes.slot[i].target),
+                      .cursor = (uint16_t)snes.slot[i].table.addr };
+        plane_registers(snes.slot[i].target, sl->plane);
+        w.stop[i] = (below >> i) & 1 ? SNES_LINES : effects_from;
+        if (sl->active)
+            slot_entry(sl, &snes.slot[i]);
+        w.next[i] = next_transfer(sl, &snes.slot[i], w.stop[i], apart);
+        if (w.next[i] != NO_LINE)
+            w.running[w.running_count++] = (uint8_t)i;
     }
-    /* the slots with transfers still to apply, in their order */
-    uint8_t running[8], running_count = 0;
-    for (unsigned i = 0; i < 8; i++)
-        if (next[i] != NO_LINE)
-            running[running_count++] = (uint8_t)i;
-    /* the lines visited whatever the slots do, in order: the display's
-     * change below a line, each band's first line and the lines asked of */
-    uint16_t stop_line[1 + MOST_BANDS + ASKED_LINES];
-    unsigned stops = 0, next_stop = 0;
     if (display_at != NO_LINE)
-        stops = add_stop(stop_line, stops, display_at);
+        w.stops = add_stop(w.stop_line, w.stops, display_at);
     for (unsigned k = 0; k < band_count; k++)
         if (!bands[k].black)
-            stops = add_stop(stop_line, stops, (uint16_t)(bands[k].row + 1));
+            w.stops = add_stop(w.stop_line, w.stops, (uint16_t)(bands[k].row + 1));
     for (unsigned k = 0; k < ASKED_LINES; k++)
         if (asked_line[k])
-            stops = add_stop(stop_line, stops, asked_line[k]);
-    unsigned band_at = 0;   /* where band_down_to has reached */
+            w.stops = add_stop(w.stop_line, w.stops, asked_line[k]);
     uint8_t count = 0, next_black = 0;
     uint8_t touched = CHANGED_OTHER;   /* what of the lines' registers may have changed (Changed) */
     LinesKept kept = { .kept = 0 };   /* (Lines that show what one before them did, above) */
@@ -6062,13 +6320,13 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
          * on the drawn panel, whose layers' scroll is its own, and a band
          * cut, whose maps the scroll moves the cut in). The last change's
          * registers are always those of what was `shown`. */
-        while (next_stop < stops && stop_line[next_stop] < line)
-            next_stop++;
-        if (next_stop < stops && stop_line[next_stop] == line)
+        while (w.next_stop < w.stops && w.stop_line[w.next_stop] < line)
+            w.next_stop++;
+        if (w.next_stop < w.stops && w.stop_line[w.next_stop] == line)
             for (unsigned k = 0; k < ASKED_LINES; k++)
                 if (asked_line[k] == line)   /* the lines asked of, which are visited */
                     asked_shown[k] = (uint8_t)(st.main_layers | (st.blank ? ASKED_BLANK : 0));
-        const Band *b = line ? band_down_to(&band_at, (int)line - 1) : NULL;
+        const Band *b = line ? band_down_to(&w.band_at, (int)line - 1) : NULL;
         int at = !b ? -1 : b->drawn ? band_line(b, (int)line - 1) : b->at + ((int)line - 1 - b->row);
         if (at >= 0 && st.mode == 7)
             plane_on_lines = true;
@@ -6159,36 +6417,46 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                 keep_the_line(&kept, &st, b, &r, count);
             touched = 0;
         }
+        /* down Mode 7's lines, a run that changes the plane alone */
+        if (st.mode == 7) {
+            bool at_visit;
+            line = plane_run(&w, &st, &shown, &touched, line, count, next_black, &at_visit);
+            if (at_visit)
+                continue;
+        }
         /* the slots with a transfer at this line apply it, in the slots' order */
         uint16_t soonest = NO_LINE;
         unsigned still = 0;
-        for (unsigned r = 0; r < running_count; r++) {
-            unsigned i = running[r];
-            if (next[i] == line) {
-                Slot *sl = &slots[i];
+        for (unsigned r = 0; r < w.running_count; r++) {
+            unsigned i = w.running[r];
+            if (w.next[i] == line) {
+                Slot *sl = &w.slots[i];
                 const VidLineEffect *e = &snes.slot[i];
-                unit_apply(&st, e->target, sl->last);
+                if (sl->plane[0] != NO_REGISTER)
+                    plane_unit_apply(&st, sl->plane, sl->last.bytes);
+                else
+                    unit_apply(&st, e->target, sl->last.bytes);
                 touched |= sl->changes;
-                next[i] = next_transfer(sl, e, stop[i], apart);
-                if (next[i] == NO_LINE)
+                w.next[i] = next_transfer(sl, e, w.stop[i], apart);
+                if (w.next[i] == NO_LINE)
                     continue;
             }
-            running[still++] = (uint8_t)i;
-            if (next[i] < soonest)
-                soonest = next[i];
+            w.running[still++] = (uint8_t)i;
+            if (w.next[i] < soonest)
+                soonest = w.next[i];
         }
-        running_count = still;
-        while (next_stop < stops && stop_line[next_stop] <= line)
-            next_stop++;
-        if (next_stop < stops && stop_line[next_stop] < soonest)
-            soonest = stop_line[next_stop];
-        if (touched && line + 1 < soonest && band_down_to(&band_at, line))
+        w.running_count = (uint8_t)still;
+        while (w.next_stop < w.stops && w.stop_line[w.next_stop] <= line)
+            w.next_stop++;
+        if (w.next_stop < w.stops && w.stop_line[w.next_stop] < soonest)
+            soonest = w.stop_line[w.next_stop];
+        if (touched && line + 1 < soonest && band_down_to(&w.band_at, line))
             soonest = (uint16_t)(line + 1);
         line = soonest;
     }
     count = black_bands_above(GBA_VIEW_HEIGHT, count, &next_black, layers_enabled);
     for (unsigned i = 0; i < 8; i++)
-        tables_read.bytes[i] = (enabled | below) >> i & 1 ? (uint16_t)(slots[i].cursor - (uint16_t)snes.slot[i].table.addr) : 0;
+        tables_read.bytes[i] = (enabled | below) >> i & 1 ? (uint16_t)(w.slots[i].cursor - (uint16_t)snes.slot[i].table.addr) : 0;
     *st_out = st;
     return count;
 }
@@ -6372,7 +6640,7 @@ static void show_the_pending_frame(void)
 static uint8_t make_lines(Platform *pf, uint16_t layers_enabled, bool laid_out, bool *made_out, LineState *left)
 {
     static uint32_t last_from IN_FAST_RAM;   /* its hash */
-    static LineState last_left IN_FAST_RAM;
+    static LineState last_left;   /* in work RAM: read once a picture, where its lines stand */
     static bool last_stands IN_FAST_RAM;
     /* Frames worked out one after another, and a count to try keeping them
      * again by: where the tables change every frame (a battle's, the jet
