@@ -234,7 +234,9 @@ typedef struct {
     uint64_t held;
 } Clock;
 
-static bool behind_the_clock(const Clock *c) { return (int32_t)(cycles_now() - c->next) >= 0; }
+/* Whether the game is a GBA frame and more behind the GBA's time: within
+ * one, a picture left out saved too little to be worth the picture. */
+static bool behind_the_clock(const Clock *c) { return (int32_t)(cycles_now() - c->next) > GBA_FRAME_CYCLES; }
 
 static void hold_to_the_clock(Clock *c)
 {
