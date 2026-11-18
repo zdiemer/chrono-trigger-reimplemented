@@ -267,7 +267,8 @@ typedef struct {
     volatile bool waiting;     /* a picture made ahead, not shown yet */
     bool left_out;             /* the last frame's picture */
     uint32_t made;             /* cycles: the last frame's picture's making, 0 where it was left out */
-    uint32_t pictures_left_out;
+    uint32_t pictures_left_out, left_out_waiting;   /* all, and where the last made ahead still waited */
+    uint32_t given_way;                             /* made ahead and never shown, the next made in its place */
     volatile uint32_t pictures_shown;
     volatile uint32_t shown_blank, shown_frame;   /* the last shown: where its blank began, its game frame */
     volatile bool unpaced;                        /* not counted in the pacing yet (pictures_paced) */
@@ -279,6 +280,7 @@ static bool picture_left_out(Pictures *p, uint32_t game_and_sound, bool behind)
     p->left_out = !p->left_out && behind && (p->waiting || p->made + game_and_sound > GBA_FRAME_CYCLES);
     if (p->left_out) {
         p->pictures_left_out++;
+        p->left_out_waiting += p->waiting;
         p->made = 0;
     }
     return p->left_out;
@@ -302,9 +304,12 @@ static void picture_await_due(const Pictures *p)
 static uint32_t picture_made_for(Pictures *p, Platform *pf, uint32_t frame)
 {
     uint32_t making = cycles_now();
+    bool was_waiting = p->waiting;
     p->waiting = true;   /* until shown (picture_on_screen), where made ahead */
-    if (gba_video_make_ahead(pf, frame))
+    if (gba_video_make_ahead(pf, frame)) {
+        p->given_way += was_waiting;
         return cycles_now() - making;
+    }
     p->waiting = false;
     picture_await_due(p);
     uint32_t blank = cycles_now();
@@ -451,8 +456,10 @@ static void report(void *ctx)
         report_cycles(&run->game, run->frames);
         report_cycles(&run->sounds, run->frames);
         report_cycles(&run->picture, run->frames);
-        fprintf(stderr, "ct_gba: %u picture(s) shown, %u left out, the game's frame running late\n",
-                (unsigned)run->pictures.pictures_shown, (unsigned)run->pictures.pictures_left_out);
+        fprintf(stderr, "ct_gba: %u picture(s) shown, %u left out, the game's frame running late (%u with the "
+                        "last still waiting for its blank), %u made ahead and giving way to the next\n",
+                (unsigned)run->pictures.pictures_shown, (unsigned)run->pictures.pictures_left_out,
+                (unsigned)run->pictures.left_out_waiting, (unsigned)run->pictures.given_way);
         char held[16], awaited[16];
         gba_frames(held, sizeof held, run->clock.held);
         gba_frames(awaited, sizeof awaited, run->pictures.awaited);
