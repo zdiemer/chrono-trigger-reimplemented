@@ -3210,9 +3210,9 @@ accessors. Timed a part at a time, an ordinary battle picture took 16K
 cycles converting VRAM's changes, 18K the sprites and 58K the lines: a
 third of a GBA frame out of the next game frame's.
 
-Most of that touches nothing the GBA shows, so where the game frame ends
-before its blank the driver has it made then (`gba_video_prepare`,
-`services/video.c`, "The picture begun before the blank"): the sprites'
+Most of that touches nothing the GBA shows, so where the game frame ended
+before its blank the driver had it made then (since replaced by the picture
+made ahead of its blank, below): the sprites'
 tiles turned onto the page not shown, the sprites into the table kept
 aside, the lines into the changes and strengths the screen isn't reading
 (the strengths are now kept at two ends, as the changes are). The blank
@@ -3356,6 +3356,80 @@ attract's and the battles' window edges, a battle's cut panel. `run.py
 --own-time` finds the attract's 50 places.
 Reading a slot's units in place outside the stretches, a transfer at a
 time, cost more than the reads it spared (`gato-battle` 24,015).
+
+**Pictures made ahead of their blank** (issue #568). Sampled with the
+driver's part of the frame noted (`--fast-rom`), the GBA spent a fifth to
+over a third of its time waiting for a vertical blank: a picture's changes
+to what the screen shows had to be made in a blank, so after each game
+frame the driver waited for the next one, made the picture there and only
+then began the next frame, though the game ran below the GBA's time and had
+no reason to idle. Now a frame's picture is made as the frame ends
+(`gba_video_make_ahead`, `services/video.c`, "The picture made ahead of its
+blank") and the next frame begins at once; the line counter's interrupt at
+the next blank shows it. The lines, the sprites and the sprites' tiles were
+already made where the screen doesn't read them (above). What the screen
+does read waits aside: each 32 bytes of a map's units the game sent, of a
+cache's tiles it wrote again, and of each palette that changes (the
+palettes are now made only where the game wrote them, known from the
+colours its sends name), in a place of background VRAM that nothing has and
+no cache's next tiles reach, with where it goes; the interrupt copies them
+there before it shows the picture, and the places are given back before the
+next one is made. Work RAM holds only the list (64 places, 256 bytes). A
+picture not shown by the time the next is made gives way to it, what it put
+aside staying under what the next puts there, and the sprites' tiles then go
+onto the page the shown sprites still don't name. A layout, Mode 7's plane,
+mode 2's columns, copied columns and a drawn panel (whose memory the game
+writes where the screen reads it as the next frame goes on: the dialog's
+last row showed two dots to the side a GBA frame at a time) are made in the
+blank as before, and so is the rest of a picture whose places or list run
+out (a battle's caches leave few free) or whose lines need more of the
+change tables than the shown frame's leave.
+
+The driver now holds the game to the GBA's time itself (`Clock`,
+`system/main.c`), which the wait for each picture's blank did before: a
+frame begins no sooner than a GBA frame after the last, on the GBA's
+blanks, and at once where the game is behind, until it has caught up, at
+most a second of it. A picture is left out only where the game is behind:
+where the last one made ahead still waits for its blank, or where the last
+picture's making and this frame's game and sound take more than a GBA frame
+(never two in a row); where the game is ahead it is made in time the driver
+would hold the game back for. The report gives the pictures shown and the
+GBA frames spent holding the game back and waiting for blanks, and a frame's
+work filled now counts its own picture's making. Showing the picture from
+the interrupt took the interrupts' stack to 272 bytes in
+`events-jetbike-race` (main's 248 of 256): it is 320 now, the pacing counted
+outside the interrupt; `convert_cut_row` left fast RAM to make the room.
+
+With `--fast-rom`, main against this, each end state as ct_native's; the
+GBA's time spent waiting, sampled, and the share of game frames whose work
+fills one, two, three or more GBA frames:
+
+| Movie | Waiting | Speed | Pictures a second | 1 / 2 / 3 / 4+ GBA frames |
+|---|---|---|---|---|
+| `new-game` | 35% → 31% | 93.4% → 98.9% | 47.5 → 48.0 | 82.4 / 16.4 / 0.8 / 0.5% → 80.4 / 18.3 / 0.8 / 0.5% |
+| `gato-battle` | 21% → 16% | 90.0% → 95.3% | 42.8 → 42.2 | 77.4 / 19.3 / 2.6 / 0.7% → 71.4 / 25.4 / 2.5 / 0.6% |
+| `attract-demo` | 22% → 14% | 73.3% → 77.7% | 34.1 → 33.6 | 72.4 / 15.8 / 5.7 / 6.1% → 68.7 / 19.0 / 5.5 / 6.8% |
+| `events-jetbike-race` | 17% → 12% | 78.1% → 78.9% | 34.0 → 32.9 | 67.1 / 21.8 / 9.0 / 2.0% → 63.5 / 24.6 / 9.2 / 2.7% |
+
+What waiting is left is the game held to the GBA's time where it is ahead
+(`new-game` 825 GBA frames of 7,278, at the GBA's time now but for its
+loads) and the pictures still made in the blank (1,497, 1,974, 2,364 and
+1,338 GBA frames): mode 2's columns and Mode 7's plane, which read what
+VRAM's conversion writes, are the next to make ahead. The game's time went
+to the game rather than to more pictures: a picture made ahead costs about
+as much as one made in the blank, and where the game is behind the driver
+still leaves every other one out.
+
+A census of the seven movies finds 1,829 clusters against main's 2,326
+with the original colours and 1,732 against 2,096 with `port-style`'s,
+torn ones 29 and 26 against 41. The picture clusters that overlap none of
+main's are mostly one or two GBA frames: a menu list's page turn
+(`menus-sweep` 2734-2925) and battle frames main left out and this shows;
+the largest, five and six GBA frames, is the first frame of Magus's spell
+in the attract (4082 and 15134), held before a long frame, the fill's red
+over the whole of its window's region. `run.py --own-time` finds the
+attract's 50 places. Fast RAM keeps 792 bytes spare and work RAM is 504
+bytes above its floor.
 
 ## Scene map fills
 

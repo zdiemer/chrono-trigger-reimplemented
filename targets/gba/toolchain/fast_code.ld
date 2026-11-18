@@ -48,4 +48,3 @@
 *(.text.note_priorities .text.note_priorities.*)
 *(.text.convert_map_units .text.convert_map_units.*)
 *(.text.convert_map .text.convert_map.*)
-*(.text.convert_cut_row .text.convert_cut_row.*)

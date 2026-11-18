@@ -9,9 +9,10 @@
  * mGBA's debug log: the frames and lag frames run, a CRC-32 of work RAM and
  * save RAM (as ct_native --end-state writes them) and of save RAM alone, each
  * part's work a frame, and the memory it used. A frame of the game takes as
- * long as its work, which is what the run measures, and its picture is made
- * in the next vertical blank, or left out where the frame ran late
- * (Pictures, below). */
+ * long as its work, which is what the run measures, and begins at once
+ * where the game is behind the GBA's time (Clock, below); its picture is made
+ * as it ends and shown from the next vertical blank, made in that blank
+ * where it can't be made ahead, or left out (Pictures, below). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -218,38 +219,77 @@ static void count_mixing(Mixing *m, uint32_t cycles)
         m->most = cycles;
 }
 
-/* A frame's picture is due at the vertical blank a GBA frame after the last
- * picture's. A frame whose game and sound end past it has its picture left
- * out, and the next frame starts at once, so the game catches up on the
- * GBA's time; never two in a row, so the picture is never more than a frame
- * behind the game. What the game does doesn't depend on its picture: the
- * picture is made from the video memory the game's frames leave, and a
- * picture left out leaves its changes to the next. */
+/* The game's frames against the GBA's time: a game frame begins no sooner
+ * than a GBA frame after the last began, so the game never runs ahead of the
+ * GBA, and at once where it is behind, as after a frame that ran long, until
+ * it has caught up; it gives up catching up on more than MOST_BEHIND, a
+ * second. The
+ * frames' beginnings stay on the GBA's vertical blanks, a GBA frame apart
+ * from the first: a frame that has its picture made ahead (Pictures, below)
+ * then has it shown at the blank its next frame begins in. How long the
+ * driver held a frame back, for the report. */
+enum { MOST_BEHIND = 60 * GBA_FRAME_CYCLES };
 typedef struct {
-    uint32_t due;           /* cycles_now() at the vertical blank the next picture is due at */
-    bool left_out;          /* the last frame's picture */
+    uint32_t next;   /* cycles_now() where the next game frame may begin */
+    uint64_t held;
+} Clock;
+
+static bool behind_the_clock(const Clock *c) { return (int32_t)(cycles_now() - c->next) >= 0; }
+
+static void hold_to_the_clock(Clock *c)
+{
+    uint32_t now = cycles_now();
+    if ((int32_t)(c->next - now) > 0) {
+        while ((int32_t)(c->next - cycles_now()) > 0)
+            ;
+        c->held += c->next - now;
+    }
+    while ((int32_t)(now - c->next) > MOST_BEHIND)
+        c->next += GBA_FRAME_CYCLES;
+    c->next += GBA_FRAME_CYCLES;
+}
+
+/* A frame's picture is made as the frame ends, and shown from the next
+ * vertical blank (services/video.h, gba_video_make_ahead); a picture that
+ * can only be made in a blank waits for it (gba_video_present). Where the
+ * game is behind the GBA's time, one is left out, and the next frame begins
+ * at once, where the frame ends with the last one made ahead still waiting
+ * for its blank, or where the last picture's making and this frame's game
+ * and sound take more than a GBA frame, so that the game catches up; never
+ * two in a row, so the picture is never more than a frame behind the game.
+ * Where the game is ahead the picture is made in time the driver would hold
+ * the game back for. What the game does
+ * doesn't depend on its picture: the picture is made from the video memory
+ * the game's frames leave, and a picture left out leaves its changes to the
+ * next. How long the driver waited for blanks, for the report. */
+typedef struct {
+    volatile uint32_t due;     /* cycles_now() at the vertical blank a GBA frame after the last picture shown */
+    volatile bool waiting;     /* a picture made ahead, not shown yet */
+    bool left_out;             /* the last frame's picture */
+    uint32_t made;             /* cycles: the last frame's picture's making, 0 where it was left out */
     uint32_t pictures_left_out;
+    volatile uint32_t pictures_shown;
+    volatile uint32_t shown_blank, shown_frame;   /* the last shown: where its blank began, its game frame */
+    volatile bool unpaced;                        /* not counted in the pacing yet (pictures_paced) */
+    uint64_t awaited;
 } Pictures;
 
-static bool picture_left_out(Pictures *p, uint32_t now)
+static bool picture_left_out(Pictures *p, uint32_t game_and_sound, bool behind)
 {
-    p->left_out = !p->left_out && (int32_t)(now - p->due) > 0;
+    p->left_out = !p->left_out && behind && (p->waiting || p->made + game_and_sound > GBA_FRAME_CYCLES);
     if (p->left_out) {
         p->pictures_left_out++;
-        p->due += GBA_FRAME_CYCLES;
+        p->made = 0;
     }
     return p->left_out;
 }
 
-static void picture_shown(Pictures *p, uint32_t blank) { p->due = blank + GBA_FRAME_CYCLES; }
-
-/* A picture waits for the vertical blank it is due at, never the one the
- * last picture was shown in: a short frame that ended inside that blank
- * would otherwise show its picture in it too, so that the GBA never showed
- * the last one and the game ran a frame ahead of the GBA's time, two game
- * frames a GBA frame and then none. Half a GBA frame before the picture is
- * due is past the end of the last one's blank, which is under a third of a
- * frame long, wherever in it the last picture began. */
+/* A picture made in the blank waits for the one it is due at, never the
+ * one the last picture was shown in: a short frame that ended inside that
+ * blank would otherwise show its picture in it too, so that the GBA never
+ * showed the last one, and make two pictures for one shown. Half a GBA
+ * frame before the picture is due is past the end of the last one's blank,
+ * which is under a third of a frame long. */
 static void picture_await_due(const Pictures *p)
 {
     while ((int32_t)(cycles_now() - (p->due - GBA_FRAME_CYCLES / 2)) < 0)
@@ -257,33 +297,20 @@ static void picture_await_due(const Pictures *p)
     gba_video_await_blank();
 }
 
-/* The picture begun before its blank (services/video.h, gba_video_prepare)
- * where the frame leaves the time: what is made then is made in time the
- * GBA would have spent waiting, and what of it runs on into the blank would
- * have been made there anyway. But one that ran on past the blank's lines
- * would wait a GBA frame for the next, as the picture's changes to VRAM
- * must be made in a blank: so it is begun only where the time left before
- * the blank, and an eighth of a GBA frame of the blank's own, is as long as
- * the longest it has taken lately. How many were begun, and their cycles,
- * for the report. */
-typedef struct {
-    uint32_t longest;   /* cycles: the longest lately, a 128th less each frame */
-    uint32_t begun;
-    uint64_t cycles;
-} Begun;
-
-static uint32_t picture_begun(Begun *b, Platform *pf, const Pictures *p)
+/* The picture of the game's frame `frame` made, and the cycles it took
+ * here: ahead, or in the blank it is due at. */
+static uint32_t picture_made_for(Pictures *p, Platform *pf, uint32_t frame)
 {
-    uint32_t now = cycles_now();
-    b->longest -= b->longest / 128;
-    if ((int32_t)(p->due + GBA_FRAME_CYCLES / 8 - now) < (int32_t)b->longest || !gba_video_prepare(pf))
-        return 0;
-    uint32_t took = cycles_now() - now;
-    if (took > b->longest)
-        b->longest = took;
-    b->begun++;
-    b->cycles += took;
-    return took;
+    uint32_t making = cycles_now();
+    p->waiting = true;   /* until shown (picture_on_screen), where made ahead */
+    if (gba_video_make_ahead(pf, frame))
+        return cycles_now() - making;
+    p->waiting = false;
+    picture_await_due(p);
+    uint32_t blank = cycles_now();
+    p->awaited += blank - making;
+    gba_video_present(pf, frame);
+    return cycles_now() - blank;
 }
 
 /* The pictures' pacing as a player sees it: how many GBA frames apart each
@@ -332,18 +359,16 @@ static void picture_paced(Pacing *p, uint32_t blank, uint32_t frame)
 static void picture_made(Pacing *p, uint32_t cycles) { p->last_picture = cycles; }
 
 /* The steady state: how many GBA frames each game frame's work fills, its
- * game and sound and the picture made just before it, which takes the
- * start of the same GBA frame: one where it fits, two where it runs into
- * the next, and so on. */
+ * game, its sound and its picture's making: one where it fits, two where it
+ * runs into the next, and so on. */
 enum { FILLED = 4 };
 typedef struct {
-    uint32_t picture;         /* cycles: the picture made before this frame, 0 where it was left out */
     uint32_t count[FILLED];   /* 1, 2, 3, more */
 } Filled;
 
-static void frame_filled(Filled *f, uint32_t game_and_sound)
+static void frame_filled(Filled *f, uint32_t work)
 {
-    uint32_t frames = (f->picture + game_and_sound) / GBA_FRAME_CYCLES;
+    uint32_t frames = work / GBA_FRAME_CYCLES;
     f->count[frames < FILLED ? frames : FILLED - 1]++;
 }
 
@@ -377,13 +402,40 @@ typedef struct {
     GameState *g;
     Platform *pf;
     uint32_t frames;
+    Clock clock;
     Pictures pictures;
     Pacing pacing;
     Filled filled;
-    Begun begun;
     Cycles game, sounds, picture;
     Mixing mixing;
 } Run;
+
+static Run run = { .game = { .name = "game" }, .sounds = { .name = "sound" }, .picture = { .name = "picture" } };
+
+/* A picture goes on the screen, from the vertical blank's interrupt where
+ * it was made ahead: the runner told, and where the blank began noted for
+ * the pacing, which the driver counts outside the interrupt (pictures_paced):
+ * the interrupts' stack has no room for it. */
+static void picture_on_screen(uint32_t frame)
+{
+    drive_showing(frame);
+    uint32_t blank = cycles_now() - gba_video_lines_into_blank() * GBA_LINE_CYCLES;
+    run.pictures.due = blank + GBA_FRAME_CYCLES;
+    run.pictures.waiting = false;
+    run.pictures.pictures_shown++;
+    run.pictures.shown_blank = blank;
+    run.pictures.shown_frame = frame;
+    run.pictures.unpaced = true;
+}
+
+/* The picture shown since the driver last looked, counted in the pacing. */
+static void pictures_paced(void)
+{
+    if (!run.pictures.unpaced)
+        return;
+    run.pictures.unpaced = false;
+    picture_paced(&run.pacing, run.pictures.shown_blank, run.pictures.shown_frame);
+}
 
 static void report(void *ctx)
 {
@@ -399,14 +451,16 @@ static void report(void *ctx)
         report_cycles(&run->game, run->frames);
         report_cycles(&run->sounds, run->frames);
         report_cycles(&run->picture, run->frames);
-        fprintf(stderr, "ct_gba: %u picture(s) left out, the game's frame running late\n",
-                (unsigned)run->pictures.pictures_left_out);
+        fprintf(stderr, "ct_gba: %u picture(s) shown, %u left out, the game's frame running late\n",
+                (unsigned)run->pictures.pictures_shown, (unsigned)run->pictures.pictures_left_out);
+        char held[16], awaited[16];
+        gba_frames(held, sizeof held, run->clock.held);
+        gba_frames(awaited, sizeof awaited, run->pictures.awaited);
+        fprintf(stderr, "ct_gba: GBA frames waited: %s holding the game to the GBA's time, %s for blanks to make "
+                        "pictures in\n",
+                held, awaited);
         report_pacing(&run->pacing);
         report_filled(&run->filled);
-        char begun[16];
-        gba_frames(begun, sizeof begun, run->begun.begun ? run->begun.cycles / run->begun.begun : 0);
-        fprintf(stderr, "ct_gba: %u picture(s) begun before the blank, %s GBA frames there a picture\n",
-                (unsigned)run->begun.begun, begun);
         char mean[16], most[16];
         gba_frames(mean, sizeof mean, run->mixing.total / run->frames);
         gba_frames(most, sizeof most, run->mixing.most);
@@ -476,23 +530,23 @@ int main(void)
                   1);
     direct_sound_start(mixer_fill);
     bool driven = drive_open();
-    gba_video_tell_shown(drive_showing);
+    gba_video_tell_shown(picture_on_screen);
     fprintf(stderr, "ct_gba: playing, the pads from %s\n", driven ? "the runner" : "the keypad");
 
     /* Each frame's cycles: the game's, the sound driver's and the picture's,
      * and the mixing's, in whichever of them the playback's interrupt came. */
-    static Run run = { .game = { .name = "game" }, .sounds = { .name = "sound" }, .picture = { .name = "picture" } };
     run.g = g, run.pf = &pf;
-    run.begun.longest = GBA_FRAME_CYCLES / 2;
     static Keypad keypad;
     cycles_start();
     frames_start(driven);
     fprintf(stderr, "ct_gba: the game's frames decided by %s\n",
             frames_replayed() ? "the runner's decisions" : "the GBA's own time");
     gba_video_await_blank();
-    picture_shown(&run.pictures, cycles_now());
-    run.pacing.last_blank = cycles_now();
+    run.clock.next = cycles_now();
+    run.pictures.due = run.clock.next + GBA_FRAME_CYCLES;
+    run.pacing.last_blank = run.clock.next;
     for (;;) {
+        hold_to_the_clock(&run.clock);
         uint32_t pads = driven ? drive_next_pads(g, report, &run) : keypad_buttons(&keypad, keypad_held());
         in_host_set(&pf, 0, (uint16_t)pads);
         in_host_set(&pf, 1, (uint16_t)(pads >> 16));
@@ -504,25 +558,17 @@ int main(void)
         sound_native_frame(sound);
         uint32_t sound_done = cycles_now();
         frame_paced(&run.pacing, game_done - began, sound_done - game_done);
-        frame_filled(&run.filled, sound_done - began);
-        uint32_t picture = 0, begun = 0;
-        if (!picture_left_out(&run.pictures, sound_done)) {
-            begun = picture_begun(&run.begun, &pf, &run.pictures);
-            picture_await_due(&run.pictures);
-            /* where the blank began: a picture begun before it may have
-             * run on into it, and the next is due a GBA frame after its
-             * start, not after where this one's making began */
-            uint32_t making = cycles_now(), blank = making - gba_video_lines_into_blank() * GBA_LINE_CYCLES;
-            picture_shown(&run.pictures, blank);
-            picture_paced(&run.pacing, blank, run.frames + 1);
-            gba_video_present(&pf, run.frames + 1);
-            picture = cycles_now() - making;
+        pictures_paced();
+        uint32_t picture = 0;
+        if (!picture_left_out(&run.pictures, sound_done - began, behind_the_clock(&run.clock))) {
+            picture = run.pictures.made = picture_made_for(&run.pictures, &pf, run.frames + 1);
+            pictures_paced();
             picture_made(&run.pacing, picture);
         }
         count_cycles(&run.game, game_done - began);
         count_cycles(&run.sounds, sound_done - game_done);
-        count_cycles(&run.picture, begun + picture);
-        run.filled.picture = picture;   /* what was begun before the blank took no time from this frame */
+        count_cycles(&run.picture, picture);
+        frame_filled(&run.filled, sound_done - began + picture);
         count_mixing(&run.mixing, mixer_take_cycles());
         check_stacks();
         run.frames++;

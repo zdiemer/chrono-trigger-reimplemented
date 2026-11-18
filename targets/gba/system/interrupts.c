@@ -19,8 +19,11 @@ static void (*handlers[SOURCES])(void);
  * their room writes over (gba_interrupt_stacks_whole). How deep the
  * interrupts' goes depends on which handlers come inside which, so on the
  * frame's timing: 152 bytes at most in the movies, until faster pictures
- * took `menus-sweep` to 220, past the 192 it had. */
-enum { INTERRUPTS_STACK_BYTES = 256, NESTED_STACK_BYTES = 448 };
+ * took `menus-sweep` to 220, past the 192 it had, and the pictures made
+ * ahead of their blank, shown and their waiting writes copied from the
+ * line counter's interrupt, `events-jetbike-race` to 252, past the 256 it
+ * had less a margin. */
+enum { INTERRUPTS_STACK_BYTES = 320, NESTED_STACK_BYTES = 448 };
 static uint8_t interrupts_stack[INTERRUPTS_STACK_BYTES] __attribute__((section(".iwram_bss"), aligned(8)));
 static uint8_t nested_stack[NESTED_STACK_BYTES] __attribute__((section(".iwram_bss"), aligned(8)));
 

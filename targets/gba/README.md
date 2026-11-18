@@ -35,8 +35,11 @@ platform services' backends. Nothing here is included from `game/`.
 - `system/`: the driver and what the C library and the runtime need.
   - `main.c`: the driver. One frame of the game a turn of its loop, as
     ct_native's: the pads, `tm_host_frame`, the sound player's frame, then
-    the picture in the vertical blank, or none where the frame ran late
-    (never two frames in a row). Asked by a runner, it reports the frames and lag
+    the picture, made at once and shown from the next vertical blank (made
+    in the blank where it can't be made ahead), or none where the game is
+    behind and the frame ran late (never two frames in a row); a frame
+    begins no sooner than a GBA frame after the last, and at once where
+    the game is behind the GBA's time. Asked by a runner, it reports the frames and lag
     frames, a CRC-32 of work RAM and save RAM as `ct_native --end-state`
     writes them, each part's GBA frames of work a frame, the pictures'
     pacing (how many GBA frames apart they are, and the longest gaps), the arena and the
@@ -219,8 +222,10 @@ and with `--profile-spans SPAN` only in the game's frames that took SPAN GBA
 frames from their start to the next's (more than SPAN - 1): `2` samples the
 ordinary frames that run into a second GBA frame, apart from the loads.
 The program's report counts the GBA frames each game frame's work fills
-(its game, its sound and the picture made in the blank before it), and the
-pictures begun before their blank (`services/video.c`).
+(its game, its sound and its picture's making), the pictures shown and left
+out, and the GBA frames the driver held the game back to the GBA's time and
+waited for blanks to make pictures in (`services/video.c`, "The picture made
+ahead of its blank").
 
 CI builds the program (the
 `gba-arm-none-eabi` job); with no cartridge it doesn't play it.

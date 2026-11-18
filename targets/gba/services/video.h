@@ -10,18 +10,19 @@
 
 #include "platform/platform.h"
 
-/* The picture of the game's frame `frame` (counted from 1), made and put on
- * the screen, or from the next vertical blank where it was made too late
- * for this one. */
+/* The picture of the game's frame `frame` (counted from 1), made in the
+ * vertical blank and put on the screen, or from the next blank where it was
+ * made too late for this one. */
 void gba_video_present(Platform *pf, uint32_t frame);
-/* What of the next picture can be made before the vertical blank, without
- * touching what the GBA shows (services/video.c, "The picture begun before
- * the blank"): made where the frame's picture allows, and false where it is
- * made whole in the blank. Between the game's frame and the blank its
- * picture is shown from, with nothing changing the game's video between. */
-bool gba_video_prepare(Platform *pf);
-/* `shown` told the frame whose picture goes on the screen, as it goes on
- * (drive_showing). */
+/* The picture of the game's frame `frame` made at once, as the frame ends,
+ * without touching what the GBA shows, and put on the screen by the next
+ * vertical blank's interrupt (services/video.c, "The picture made ahead of
+ * its blank"); one made ahead and not shown yet gives way to it. False, and
+ * nothing made, where the picture can only be made in the blank
+ * (gba_video_present). */
+bool gba_video_make_ahead(Platform *pf, uint32_t frame);
+/* `shown` told the frame whose picture goes on the screen, as it goes on:
+ * from the vertical blank's interrupt where it was made ahead. */
 void gba_video_tell_shown(void (*shown)(uint32_t frame));
 /* Waits for the vertical blank, where the driver makes the picture. */
 void gba_video_await_blank(void);
