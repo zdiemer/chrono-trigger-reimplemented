@@ -160,8 +160,12 @@ static uint32_t end_state_crc(GameState *g)
 
 /* A part's cycles a frame over the run: the total, the heaviest, and a
  * histogram in quarters of a GBA frame (280,896 cycles) for its 99th
- * percentile, which needs no memory a frame. */
-enum { GBA_FRAME_CYCLES = 280896, GBA_LINE_CYCLES = 1232, BUCKET = GBA_FRAME_CYCLES / 4, BUCKETS = 256 };
+ * percentile, which needs no memory a frame. The histogram goes to 16 GBA
+ * frames, the heaviest frames in its last quarter: no part's 99th
+ * percentile has come near it (the largest, the jet bike race's picture,
+ * is under 2.5), and work RAM has the room for Mode 7's runs of lines
+ * (services/video.c) for it. */
+enum { GBA_FRAME_CYCLES = 280896, GBA_LINE_CYCLES = 1232, BUCKET = GBA_FRAME_CYCLES / 4, BUCKETS = 64 };
 typedef struct {
     const char *name;
     uint64_t total;
