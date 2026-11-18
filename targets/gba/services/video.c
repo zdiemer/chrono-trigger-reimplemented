@@ -1509,6 +1509,41 @@ static bool stands_in_front(unsigned n)
     return front > 0 || (!layers[n].own_map && (o == &mode2_order || !behind));
 }
 
+/* Whether a map a band shows cut (the battle's windows, cut to the view)
+ * stands in front of the sprites, by its own entries as stands_in_front
+ * decides for a layer: where more of its units have only entries in front
+ * than only behind, or on mode 1's third layer put in front, where any has
+ * one. Its layer's stand, made from the layer's other maps, isn't its own:
+ * in Magus's battle the third layer's second map, the candles' flames, is
+ * all behind, and the menu's text in the window stood behind the first
+ * layer's tiles there, the window's frame shown without its words
+ * (battle-menu-buttons frames 3632-3934). Decided at the layout, the map as
+ * it stands then: a band's cut maps are its windows, whose entries keep
+ * their priority as the words change. Kept by the GBA's screen block of the
+ * map's copy, a bit each: those of a cut map, and those of one in front. */
+static uint32_t cut_blocks, cut_blocks_in_front;
+
+static bool cut_map_stands_in_front(const LineMap *lm)
+{
+    const Word *words = (const Word *)snes.vram;
+    unsigned any_front = 0, front = 0, behind = 0;
+    for (uint32_t u = 0; u < lm->bytes; u += UNIT_BYTES) {
+        uint32_t any = 0, all = ~0u;
+        for (unsigned w = 0; w < UNIT_BYTES / 4; w++) {
+            uint32_t word = words[((lm->byte + u) & (VRAM_BYTES - 1)) / 4 + w];
+            any |= word, all &= word;
+        }
+        bool f = any & PRIORITY_BITS, b = (all & PRIORITY_BITS) != PRIORITY_BITS;
+        any_front += f;
+        front += f && !b;
+        behind += b && !f;
+    }
+    const Order *o = order_of_mode();
+    if (lm->layer == 2 && (o == &third_in_front_order || o == &mode2_order))
+        return any_front > 0;
+    return front > behind;
+}
+
 /* What each of the GBA's four layers shows: a SNES layer (NO_LAYER: none),
  * its tiles in front alone (`front`, a split layer's) or the rest, or in
  * mode 2 the columns its offsets move (`columns`, Mode 2's columns below),
@@ -1840,6 +1875,72 @@ static bool make_room_for_the_copies(unsigned screens, bool again)
     copy_room.made = true;
     strips.made = false;
     return true;
+}
+
+/* Room for the fill (The fill behind the added layers, below): a layer of
+ * one colour everywhere, a screen block whose every byte is the same nibble
+ * N twice. Each entry is then tile N*0x111 (its low ten bits) in palette N,
+ * and that tile is solid colour N of palette N, BG_PALETTE[17 N], where it
+ * lies in the screen block itself: one block is the map and its tile. A
+ * nibble of 8 to 15 names one of the 2bpp copies' palettes, whose colours past
+ * the fourth no tile uses. The screen blocks that hold such a tile for some
+ * char block and nibble are half of them. Made where a line first wants it,
+ * from places nothing has; a layout makes it again where it was, or else
+ * where there is room, if a line wanted it since the last, and gives it back
+ * if none did. */
+enum { FILL_FIRST_SHADE = 8, FILL_SHADES = 8, CHAR_BLOCK_BYTES = 0x4000, FILL_MARK = 0x8000 };
+typedef struct {
+    bool made, asked;
+    bool missed;      /* no room was found since the last layout */
+    uint8_t screen;   /* the GBA's screen block */
+    uint8_t shade;    /* the nibble N */
+} FillRoom;
+static FillRoom fill_room;
+static uint8_t fill_entry;   /* the fill's colour in the palette, 17 N, as the lines set it */
+
+/* The char block whose tile N*0x111 lies in screen block `screen`, for the
+ * nibble `shade`, or NO_BLOCK. */
+static uint8_t fill_char_block(unsigned screen, unsigned shade)
+{
+    uint32_t tile_byte = (shade * 0x111u & (CACHE_TILES - 1)) * 32u;
+    for (uint8_t block = 0; block < 4; block++)
+        if ((block * CHAR_BLOCK_BYTES + tile_byte) / SCREEN_BYTES == screen)
+            return block;
+    return NO_BLOCK;
+}
+
+/* The fill in screen block `screen` with nibble `shade`, where that holds
+ * its tile and the block is free: taken. */
+static bool place_the_fill(unsigned screen, unsigned shade)
+{
+    uint32_t first = screen * (SCREEN_BYTES / 32u);
+    if (fill_char_block(screen, shade) == NO_BLOCK || !room_at(first, SCREEN_BYTES / 32u))
+        return false;
+    take_room(first, SCREEN_BYTES / 32u);
+    fill_room.made = true;
+    fill_room.screen = (uint8_t)screen;
+    fill_room.shade = (uint8_t)shade;
+    return true;
+}
+
+static bool make_room_for_the_fill(bool again)
+{
+    bool kept = again && fill_room.made && place_the_fill(fill_room.screen, fill_room.shade);
+    if (!kept) {
+        fill_room.made = false;
+        for (int screen = (int)(VRAM_BYTES / SCREEN_BYTES) - 1; !fill_room.made && screen >= 0; screen--)
+            for (unsigned shade = FILL_FIRST_SHADE; !fill_room.made && shade < FILL_FIRST_SHADE + FILL_SHADES; shade++)
+                place_the_fill((unsigned)screen, shade);
+    }
+    fill_room.asked = false;
+    fill_room.missed = !fill_room.made;
+    fill_entry = (uint8_t)(fill_room.shade * 17u);
+    if (fill_room.made && !kept) {
+        uint32_t word = fill_room.shade * 0x11111111u;
+        for (uint32_t w = 0; w < SCREEN_BYTES / 4; w++)
+            BG_VRAM[fill_room.screen * (SCREEN_BYTES / 4u) + w] = word;
+    }
+    return fill_room.made;
 }
 
 /* ---- Mode 7 ----------------------------------------------------------------------------------------
@@ -2394,6 +2495,10 @@ static uint8_t lay_out(bool pruned, bool keeps_windows, uint16_t rest)
         make_room_for_the_copies(copy_room.screens, true);
     else
         copy_room = (CopyRoom){ 0 };
+    if (fill_room.asked && fill_room.made && !plane_room)
+        make_room_for_the_fill(true);
+    else
+        fill_room = (FillRoom){ 0 };
     copied.made = strips.made = false;   /* the maps and tiles they were made from may have moved */
     memset(front_block, NO_BLOCK, sizeof front_block);
     bool line_splits = line_splits_in_this_scene(had);
@@ -2408,17 +2513,26 @@ static uint8_t lay_out(bool pruned, bool keeps_windows, uint16_t rest)
         if (l->split && l->front_byte != NO_PLACE)
             front_block[l->map_byte / SCREEN_BYTES] = (uint8_t)(l->front_byte / SCREEN_BYTES);
     }
+    cut_blocks = cut_blocks_in_front = 0;
     for (unsigned m = 0; m < snes.line_map_count; m++) {
         LineMap *lm = &snes.line_maps[m];
-        if (lm->gba_byte == NO_PLACE || !layers[lm->layer].split)
+        if (lm->gba_byte == NO_PLACE)
             continue;
-        const Layer *owner = lm->shared ? map_layer(lm->byte) : NULL;
         if (lm->cut != NO_CUT) {
             /* a map cut has no copy of its tiles in front: all of it stands
-             * where the layer would stand not split */
-            if (stands_in_front(lm->layer))
-                front_block[lm->gba_byte / SCREEN_BYTES] = (uint8_t)(lm->gba_byte / SCREEN_BYTES);
-        } else if (owner && owner->split)
+             * where its own tiles do, on its layer's GBA layer of tiles
+             * behind (gba_controls), split or not; shown on both a split
+             * layer's, the copy over the other blended with nothing, and the
+             * battle's windows lost their shading */
+            cut_blocks |= 1u << lm->gba_byte / SCREEN_BYTES;
+            if (cut_map_stands_in_front(lm))
+                cut_blocks_in_front |= 1u << lm->gba_byte / SCREEN_BYTES;
+            continue;
+        }
+        if (!layers[lm->layer].split)
+            continue;
+        const Layer *owner = lm->shared ? map_layer(lm->byte) : NULL;
+        if (owner && owner->split)
             lm->front_byte = owner->front_byte;
         else if (!layers[lm->layer].own_map)
             low |= (uint16_t)(1u << m);   /* placed once the caches have kept their places */
@@ -4603,9 +4717,10 @@ static void fixed_shading(LineRegisters *r, const LineState *st)
  * colour. The GBA's blending adds as the SNES's does, each channel held at
  * 31, and halves as it does, rounding down, so the sum is the SNES's exactly,
  * any colour, not only a grey. Where the SNES's backdrop shows on such a
- * line, the GBA's shows the fixed colour rather than its own, even where the
- * colour window keeps the math off (math_in_region): the backdrop is one
- * colour a line. */
+ * line, the GBA's shows the fixed colour rather than its own: the backdrop is
+ * one colour a line. Where the colour window keeps the math off part of the
+ * line (math_in_region), a GBA layer free there takes the fixed colour's
+ * place (fill_behind_the_added), and the backdrop keeps its own. */
 static uint16_t layers_through_windows(const LineRegisters *r)
 {
     return (uint16_t)((r->winin | r->winin >> 8 | r->winout) & 0xF);
@@ -4673,6 +4788,49 @@ static bool add_by_blending(LineRegisters *r, const LineState *st)
     return true;
 }
 
+/* The fill behind the added layers. Where the colour window keeps the math
+ * to part of a line (math_windowed) that adds the fixed colour by blending
+ * with the backdrop (add_by_blending), the backdrop, one colour a line,
+ * showed the fixed colour outside the math too, where the SNES shows its
+ * own: Magus's spell in battle-menu-buttons, a ring of red, turned the
+ * battlefield's black corners red (issue #587). Where a GBA layer is free on
+ * the line (no region shows it: the battle's text layer, below its windows),
+ * it shows the fill (FillRoom) in the regions with the math alone, behind
+ * every other layer, as the blending's second target in the backdrop's
+ * place, and the backdrop shows its own colour. Inside the math the
+ * backdrop's dots show the fixed colour, as before. The fill's colour rides
+ * in the line's strength, which blending two targets doesn't use, marked
+ * (FILL_MARK), and the line sets it in the palette (set_line). */
+static void fill_behind_the_added(LineRegisters *r, const LineState *st)
+{
+    if ((r->bldcnt & (BLD_DARKEN | BLD_BACKDROP_SECOND)) != (BLD_ALPHA | BLD_BACKDROP_SECOND) || !math_windowed(st) ||
+        plane_room || (!fill_room.made && (fill_room.missed || !make_room_for_the_fill(false))))
+        return;
+    uint16_t through = layers_through_windows(r);
+    /* the highest-numbered layer free, which stands behind the others of its
+     * priority, where none of the last priority after it is shown */
+    int g = 3;
+    while (g >= 0 && ((through >> g & 1) || gba_layers[g].columns))
+        g--;
+    for (unsigned h = (unsigned)g + 1; g >= 0 && h < 4; h++)
+        if ((through >> h & 1) && (r->bgcnt[h] & 3) == 3)
+            return;
+    if (g < 0)
+        return;
+    fill_room.asked = true;
+    r->dispcnt |= (uint16_t)(DISPCNT_BG0 << g);
+    r->bgcnt[g] = (uint16_t)(fill_char_block(fill_room.screen, fill_room.shade) << 2 | BGCNT_4BPP |
+                             fill_room.screen << 8 | 3);
+    uint16_t *regions[] = { &r->winin, &r->winout };
+    for (unsigned k = 0; k < 2; k++)
+        for (unsigned shift = 0; shift < 16; shift += 8)
+            if (*regions[k] >> shift & WIN_EFFECTS)
+                *regions[k] |= (uint16_t)(1u << (g + shift));
+    r->bldcnt = (uint16_t)((r->bldcnt & ~BLD_BACKDROP_SECOND) | 1u << (g + 8));
+    r->bldy = (uint16_t)(r->backdrop | FILL_MARK);
+    r->backdrop = shown(backdrop(st));
+}
+
 /* The layers' scroll on a band's line of the GBA's screen, the SNES's line
  * shown `down` lines further down the GBA's than the GBA's own. A layer's
  * row on the SNES is its line's (the first shown is its line 1) and its
@@ -4709,7 +4867,12 @@ static void gba_controls(LineRegisters *r, const uint16_t controls[4], uint8_t d
             }
             control = (uint16_t)((control & ~0x1F00) | block << 8);
         }
-        r->bgcnt[g] = control | l->priority;
+        unsigned screen = control >> 8 & 31;
+        uint8_t priority = l->priority;
+        /* a cut map stands where its own tiles do (cut_map_stands_in_front) */
+        if (!l->front && !l->columns && (cut_blocks >> screen & 1))
+            priority = order->priority[l->source][cut_blocks_in_front >> screen & 1];
+        r->bgcnt[g] = control | priority;
     }
 }
 
@@ -5617,6 +5780,8 @@ static LineRegisters line_registers(const LineState *st, uint16_t layers_enabled
         third_layer_as_the_line_puts_it(&r, st);
     if (laid_out_mode == 2 && !mode7)
         show_moved_columns(&r, st, b, down, at);
+    if (!mode7)
+        fill_behind_the_added(&r, st);
     return r;
 }
 
@@ -5718,6 +5883,8 @@ __attribute__((target("arm"), section(".iwram"), long_call, noinline)) static vo
     BLDY = r->bldy;
     BLDALPHA = r->bldalpha;
     BG_PALETTE[0] = r->backdrop;
+    if (r->bldy & FILL_MARK)
+        BG_PALETTE[fill_entry] = r->bldy;   /* the fill's colour (fill_behind_the_added) */
 }
 
 /* The first line's plane and strength, and DMA armed to copy each next
@@ -6351,7 +6518,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
             bool cheap = count && !band_starts && !(touched & CHANGED_OTHER) &&
                          !((b->cut_dots || st.mode == 2 || split_wanted >> OVERLAY_SHIFT) && (touched & CHANGED_SCROLL)) &&
                          (st.mode == 7) == (shown.mode == 7) && !(st.mode == 7 && b->drawn) &&
-                         !((touched & CHANGED_MATH) && (sub_screens_own(&st) || sub_screens_own(&shown)));
+                         !((touched & CHANGED_MATH) && (sub_screens_own(&st) || sub_screens_own(&shown) ||
+                                                        (made_change(count - 1u)->bldy & FILL_MARK)));
             LineRegisters r;
             /* a Mode 7 line's plane is its own table's, no change's */
             if (touched && cheap && st.mode == 7 && (touched & (CHANGED_PLANE | CHANGED_SCROLL))) {
@@ -6382,6 +6550,8 @@ static uint8_t work_out_lines(const VidHost *v, LineState *st_out, uint16_t laye
                     const LineState *looks = line_looks(&st, b, layers_enabled, &drawn);
                     line_blending(&r, looks);
                     third_layer_as_the_line_puts_it(&r, looks);
+                    if (st.mode != 7)
+                        fill_behind_the_added(&r, looks);   /* one before it had none to take away */
                     shown.math = st.math;
                     shown.fixed_color = st.fixed_color;
                     /* the strength alone changed: a step, not a change */
