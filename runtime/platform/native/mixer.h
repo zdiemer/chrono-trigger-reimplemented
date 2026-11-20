@@ -32,10 +32,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "platform/voices.h"
+#include "platform/audio.h"
 
 enum {
-    MIXER_RATE = 32000,
+    MIXER_RATE = AU_SAMPLE_RATE,
     MIXER_OUT_FRAMES = 4096      /* frames kept until the host takes them */
 };
 
